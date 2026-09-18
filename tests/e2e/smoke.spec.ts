@@ -9,14 +9,14 @@ import { expect, test } from '@playwright/test';
  * and service worker are reachable, security headers are applied, and the page
  * has no automatically-detectable accessibility violations.
  *
- * It asserts nothing about travel search, because no travel search exists yet.
+ * Search behaviour lives in `search.spec.ts`; this file stays about the shell.
  */
 
 test.describe('application shell', () => {
   test('serves the home page with its main landmark', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Voyagr');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Find a complete trip');
     await expect(page.getByRole('main')).toBeVisible();
   });
 

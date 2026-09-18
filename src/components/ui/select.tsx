@@ -1,0 +1,97 @@
+import * as React from 'react';
+import { cn } from '@/lib/cn';
+
+/**
+ * Select.
+ *
+ * A native `<select>`, deliberately, where the rest of the system reaches for a
+ * Radix primitive. The search form is a plain GET form that must work before
+ * JavaScript arrives and on a bad connection, and Radix's Select is a
+ * JavaScript-driven listbox that renders nothing useful without it. The native
+ * control is not a hand-rolled one: it is the platform's, with the keyboard
+ * behaviour, typeahead and mobile pickers already correct.
+ *
+ * Reach for Radix Select when a control genuinely needs what the native one
+ * cannot do - rich option content, or an async-loaded list.
+ *
+ * Label, hint and error wiring mirrors `Field`, so the two look and behave the
+ * same in a form.
+ */
+
+export interface SelectOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'id'> {
+  label: string;
+  options: readonly SelectOption[];
+  hint?: string;
+  error?: string;
+  hideLabel?: boolean;
+}
+
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function Select(
+  { label, options, hint, error, hideLabel = false, className, required, ...props },
+  ref,
+) {
+  const id = React.useId();
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+
+  const describedBy =
+    [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className={cn('text-ink text-sm font-medium', hideLabel && 'sr-only')}>
+        {label}
+        {required ? (
+          <>
+            {' '}
+            <span aria-hidden="true" className="text-critical-500">
+              *
+            </span>
+            <span className="sr-only">(required)</span>
+          </>
+        ) : null}
+      </label>
+
+      <select
+        ref={ref}
+        id={id}
+        required={required}
+        aria-describedby={describedBy}
+        aria-invalid={error ? true : undefined}
+        className={cn(
+          'bg-surface-raised text-ink h-11 rounded-[--radius-control] border px-3 text-base',
+          'disabled:cursor-not-allowed disabled:opacity-70',
+          error ? 'border-critical-500' : 'border-border-strong',
+          className,
+        )}
+        {...props}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      {hint ? (
+        <p id={hintId} className="text-ink-muted text-sm">
+          {hint}
+        </p>
+      ) : null}
+
+      <p
+        id={errorId}
+        role="alert"
+        aria-live="polite"
+        className="text-critical-500 text-sm empty:hidden"
+      >
+        {error}
+      </p>
+    </div>
+  );
+});

@@ -78,7 +78,7 @@ Not included, deliberately: no food, activities or local-transport estimates on 
 would need per-destination cost-of-living data the project does not have, and a guessed line is
 worse than an absent one. `extraCosts` is the seam when that data arrives.
 
-### 1.2 Search UI and structured schema
+### 1.2 Search UI and structured schema ✅ complete
 
 _In plain words: build the screens where you say what you want and see the trips we found._
 
@@ -91,6 +91,34 @@ The search form, the results list, and a trip detail view.
   `deepLink`, never assembled in a component. Affiliate attribution (§24.4) is then a change to
   that builder, not to the results list.
 - **Done when:** a user can run a search and understand why the top result ranks first.
+
+**Delivered.** `src/search/schema.ts` (the structured schema), `src/booking/handoff.ts` (the
+outbound seam), `src/components/search/` and the search page at `/`. The foundation status page
+moved to `/status`.
+
+Decisions worth carrying forward:
+
+- **The search is a GET form, so a search is a URL.** Shareable, bookmarkable, reloadable, correct
+  with the back button, and working before any JavaScript arrives. A saved Travel Watch in 1.5
+  needs exactly those properties, so the query string is the structured request in transit.
+- **Native `<select>` and `<details>` rather than the Radix equivalents**, for the same reason.
+  These are platform controls, not hand-rolled ones, and they keep the whole flow usable without
+  JavaScript. Radix remains the answer for anything the platform does not provide.
+- **The hand-off seam is a trust boundary, not just an attribution seam.** A `deepLink` is a string
+  a provider gave us and it goes straight into an `href`, so anything that is not plain `http(s)`
+  is dropped and the offer renders without a booking button. §24.4 is an edit to one function.
+- **Warnings are above the fold, not inside a disclosure.** A No-Surprise warning the user has to
+  go looking for is not a warning.
+- **Confidence is a word, never a colour.** `Quoted` / `Estimated` / `Not included`, each with a
+  screen-reader prefix, and excluded costs get their own section saying the trip will cost more.
+- **The results heading counts what matched, not what is displayed.** The page shows the best ten;
+  saying "10 trips match" when 192 did would be a number the user could act on and we invented.
+
+Deliberately not built: a standalone trip detail route. A detail page that re-ran the search would
+show different prices than the list it was opened from, and one that did not would need a result
+cache that does not exist until 1.4 and 1.5. The detail _view_ is a disclosure inside the card, so
+the numbers cannot disagree. The shareable route arrives with persistence, which is also when 1.9
+has something durable to deep-link into.
 
 ### 1.3 Accounts and preferences
 

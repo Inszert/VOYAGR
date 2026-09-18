@@ -1,7 +1,7 @@
 # Progress
 
 **Last updated:** 2026-09-18
-**Stage:** Engineering foundation complete. Phase 1.1 complete; 1.2 next.
+**Stage:** Engineering foundation complete. Phase 1.1 and 1.2 complete; 1.3 next.
 
 ---
 
@@ -11,10 +11,10 @@ The repository holds a working, tested engineering foundation plus the first pro
 search engine. It builds, lints, typechecks, passes 283 unit and component tests and 26 end-to-end
 tests, and runs with **no database, no Redis, no provider credentials and no AI key**.
 
-A search can now be run end to end against the mock providers and returns ranked, costed,
-constrained trips. There is still no user interface for it, no live provider, no account, no
-booking, no monitoring loop and no notification pipeline. That is intentional — see
-`docs/implementation-plan.md`.
+A search can be run from the browser against the mock providers and returns ranked, costed,
+constrained trips that explain themselves. There is still no live provider, no account, no
+persistence, no monitoring loop and no notification pipeline, and nothing here books anything.
+That is intentional — see `docs/implementation-plan.md`.
 
 ---
 
@@ -61,6 +61,23 @@ ranked, costed, constrained trips.
   like news.
 - **Ineligible trips are returned, not discarded.** `nearMisses` carries every violation, so a
   search that finds nothing can explain what came close.
+
+### Search UI and structured schema — `src/search/schema.ts`, `src/components/search/` (Phase 1.2)
+
+The screens. A structured form at `/`, a results list, and a detail view inside each card.
+
+- **A search is a URL.** The form submits as a GET, so a search can be shared, bookmarked and
+  reloaded, the back button behaves, and the page works before JavaScript arrives. Native
+  `<select>` and `<details>` are used for the same reason — platform controls, not hand-rolled
+  ones. A saved watch in 1.5 needs the same properties.
+- **Structured input is the foundation.** `schema.ts` validates the form deterministically and
+  converts budgets to `Money` with `fromMajor`. The natural-language box in Phase 2 will fill this
+  schema in, never bypass it.
+- **One booking seam.** `src/booking/handoff.ts` builds every outbound link. It is also a trust
+  boundary: a provider's `deepLink` goes into an `href`, so anything that is not `http(s)` is
+  dropped rather than rendered.
+- **Estimates never look like quotes**, warnings sit in the card rather than behind a disclosure,
+  and excluded costs get a section that says the trip will cost more than the total shown.
 
 ### Provider architecture — `src/providers/`
 
@@ -120,9 +137,13 @@ clamp was removed and the two now-unused assumptions deleted rather than left as
 
 ## Not started
 
-Everything in `docs/implementation-plan.md` from Phase 1.2 onward: search UI, accounts, Postgres
-persistence, saved watches, workers, price history, deal detection, Web Push delivery, component
-swapping, and the first live provider.
+Everything in `docs/implementation-plan.md` from Phase 1.3 onward: accounts, Postgres persistence,
+saved watches, workers, price history, deal detection, Web Push delivery, component swapping, and
+the first live provider.
+
+Also absent by design: a standalone trip detail route. It would either re-run the search and show
+different prices than the list it was opened from, or need a result cache that arrives with 1.4
+and 1.5.
 
 Within the search engine specifically: a candidate carries no food, activities or local-transport
 estimate. Those need per-destination cost-of-living data the project does not have, and a guessed

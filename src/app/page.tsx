@@ -1,143 +1,102 @@
 import type { Metadata } from 'next';
-import { Badge, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui';
-import { getProviderRegistry } from '@/providers/registry';
-import { getCapabilities } from '@/lib/env';
+import { SearchForm } from '@/components/search/search-form';
+import { SearchResults } from '@/components/search/search-results';
+import { runSearch } from '@/search/orchestrator';
+import { parseSearchForm } from '@/search/schema';
+import { resolveDestinationNames } from '@/search/destination-names';
+import { isAppError } from '@/lib/errors';
+import { getLogger } from '@/lib/logger';
+import type { SearchFormErrors } from '@/search/schema';
+import type { SearchOutcome } from '@/search/types';
 
 /**
- * Foundation status page.
+ * Search page.
  *
- * Deliberately not a product screen. It reports what the engineering foundation
- * has wired up and which capabilities configuration currently enables, which is
- * genuinely useful while building and honest about the fact that no travel
- * search exists yet.
+ * The form submits as a GET, so a search is a URL: shareable, bookmarkable,
+ * reloadable, and correct with the back button. That also means the page is
+ * fully server-rendered and works before any JavaScript arrives.
  *
- * The Phase 1 search UI replaces this page.
+ * The page's job is to turn a query string into a `SearchRequest` and render
+ * what came back. It computes nothing: every figure on screen was produced by
+ * `src/core/` and carried here by `runSearch`.
  */
 
+const log = getLogger('app.search-page');
+
 export const metadata: Metadata = {
-  title: 'Foundation status',
+  title: 'Find a trip',
 };
 
-interface Subsystem {
-  readonly name: string;
-  readonly detail: string;
-  readonly state: 'ready' | 'mocked' | 'pending';
+/** A GET form always submits its text inputs, so `origins` marks a real search. */
+function wasSubmitted(params: Readonly<Record<string, string | undefined>>): boolean {
+  return typeof params.origins === 'string';
 }
 
-function stateBadge(state: Subsystem['state']) {
-  switch (state) {
-    case 'ready':
-      return (
-        <Badge tone="positive" srPrefix="Status">
-          Ready
-        </Badge>
-      );
-    case 'mocked':
-      return (
-        <Badge tone="caution" srPrefix="Status">
-          Mock
-        </Badge>
-      );
-    case 'pending':
-      return (
-        <Badge tone="neutral" srPrefix="Status">
-          Not configured
-        </Badge>
-      );
+/** Repeated query keys collapse to the first value; the form never sends them. */
+function firstValues(
+  params: Record<string, string | string[] | undefined>,
+): Record<string, string | undefined> {
+  const flat: Record<string, string | undefined> = {};
+
+  for (const [key, value] of Object.entries(params)) {
+    flat[key] = Array.isArray(value) ? value[0] : value;
   }
+
+  return flat;
 }
 
-export default function HomePage() {
-  const registry = getProviderRegistry();
-  const capabilities = getCapabilities();
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const values = firstValues(await searchParams);
 
-  const subsystems: Subsystem[] = [
-    {
-      name: 'Deterministic core',
-      detail: 'Money, true trip cost, hard constraints, usable time and scoring.',
-      state: 'ready',
-    },
-    {
-      name: 'Provider adapters',
-      detail: `Flights, hotels, weather, transfers and places behind interfaces. Active: ${registry.flights.metadata.displayName}.`,
-      state: registry.isFullyMocked() ? 'mocked' : 'ready',
-    },
-    {
-      name: 'AI abstraction',
-      detail: 'Model reasons and explains; it never produces a price or a total.',
-      state: capabilities.liveAi ? 'ready' : 'mocked',
-    },
-    {
-      name: 'Persistence',
-      detail: capabilities.database
-        ? 'PostgreSQL configured.'
-        : 'In-memory repositories; no database required yet.',
-      state: capabilities.database ? 'ready' : 'mocked',
-    },
-    {
-      name: 'Background jobs',
-      detail: capabilities.bullmq
-        ? 'BullMQ on Redis.'
-        : 'In-process queue driver; no Redis required yet.',
-      state: capabilities.bullmq ? 'ready' : 'mocked',
-    },
-    {
-      name: 'Web Push',
-      detail: capabilities.webPush
-        ? 'VAPID keys configured.'
-        : 'Service worker registered; VAPID keys not set.',
-      state: capabilities.webPush ? 'ready' : 'pending',
-    },
-  ];
+  let outcome: SearchOutcome | null = null;
+  let errors: SearchFormErrors = {};
+
+  if (wasSubmitted(values)) {
+    const parsed = parseSearchForm(values);
+
+    if (parsed.ok) {
+      try {
+        outcome = await runSearch({
+          ...parsed.value.request,
+          destinationNames: resolveDestinationNames(parsed.value.request.destinations),
+          // How many results a page should show is a presentation decision, so
+          // it is made here rather than in the engine's defaults. The engine
+          // still ranks everything, and the diagnostics still report how many
+          // actually matched.
+          limits: { maxResults: 10 },
+        });
+      } catch (error) {
+        // The planner rejects a profile that can describe no trip at all. Its
+        // public message is written for a user; anything else is not.
+        log.warn({ err: error }, 'search could not be run');
+        errors = {
+          form: isAppError(error)
+            ? error.publicMessage
+            : 'Something went wrong running that search.',
+        };
+      }
+    } else {
+      errors = parsed.error;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <h1 className="text-ink text-3xl font-semibold tracking-tight">
-          Voyagr engineering foundation
-        </h1>
-        <p className="text-ink-muted max-w-2xl text-base">
-          The scaffolding is in place: a deterministic trip core, provider adapters behind
-          interfaces, an AI abstraction with guardrails, and testing, security and CI baselines. No
-          product features are implemented yet.
+      <div>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Find a complete trip</h1>
+        <p className="text-ink-muted mt-2 max-w-2xl">
+          Flights, a hotel and the ride from the airport, priced together and ranked by what the
+          whole trip is worth to you — not by the cheapest headline fare.
         </p>
-      </section>
+      </div>
 
-      <section aria-labelledby="subsystems-heading" className="flex flex-col gap-4">
-        <h2 id="subsystems-heading" className="text-ink text-xl font-semibold">
-          Subsystems
-        </h2>
+      <SearchForm values={values} errors={errors} />
 
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {subsystems.map((subsystem) => (
-            <li key={subsystem.name}>
-              <Card as="article" className="h-full">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle level={3}>{subsystem.name}</CardTitle>
-                    {stateBadge(subsystem.state)}
-                  </div>
-                  <CardDescription>{subsystem.detail}</CardDescription>
-                </CardHeader>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-labelledby="next-heading" className="flex flex-col gap-3">
-        <h2 id="next-heading" className="text-ink text-xl font-semibold">
-          What comes next
-        </h2>
-        <p className="text-ink-muted max-w-2xl text-base">
-          Phase 1 builds the loop the product is judged on: a search becomes a saved Travel Watch,
-          workers keep refreshing it, and a materially better trip produces an alert. The plan is in{' '}
-          <code className="bg-surface-sunken rounded px-1.5 py-0.5 font-mono text-sm">
-            docs/implementation-plan.md
-          </code>
-          .
-        </p>
-      </section>
+      {outcome ? <SearchResults outcome={outcome} /> : null}
     </div>
   );
 }
