@@ -5,6 +5,9 @@ import { runSearch } from '@/search/orchestrator';
 import { getSearchCache } from '@/search/cache';
 import { parseSearchForm } from '@/search/schema';
 import { resolveDestinationNames } from '@/search/destination-names';
+import { getCurrentUser } from '@/auth/current-user';
+import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
+import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import type { SearchFormErrors } from '@/search/schema';
@@ -52,6 +55,13 @@ export default async function SearchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const values = firstValues(await searchParams);
+
+  // A signed-in user's saved preferences become the form's defaults. They are
+  // defaults and nothing more: they never filter results or override a field
+  // the user has actually filled in.
+  const user = await getCurrentUser();
+  const stored = user ? await getRepositories().preferences.find(user.id) : null;
+  const defaults = preferencesToFormDefaults(readExplicitPreferences(stored));
 
   let outcome: SearchOutcome | null = null;
   let resultAgeMs = 0;
@@ -102,7 +112,7 @@ export default async function SearchPage({
         </p>
       </div>
 
-      <SearchForm values={values} errors={errors} />
+      <SearchForm values={values} defaults={defaults} errors={errors} />
 
       {outcome ? <SearchResults outcome={outcome} resultAgeMs={resultAgeMs} /> : null}
     </div>

@@ -120,7 +120,7 @@ cache that does not exist until 1.4 and 1.5. The detail _view_ is a disclosure i
 the numbers cannot disagree. The shareable route arrives with persistence, which is also when 1.9
 has something durable to deep-link into.
 
-### 1.3 Accounts and preferences
+### 1.3 Accounts and preferences ✅ complete
 
 _In plain words: let people log in, and remember what each person likes._
 
@@ -131,6 +131,31 @@ inferred ones, so section 31.7's transparency requirement is possible at all.
   one plan is fine; hard-coding its limits instead of resolving them is not — §24.2 and §24.3
   would then be a rewrite rather than a new row.
 - **Done when:** a user can sign in, and preferences survive a restart.
+
+**Delivered.** `src/core/entitlements.ts`, `src/auth/`, `src/app/sign-in`, `/sign-up`, `/account`,
+and migration `0002_accounts.sql`.
+
+Decisions worth carrying forward:
+
+- **Email and password with server-side sessions**, chosen because it needs no identity provider,
+  no new dependency and no credentials in a config file — the same offline-by-default property
+  every other seam holds. It is an implementation, not a commitment: everything above
+  `AuthService` deals in `AuthenticatedUser` and a cookie, so OAuth later is a second way to make a
+  session, not a rewrite.
+- **The session cookie carries a token; the database stores only its SHA-256.** A dump of the
+  sessions table grants nobody a session.
+- **Sign-in never reveals whether an address is registered** — same message, same work, and a decoy
+  hash so the timing does not answer it either.
+- **Throttling is keyed on email _and_ client.** On email alone the lockout becomes a weapon:
+  anyone who knows your address could keep you out of your own account.
+- **Entitlements are resolved from the plan, never hard-coded.** The account page displays them by
+  resolving them, which is the same rule 1.5 and 1.6 will follow.
+- **Explicit and inferred preferences are separate fields**, so §31.7's "what do you believe about
+  me?" is answerable. The account page answers it with "nothing yet" rather than with silence.
+
+**The "survive a restart" half is not proven.** The in-memory backend loses every account when the
+process stops. What the end-to-end suite proves is the same round trip through the repository — a
+preference survives signing out, clearing cookies and signing back in. Real durability is 1.4.
 
 ### 1.4 Postgres persistence
 

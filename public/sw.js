@@ -19,7 +19,7 @@
  * so there is no extra build plumbing to reason about.
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const SHELL_CACHE = `voyagr-shell-${CACHE_VERSION}`;
 const ASSET_CACHE = `voyagr-assets-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline';
@@ -31,7 +31,22 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(SHELL_CACHE);
-      await cache.addAll(SHELL_URLS);
+
+      // Fetched without credentials, deliberately. `cache.addAll` sends cookies
+      // for a same-origin request, which would bake whoever happened to be
+      // signed in at install time into a shell shared by every visitor to this
+      // browser - and it would outlive their signing out. The offline page has
+      // nothing personal to show, so it is cached as a stranger would see it.
+      await Promise.all(
+        SHELL_URLS.map(async (url) => {
+          const response = await fetch(url, { credentials: 'omit', cache: 'reload' });
+          if (!response.ok) {
+            throw new Error(`Precache failed for ${url}: ${response.status}`);
+          }
+          await cache.put(url, response);
+        }),
+      );
+
       // Take over as soon as possible; the app shell has no legacy state.
       await self.skipWaiting();
     })(),

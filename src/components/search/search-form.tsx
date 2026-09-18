@@ -22,6 +22,13 @@ import {
 export interface SearchFormProps {
   /** Raw submitted values, echoed back so a rejected form keeps what was typed. */
   values: Readonly<Record<string, string | undefined>>;
+  /**
+   * The signed-in user's saved preferences, as form values.
+   *
+   * Sits between what was submitted and the system defaults: what you typed
+   * wins, then what you saved, then what we guessed for a stranger.
+   */
+  defaults?: Readonly<Record<string, string>>;
   errors?: SearchFormErrors;
 }
 
@@ -70,9 +77,20 @@ function Checkbox({
   );
 }
 
-export function SearchForm({ values, errors = {} }: SearchFormProps) {
-  const value = (name: string) => values[name] ?? SEARCH_FORM_DEFAULTS[name] ?? '';
-  const checked = (name: string) => values[name] === 'on' || values[name] === 'true';
+export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormProps) {
+  // A GET form always submits its text inputs, so this marks a real submission.
+  const submitted = typeof values.origins === 'string';
+
+  const value = (name: string) =>
+    values[name] ?? defaults[name] ?? SEARCH_FORM_DEFAULTS[name] ?? '';
+
+  // Once a form has been submitted its checkboxes are authoritative, including
+  // the ones left unticked. Falling back to a saved preference then would
+  // re-tick a box the user had just deliberately cleared.
+  const checked = (name: string) => {
+    const source = submitted ? values : { ...defaults, ...values };
+    return source[name] === 'on' || source[name] === 'true';
+  };
 
   return (
     <Card as="section" aria-labelledby="search-form-heading">

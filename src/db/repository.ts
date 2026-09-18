@@ -16,7 +16,60 @@ import type { IsoDateTime, SearchProfile } from '@/core/trip/types';
 export interface UserRecord {
   readonly id: string;
   readonly email: string;
+  /**
+   * The plan this user is on. Entitlements are resolved from it by
+   * `src/core/entitlements.ts` and never hard-coded at a call site, so a paid
+   * tier later is a new row rather than a rewrite (sections 24.2 and 24.3).
+   */
+  readonly plan: string;
   readonly createdAt: IsoDateTime;
+}
+
+/**
+ * A user's password material, kept in its own record.
+ *
+ * Separate from `UserRecord` on purpose: a user is fetched on every request and
+ * handed to feature code, and a password hash has no business travelling with
+ * it. Nothing outside `src/auth/` should ever need this repository.
+ */
+export interface UserCredentialRecord {
+  readonly userId: string;
+  /** Self-describing hash, including algorithm and parameters. Never logged. */
+  readonly passwordHash: string;
+  readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * A server-side session.
+ *
+ * The cookie carries a token; this stores only its SHA-256. A database leak
+ * then yields no usable sessions, which is the whole reason the raw token is
+ * not persisted.
+ */
+export interface SessionRecord {
+  readonly id: string;
+  readonly userId: string;
+  /** SHA-256 of the session token, hex encoded. Never the token itself. */
+  readonly tokenHash: string;
+  readonly createdAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+}
+
+/**
+ * What a user likes, with explicit and inferred kept apart.
+ *
+ * Section 31.7 requires the user to be able to see what the system believes
+ * about them and why. That is only possible if "you told us this" and "we
+ * guessed this" are never mixed into one blob, so they are two fields and it is
+ * a schema-level guarantee rather than a convention.
+ */
+export interface UserPreferencesRecord {
+  readonly userId: string;
+  /** Set deliberately by the user. Authoritative. */
+  readonly explicit: Readonly<Record<string, unknown>>;
+  /** Learned from behaviour. Advisory, always overridden by `explicit`. */
+  readonly inferred: Readonly<Record<string, unknown>>;
+  readonly updatedAt: IsoDateTime;
 }
 
 export interface TripSearchRecord {
@@ -87,8 +140,35 @@ export interface PushSubscriptionRecord {
 
 export interface UserRepository {
   findById(id: string): Promise<UserRecord | null>;
+  /** Case-insensitive: nobody registers twice by capitalising their email. */
   findByEmail(email: string): Promise<UserRecord | null>;
   create(input: Omit<UserRecord, 'createdAt'>): Promise<UserRecord>;
+  update(id: string, patch: Partial<Pick<UserRecord, 'plan'>>): Promise<UserRecord>;
+}
+
+export interface UserCredentialRepository {
+  findByUserId(userId: string): Promise<UserCredentialRecord | null>;
+  /** Insert or replace. Replacing is a password change. */
+  upsert(userId: string, passwordHash: string): Promise<UserCredentialRecord>;
+}
+
+export interface SessionRepository {
+  findByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
+  create(input: Omit<SessionRecord, 'createdAt'>): Promise<SessionRecord>;
+  delete(id: string): Promise<void>;
+  /** Every session for a user, for "sign out everywhere" and password changes. */
+  deleteForUser(userId: string): Promise<void>;
+  /** Housekeeping: drop everything already expired at `now`. */
+  deleteExpired(now: IsoDateTime): Promise<number>;
+}
+
+export interface UserPreferencesRepository {
+  find(userId: string): Promise<UserPreferencesRecord | null>;
+  /** Merges into the named side; the other is left untouched. */
+  save(
+    userId: string,
+    patch: { explicit?: Record<string, unknown>; inferred?: Record<string, unknown> },
+  ): Promise<UserPreferencesRecord>;
 }
 
 export interface TripSearchRepository {
@@ -140,6 +220,9 @@ export interface PushSubscriptionRepository {
 /** The complete persistence surface, handed to feature code as one object. */
 export interface Repositories {
   readonly users: UserRepository;
+  readonly credentials: UserCredentialRepository;
+  readonly sessions: SessionRepository;
+  readonly preferences: UserPreferencesRepository;
   readonly tripSearches: TripSearchRepository;
   readonly travelWatches: TravelWatchRepository;
   readonly priceHistory: PriceHistoryRepository;

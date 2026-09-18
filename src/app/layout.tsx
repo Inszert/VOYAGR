@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import Link from 'next/link';
 import { SkipLink } from '@/components/ui';
+import { AccountNav } from '@/components/auth/account-nav';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
 import './globals.css';
 
@@ -49,9 +51,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <div className="flex min-h-dvh flex-col">
           <header className="border-border bg-surface-raised border-b">
-            <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4">
-              <span className="text-ink text-lg font-semibold tracking-tight">Voyagr</span>
-              <span className="text-ink-muted text-sm">Engineering foundation</span>
+            <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-4">
+              <Link href="/" className="text-ink text-lg font-semibold tracking-tight">
+                Voyagr
+              </Link>
+              {/*
+                Rendered by a component that reads the session, so the layout
+                itself stays static and every page inherits the same navigation
+                without each one having to resolve the current user.
+              */}
+              <AccountNav />
             </div>
           </header>
 

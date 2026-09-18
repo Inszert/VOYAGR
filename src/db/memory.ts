@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type {
   NotificationRecord,
+  SessionRecord,
+  SessionRepository,
+  UserCredentialRecord,
+  UserCredentialRepository,
+  UserPreferencesRecord,
+  UserPreferencesRepository,
   NotificationRepository,
   PriceHistoryRepository,
   PriceObservationRecord,
@@ -56,6 +62,96 @@ class MemoryUserRepository implements UserRepository {
 
     const record: UserRecord = { ...input, createdAt: now() };
     this.byId.set(record.id, record);
+    return record;
+  }
+
+  async update(id: string, patch: Partial<Pick<UserRecord, 'plan'>>): Promise<UserRecord> {
+    const existing = this.byId.get(id);
+    if (!existing) {
+      throw new AppError('NOT_FOUND', `No user with id ${id}`);
+    }
+
+    const updated: UserRecord = { ...existing, ...patch };
+    this.byId.set(id, updated);
+    return updated;
+  }
+}
+
+class MemoryUserCredentialRepository implements UserCredentialRepository {
+  private readonly byUserId = new Map<string, UserCredentialRecord>();
+
+  async findByUserId(userId: string): Promise<UserCredentialRecord | null> {
+    return this.byUserId.get(userId) ?? null;
+  }
+
+  async upsert(userId: string, passwordHash: string): Promise<UserCredentialRecord> {
+    const record: UserCredentialRecord = { userId, passwordHash, updatedAt: now() };
+    this.byUserId.set(userId, record);
+    return record;
+  }
+}
+
+class MemorySessionRepository implements SessionRepository {
+  private readonly byId = new Map<string, SessionRecord>();
+
+  async findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
+    for (const session of this.byId.values()) {
+      if (session.tokenHash === tokenHash) return session;
+    }
+    return null;
+  }
+
+  async create(input: Omit<SessionRecord, 'createdAt'>): Promise<SessionRecord> {
+    const record: SessionRecord = { ...input, createdAt: now() };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    for (const [id, session] of this.byId) {
+      if (session.userId === userId) this.byId.delete(id);
+    }
+  }
+
+  async deleteExpired(nowIso: string): Promise<number> {
+    let removed = 0;
+    for (const [id, session] of this.byId) {
+      if (session.expiresAt <= nowIso) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+}
+
+class MemoryUserPreferencesRepository implements UserPreferencesRepository {
+  private readonly byUserId = new Map<string, UserPreferencesRecord>();
+
+  async find(userId: string): Promise<UserPreferencesRecord | null> {
+    return this.byUserId.get(userId) ?? null;
+  }
+
+  async save(
+    userId: string,
+    patch: { explicit?: Record<string, unknown>; inferred?: Record<string, unknown> },
+  ): Promise<UserPreferencesRecord> {
+    const existing = this.byUserId.get(userId);
+
+    // Each side merges independently. Saving a preference the user set must
+    // never quietly discard what the system inferred, or the reverse.
+    const record: UserPreferencesRecord = {
+      userId,
+      explicit: { ...(existing?.explicit ?? {}), ...(patch.explicit ?? {}) },
+      inferred: { ...(existing?.inferred ?? {}), ...(patch.inferred ?? {}) },
+      updatedAt: now(),
+    };
+
+    this.byUserId.set(userId, record);
     return record;
   }
 }
@@ -227,6 +323,9 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
 export function createMemoryRepositories(): Repositories {
   return {
     users: new MemoryUserRepository(),
+    credentials: new MemoryUserCredentialRepository(),
+    sessions: new MemorySessionRepository(),
+    preferences: new MemoryUserPreferencesRepository(),
     tripSearches: new MemoryTripSearchRepository(),
     travelWatches: new MemoryTravelWatchRepository(),
     priceHistory: new MemoryPriceHistoryRepository(),
