@@ -102,7 +102,7 @@
       "status": "WARN",
       "command": "npm audit --omit=dev --audit-level=high",
       "detail": "No high or critical advisories in production dependencies.",
-      "notes": "WARN rather than PASS because this was verified locally and CI has never run: no git remote is configured, so the workflow in .github/workflows/ci.yml is untested in a real runner."
+      "notes": "WARN rather than PASS because this was verified locally only. A git remote (origin) is now configured, but the workflow in .github/workflows/ci.yml has not yet run in a real runner."
     },
     {
       "id": "ci",
@@ -110,7 +110,7 @@
       "status": "WARN",
       "command": "n/a",
       "detail": ".github/workflows/ci.yml defines four jobs: quality, build, e2e and security. Syntax is valid and every command it invokes has been run successfully locally.",
-      "notes": "The workflow has never executed. No git remote exists, so GitHub Actions cannot run. This becomes PASS after the first green run."
+      "notes": "The workflow has never executed. A git remote (origin, github.com/Inszert/VOYAGR.git) is configured, so the blocker is now only that no push has triggered a run. This becomes PASS after the first green run."
     },
     {
       "id": "database",
@@ -149,7 +149,7 @@
       "name": "Manual change review",
       "status": "PASS",
       "command": "git status --short",
-      "detail": "All created and modified files inspected before completion. No existing file was deleted or overwritten; docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are untouched. Git history preserved; nothing committed."
+      "detail": "All created and modified files inspected before completion. No existing file was deleted or overwritten; docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are untouched. Git history preserved. The bootstrap was subsequently reviewed and committed as f9b7cba."
     }
   ],
   "knownIssues": [
@@ -179,15 +179,14 @@
     }
   ],
   "requiresUserAction": [
-    "Configure a git remote if CI should run; GitHub Actions cannot execute without one.",
+    "Push to origin so GitHub Actions runs for the first time; the workflow is still unproven in a real runner.",
     "Run 'npx playwright install chromium' on a network that can reach the Playwright CDN, to use bundled Chromium instead of local Chrome.",
     "Approve the Playwright MCP server in .mcp.json when prompted; project MCP servers are not enabled automatically.",
     "Decide the flight and hotel provider vendors before Phase 1.11.",
     "Decide the LLM vendor before AI explanations go live.",
     "Decide PostgreSQL hosting before Phase 1.4 and Redis hosting before Phase 1.6.",
     "Decide the deployment target.",
-    "Choose a licence; README records it as not yet chosen.",
-    "Review and commit the bootstrap; nothing was committed automatically."
+    "Choose a licence; README records it as not yet chosen."
   ],
   "commands": {
     "verifyAll": "npm run verify",
