@@ -30,7 +30,6 @@
       "Read(.env.*)",
       "Read(**/*.pem)",
       "Read(**/*.key)",
-      "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
       "Bash(npm publish:*)"
