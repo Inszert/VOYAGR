@@ -41,6 +41,7 @@ src/
   core/         Deterministic domain logic. Pure, no I/O, no clock, no randomness.
     money.ts    Integer money arithmetic.
     trip/       Cost, constraints, usable time, scoring, domain types.
+  search/       Search orchestration: plan the fan-out, assemble candidates, rank them.
   providers/    Travel data adapters behind interfaces. All mock today.
   ai/           AI abstraction + guardrails. Never import a vendor SDK elsewhere.
   db/           Repository interfaces + in-memory implementation + SQL migrations.
@@ -66,6 +67,14 @@ tests/e2e/      Playwright.
 - **SQL:** always parameterised. String interpolation into SQL is never acceptable.
 - **Mocks:** deterministic. Derive variation from a hash of the query, never `Math.random()` or
   `new Date()` — see `src/providers/fixtures/deterministic.ts`.
+- **Dates:** calendar dates are `YYYY-MM-DD` strings and are compared and advanced with
+  `src/core/dates.ts`. Never parse one into a `Date` for arithmetic — that reintroduces the
+  timezone drift those helpers exist to avoid.
+- **Fan-out:** every provider call in one operation goes through a single shared `Limiter` from
+  `src/lib/concurrency.ts`. One impatient user must not become a rate-limit outage. Wrap the leaf
+  call, never the fan-out around it — a task holding a slot while waiting for another deadlocks —
+  and never bound a nested fan-out by passing the same number to both levels, which permits its
+  square.
 
 ## Testing
 

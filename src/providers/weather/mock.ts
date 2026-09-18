@@ -1,6 +1,7 @@
 import type { WeatherOutlook } from '@/core/trip/types';
 import { ok } from '@/lib/result';
-import { addDays, deterministicSource, MOCK_OBSERVED_AT } from '../fixtures/deterministic';
+import { addDays } from '@/core/dates';
+import { deterministicSource, MOCK_OBSERVED_AT } from '../fixtures/deterministic';
 import { resolveDestination } from '../fixtures/destinations';
 import type {
   ProviderHealth,

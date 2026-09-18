@@ -1,18 +1,20 @@
 # Progress
 
 **Last updated:** 2026-09-18
-**Stage:** Engineering foundation complete. Phase 1 not started.
+**Stage:** Engineering foundation complete. Phase 1.1 complete; 1.2 next.
 
 ---
 
 ## Where things stand
 
-The repository now holds a working, tested engineering foundation. It builds, lints, typechecks,
-passes 195 unit and component tests and 26 end-to-end tests, and runs with **no database, no Redis,
-no provider credentials and no AI key**.
+The repository holds a working, tested engineering foundation plus the first product feature: the
+search engine. It builds, lints, typechecks, passes 283 unit and component tests and 26 end-to-end
+tests, and runs with **no database, no Redis, no provider credentials and no AI key**.
 
-No product feature exists. There is no travel search, no live provider, no booking, no monitoring
-loop and no notification pipeline. That is intentional — see `docs/implementation-plan.md`.
+A search can now be run end to end against the mock providers and returns ranked, costed,
+constrained trips. There is still no user interface for it, no live provider, no account, no
+booking, no monitoring loop and no notification pipeline. That is intentional — see
+`docs/implementation-plan.md`.
 
 ---
 
@@ -33,6 +35,32 @@ The part that carries the product's credibility. Pure, exhaustively tested.
 - **Usable vacation time** — real hours at the destination, not nights.
 - **Scoring** — weighted, style- and mode-aware, and explainable by construction: a test asserts the
   score equals the sum of its reported contributions.
+
+### Search orchestration — `src/search/` (Phase 1.1)
+
+The first product feature. `runSearch()` takes a `SearchProfile` and a destination list and returns
+ranked, costed, constrained trips.
+
+- **Planning is separate from execution.** `buildSearchPlan()` decides what will be asked of the
+  providers before anything is asked, and it is where the combinatorics stop. A profile allowing
+  165 date windows is sampled down to a bounded, evenly spread set — sampled rather than truncated,
+  so a flexible search does not quietly become a search of the first week. What was dropped is
+  reported, not hidden.
+- **Fan-out is bounded and shaped.** Weather and transfers are fetched once per destination rather
+  than once per trip; a destination with no flights costs no hotel call; and every provider call in
+  a search passes through one shared limiter. The limiter is a shared object rather than a number
+  handed to each fan-out precisely because the first version was the latter, and a nested fan-out
+  that applies the same number twice permits its square. The observed peak is reported in the
+  diagnostics and asserted in a test, so the bound is provable rather than merely intended.
+- **One provider failing degrades a search, never aborts it.** Each call is isolated and each
+  failure is recorded with its public message only, so the diagnostics are safe to return to a
+  client. An adapter that throws instead of returning a `Result` is handled identically.
+- **No number is produced here.** Assembly decides which candidates exist; `cost.ts`,
+  `constraints.ts` and `scoring.ts` decide what they are worth. Ranking is score, then price, then
+  id — the last tiebreak exists so two equal trips cannot swap places between refreshes and look
+  like news.
+- **Ineligible trips are returned, not discarded.** `nearMisses` carries every violation, so a
+  search that finds nothing can explain what came close.
 
 ### Provider architecture — `src/providers/`
 
@@ -92,9 +120,13 @@ clamp was removed and the two now-unused assumptions deleted rather than left as
 
 ## Not started
 
-Everything in `docs/implementation-plan.md` from Phase 1.1 onward: search orchestration, search UI,
-accounts, Postgres persistence, saved watches, workers, price history, deal detection, Web Push
-delivery, component swapping, and the first live provider.
+Everything in `docs/implementation-plan.md` from Phase 1.2 onward: search UI, accounts, Postgres
+persistence, saved watches, workers, price history, deal detection, Web Push delivery, component
+swapping, and the first live provider.
+
+Within the search engine specifically: a candidate carries no food, activities or local-transport
+estimate. Those need per-destination cost-of-living data the project does not have, and a guessed
+line would be worse than an absent one. `TripCandidate.extraCosts` is the seam.
 
 Also absent and noted in `docs/security.md`: authentication, rate limiting, CSRF protection, audit
 logging, a nonce-based CSP, and a data retention policy.

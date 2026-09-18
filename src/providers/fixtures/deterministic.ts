@@ -70,32 +70,6 @@ export function deterministicSource(seedInput: string): DeterministicSource {
   };
 }
 
-/** Add whole days to an ISO calendar date without timezone drift. */
-export function addDays(isoDate: string, days: number): string {
-  const [year, month, day] = isoDate.split('-').map(Number);
-
-  if (year === undefined || month === undefined || day === undefined) {
-    throw new TypeError(`Invalid ISO date: ${JSON.stringify(isoDate)}`);
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-
-  return date.toISOString().slice(0, 10);
-}
-
-/** Whole nights between two ISO calendar dates. */
-export function nightsBetween(checkIn: string, checkOut: string): number {
-  const start = Date.parse(`${checkIn}T00:00:00Z`);
-  const end = Date.parse(`${checkOut}T00:00:00Z`);
-
-  if (Number.isNaN(start) || Number.isNaN(end)) {
-    throw new TypeError(`Invalid date range: ${checkIn} to ${checkOut}`);
-  }
-
-  return Math.round((end - start) / 86_400_000);
-}
-
 /** Compose an ISO timestamp from a calendar date and a local hour/minute. */
 export function atTime(isoDate: string, hour: number, minute: number): string {
   const hh = String(hour).padStart(2, '0');

@@ -38,7 +38,7 @@ The goal is one loop, working reliably:
 
 Everything below serves that loop. Anything that does not is deferred.
 
-### 1.1 Search orchestration
+### 1.1 Search orchestration ✅ complete
 
 _In plain words: ask about flights, hotels, rides and weather all at once, then glue them into whole trips._
 
@@ -50,6 +50,33 @@ adapters concurrently; assemble `TripCandidate` combinations.
   search explodes quickly.
 - **Done when:** a search returns ranked, costed, constrained candidates from mocks, with one
   adapter deliberately failing and the search still returning results.
+
+**Delivered.** `src/search/` — `plan.ts` decides what will be asked before anything is asked,
+`assemble.ts` turns offers into candidates, `orchestrator.ts` runs the fan-out and hands every
+candidate to `src/core/` to be costed, checked and scored. `runSearch()` is the entry point.
+
+Decisions worth carrying forward:
+
+- **The plan is the bound.** Date windows are enumerated, then _sampled evenly_ rather than
+  truncated, so a flexible search stays flexible instead of quietly becoming a search of the first
+  week. Every limit is a hard ceiling, and `diagnostics.plan` reports what was dropped.
+- **Weather and transfers are fetched once per destination**, not once per trip. They answer a
+  question about the place, not about a departure date.
+- **A destination with no flights costs no hotel call.** The largest saving in the fan-out.
+- **Failures are recorded, never thrown.** `diagnostics.issues` carries each failure's public
+  message only, so the object is safe to return to a client. An adapter that throws instead of
+  returning a `Result` degrades the search exactly as a returned failure does.
+- **Ranking is stable.** Score, then price, then id. Without the last tiebreak two equal trips
+  could swap places between refreshes and look like news worth alerting on — which 1.8 would then
+  have to unlearn.
+- **Ineligible trips are returned as `nearMisses`** with every violation attached, so a search that
+  finds nothing can say what came close and why it did not qualify.
+- **A wrong-currency quote is dropped, not converted.** Inventing a rate here would put a wrong
+  number in front of a user.
+
+Not included, deliberately: no food, activities or local-transport estimates on a candidate. They
+would need per-destination cost-of-living data the project does not have, and a guessed line is
+worse than an absent one. `extraCosts` is the seam when that data arrives.
 
 ### 1.2 Search UI and structured schema
 
@@ -147,6 +174,92 @@ Swap a component and recalculate the total, usable time and score.
 
 - **Done when:** swapping a flight updates every derived figure consistently.
 
+### Live-provider readiness — the gate before 1.11
+
+_In plain words: before we plug in a real travel company's data, check that their service actually
+behaves the way our code already assumes it does._
+
+A validation task, not a build task. Nothing here integrates a provider; it establishes what must
+be true about a vendor before 1.11 is safe to start, and settles the assumptions in our own code
+that a mock can never falsify. **This does not reopen 1.1.** Phase 1.1 is complete and verified
+against deterministic mocks; this is the work that makes its bounds trustworthy against a live API.
+
+**Deterministic mocks remain the default for every unit and integration test.** Nothing in this
+task may make the suite require network access, credentials or a sandbox account. Recorded HTTP
+fixtures, where used, are committed artefacts replayed offline — they sit alongside the mocks, they
+do not replace them (sequencing rule 3).
+
+#### What 1.1 assumes that a live provider may not honour
+
+Found by reviewing the Phase 1.1 code against a live-provider contract. Each is a mock-invisible
+assumption, so each needs a deliberate check rather than a passing test.
+
+| Assumption in the code                                   | Why a mock cannot catch it                                                                                                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 6 concurrent provider calls is a safe pace               | The bound itself is now enforced by one shared limiter and asserted end to end, but the _number_ was chosen with no vendor in mind, and in-process mocks never make it cost anything |
+| `ProviderMetadata.rateLimitPerMinute` paces the search   | Declared on every adapter and read by nothing                                                                                                                                        |
+| One call returns every offer worth having (`maxResults`) | No cursor, page token or total count anywhere in the provider contracts                                                                                                              |
+| A failed call is simply a failed call                    | No retry or backoff at the provider boundary; only the queue has any                                                                                                                 |
+| `IsoDateTime` is "an instant in UTC"                     | `usable-time.ts` and `constraints.ts` read the hour straight out of the string as **local** time. The mock writes local-looking hours with a `Z`, so the contradiction never shows   |
+| A flight's baggage and self-transfer flags are known     | They are non-nullable booleans, so "the provider did not say" becomes a confident `false` — in the exact fields the No-Surprise check reads                                          |
+| A provider response is well-formed                       | Provider output is never schema-checked, although AI output is (`src/ai/guardrails.ts`)                                                                                              |
+| Every quote is current                                   | `observedAt` is recorded on every offer and its staleness is checked nowhere                                                                                                         |
+| Everything is quoted in one currency                     | There is no FX layer; a mixed-currency response yields zero results and one diagnostic, which reads to a user as "no trips found"                                                    |
+
+#### Vendor selection and commercial terms
+
+- Shortlist candidate flight and hotel vendors, and select one of each.
+- For each: confirm API capabilities against what the adapters actually need, then licensing,
+  pricing and quota tiers, required attribution, caching and display restrictions, and whether the
+  commercial terms permit our use — background polling for Travel Watch, and affiliate attribution
+  on the 1.2 hand-off seam (§24.4).
+- Record the answers. A term discovered after integration is a rewrite.
+
+#### Behaviour to verify against a sandbox or recorded fixtures
+
+- **Pagination** — cursors or offsets, page size caps, stability across pages, and whether
+  "cheapest first" survives paging. Decide what `maxResults` means once a provider paginates.
+- **Rate limits** — the real limit, how it is reported, whether it is per key, per endpoint or per
+  account, and what a breach returns.
+- **Retry** — which failures are retryable, whether `Retry-After` is sent and honoured, and what
+  backoff the vendor expects. Defined once, at the provider boundary.
+- **Timeouts** — that a live adapter honours `ProviderRequestOptions.signal` and `timeoutMs`, what
+  the vendor's own timeout is, and whether a search needs an overall deadline as well as a per-call
+  one.
+- **Malformed, partial, empty and stale responses** — a field missing, a null where a number is
+  typed, an empty result set, a success wrapping an error, a cached response past its validity.
+  Each needs a decided outcome: reject the offer, degrade it, or mark it unknown.
+- **Currency** — which currencies can be requested, whether the response honours the request, where
+  taxes and fees sit, and what happens to a response that mixes them.
+- **Timezone** — whether times are local, UTC or zoned, and reconcile that with `IsoDateTime`. The
+  contradiction listed above is settled here, not guessed at.
+- **Price freshness** — whether prices are cached, live or require revalidation before a click
+  through, the quoted validity window, and how that lands on `observedAt` and on what the user is
+  shown.
+
+#### Limits, budgets and observability
+
+- Re-run the Phase 1.1 bounds against the real thing: the default limits imply up to 8 flight and
+  48 hotel calls per search, a figure chosen with no vendor in mind.
+- Split the single global `providerConcurrency` into a per-provider budget derived from
+  `rateLimitPerMinute`, and give each search a call ceiling and a cost ceiling. The shared limiter
+  is the seam: one per provider rather than one per search.
+- Decide the per-provider observability required before go-live: call counts, latency percentiles,
+  error and timeout rates by code, quota consumed, and cost per search — enough to tell a degraded
+  search from a broken one without reading logs.
+
+#### Degradation policy
+
+1.1 degrades on a failed call. A live provider also fails in a way a mock does not: succeeding with
+incomplete data. Decide, per provider kind, what happens when a response arrives but is thin —
+which missing fields make an offer unusable, which merely make it an estimate, and what the user is
+told in each case. An offer silently downgraded is exactly the surprise §31.5 exists to prevent.
+
+- **Done when:** a vendor is chosen for flights and hotels with its terms recorded; every behaviour
+  above has a documented, tested answer backed by a sandbox run or a committed HTTP fixture; the
+  concurrency bound is proven under real latency rather than against instant mocks; per-provider
+  budgets and observability are specified; and the full suite still passes with no network access.
+
 ### 1.11 First live provider
 
 _In plain words: stop using pretend travel data and plug in one real flight source and one real hotel source._
@@ -154,6 +267,8 @@ _In plain words: stop using pretend travel data and plug in one real flight sour
 One flight source and one hotel source behind the existing adapters.
 
 - Nothing outside the adapter changes. That is the test of whether the abstraction was right.
+- Gated on the live-provider readiness task above. Starting this first means discovering a vendor's
+  pagination, rate limits and timezone conventions in production.
 - **Done when:** a live search returns normalised offers, and the mocks still work for tests.
 
 ---
@@ -276,7 +391,7 @@ integration:
 
 | Decision                          | Blocks                                                         |
 | --------------------------------- | -------------------------------------------------------------- |
-| Flight and hotel provider vendors | 1.11                                                           |
+| Flight and hotel provider vendors | Live-provider readiness, and 1.11 behind it                    |
 | LLM vendor                        | AI explanations going live                                     |
 | Postgres hosting (local/managed)  | 1.4                                                            |
 | Redis hosting                     | 1.6                                                            |

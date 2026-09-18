@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "engineering-foundation",
+  "stage": "phase-1.1-search-orchestration",
   "generatedAt": "2026-09-18",
   "overall": "PASS",
   "environment": {
@@ -42,13 +42,18 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "195 tests across 11 files, all passing.",
+      "detail": "286 tests across 16 files, all passing.",
       "breakdown": {
         "money": 28,
         "tripCost": 15,
         "constraints": 24,
         "usableTime": 13,
         "scoring": 18,
+        "dates": 17,
+        "concurrency": 6,
+        "searchPlan": 23,
+        "searchAssembly": 20,
+        "searchOrchestration": 26,
         "aiGuardrails": 19,
         "providers": 25,
         "queue": 9,
@@ -62,7 +67,7 @@
       "name": "Coverage",
       "status": "PASS",
       "command": "npm run test:coverage",
-      "detail": "Lines 66.92%, branches 86.61%, functions 81.60%. All above configured thresholds (60/70/60).",
+      "detail": "Lines 73.77%, branches 89.60%, functions 84.30%. All above configured thresholds (60/70/60).",
       "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly."
     },
     {
@@ -78,7 +83,7 @@
       "status": "PASS",
       "command": "npm run test:e2e",
       "detail": "26 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers.",
-      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download."
+      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The suite does not yet exercise search: Phase 1.1 ships an engine with no user interface, so it is covered by unit tests only. E2E coverage of search arrives with 1.2."
     },
     {
       "id": "accessibility",
@@ -150,6 +155,14 @@
       "status": "PASS",
       "command": "git status --short",
       "detail": "All created and modified files inspected before completion. No existing file was deleted or overwritten; docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are untouched. Git history preserved. The bootstrap was subsequently reviewed and committed as f9b7cba."
+    },
+    {
+      "id": "search-orchestration",
+      "name": "Search orchestration (Phase 1.1)",
+      "status": "PASS",
+      "command": "npm test",
+      "detail": "75 tests covering date arithmetic, the shared concurrency limiter, search planning, candidate assembly and orchestration. Asserted: a search returns ranked, costed, constrained candidates from mocks; each of the four adapters failing in turn degrades the result set rather than aborting the search; an adapter that throws instead of returning a Result is handled identically; a partially failing hotel provider loses only its own destination; results are deterministic across runs; every limit bounds the fan-out; the concurrency bound is reached but never exceeded across the whole nested fan-out, and tightening it changes the pace but not the answer; a wrong-currency quote is dropped rather than converted.",
+      "notes": "Verified against deterministic mocks only. Real provider latency, rate limiting, pagination and partial-response behaviour are untested, and the per-call timeout is unproven against a live API. Default limits imply up to 8 flight calls and 48 hotel calls per search, paced at 6 concurrent; that budget is a guess until a vendor is chosen. Covered by the live-provider readiness task in docs/implementation-plan.md."
     }
   ],
   "knownIssues": [
@@ -182,6 +195,7 @@
     "Push to origin so GitHub Actions runs for the first time; the workflow is still unproven in a real runner.",
     "Run 'npx playwright install chromium' on a network that can reach the Playwright CDN, to use bundled Chromium instead of local Chrome.",
     "Approve the Playwright MCP server in .mcp.json when prompted; project MCP servers are not enabled automatically.",
+    "Revisit the default search limits in src/search/types.ts against the chosen provider's rate limit and price list before Phase 1.11.",
     "Decide the flight and hotel provider vendors before Phase 1.11.",
     "Decide the LLM vendor before AI explanations go live.",
     "Decide PostgreSQL hosting before Phase 1.4 and Redis hosting before Phase 1.6.",

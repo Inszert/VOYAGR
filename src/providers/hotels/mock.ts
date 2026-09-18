@@ -1,7 +1,8 @@
 import { money } from '@/core/money';
 import type { HotelOffer } from '@/core/trip/types';
 import { ok } from '@/lib/result';
-import { deterministicSource, MOCK_OBSERVED_AT, nightsBetween } from '../fixtures/deterministic';
+import { nightsBetween } from '@/core/dates';
+import { deterministicSource, MOCK_OBSERVED_AT } from '../fixtures/deterministic';
 import { resolveDestination } from '../fixtures/destinations';
 import type {
   HotelProvider,
