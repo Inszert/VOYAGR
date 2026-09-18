@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+
+/*
+ * Voyagr design tokens.
+ *
+ * Tailwind v4 reads these as first-class theme values, so `bg-surface` and
+ * `text-ink-muted` work like built-in utilities. Components reference semantic
+ * names (surface, ink, brand) rather than raw colours, which is what lets dark
+ * mode be a token swap instead of a component rewrite.
+ *
+ * Contrast: every ink/surface pairing below meets WCAG 2.2 AA (4.5:1 for body
+ * text, 3:1 for large text and UI boundaries) in both schemes. Changing a value
+ * here means re-checking that pairing.
+ */
+@theme {
+  /* Brand: deep sea-blue, evoking travel without the usual saturated tech blue. */
+  --color-brand-50: oklch(0.97 0.02 220);
+  --color-brand-100: oklch(0.93 0.04 220);
+  --color-brand-200: oklch(0.86 0.07 220);
+  --color-brand-300: oklch(0.76 0.1 220);
+  --color-brand-400: oklch(0.66 0.13 224);
+  --color-brand-500: oklch(0.56 0.15 228);
+  --color-brand-600: oklch(0.47 0.14 232);
+  --color-brand-700: oklch(0.39 0.12 234);
+  --color-brand-800: oklch(0.31 0.09 236);
+  --color-brand-900: oklch(0.24 0.07 238);
+
+  /* Accent: warm sand, used sparingly for highlights and deal markers. */
+  --color-accent-300: oklch(0.85 0.11 75);
+  --color-accent-500: oklch(0.73 0.15 68);
+  --color-accent-700: oklch(0.55 0.13 60);
+
+  /* Status colours for cost confidence and alert severity. */
+  --color-positive-500: oklch(0.6 0.13 155);
+  --color-positive-700: oklch(0.45 0.11 155);
+  --color-caution-500: oklch(0.75 0.14 85);
+  --color-caution-700: oklch(0.52 0.12 75);
+  --color-critical-500: oklch(0.58 0.19 25);
+  --color-critical-700: oklch(0.46 0.17 25);
+
+  /*
+   * Ink for text sitting on a tinted status background (badges, callouts).
+   *
+   * These are separate tokens rather than the -700 ramp values because a tint
+   * that works on a light surface fails contrast on a dark one. They are
+   * redefined for the dark scheme below; the ramp values are not.
+   */
+  --color-brand-ink: oklch(0.31 0.09 236);
+  --color-positive-ink: oklch(0.45 0.11 155);
+  --color-caution-ink: oklch(0.45 0.11 75);
+  --color-critical-ink: oklch(0.46 0.17 25);
+
+  /* Semantic surfaces and ink, light scheme. Overridden for dark below. */
+  --color-surface: oklch(0.99 0.003 240);
+  --color-surface-raised: oklch(1 0 0);
+  --color-surface-sunken: oklch(0.96 0.006 240);
+  --color-border: oklch(0.88 0.008 240);
+  --color-border-strong: oklch(0.74 0.012 240);
+  --color-ink: oklch(0.22 0.015 250);
+  --color-ink-muted: oklch(0.46 0.014 250);
+  --color-ink-inverse: oklch(0.99 0.003 240);
+
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Tabular figures matter: prices in a comparison table must align. */
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
+/*
+ * Dark scheme.
+ *
+ * Follows the system preference. Surfaces lift rather than invert, so elevation
+ * still reads correctly, and ink stays above 4.5:1 on every surface.
+ */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-surface: oklch(0.19 0.015 250);
+    --color-surface-raised: oklch(0.24 0.016 250);
+    --color-surface-sunken: oklch(0.15 0.014 250);
+    --color-border: oklch(0.32 0.016 250);
+    --color-border-strong: oklch(0.48 0.018 250);
+    --color-ink: oklch(0.96 0.005 250);
+    --color-ink-muted: oklch(0.73 0.012 250);
+    --color-ink-inverse: oklch(0.19 0.015 250);
+
+    /* Status ink lightens so it clears 4.5:1 against a dark tinted chip. */
+    --color-brand-ink: oklch(0.84 0.08 225);
+    --color-positive-ink: oklch(0.84 0.13 155);
+    --color-caution-ink: oklch(0.87 0.13 85);
+    --color-critical-ink: oklch(0.8 0.13 25);
+  }
+}
+
+@layer base {
+  html {
+    /* Respect the user's choice rather than forcing smooth scroll on everyone. */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * A single, consistent focus indicator across every interactive element.
+   * `:focus-visible` rather than `:focus`, so pointer users are not shown a ring
+   * they did not ask for, while keyboard users always are.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /*
+   * Honour reduced-motion. Transitions are shortened rather than removed, so
+   * state changes remain perceptible without animating.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Windows high-contrast mode: keep boundaries visible when colour is dropped. */
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline: 2px solid CanvasText;
+    }
+  }
+}

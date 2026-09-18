@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR per ecosystem cluster keeps review manageable; a framework bump
+      # reviewed alongside an unrelated lint bump gets rubber-stamped.
+      next:
+        patterns: ['next', 'eslint-config-next', 'react', 'react-dom', '@types/react*']
+      testing:
+        patterns: ['vitest', '@vitest/*', '@testing-library/*', '@playwright/*', 'jsdom']
+      tooling:
+        patterns: ['eslint*', 'prettier*', 'typescript', '@types/node']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly

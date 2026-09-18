@@ -1,0 +1,202 @@
+{
+  "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
+  "project": "voyagr",
+  "stage": "engineering-foundation",
+  "generatedAt": "2026-09-18",
+  "overall": "PASS",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "node": "24.15.0",
+    "npm": "11.12.1",
+    "next": "16.3.5",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7",
+    "playwright": "1.63.0"
+  },
+  "categories": [
+    {
+      "id": "formatting",
+      "name": "Formatting",
+      "status": "PASS",
+      "command": "npm run format:check",
+      "detail": "Prettier reports all matched files conform.",
+      "notes": "docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are excluded from formatting as user-authored documents."
+    },
+    {
+      "id": "linting",
+      "name": "Linting",
+      "status": "PASS",
+      "command": "npm run lint",
+      "detail": "ESLint 9.39.5 flat config, next/core-web-vitals + next/typescript. Zero errors, zero warnings.",
+      "notes": "ESLint is pinned to the 9.x line. See knownIssues.eslint-major-pin."
+    },
+    {
+      "id": "typecheck",
+      "name": "Type checking",
+      "status": "PASS",
+      "command": "npm run typecheck",
+      "detail": "tsc --noEmit clean under strict mode with noUncheckedIndexedAccess enabled."
+    },
+    {
+      "id": "unit-tests",
+      "name": "Unit and component tests",
+      "status": "PASS",
+      "command": "npm test",
+      "detail": "195 tests across 11 files, all passing.",
+      "breakdown": {
+        "money": 28,
+        "tripCost": 15,
+        "constraints": 24,
+        "usableTime": 13,
+        "scoring": 18,
+        "aiGuardrails": 19,
+        "providers": 25,
+        "queue": 9,
+        "env": 13,
+        "errors": 13,
+        "designSystemComponents": 18
+      }
+    },
+    {
+      "id": "coverage",
+      "name": "Coverage",
+      "status": "PASS",
+      "command": "npm run test:coverage",
+      "detail": "Lines 66.92%, branches 86.61%, functions 81.60%. All above configured thresholds (60/70/60).",
+      "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly."
+    },
+    {
+      "id": "build",
+      "name": "Production build",
+      "status": "PASS",
+      "command": "npm run build",
+      "detail": "Next.js 16 production build succeeds. 4 static routes prerendered, /api/health dynamic."
+    },
+    {
+      "id": "e2e",
+      "name": "End-to-end smoke tests",
+      "status": "PASS",
+      "command": "npm run test:e2e",
+      "detail": "26 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers.",
+      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download."
+    },
+    {
+      "id": "accessibility",
+      "name": "Accessibility",
+      "status": "PASS",
+      "command": "npm run test:e2e",
+      "detail": "axe-core reports zero violations against wcag2a, wcag2aa, wcag21a and wcag21aa in both desktop and mobile viewports.",
+      "notes": "This check found and led to fixing a real dark-mode contrast failure in status badges (2.04:1 against a 4.5:1 requirement). axe is a floor, not proof of accessibility; manual keyboard and screen-reader testing has not been performed."
+    },
+    {
+      "id": "security-baseline",
+      "name": "Security baseline",
+      "status": "PASS",
+      "command": "npm run test:e2e",
+      "detail": "CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy and Permissions-Policy asserted present. X-Powered-By absent. Health endpoint asserted to contain no connection string or key-shaped value.",
+      "notes": "Baseline only. Authentication, rate limiting, CSRF protection and audit logging are not implemented. See docs/security.md section 9."
+    },
+    {
+      "id": "dependency-audit",
+      "name": "Dependency audit",
+      "status": "WARN",
+      "command": "npm audit --omit=dev --audit-level=high",
+      "detail": "No high or critical advisories in production dependencies.",
+      "notes": "WARN rather than PASS because this was verified locally and CI has never run: no git remote is configured, so the workflow in .github/workflows/ci.yml is untested in a real runner."
+    },
+    {
+      "id": "ci",
+      "name": "Continuous integration",
+      "status": "WARN",
+      "command": "n/a",
+      "detail": ".github/workflows/ci.yml defines four jobs: quality, build, e2e and security. Syntax is valid and every command it invokes has been run successfully locally.",
+      "notes": "The workflow has never executed. No git remote exists, so GitHub Actions cannot run. This becomes PASS after the first green run."
+    },
+    {
+      "id": "database",
+      "name": "Database layer",
+      "status": "WARN",
+      "command": "n/a",
+      "detail": "Repository interfaces defined and fully implemented in memory. Postgres schema written (src/db/migrations/0001_init.sql) with a migration runner.",
+      "notes": "The SQL has never been executed against a live PostgreSQL instance, and no Postgres implementation of the repositories exists yet. Intentional for this stage; verify when Phase 1.4 lands."
+    },
+    {
+      "id": "queue",
+      "name": "Background jobs",
+      "status": "WARN",
+      "command": "npm test",
+      "detail": "In-process driver fully implemented and tested: delays, retries with exponential backoff, deduplication, stats, deterministic drain.",
+      "notes": "The BullMQ driver is not implemented. Selecting it is a hard error rather than a silent fallback, which is verified by inspection but not by a test against real Redis."
+    },
+    {
+      "id": "ai-guardrails",
+      "name": "AI boundary",
+      "status": "PASS",
+      "command": "npm test",
+      "detail": "19 tests covering schema validation, cross-field rules, deterministic budget conversion, invented-figure detection and graceful degradation.",
+      "notes": "Verified against the deterministic mock provider only. No live model has been run through these guardrails; prompt-injection resistance is untested against a real LLM."
+    },
+    {
+      "id": "pwa",
+      "name": "PWA foundation",
+      "status": "WARN",
+      "command": "npm run test:e2e",
+      "detail": "Manifest valid and served, all three declared icons served as real PNGs, service worker served with a must-revalidate policy, offline page renders.",
+      "notes": "Service worker registration and runtime caching behaviour have not been exercised in a browser — the worker is disabled in development by design, and the E2E suite asserts the file is served rather than that it installs and caches. Install-to-homescreen and push delivery are untested."
+    },
+    {
+      "id": "manual-review",
+      "name": "Manual change review",
+      "status": "PASS",
+      "command": "git status --short",
+      "detail": "All created and modified files inspected before completion. No existing file was deleted or overwritten; docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are untouched. Git history preserved; nothing committed."
+    }
+  ],
+  "knownIssues": [
+    {
+      "id": "eslint-major-pin",
+      "severity": "low",
+      "summary": "ESLint pinned to the 9.x line, which upstream marks end-of-life.",
+      "cause": "eslint-config-next@16.3.5 bundles an eslint-plugin-react version that calls a context API removed in ESLint 10, producing 'contextOrFilename.getFilename is not a function'.",
+      "impact": "Development-only dependency; not in the production dependency tree.",
+      "resolution": "Upgrade when Next.js ships ESLint 10 support."
+    },
+    {
+      "id": "playwright-browser-download",
+      "severity": "low",
+      "summary": "Playwright's bundled Chromium and ffmpeg could not be downloaded in this environment.",
+      "cause": "The Playwright CDN was unreachable (repeated TLS timeouts).",
+      "impact": "None on assertions. The suite was verified against locally installed Chrome via PLAYWRIGHT_CHANNEL=chrome. Video capture is opt-in via PLAYWRIGHT_VIDEO=1 since it needs the missing ffmpeg.",
+      "resolution": "Run 'npx playwright install chromium' on a machine with CDN access. CI installs it normally."
+    },
+    {
+      "id": "csp-unsafe-inline",
+      "severity": "medium",
+      "summary": "Content-Security-Policy allows 'unsafe-inline' for scripts and styles.",
+      "cause": "Next.js streaming style and script injection currently requires it.",
+      "impact": "Weakens XSS mitigation.",
+      "resolution": "Move to a nonce-based CSP before handling payments or authenticated mutations."
+    }
+  ],
+  "requiresUserAction": [
+    "Configure a git remote if CI should run; GitHub Actions cannot execute without one.",
+    "Run 'npx playwright install chromium' on a network that can reach the Playwright CDN, to use bundled Chromium instead of local Chrome.",
+    "Approve the Playwright MCP server in .mcp.json when prompted; project MCP servers are not enabled automatically.",
+    "Decide the flight and hotel provider vendors before Phase 1.11.",
+    "Decide the LLM vendor before AI explanations go live.",
+    "Decide PostgreSQL hosting before Phase 1.4 and Redis hosting before Phase 1.6.",
+    "Decide the deployment target.",
+    "Choose a licence; README records it as not yet chosen.",
+    "Review and commit the bootstrap; nothing was committed automatically."
+  ],
+  "commands": {
+    "verifyAll": "npm run verify",
+    "format": "npm run format:check",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "test": "npm test",
+    "coverage": "npm run test:coverage",
+    "build": "npm run build",
+    "e2e": "npm run test:e2e"
+  }
+}

@@ -1,0 +1,66 @@
+# ---- dependencies ----
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ---- build output ----
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+
+# ---- environment & secrets ----
+# Never commit real credentials. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.vapid.json
+
+# ---- test & coverage output ----
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+playwright/.cache/
+.vitest-cache/
+
+# ---- caches & tooling ----
+.eslintcache
+.cache/
+.turbo/
+*.tsbuildinfo
+.vercel/
+
+# ---- local Claude Code state ----
+# Shared project config (.claude/settings.json, .claude/agents) IS tracked.
+.claude/settings.local.json
+.claude/state/
+.claude/logs/
+
+# ---- editors & OS ----
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+
+# ---- logs ----
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
