@@ -157,7 +157,7 @@ Decisions worth carrying forward:
 process stops. What the end-to-end suite proves is the same round trip through the repository — a
 preference survives signing out, clearing cookies and signing back in. Real durability is 1.4.
 
-### 1.4 Postgres persistence
+### 1.4 Postgres persistence ⚠️ written, unproven
 
 _In plain words: put everything in a real database so it is still there tomorrow._
 
@@ -165,6 +165,40 @@ Implement `Repositories` against Postgres. Apply `0001_init.sql`.
 
 - The in-memory implementation stays, and the test suite keeps using it.
 - **Done when:** the same repository tests pass against both backends.
+
+**Delivered.** `src/db/postgres.ts` implements every repository against the schema in
+`migrations/`, the factory selects it whenever `DATABASE_URL` is set, and
+`repository-contract.test.ts` is one suite run against every backend.
+
+**Not proven, and this is the honest status.** No PostgreSQL instance was reachable from the
+development machine — no Docker, no local server, and the read-only Postgres MCP refused its
+connection — so the Postgres half of the contract suite has never executed. The SQL is written and
+typechecked; it has never met a database. Until someone runs it, treat 1.4 as code review rather
+than as a passing test.
+
+To close it:
+
+```
+TEST_DATABASE_URL=postgresql://... npm run db:migrate
+TEST_DATABASE_URL=postgresql://... npm test
+```
+
+The suite skips the Postgres backend when that variable is absent, and the skip is reported as a
+skipped test rather than as silence, so nobody reads a green run as coverage it does not have.
+
+Decisions worth carrying forward:
+
+- **One contract suite, every backend.** Two implementations of an interface that are only ever
+  tested separately are two different interfaces wearing one name.
+- **`ON CONFLICT` rather than check-then-insert** for users and subscriptions: two simultaneous
+  sign-ups for one address both pass a check, and the loser fails on the constraint with an error
+  nobody wrote a message for.
+- **A patch that sets a value to null is not the same as a patch that omits it.** `bestKnownTotal`
+  is the case where COALESCE-everything would quietly do the wrong thing, so it carries an explicit
+  flag and a test.
+- **Money crosses the boundary as integer minor units**, parsed rather than assumed: `pg` returns
+  BIGINT as a string precisely so nobody loses precision, and a value that is not a safe integer
+  raises rather than rounds.
 
 ### 1.5 Saved searches and Travel Watches
 

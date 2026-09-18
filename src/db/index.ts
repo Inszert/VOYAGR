@@ -1,17 +1,19 @@
 import { getEnv } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import { createMemoryRepositories } from './memory';
+import { createPostgresRepositories } from './postgres';
 import type { Repositories } from './repository';
 
 /**
  * Repository factory.
  *
  * Selects a persistence backend from configuration. With `DATABASE_URL` unset -
- * the default for the foundation - this hands back in-memory repositories and
- * no database driver is ever loaded.
+ * still the default - this hands back in-memory repositories and no database
+ * driver is ever loaded. With it set, the Postgres implementation is used and
+ * nothing above this line changes, which was the point of the interface.
  *
- * A Postgres implementation slots in here once the schema in
- * `src/db/migrations/` is applied; nothing above this line changes.
+ * The in-memory backend is a development and test backend, never a production
+ * one: it loses everything when the process stops.
  */
 
 const log = getLogger('db.factory');
@@ -22,15 +24,15 @@ export function getRepositories(): Repositories {
   if (!repositories) {
     const env = getEnv();
 
-    if (env.DATABASE_URL) {
-      // A Postgres implementation of `Repositories` is the next step here. Until
-      // it exists, warn loudly rather than pretending the data is persistent.
-      log.warn(
-        'DATABASE_URL is set but the Postgres repositories are not implemented yet; using in-memory storage.',
-      );
+    repositories = env.DATABASE_URL ? createPostgresRepositories() : createMemoryRepositories();
+
+    if (!env.DATABASE_URL) {
+      // Said plainly on every boot. Silently running on memory in something
+      // that looks like production is how data disappears without anyone
+      // noticing until it matters.
+      log.warn('DATABASE_URL is not set; using in-memory storage, which is lost on restart.');
     }
 
-    repositories = createMemoryRepositories();
     log.info({ backend: repositories.backend }, 'repositories initialised');
   }
 
@@ -43,6 +45,7 @@ export function resetRepositories(): void {
 }
 
 export { createMemoryRepositories } from './memory';
+export { createPostgresRepositories } from './postgres';
 export * from './repository';
 export {
   checkDatabaseHealth,
