@@ -79,6 +79,25 @@ The screens. A structured form at `/`, a results list, and a detail view inside 
 - **Estimates never look like quotes**, warnings sit in the card rather than behind a disclosure,
   and excluded costs get a section that says the trip will cost more than the total shown.
 
+### Honesty fixes carried into the core
+
+Three things the search work exposed, fixed rather than deferred.
+
+- **A flight time is a `LocalDateTime`, not an instant.** The type claimed UTC while every reader
+  took the hour straight off the clock face, and the mock wrote local-looking hours with a `Z` so
+  the two errors cancelled. Flight times are now a distinct type that refuses a zone suffix, read
+  through one helper, with the reason written down: 23:40 in Antalya must read as 23:40 whether the
+  process runs in Vienna or a UTC CI box.
+- **A provider's silence is `null`, not `false`.** Baggage and self-transfer were non-nullable
+  booleans, so "the provider did not say" became a confident denial in exactly the fields the
+  No-Surprise check reads. Unknown is now its own case everywhere: it does not satisfy a hard
+  requirement, it raises a `needs_verification` warning instead of a false statement, it takes half
+  the scoring penalty rather than all or none, and it lowers the trip's data confidence.
+- **A reload no longer re-runs the search.** A five-minute page-level cache absorbs reloads,
+  duplicate tabs and back-navigation, collapses identical concurrent searches into one run, never
+  caches a failure, and reports the age of what it served. `runSearch` itself is not wrapped: a
+  Travel Watch refresh exists to find out whether the price moved.
+
 ### Provider architecture — `src/providers/`
 
 Adapter interfaces for flights, hotels, weather, transfers and places. Five deterministic mocks,

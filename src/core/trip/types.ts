@@ -11,8 +11,34 @@ import type { Money } from '../money';
 /** ISO 8601 calendar date, `YYYY-MM-DD`. No time, no zone. */
 export type IsoDate = string;
 
-/** ISO 8601 instant in UTC, `YYYY-MM-DDTHH:mm:ssZ`. */
+/**
+ * ISO 8601 instant in UTC, `YYYY-MM-DDTHH:mm:ssZ`.
+ *
+ * A real moment on the world's timeline. Use it for "when did we observe this",
+ * never for "when does the plane leave" - see `LocalDateTime`.
+ */
 export type IsoDateTime = string;
+
+/**
+ * Wall-clock date and time where the event happens, `YYYY-MM-DDTHH:mm:ss`.
+ *
+ * Deliberately *not* an instant and deliberately carrying no zone suffix. A
+ * flight departs at 06:10 local at its origin and lands at 09:45 local at its
+ * destination, which is how every airline and booking system publishes it, and
+ * it is the only form in which "the return flight leaves at an unholy hour" is
+ * a question that can be answered.
+ *
+ * Two consequences that make this the right type rather than a lazy one:
+ *
+ *  - Subtracting an arrival from a departure does **not** give a duration, and
+ *    `FlightLeg.durationMinutes` exists because of it. Nothing in the codebase
+ *    may compute a flight duration from these two fields.
+ *  - Turning one of these into a `Date` is a bug: `new Date('2026-06-10T23:40')`
+ *    is interpreted in the *server's* zone, which is neither the origin's nor
+ *    the destination's. Read the clock face with `minutesIntoLocalDay` from
+ *    `@/core/dates` instead.
+ */
+export type LocalDateTime = string;
 
 /** IATA airport code, e.g. `VIE`. */
 export type AirportCode = string;
@@ -61,8 +87,10 @@ export interface CostLine {
 export interface FlightSegment {
   readonly origin: AirportCode;
   readonly destination: AirportCode;
-  readonly departsAt: IsoDateTime;
-  readonly arrivesAt: IsoDateTime;
+  /** Local wall-clock time at `origin`. */
+  readonly departsAt: LocalDateTime;
+  /** Local wall-clock time at `destination`. */
+  readonly arrivesAt: LocalDateTime;
   readonly carrier: string;
   readonly flightNumber: string;
 }
@@ -71,13 +99,23 @@ export interface FlightLeg {
   readonly segments: readonly FlightSegment[];
   /** Total travel time in minutes, including connections. */
   readonly durationMinutes: number;
-  readonly cabinBaggageIncluded: boolean;
-  readonly checkedBaggageIncluded: boolean;
+  /*
+   * These three are `boolean | null` rather than `boolean`, and the null is the
+   * point. Not every provider reports a baggage allowance or says how a
+   * connection is ticketed, and a missing answer collapsed into `false` becomes
+   * a confident claim we never had grounds for - in exactly the fields the
+   * No-Surprise check reads. `null` means the provider did not say, and every
+   * engine treats that as its own case: unproven for a hard requirement,
+   * worth flagging in a warning, and a drag on data confidence in the score.
+   */
+  readonly cabinBaggageIncluded: boolean | null;
+  readonly checkedBaggageIncluded: boolean | null;
   /**
    * True when connections are sold on separate tickets, so a missed connection
-   * is the traveller's problem. A material risk flagged in section 31.5.
+   * is the traveller's problem. A material risk flagged in section 31.5, and
+   * the one where a silent `false` is most expensive.
    */
-  readonly selfTransfer: boolean;
+  readonly selfTransfer: boolean | null;
 }
 
 export interface FlightOffer {

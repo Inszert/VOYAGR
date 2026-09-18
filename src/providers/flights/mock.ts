@@ -1,7 +1,7 @@
 import { money } from '@/core/money';
 import type { FlightLeg, FlightOffer, FlightSegment } from '@/core/trip/types';
 import { ok } from '@/lib/result';
-import { atTime, deterministicSource, MOCK_OBSERVED_AT } from '../fixtures/deterministic';
+import { atLocalTime, deterministicSource, MOCK_OBSERVED_AT } from '../fixtures/deterministic';
 import { resolveDestination } from '../fixtures/destinations';
 import type {
   FlightProvider,
@@ -46,10 +46,14 @@ function buildSegment(
   return {
     origin,
     destination,
-    departsAt: atTime(date, departHour, departMinute),
+    departsAt: atLocalTime(date, departHour, departMinute),
     // Mock data never rolls past midnight, which keeps arrival-day arithmetic
     // in the usable-time engine simple to reason about in tests.
-    arrivesAt: atTime(date, Math.min(23, Math.floor(arrivesAtMinutes / 60)), arrivesAtMinutes % 60),
+    arrivesAt: atLocalTime(
+      date,
+      Math.min(23, Math.floor(arrivesAtMinutes / 60)),
+      arrivesAtMinutes % 60,
+    ),
     carrier: carrier.code,
     flightNumber: `${carrier.code}${flightNumber}`,
   };

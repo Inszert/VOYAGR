@@ -1,3 +1,4 @@
+import { minutesIntoLocalDay } from '../dates';
 import type { TripCandidate } from './types';
 
 /**
@@ -9,6 +10,11 @@ import type { TripCandidate } from './types';
  * compared, scored and explained.
  *
  * Pure arithmetic over timestamps. No provider calls, no model involvement.
+ *
+ * Every time read here is a `LocalDateTime` - the clock face at the airport
+ * concerned. That is the only frame in which "how much of the day is left after
+ * landing" means anything: converting a 23:40 Antalya arrival to UTC and asking
+ * what hour it is would answer a question nobody asked.
  */
 
 const MINUTES_PER_HOUR = 60;
@@ -58,18 +64,6 @@ export interface UsableTimeResult {
   readonly assumptions: UsableTimeAssumptions;
 }
 
-/** Minutes past local midnight, read from the timestamp without zone conversion. */
-function minutesIntoDay(isoDateTime: string): number {
-  const hours = Number.parseInt(isoDateTime.slice(11, 13), 10);
-  const minutes = Number.parseInt(isoDateTime.slice(14, 16), 10);
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    throw new TypeError(`Cannot read a local time from ${JSON.stringify(isoDateTime)}`);
-  }
-
-  return hours * MINUTES_PER_HOUR + minutes;
-}
-
 const usableWindowStart = USABLE_DAY_START_HOUR * MINUTES_PER_HOUR;
 const usableWindowEnd = USABLE_DAY_END_HOUR * MINUTES_PER_HOUR;
 const usableWindowLength = usableWindowEnd - usableWindowStart;
@@ -110,12 +104,12 @@ export function computeUsableTime(
   }
 
   // --- Arrival day --------------------------------------------------------
-  const landedAt = minutesIntoDay(arrivalSegment.arrivesAt);
+  const landedAt = minutesIntoLocalDay(arrivalSegment.arrivesAt);
   const settledAt = landedAt + assumptions.airportExitMinutes + assumptions.transferMinutes;
   const arrivalDayMinutes = usableMinutesBetween(settledAt, MINUTES_PER_DAY);
 
   // --- Departure day ------------------------------------------------------
-  const departsAt = minutesIntoDay(departureSegment.departsAt);
+  const departsAt = minutesIntoLocalDay(departureSegment.departsAt);
   const mustLeaveAt = departsAt - assumptions.checkInLeadMinutes - assumptions.transferMinutes;
   const departureDayMinutes = usableMinutesBetween(0, mustLeaveAt);
 

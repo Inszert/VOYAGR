@@ -1,0 +1,137 @@
+import { describe, expect, it, vi } from 'vitest';
+import { buildProfile } from '@/core/trip/test-support';
+import { SearchCache, searchCacheKey } from './cache';
+import type { SearchOutcome, SearchRequest } from './types';
+
+/**
+ * The cache exists to absorb reloads and duplicate tabs without pretending a
+ * stale price is a fresh one, so these tests are about what it may and may not
+ * reuse, and about what it admits when it does.
+ */
+
+const request: SearchRequest = { profile: buildProfile(), destinations: ['AYT'] };
+
+const outcome = (id: string) =>
+  ({
+    results: [],
+    nearMisses: [],
+    diagnostics: { providerCalls: 1, label: id },
+  }) as unknown as SearchOutcome;
+
+describe('searchCacheKey', () => {
+  it('is stable whatever order the request was built in', () => {
+    // Key order in an object literal varies by call site; the key must not.
+    const a = { profile: buildProfile(), destinations: ['AYT', 'CHQ'] } as SearchRequest;
+    const b = { destinations: ['AYT', 'CHQ'], profile: buildProfile() } as SearchRequest;
+
+    expect(searchCacheKey(a)).toBe(searchCacheKey(b));
+  });
+
+  it('changes when anything that changes the result changes', () => {
+    const base = searchCacheKey(request);
+
+    expect(searchCacheKey({ ...request, destinations: ['CHQ'] })).not.toBe(base);
+    expect(searchCacheKey({ ...request, profile: buildProfile({ passengers: 3 }) })).not.toBe(base);
+    expect(searchCacheKey({ ...request, limits: { maxResults: 3 } })).not.toBe(base);
+  });
+
+  it('distinguishes budgets by their minor units, not their formatting', () => {
+    const cheaper = buildProfile({ targetBudget: { amount: 64999, currency: 'EUR' } });
+    expect(searchCacheKey({ ...request, profile: cheaper })).not.toBe(searchCacheKey(request));
+  });
+});
+
+describe('SearchCache', () => {
+  it('runs once and reuses the result inside the TTL', async () => {
+    const cache = new SearchCache({ ttlMs: 1000, now: () => 0 });
+    const run = vi.fn(async () => outcome('first'));
+
+    const first = await cache.run(request, run);
+    const second = await cache.run(request, run);
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(first.hit).toBe(false);
+    expect(second.hit).toBe(true);
+    expect(second.outcome).toBe(first.outcome);
+  });
+
+  it('reports how old a reused result is, rather than passing it off as fresh', async () => {
+    let clock = 0;
+    const cache = new SearchCache({ ttlMs: 60_000, now: () => clock });
+
+    await cache.run(request, async () => outcome('first'));
+    clock = 30_000;
+    const reused = await cache.run(request, async () => outcome('second'));
+
+    expect(reused.hit).toBe(true);
+    expect(reused.ageMs).toBe(30_000);
+  });
+
+  it('runs again once the entry has expired', async () => {
+    let clock = 0;
+    const cache = new SearchCache({ ttlMs: 1000, now: () => clock });
+    const run = vi.fn(async () => outcome('x'));
+
+    await cache.run(request, run);
+    clock = 1001;
+    await cache.run(request, run);
+
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not serve one search from another search key', async () => {
+    const cache = new SearchCache({ now: () => 0 });
+    const run = vi.fn(async () => outcome('x'));
+
+    await cache.run(request, run);
+    await cache.run({ ...request, destinations: ['CHQ'] }, run);
+
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('collapses identical concurrent searches into one run', async () => {
+    // Two tabs opened at once is one provider call, not two.
+    const cache = new SearchCache({ now: () => 0 });
+    let started = 0;
+
+    const run = async () => {
+      started += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return outcome('shared');
+    };
+
+    const [a, b] = await Promise.all([cache.run(request, run), cache.run(request, run)]);
+
+    expect(started).toBe(1);
+    expect(a.outcome).toBe(b.outcome);
+  });
+
+  it('never caches a failure', async () => {
+    const cache = new SearchCache({ now: () => 0 });
+    let attempts = 0;
+
+    const failing = async (): Promise<SearchOutcome> => {
+      attempts += 1;
+      throw new Error('provider exploded');
+    };
+
+    await expect(cache.run(request, failing)).rejects.toThrow('provider exploded');
+    await expect(cache.run(request, failing)).rejects.toThrow('provider exploded');
+
+    // Replaying a failure for the rest of the TTL would turn a blip into an outage.
+    expect(attempts).toBe(2);
+    expect(cache.size).toBe(0);
+  });
+
+  it('stays bounded, discarding the least recently used entry', async () => {
+    const cache = new SearchCache({ maxEntries: 2, now: () => 0 });
+
+    for (const destination of ['AYT', 'CHQ', 'SPU']) {
+      await cache.run({ ...request, destinations: [destination] }, async () =>
+        outcome(destination),
+      );
+    }
+
+    expect(cache.size).toBe(2);
+  });
+});

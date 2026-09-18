@@ -70,6 +70,14 @@ tests/e2e/      Playwright.
 - **Dates:** calendar dates are `YYYY-MM-DD` strings and are compared and advanced with
   `src/core/dates.ts`. Never parse one into a `Date` for arithmetic — that reintroduces the
   timezone drift those helpers exist to avoid.
+- **Times:** an `IsoDateTime` is a real instant in UTC (`observedAt`). A `LocalDateTime` is the
+  clock face where the event happens (a flight's `departsAt`) and carries no zone. Read one with
+  `minutesIntoLocalDay`/`localHour`, never through `Date`, and never subtract two of them to get a
+  duration — that is what `FlightLeg.durationMinutes` is for.
+- **Unknowns:** a fact a provider did not state is `null`, never a default. `false` where the
+  provider said nothing is a claim we cannot support, and it lands in the fields the No-Surprise
+  check reads. Unknown gets its own branch: unproven for a hard requirement, a
+  `needs_verification` warning, half a scoring penalty, and lower data confidence.
 - **Fan-out:** every provider call in one operation goes through a single shared `Limiter` from
   `src/lib/concurrency.ts`. One impatient user must not become a rate-limit outage. Wrap the leaf
   call, never the fan-out around it — a task holding a slot while waiting for another deadlocks —

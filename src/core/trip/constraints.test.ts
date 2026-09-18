@@ -112,16 +112,16 @@ describe('explicit user requirements', () => {
         {
           origin: 'VIE',
           destination: 'IST',
-          departsAt: '2026-06-10T09:30:00Z',
-          arrivesAt: '2026-06-10T11:00:00Z',
+          departsAt: '2026-06-10T09:30:00',
+          arrivesAt: '2026-06-10T11:00:00',
           carrier: 'TK',
           flightNumber: 'TK1',
         },
         {
           origin: 'IST',
           destination: 'AYT',
-          departsAt: '2026-06-10T12:30:00Z',
-          arrivesAt: '2026-06-10T13:45:00Z',
+          departsAt: '2026-06-10T12:30:00',
+          arrivesAt: '2026-06-10T13:45:00',
           carrier: 'TK',
           flightNumber: 'TK2',
         },
@@ -235,8 +235,8 @@ describe('travel warnings', () => {
             {
               origin: 'VIE',
               destination: 'AYT',
-              departsAt: '2026-06-10T20:30:00Z',
-              arrivesAt: '2026-06-10T23:40:00Z',
+              departsAt: '2026-06-10T20:30:00',
+              arrivesAt: '2026-06-10T23:40:00',
               carrier: 'OS',
               flightNumber: 'OS431',
             },
@@ -264,5 +264,103 @@ describe('travel warnings', () => {
   it('stays quiet about a clean itinerary', () => {
     // A warning on every trip is a warning on no trip.
     expect(warn(buildCandidate())).toHaveLength(0);
+  });
+});
+
+describe('a provider that did not say', () => {
+  const unknownBaggage = () =>
+    buildCandidate({
+      flight: buildFlightOffer({
+        outbound: buildLeg({ checkedBaggageIncluded: null }),
+        inbound: buildLeg({ checkedBaggageIncluded: null }),
+      }),
+    });
+
+  it('does not treat an unstated allowance as a hard requirement met', () => {
+    // Showing this as a match would claim something we were never told.
+    const candidate = unknownBaggage();
+    const cost = costTripCandidate(candidate);
+    const result = evaluateEligibility(
+      candidate,
+      cost,
+      buildProfile({ requireCheckedBaggage: true }),
+    );
+
+    expect(result.eligible).toBe(false);
+    const violation = result.violations.find((v) => v.code === 'CHECKED_BAGGAGE_REQUIRED');
+    expect(violation?.message).toContain('did not state');
+    expect(violation?.detail?.confirmed).toBe(false);
+  });
+
+  it('distinguishes "not included" from "not stated"', () => {
+    const candidate = buildCandidate({
+      flight: buildFlightOffer({
+        outbound: buildLeg({ checkedBaggageIncluded: false }),
+        inbound: buildLeg({ checkedBaggageIncluded: false }),
+      }),
+    });
+    const result = evaluateEligibility(
+      candidate,
+      costTripCandidate(candidate),
+      buildProfile({ requireCheckedBaggage: true }),
+    );
+
+    const violation = result.violations.find((v) => v.code === 'CHECKED_BAGGAGE_REQUIRED');
+    expect(violation?.message).toContain('not included on both legs');
+    expect(violation?.detail?.confirmed).toBe(true);
+  });
+
+  it('treats one unstated leg as unstated for the whole trip', () => {
+    const candidate = buildCandidate({
+      flight: buildFlightOffer({
+        outbound: buildLeg({ checkedBaggageIncluded: true }),
+        inbound: buildLeg({ checkedBaggageIncluded: null }),
+      }),
+    });
+    const result = evaluateEligibility(
+      candidate,
+      costTripCandidate(candidate),
+      buildProfile({ requireCheckedBaggage: true }),
+    );
+
+    expect(result.violations.some((v) => v.code === 'CHECKED_BAGGAGE_REQUIRED')).toBe(true);
+  });
+
+  it('flags an unstated baggage allowance rather than asserting there is none', () => {
+    const candidate = unknownBaggage();
+    const warnings = detectTravelWarnings(candidate, costTripCandidate(candidate));
+
+    const warning = warnings.find((w) => w.code === 'BAGGAGE_ALLOWANCE_UNKNOWN');
+    expect(warning?.severity).toBe('needs_verification');
+    // The false statement the old code produced must not appear.
+    expect(warnings.some((w) => w.code === 'CABIN_BAGGAGE_ONLY')).toBe(false);
+  });
+
+  it('flags unstated connection ticketing instead of staying silent', () => {
+    // Silence is not safety: this is the surprise you discover at the gate.
+    const candidate = buildCandidate({
+      flight: buildFlightOffer({
+        outbound: buildLeg({ selfTransfer: null }),
+        inbound: buildLeg({ selfTransfer: null }),
+      }),
+    });
+
+    const warnings = detectTravelWarnings(candidate, costTripCandidate(candidate));
+
+    expect(warnings.find((w) => w.code === 'SELF_TRANSFER_UNKNOWN')?.severity).toBe(
+      'needs_verification',
+    );
+    expect(warnings.some((w) => w.code === 'SELF_TRANSFER_RISK')).toBe(false);
+  });
+
+  it('still reports a confirmed self-transfer as confirmed', () => {
+    const candidate = buildCandidate({
+      flight: buildFlightOffer({ outbound: buildLeg({ selfTransfer: true }) }),
+    });
+
+    const warnings = detectTravelWarnings(candidate, costTripCandidate(candidate));
+
+    expect(warnings.find((w) => w.code === 'SELF_TRANSFER_RISK')?.severity).toBe('confirmed');
+    expect(warnings.some((w) => w.code === 'SELF_TRANSFER_UNKNOWN')).toBe(false);
   });
 });

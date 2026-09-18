@@ -1,3 +1,4 @@
+import { localHour } from '../dates';
 import { greaterThan, subtract, type Money } from '../money';
 import type { TripCost } from './cost';
 import type { SearchProfile, TripCandidate } from './types';
@@ -47,6 +48,19 @@ export interface EligibilityResult {
    * reserve the user asked to keep back (section 31.6).
    */
   readonly discretionaryBudget: Money;
+}
+
+/**
+ * Combine a per-leg fact into a trip-level one.
+ *
+ * `false` beats `null` beats `true`: a confirmed absence on either leg settles
+ * it, and an unstated allowance on either leg leaves the trip unstated even if
+ * the other leg was explicit.
+ */
+function bothLegs(outbound: boolean | null, inbound: boolean | null): boolean | null {
+  if (outbound === false || inbound === false) return false;
+  if (outbound === null || inbound === null) return null;
+  return true;
 }
 
 function isDirect(candidate: TripCandidate): boolean {
@@ -153,17 +167,26 @@ export function evaluateEligibility(
     });
   }
 
-  if (
-    profile.requireCheckedBaggage &&
-    !(
-      candidate.flight.outbound.checkedBaggageIncluded &&
-      candidate.flight.inbound.checkedBaggageIncluded
-    )
-  ) {
-    violations.push({
-      code: 'CHECKED_BAGGAGE_REQUIRED',
-      message: 'Checked baggage was required, but it is not included on both legs.',
-    });
+  if (profile.requireCheckedBaggage) {
+    const included = bothLegs(
+      candidate.flight.outbound.checkedBaggageIncluded,
+      candidate.flight.inbound.checkedBaggageIncluded,
+    );
+
+    // Unknown is not a pass. A hard requirement we cannot show is met must not
+    // be reported as met - but the message says which of the two it is, because
+    // "the airline does not include it" and "the provider did not tell us" are
+    // different problems with different fixes.
+    if (included !== true) {
+      violations.push({
+        code: 'CHECKED_BAGGAGE_REQUIRED',
+        message:
+          included === false
+            ? 'Checked baggage was required, but it is not included on both legs.'
+            : 'Checked baggage was required, and this provider did not state the allowance.',
+        detail: { confirmed: included === false },
+      });
+    }
   }
 
   if (profile.requireFreeCancellation && !candidate.hotel.freeCancellation) {
@@ -227,7 +250,9 @@ export function evaluateEligibility(
  */
 export type TravelWarningCode =
   | 'SELF_TRANSFER_RISK'
+  | 'SELF_TRANSFER_UNKNOWN'
   | 'CABIN_BAGGAGE_ONLY'
+  | 'BAGGAGE_ALLOWANCE_UNKNOWN'
   | 'LATE_ARRIVAL'
   | 'EARLY_DEPARTURE'
   | 'LONG_TRANSFER'
@@ -251,35 +276,52 @@ const LONG_TRANSFER_MINUTES = 75;
 const ESTIMATE_HEAVY_THRESHOLD = 0.6;
 const LOW_WEATHER_CONFIDENCE = 0.5;
 
-/** Hour-of-day in the local timestamp string, without timezone conversion. */
-function hourOf(isoDateTime: string): number {
-  const hour = Number.parseInt(isoDateTime.slice(11, 13), 10);
-  return Number.isNaN(hour) ? -1 : hour;
-}
-
 export function detectTravelWarnings(candidate: TripCandidate, cost: TripCost): TravelWarning[] {
   const warnings: TravelWarning[] = [];
   const { outbound, inbound } = candidate.flight;
 
-  if (outbound.selfTransfer || inbound.selfTransfer) {
+  const selfTransfer = bothLegs(
+    outbound.selfTransfer === null ? null : !outbound.selfTransfer,
+    inbound.selfTransfer === null ? null : !inbound.selfTransfer,
+  );
+
+  if (selfTransfer === false) {
     warnings.push({
       code: 'SELF_TRANSFER_RISK',
       severity: 'confirmed',
       message:
         'Connections are booked on separate tickets. A missed connection is not protected by the airline.',
     });
+  } else if (selfTransfer === null) {
+    // Silence is not safety. The expensive version of this surprise is finding
+    // out at the gate, so an unstated answer is surfaced rather than assumed.
+    warnings.push({
+      code: 'SELF_TRANSFER_UNKNOWN',
+      severity: 'needs_verification',
+      message:
+        'This provider did not say whether the connections are on one ticket. Check before booking.',
+    });
   }
 
-  if (!outbound.checkedBaggageIncluded || !inbound.checkedBaggageIncluded) {
+  const checkedBaggage = bothLegs(outbound.checkedBaggageIncluded, inbound.checkedBaggageIncluded);
+
+  if (checkedBaggage === false) {
     warnings.push({
       code: 'CABIN_BAGGAGE_ONLY',
       severity: 'confirmed',
       message: 'Checked baggage is not included. Adding a bag will increase the total.',
     });
+  } else if (checkedBaggage === null) {
+    warnings.push({
+      code: 'BAGGAGE_ALLOWANCE_UNKNOWN',
+      severity: 'needs_verification',
+      message:
+        'This provider did not state the baggage allowance, so the total may not cover a bag.',
+    });
   }
 
   const arrivalSegment = outbound.segments.at(-1);
-  if (arrivalSegment && hourOf(arrivalSegment.arrivesAt) >= LATE_ARRIVAL_HOUR) {
+  if (arrivalSegment && localHour(arrivalSegment.arrivesAt) >= LATE_ARRIVAL_HOUR) {
     warnings.push({
       code: 'LATE_ARRIVAL',
       severity: 'confirmed',
@@ -289,7 +331,7 @@ export function detectTravelWarnings(candidate: TripCandidate, cost: TripCost): 
   }
 
   const departureSegment = inbound.segments[0];
-  if (departureSegment && hourOf(departureSegment.departsAt) < EARLY_DEPARTURE_HOUR) {
+  if (departureSegment && localHour(departureSegment.departsAt) < EARLY_DEPARTURE_HOUR) {
     warnings.push({
       code: 'EARLY_DEPARTURE',
       severity: 'confirmed',

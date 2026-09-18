@@ -1,4 +1,4 @@
-import type { IsoDate } from './trip/types';
+import type { IsoDate, LocalDateTime } from './trip/types';
 
 /**
  * Calendar-date arithmetic.
@@ -92,4 +92,64 @@ export function clampDate(value: IsoDate, min: IsoDate, max: IsoDate): IsoDate {
   if (isBefore(value, min)) return min;
   if (isAfter(value, max)) return max;
   return value;
+}
+
+// --- Local wall-clock times -------------------------------------------------
+
+const LOCAL_DATE_TIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+/**
+ * True for a `LocalDateTime`: a wall-clock date and time with no zone.
+ *
+ * A trailing `Z` or an offset is rejected rather than tolerated. A flight time
+ * that claims to be UTC is the exact confusion this type exists to end, and
+ * accepting it here would let it back in through the door it was shown out of.
+ */
+export function isLocalDateTime(value: string): boolean {
+  const match = LOCAL_DATE_TIME_PATTERN.exec(value);
+  if (!match) return false;
+
+  const [, datePart, hours, minutes, seconds] = match as unknown as [
+    string,
+    string,
+    string,
+    string,
+    string | undefined,
+  ];
+
+  if (!isIsoDate(datePart)) return false;
+  if (Number(hours) > 23 || Number(minutes) > 59) return false;
+  if (seconds !== undefined && Number(seconds) > 59) return false;
+
+  return true;
+}
+
+/**
+ * Minutes past local midnight.
+ *
+ * Reads the clock face out of the string. Deliberately not via `Date`, which
+ * would resolve the time in whatever zone the server happens to run in - a
+ * 23:40 arrival in Antalya must read as 23:40 whether the process is in Vienna,
+ * London or a CI runner set to UTC.
+ */
+export function minutesIntoLocalDay(value: LocalDateTime): number {
+  if (!isLocalDateTime(value)) {
+    throw new DateRangeError(`Not a local wall-clock date-time: ${JSON.stringify(value)}`);
+  }
+
+  return Number(value.slice(11, 13)) * 60 + Number(value.slice(14, 16));
+}
+
+/** Hour of the local day, 0-23. */
+export function localHour(value: LocalDateTime): number {
+  return Math.floor(minutesIntoLocalDay(value) / 60);
+}
+
+/** The calendar date part of a local date-time. */
+export function localDate(value: LocalDateTime): IsoDate {
+  if (!isLocalDateTime(value)) {
+    throw new DateRangeError(`Not a local wall-clock date-time: ${JSON.stringify(value)}`);
+  }
+
+  return value.slice(0, 10);
 }

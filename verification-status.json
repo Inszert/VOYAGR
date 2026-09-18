@@ -42,18 +42,18 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "333 tests across 19 files, all passing.",
+      "detail": "366 tests across 20 files, all passing.",
       "breakdown": {
         "money": 28,
-        "tripCost": 15,
-        "constraints": 24,
+        "tripCost": 19,
+        "constraints": 30,
         "usableTime": 13,
-        "scoring": 18,
-        "dates": 17,
+        "scoring": 22,
+        "dates": 22,
         "concurrency": 6,
         "searchPlan": 23,
         "searchAssembly": 20,
-        "searchOrchestration": 26,
+        "searchOrchestration": 29,
         "aiGuardrails": 19,
         "providers": 25,
         "queue": 9,
@@ -62,7 +62,8 @@
         "designSystemComponents": 18,
         "searchSchema": 21,
         "bookingHandoff": 8,
-        "searchComponents": 18
+        "searchComponents": 18,
+        "searchCache": 10
       }
     },
     {
@@ -165,7 +166,7 @@
       "status": "PASS",
       "command": "npm test",
       "detail": "75 tests covering date arithmetic, the shared concurrency limiter, search planning, candidate assembly and orchestration. Asserted: a search returns ranked, costed, constrained candidates from mocks; each of the four adapters failing in turn degrades the result set rather than aborting the search; an adapter that throws instead of returning a Result is handled identically; a partially failing hotel provider loses only its own destination; results are deterministic across runs; every limit bounds the fan-out; the concurrency bound is reached but never exceeded across the whole nested fan-out, and tightening it changes the pace but not the answer; a wrong-currency quote is dropped rather than converted.",
-      "notes": "Verified against deterministic mocks only. Real provider latency, rate limiting, pagination and partial-response behaviour are untested, and the per-call timeout is unproven against a live API. Default limits imply up to 8 flight calls and 48 hotel calls per search, paced at 6 concurrent; that budget is a guess until a vendor is chosen. Covered by the live-provider readiness task in docs/implementation-plan.md."
+      "notes": "Verified against deterministic mocks only. Real provider latency, rate limiting, pagination and partial-response behaviour are untested, and the per-call timeout is unproven against a live API. Default limits imply up to 8 flight calls and 48 hotel calls per search, paced at 6 concurrent; that budget is a guess until a vendor is chosen. Covered by the live-provider readiness task in docs/implementation-plan.md. Search results are cached for five minutes at the page level and the age is displayed; runSearch itself is uncached, so a background refresh always hits the providers."
     },
     {
       "id": "search-ui",
@@ -174,6 +175,14 @@
       "command": "npm test && npm run test:e2e",
       "detail": "47 tests. The structured schema is asserted to normalise airport codes, convert budgets to Money in minor units, read an absent checkbox as false, keep optional numbers null rather than zero, and reject fourteen kinds of bad input with a message on the offending field. The booking seam is asserted to drop javascript:, data:, file: and non-URL deep links, and to mark every outbound link noopener and sponsored. Components are asserted on roles and accessible names: estimates labelled in words, excluded costs surfaced, warnings visible without expanding anything, violations listed on a near miss, and the results heading reporting what matched rather than what is shown.",
       "notes": "No standalone trip detail route exists, by design — see the note in docs/implementation-plan.md 1.2. Place names come from provider fixtures via src/search/destination-names.ts, a marked stand-in for the destinations table (specification section 21); it is display-only and no computed figure reads it. The page is server-rendered on every request with no caching, which is correct against instant mocks and will need revisiting when a live provider makes a search cost money."
+    },
+    {
+      "id": "data-honesty",
+      "name": "Data honesty fixes",
+      "status": "PASS",
+      "command": "npm test",
+      "detail": "Flight times are a LocalDateTime distinct from an instant: a Z-suffixed or offset-bearing flight time is rejected, the clock face is read through one helper rather than through Date, and a test asserts a candidate carrying a UTC-claiming flight time is refused rather than silently misread. Baggage and self-transfer are boolean | null: an unstated fact does not satisfy a hard requirement, produces a needs_verification warning rather than a false denial, takes half the scoring penalty, and lowers data confidence. Asserted end to end against a provider that prices flights without stating what is included.",
+      "notes": "The mock flight provider always states its facts, so the unknown path is exercised by unit tests and by a purpose-built terse provider in the orchestrator suite rather than by the standard fixtures. Whether a real vendor omits a field, sends an empty string or sends a misleading default is a per-vendor mapping question, tracked in the live-provider readiness task."
     }
   ],
   "knownIssues": [
@@ -212,7 +221,7 @@
     "Decide PostgreSQL hosting before Phase 1.4 and Redis hosting before Phase 1.6.",
     "Decide the deployment target.",
     "Choose a licence; README records it as not yet chosen.",
-    "Decide whether the search page should cache results per query once a live provider makes each search cost money; today every request re-runs the search."
+    "Decide where the search cache should live once more than one server instance runs: it is in-process today, so two instances keep two caches. Redis arrives with Phase 1.6."
   ],
   "commands": {
     "verifyAll": "npm run verify",

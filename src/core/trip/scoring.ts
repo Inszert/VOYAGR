@@ -154,6 +154,20 @@ export function scoreBudgetFit(total: Money, profile: SearchProfile): number {
   return clamp01(1 - (used - 1) / overshootRange);
 }
 
+/**
+ * Penalty for a fact the provider may not have reported.
+ *
+ * An unknown takes half. It is not a confirmed problem, so charging the full
+ * penalty would punish a terse provider rather than a bad itinerary; and it is
+ * not a confirmed absence of one, so charging nothing would rank an unproven
+ * trip alongside a proven one. Half is the only honest position, and the
+ * uncertainty itself is reported separately through data confidence.
+ */
+function penalise(value: boolean | null, badValue: boolean, penalty: number): number {
+  if (value === null) return penalty / 2;
+  return value === badValue ? penalty : 0;
+}
+
 export function scoreFlightQuality(candidate: TripCandidate): number {
   const { outbound, inbound } = candidate.flight;
   const legs = [outbound, inbound];
@@ -167,9 +181,9 @@ export function scoreFlightQuality(candidate: TripCandidate): number {
     const connections = Math.max(0, leg.segments.length - 1);
     leg_score -= connections * 0.2;
 
-    if (leg.selfTransfer) leg_score -= 0.25;
-    if (!leg.cabinBaggageIncluded) leg_score -= 0.15;
-    if (!leg.checkedBaggageIncluded) leg_score -= 0.1;
+    leg_score -= penalise(leg.selfTransfer, true, 0.25);
+    leg_score -= penalise(leg.cabinBaggageIncluded, false, 0.15);
+    leg_score -= penalise(leg.checkedBaggageIncluded, false, 0.1);
 
     // Duration: 2h or less is ideal, 12h or more is poor.
     leg_score -= (1 - normalise(leg.durationMinutes, 720, 120)) * 0.25;
@@ -263,7 +277,16 @@ export function scoreTransfer(candidate: TripCandidate): number {
   return clamp01(duration + modeBonus);
 }
 
-/** How much of the total is quoted rather than estimated. */
+/**
+ * How much of what we are showing is actually known.
+ *
+ * Three strands, because thin evidence arrives in three ways: a total that is
+ * mostly our own estimates, a forecast that is really climatology, and an
+ * itinerary the provider described only partly. The third exists so that a
+ * provider's silence lowers the confidence in a trip rather than quietly
+ * flattering it - the flight-quality penalty for an unknown is deliberately
+ * only half, and this is where the rest of the doubt is recorded.
+ */
 export function scoreDataConfidence(cost: TripCost, candidate: TripCandidate): number {
   const weatherConfidence =
     candidate.weather.length === 0
@@ -271,7 +294,21 @@ export function scoreDataConfidence(cost: TripCost, candidate: TripCandidate): n
       : candidate.weather.reduce((total, day) => total + clamp01(day.confidence), 0) /
         candidate.weather.length;
 
-  return clamp01(cost.knownShare * 0.7 + weatherConfidence * 0.3);
+  return clamp01(
+    cost.knownShare * 0.55 + weatherConfidence * 0.25 + itineraryCompleteness(candidate) * 0.2,
+  );
+}
+
+/** Share of the per-leg facts the provider actually stated, 0-1. */
+export function itineraryCompleteness(candidate: TripCandidate): number {
+  const facts = [candidate.flight.outbound, candidate.flight.inbound].flatMap((leg) => [
+    leg.cabinBaggageIncluded,
+    leg.checkedBaggageIncluded,
+    leg.selfTransfer,
+  ]);
+
+  const stated = facts.filter((fact) => fact !== null).length;
+  return facts.length === 0 ? 0 : stated / facts.length;
 }
 
 const FACTOR_LABELS: Record<ScoreFactorKey, string> = {

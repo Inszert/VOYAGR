@@ -26,8 +26,8 @@ export function buildLeg(overrides: Partial<FlightLeg> = {}): FlightLeg {
       {
         origin: 'VIE',
         destination: 'AYT',
-        departsAt: '2026-06-10T09:30:00Z',
-        arrivesAt: '2026-06-10T12:15:00Z',
+        departsAt: '2026-06-10T09:30:00',
+        arrivesAt: '2026-06-10T12:15:00',
         carrier: 'OS',
         flightNumber: 'OS431',
       },
@@ -50,8 +50,8 @@ export function buildFlightOffer(overrides: Partial<FlightOffer> = {}): FlightOf
         {
           origin: 'AYT',
           destination: 'VIE',
-          departsAt: '2026-06-15T14:00:00Z',
-          arrivesAt: '2026-06-15T16:45:00Z',
+          departsAt: '2026-06-15T14:00:00',
+          arrivesAt: '2026-06-15T16:45:00',
           carrier: 'OS',
           flightNumber: 'OS432',
         },

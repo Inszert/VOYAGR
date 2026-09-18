@@ -70,11 +70,18 @@ export function deterministicSource(seedInput: string): DeterministicSource {
   };
 }
 
-/** Compose an ISO timestamp from a calendar date and a local hour/minute. */
-export function atTime(isoDate: string, hour: number, minute: number): string {
+/**
+ * Compose a local wall-clock timestamp from a calendar date and a clock time.
+ *
+ * No `Z`, deliberately. A flight time is local at the airport it refers to, and
+ * a fixture that suffixed one with `Z` claimed to be UTC while every consumer
+ * read it as local - a contradiction that cancelled out only because the mock
+ * and the readers were wrong in the same direction.
+ */
+export function atLocalTime(isoDate: string, hour: number, minute: number): string {
   const hh = String(hour).padStart(2, '0');
   const mm = String(minute).padStart(2, '0');
-  return `${isoDate}T${hh}:${mm}:00Z`;
+  return `${isoDate}T${hh}:${mm}:00`;
 }
 
 /**

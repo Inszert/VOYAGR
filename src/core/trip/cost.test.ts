@@ -7,7 +7,7 @@ import {
   CostEngineError,
   deriveCostLines,
 } from './cost';
-import { buildCandidate, buildHotelOffer } from './test-support';
+import { buildCandidate, buildFlightOffer, buildHotelOffer, buildLeg } from './test-support';
 
 describe('deriveCostLines', () => {
   it('produces a line for every priced component', () => {
@@ -185,5 +185,32 @@ describe('computeTripCost', () => {
 
     expect(cost.perPerson.amount).toBe(Math.trunc(cost.total.amount / 2));
     expect(cost.perNight.amount).toBe(Math.trunc(cost.total.amount / 5));
+  });
+});
+
+describe('flight conditions when a provider was terse', () => {
+  const conditionsFor = (outbound: Partial<ReturnType<typeof buildLeg>>, inbound = outbound) =>
+    deriveCostLines(
+      buildCandidate({
+        flight: buildFlightOffer({ outbound: buildLeg(outbound), inbound: buildLeg(inbound) }),
+      }),
+    ).find((line) => line.category === 'flight')?.conditions;
+
+  it('states an included allowance as included', () => {
+    expect(conditionsFor({ checkedBaggageIncluded: true })).toContain('Checked baggage included');
+  });
+
+  it('states an excluded allowance as excluded', () => {
+    expect(conditionsFor({ checkedBaggageIncluded: false })).toContain('Cabin baggage only');
+  });
+
+  it('says the allowance was not stated rather than implying there is none', () => {
+    // "Cabin baggage only" here would be a claim the provider never made, on a
+    // line the user reads as a quoted condition.
+    expect(conditionsFor({ checkedBaggageIncluded: null })).toContain('not stated by the provider');
+  });
+
+  it('notes unstated connection ticketing', () => {
+    expect(conditionsFor({ selfTransfer: null })).toContain('Connection ticketing not stated');
   });
 });

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { money } from '../money';
 import { costTripCandidate } from './cost';
-import { resolveWeights, scoreBudgetFit, scoreTrip } from './scoring';
+import {
+  itineraryCompleteness,
+  resolveWeights,
+  scoreBudgetFit,
+  scoreFlightQuality,
+  scoreTrip,
+} from './scoring';
 import {
   buildCandidate,
   buildFlightOffer,
@@ -139,16 +145,16 @@ describe('scoreTrip', () => {
               {
                 origin: 'VIE',
                 destination: 'IST',
-                departsAt: '2026-06-10T09:30:00Z',
-                arrivesAt: '2026-06-10T11:00:00Z',
+                departsAt: '2026-06-10T09:30:00',
+                arrivesAt: '2026-06-10T11:00:00',
                 carrier: 'TK',
                 flightNumber: 'TK1',
               },
               {
                 origin: 'IST',
                 destination: 'AYT',
-                departsAt: '2026-06-10T12:30:00Z',
-                arrivesAt: '2026-06-10T13:45:00Z',
+                departsAt: '2026-06-10T12:30:00',
+                arrivesAt: '2026-06-10T13:45:00',
                 carrier: 'TK',
                 flightNumber: 'TK2',
               },
@@ -202,5 +208,81 @@ describe('scoreTrip', () => {
     const asNicest = score(expensive, buildProfile({ optimisationMode: 'maximise_hotel_quality' }));
 
     expect(asCheapest.score).not.toBe(asNicest.score);
+  });
+});
+
+describe('scoring a partly described itinerary', () => {
+  const withFlags = (flags: {
+    cabinBaggageIncluded: boolean | null;
+    checkedBaggageIncluded: boolean | null;
+    selfTransfer: boolean | null;
+  }) =>
+    buildCandidate({
+      flight: buildFlightOffer({
+        outbound: buildLeg(flags),
+        inbound: buildLeg(flags),
+      }),
+    });
+
+  const known = withFlags({
+    cabinBaggageIncluded: true,
+    checkedBaggageIncluded: true,
+    selfTransfer: false,
+  });
+  const unknown = withFlags({
+    cabinBaggageIncluded: null,
+    checkedBaggageIncluded: null,
+    selfTransfer: null,
+  });
+  const bad = withFlags({
+    cabinBaggageIncluded: false,
+    checkedBaggageIncluded: false,
+    selfTransfer: true,
+  });
+
+  it('places an unstated itinerary between a good one and a bad one', () => {
+    // Full penalty would punish a terse provider; none would rank an unproven
+    // trip alongside a proven one.
+    const quality = (candidate: typeof known) => scoreFlightQuality(candidate);
+
+    expect(quality(known)).toBeGreaterThan(quality(unknown));
+    expect(quality(unknown)).toBeGreaterThan(quality(bad));
+  });
+
+  it('lowers data confidence when the provider left facts unstated', () => {
+    const profile = buildProfile();
+    const knownScore = scoreTrip(known, costTripCandidate(known), profile);
+    const unknownScore = scoreTrip(unknown, costTripCandidate(unknown), profile);
+
+    expect(unknownScore.evidenceStrength).toBeLessThan(knownScore.evidenceStrength);
+  });
+
+  it('reports completeness as the share of facts actually stated', () => {
+    expect(itineraryCompleteness(known)).toBe(1);
+    expect(itineraryCompleteness(unknown)).toBe(0);
+
+    const half = buildCandidate({
+      flight: buildFlightOffer({
+        outbound: buildLeg({
+          cabinBaggageIncluded: true,
+          checkedBaggageIncluded: true,
+          selfTransfer: true,
+        }),
+        inbound: buildLeg({
+          cabinBaggageIncluded: null,
+          checkedBaggageIncluded: null,
+          selfTransfer: null,
+        }),
+      }),
+    });
+    expect(itineraryCompleteness(half)).toBe(0.5);
+  });
+
+  it('keeps the score equal to the sum of its reported contributions', () => {
+    // The explainability guarantee has to survive a partly described itinerary.
+    const score = scoreTrip(unknown, costTripCandidate(unknown), buildProfile());
+    const summed = score.factors.reduce((total, factor) => total + factor.contribution, 0);
+
+    expect(score.score).toBe(Math.round(summed * 100));
   });
 });

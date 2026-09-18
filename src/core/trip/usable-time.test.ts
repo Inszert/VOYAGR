@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DateRangeError } from '../dates';
 import {
   computeUsableTime,
   maximumUsableMinutes,
@@ -16,7 +17,7 @@ function withTimes(arrivesAt: string, departsAt: string) {
           {
             origin: 'VIE',
             destination: 'AYT',
-            departsAt: '2026-06-10T06:00:00Z',
+            departsAt: '2026-06-10T06:00:00',
             arrivesAt,
             carrier: 'OS',
             flightNumber: 'OS431',
@@ -29,7 +30,7 @@ function withTimes(arrivesAt: string, departsAt: string) {
             origin: 'AYT',
             destination: 'VIE',
             departsAt,
-            arrivesAt: '2026-06-15T23:00:00Z',
+            arrivesAt: '2026-06-15T23:00:00',
             carrier: 'OS',
             flightNumber: 'OS432',
           },
@@ -56,34 +57,34 @@ describe('computeUsableTime', () => {
   });
 
   it('gives a late-night arrival no usable time at all', () => {
-    const result = computeUsableTime(withTimes('2026-06-10T23:40:00Z', '2026-06-15T14:00:00Z'));
+    const result = computeUsableTime(withTimes('2026-06-10T23:40:00', '2026-06-15T14:00:00'));
     expect(result.arrivalDayMinutes).toBe(0);
   });
 
   it('does not credit an arrival with time before the usable day begins', () => {
     // Landing at 04:00 is settled by 05:20, but 05:20-08:00 is not holiday.
-    const early = computeUsableTime(withTimes('2026-06-10T04:00:00Z', '2026-06-15T14:00:00Z'));
+    const early = computeUsableTime(withTimes('2026-06-10T04:00:00', '2026-06-15T14:00:00'));
     const fullWindow = (USABLE_DAY_END_HOUR - USABLE_DAY_START_HOUR) * 60;
 
     expect(early.arrivalDayMinutes).toBe(fullWindow);
   });
 
   it('gives a dawn departure no usable time on the last day', () => {
-    const result = computeUsableTime(withTimes('2026-06-10T12:15:00Z', '2026-06-15T05:50:00Z'));
+    const result = computeUsableTime(withTimes('2026-06-10T12:15:00', '2026-06-15T05:50:00'));
     expect(result.departureDayMinutes).toBe(0);
   });
 
   it('gives an evening departure most of the last day', () => {
     // Departs 20:00, less 120 min check-in and a 45 min transfer, must leave
     // 17:15. From 08:00 that is 9h15m.
-    const result = computeUsableTime(withTimes('2026-06-10T12:15:00Z', '2026-06-15T20:00:00Z'));
+    const result = computeUsableTime(withTimes('2026-06-10T12:15:00', '2026-06-15T20:00:00'));
     expect(result.departureDayMinutes).toBe(555);
   });
 
   it('distinguishes two trips with identical night counts', () => {
     // This is the whole point of the metric (specification section 31.4).
-    const good = computeUsableTime(withTimes('2026-06-10T11:00:00Z', '2026-06-15T20:00:00Z'));
-    const poor = computeUsableTime(withTimes('2026-06-10T23:30:00Z', '2026-06-15T06:00:00Z'));
+    const good = computeUsableTime(withTimes('2026-06-10T11:00:00', '2026-06-15T20:00:00'));
+    const poor = computeUsableTime(withTimes('2026-06-10T23:30:00', '2026-06-15T06:00:00'));
 
     expect(good.nights).toBe(poor.nights);
     expect(good.totalMinutes).toBeGreaterThan(poor.totalMinutes);
@@ -107,7 +108,7 @@ describe('computeUsableTime', () => {
   });
 
   it('never reports negative time', () => {
-    const result = computeUsableTime(withTimes('2026-06-10T23:55:00Z', '2026-06-15T00:30:00Z'));
+    const result = computeUsableTime(withTimes('2026-06-10T23:55:00', '2026-06-15T00:30:00'));
 
     expect(result.arrivalDayMinutes).toBeGreaterThanOrEqual(0);
     expect(result.departureDayMinutes).toBeGreaterThanOrEqual(0);
@@ -125,8 +126,8 @@ describe('usableTimeEfficiency', () => {
   });
 
   it('scores a terrible itinerary near zero', () => {
-    const poor = computeUsableTime(withTimes('2026-06-10T23:55:00Z', '2026-06-15T05:00:00Z'));
-    const good = computeUsableTime(withTimes('2026-06-10T10:00:00Z', '2026-06-15T21:00:00Z'));
+    const poor = computeUsableTime(withTimes('2026-06-10T23:55:00', '2026-06-15T05:00:00'));
+    const good = computeUsableTime(withTimes('2026-06-10T10:00:00', '2026-06-15T21:00:00'));
 
     expect(usableTimeEfficiency(poor)).toBeLessThan(usableTimeEfficiency(good));
   });
@@ -134,5 +135,17 @@ describe('usableTimeEfficiency', () => {
   it('relates to the theoretical maximum for the stay', () => {
     const windowMinutes = (USABLE_DAY_END_HOUR - USABLE_DAY_START_HOUR) * 60;
     expect(maximumUsableMinutes(5)).toBe(6 * windowMinutes);
+  });
+});
+
+describe('timestamp contract', () => {
+  it('refuses a flight time that claims to be an instant', () => {
+    // A provider sending `Z` on a departure time is asserting UTC while every
+    // reader here treats the value as the clock face at the airport. Dropping
+    // the candidate is right: the alternative is a silently wrong arrival hour
+    // driving a No-Surprise warning that never fires.
+    expect(() =>
+      computeUsableTime(withTimes('2026-06-10T12:15:00Z', '2026-06-15T14:00:00')),
+    ).toThrow(DateRangeError);
   });
 });

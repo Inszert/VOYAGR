@@ -18,10 +18,18 @@ import { TripCard } from './trip-card';
 
 export interface SearchResultsProps {
   outcome: SearchOutcome;
+  /** How long ago these results were computed. Zero for a fresh search. */
+  resultAgeMs?: number;
 }
 
-export function SearchResults({ outcome }: SearchResultsProps) {
+/** Whole minutes, because "3 minutes ago" is the honest resolution here. */
+function minutesAgo(ageMs: number): number {
+  return Math.floor(ageMs / 60_000);
+}
+
+export function SearchResults({ outcome, resultAgeMs = 0 }: SearchResultsProps) {
   const { results, nearMisses, diagnostics } = outcome;
+  const ageMinutes = minutesAgo(resultAgeMs);
 
   return (
     <section aria-labelledby="results-heading" className="flex flex-col gap-4">
@@ -129,6 +137,17 @@ export function SearchResults({ outcome }: SearchResultsProps) {
           <div className="flex justify-between gap-4">
             <dt className="text-ink-muted">Peak calls at once</dt>
             <dd className="text-ink tabular-nums">{diagnostics.peakProviderConcurrency}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-ink-muted">Prices observed</dt>
+            <dd className="text-ink">
+              {/*
+                A reused result is a price observed some time ago. Saying so is
+                cheaper than the alternative, which is a user acting on a fare
+                that moved while the page sat in a cache.
+              */}
+              {ageMinutes < 1 ? 'Just now' : `${ageMinutes} minutes ago`}
+            </dd>
           </div>
         </dl>
         {diagnostics.plan.dateWindows.length < diagnostics.plan.dateWindowsAvailable ? (

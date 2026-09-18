@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { money } from '@/core/money';
 import { buildProfile } from '@/core/trip/test-support';
+import type { FlightOffer } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
-import { err } from '@/lib/result';
+import { err, ok } from '@/lib/result';
 import { createMockFlightProvider } from '@/providers/flights/mock';
 import { createMockHotelProvider } from '@/providers/hotels/mock';
 import { createMockTransferProvider } from '@/providers/transfers/mock';
@@ -272,6 +273,70 @@ describe('runSearch degrades rather than failing when a provider is down', () =>
     // The public message, not the internal one - diagnostics reach the client.
     expect(issue.message).not.toContain('simulated outage');
     expect(issue.scope).toContain('weather:');
+  });
+});
+
+describe('runSearch with a provider that leaves facts unstated', () => {
+  /** A provider that prices a flight but never says what is included. */
+  const terseFlights: FlightProvider = {
+    metadata: createMockFlightProvider().metadata,
+    checkHealth: async () => healthy,
+    searchFlights: async (query, options) => {
+      const result = await createMockFlightProvider().searchFlights(query, options);
+      if (!result.ok) return result;
+
+      const strip = (leg: FlightOffer['outbound']) => ({
+        ...leg,
+        cabinBaggageIncluded: null,
+        checkedBaggageIncluded: null,
+        selfTransfer: null,
+      });
+
+      return ok(
+        result.value.map((offer) => ({
+          ...offer,
+          outbound: strip(offer.outbound),
+          inbound: strip(offer.inbound),
+        })),
+      );
+    },
+  };
+
+  it('still returns the trips, flagged rather than assumed', async () => {
+    const outcome = await search({}, { flights: terseFlights });
+
+    expect(outcome.results.length).toBeGreaterThan(0);
+
+    for (const trip of outcome.results) {
+      expect(trip.warnings.some((w) => w.code === 'BAGGAGE_ALLOWANCE_UNKNOWN')).toBe(true);
+      expect(trip.warnings.some((w) => w.code === 'SELF_TRANSFER_UNKNOWN')).toBe(true);
+      // The statements the old non-nullable booleans produced were false.
+      expect(trip.warnings.some((w) => w.code === 'CABIN_BAGGAGE_ONLY')).toBe(false);
+      expect(trip.warnings.some((w) => w.code === 'SELF_TRANSFER_RISK')).toBe(false);
+    }
+  });
+
+  it('scores an unstated itinerary below the same trip fully described', async () => {
+    const described = await search();
+    const terse = await search({}, { flights: terseFlights });
+
+    expect(terse.results[0]!.score.evidenceStrength).toBeLessThan(
+      described.results[0]!.score.evidenceStrength,
+    );
+  });
+
+  it('will not call an unstated allowance a match for a hard requirement', async () => {
+    const outcome = await search(
+      { profile: buildProfile({ requireCheckedBaggage: true }) },
+      { flights: terseFlights },
+    );
+
+    expect(outcome.results).toEqual([]);
+    expect(
+      outcome.nearMisses.every((trip) =>
+        trip.eligibility.violations.some((v) => v.code === 'CHECKED_BAGGAGE_REQUIRED'),
+      ),
+    ).toBe(true);
   });
 });
 

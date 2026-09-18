@@ -171,19 +171,41 @@ export function deriveCostLines(candidate: TripCandidate): CostLine[] {
   return lines;
 }
 
+/**
+ * Combine a fact across both legs.
+ *
+ * `false` wins over `null` wins over `true`: a confirmed problem on either leg
+ * is a problem, and an unreported allowance on either leg means the trip's
+ * allowance is unknown even if the other leg was explicit.
+ */
+function acrossLegs(outbound: boolean | null, inbound: boolean | null): boolean | null {
+  if (outbound === false || inbound === false) return false;
+  if (outbound === null || inbound === null) return null;
+  return true;
+}
+
 function describeFlightConditions(candidate: TripCandidate): string {
   const parts: string[] = [];
   const { outbound, inbound } = candidate.flight;
 
-  parts.push(
-    outbound.checkedBaggageIncluded && inbound.checkedBaggageIncluded
-      ? 'Checked baggage included'
-      : 'Cabin baggage only',
+  const checkedBaggage = acrossLegs(
+    outbound.checkedBaggageIncluded,
+    inbound.checkedBaggageIncluded,
   );
 
-  if (outbound.selfTransfer || inbound.selfTransfer) {
-    parts.push('Self-transfer connection');
-  }
+  parts.push(
+    checkedBaggage === true
+      ? 'Checked baggage included'
+      : checkedBaggage === false
+        ? 'Cabin baggage only'
+        : 'Baggage allowance not stated by the provider',
+  );
+
+  const selfTransfer = outbound.selfTransfer === true || inbound.selfTransfer === true;
+  const selfTransferUnknown = outbound.selfTransfer === null || inbound.selfTransfer === null;
+
+  if (selfTransfer) parts.push('Self-transfer connection');
+  else if (selfTransferUnknown) parts.push('Connection ticketing not stated');
 
   return parts.join('; ');
 }

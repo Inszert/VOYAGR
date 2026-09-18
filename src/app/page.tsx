@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { SearchForm } from '@/components/search/search-form';
 import { SearchResults } from '@/components/search/search-results';
 import { runSearch } from '@/search/orchestrator';
+import { getSearchCache } from '@/search/cache';
 import { parseSearchForm } from '@/search/schema';
 import { resolveDestinationNames } from '@/search/destination-names';
 import { isAppError } from '@/lib/errors';
@@ -53,22 +54,29 @@ export default async function SearchPage({
   const values = firstValues(await searchParams);
 
   let outcome: SearchOutcome | null = null;
+  let resultAgeMs = 0;
   let errors: SearchFormErrors = {};
 
   if (wasSubmitted(values)) {
     const parsed = parseSearchForm(values);
 
     if (parsed.ok) {
+      const request = {
+        ...parsed.value.request,
+        destinationNames: resolveDestinationNames(parsed.value.request.destinations),
+        // How many results a page should show is a presentation decision, so it
+        // is made here rather than in the engine's defaults. The engine still
+        // ranks everything, and the diagnostics still report how many matched.
+        limits: { maxResults: 10 },
+      };
+
       try {
-        outcome = await runSearch({
-          ...parsed.value.request,
-          destinationNames: resolveDestinationNames(parsed.value.request.destinations),
-          // How many results a page should show is a presentation decision, so
-          // it is made here rather than in the engine's defaults. The engine
-          // still ranks everything, and the diagnostics still report how many
-          // actually matched.
-          limits: { maxResults: 10 },
-        });
+        // Cached at the page, never inside `runSearch`: a Travel Watch refresh
+        // exists to find out whether the price moved, and serving that from a
+        // cache would be a monitoring loop monitoring its own memory.
+        const cached = await getSearchCache().run(request, () => runSearch(request));
+        outcome = cached.outcome;
+        resultAgeMs = cached.ageMs;
       } catch (error) {
         // The planner rejects a profile that can describe no trip at all. Its
         // public message is written for a user; anything else is not.
@@ -96,7 +104,7 @@ export default async function SearchPage({
 
       <SearchForm values={values} errors={errors} />
 
-      {outcome ? <SearchResults outcome={outcome} /> : null}
+      {outcome ? <SearchResults outcome={outcome} resultAgeMs={resultAgeMs} /> : null}
     </div>
   );
 }

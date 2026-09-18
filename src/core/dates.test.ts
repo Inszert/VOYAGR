@@ -6,6 +6,10 @@ import {
   datesBetween,
   daysBetween,
   isIsoDate,
+  isLocalDateTime,
+  localDate,
+  localHour,
+  minutesIntoLocalDay,
   nightsBetween,
 } from './dates';
 
@@ -100,5 +104,41 @@ describe('clampDate', () => {
 
   it('rejects an empty range rather than inventing an answer', () => {
     expect(() => clampDate('2026-06-15', '2026-06-30', '2026-06-01')).toThrow(DateRangeError);
+  });
+});
+
+describe('local wall-clock times', () => {
+  it('accepts a wall-clock time with and without seconds', () => {
+    expect(isLocalDateTime('2026-06-10T23:40:00')).toBe(true);
+    expect(isLocalDateTime('2026-06-10T23:40')).toBe(true);
+  });
+
+  it('rejects anything claiming to be an instant', () => {
+    // The whole point of the type: a flight time is local at its airport, and a
+    // `Z` or an offset is the confusion this exists to end.
+    expect(isLocalDateTime('2026-06-10T23:40:00Z')).toBe(false);
+    expect(isLocalDateTime('2026-06-10T23:40:00+02:00')).toBe(false);
+  });
+
+  it('rejects an impossible clock reading or date', () => {
+    expect(isLocalDateTime('2026-06-10T24:00:00')).toBe(false);
+    expect(isLocalDateTime('2026-06-10T12:60:00')).toBe(false);
+    expect(isLocalDateTime('2026-02-30T12:00:00')).toBe(false);
+    expect(isLocalDateTime('2026-06-10')).toBe(false);
+  });
+
+  it('reads the clock face, not the server clock', () => {
+    // Parsing through `Date` would resolve this in whatever zone the process
+    // runs in, so a 23:40 arrival in Antalya would read differently in CI.
+    expect(minutesIntoLocalDay('2026-06-10T23:40:00')).toBe(23 * 60 + 40);
+    expect(minutesIntoLocalDay('2026-06-10T00:00:00')).toBe(0);
+    expect(localHour('2026-06-15T05:50:00')).toBe(5);
+    expect(localDate('2026-06-15T05:50:00')).toBe('2026-06-15');
+  });
+
+  it('refuses to read a time it cannot trust', () => {
+    expect(() => minutesIntoLocalDay('2026-06-10T23:40:00Z')).toThrow(DateRangeError);
+    expect(() => localHour('not a time')).toThrow(DateRangeError);
+    expect(() => localDate('2026-06-10')).toThrow(DateRangeError);
   });
 });

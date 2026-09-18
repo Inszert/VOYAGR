@@ -222,17 +222,17 @@ do not replace them (sequencing rule 3).
 Found by reviewing the Phase 1.1 code against a live-provider contract. Each is a mock-invisible
 assumption, so each needs a deliberate check rather than a passing test.
 
-| Assumption in the code                                   | Why a mock cannot catch it                                                                                                                                                           |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 6 concurrent provider calls is a safe pace               | The bound itself is now enforced by one shared limiter and asserted end to end, but the _number_ was chosen with no vendor in mind, and in-process mocks never make it cost anything |
-| `ProviderMetadata.rateLimitPerMinute` paces the search   | Declared on every adapter and read by nothing                                                                                                                                        |
-| One call returns every offer worth having (`maxResults`) | No cursor, page token or total count anywhere in the provider contracts                                                                                                              |
-| A failed call is simply a failed call                    | No retry or backoff at the provider boundary; only the queue has any                                                                                                                 |
-| `IsoDateTime` is "an instant in UTC"                     | `usable-time.ts` and `constraints.ts` read the hour straight out of the string as **local** time. The mock writes local-looking hours with a `Z`, so the contradiction never shows   |
-| A flight's baggage and self-transfer flags are known     | They are non-nullable booleans, so "the provider did not say" becomes a confident `false` — in the exact fields the No-Surprise check reads                                          |
-| A provider response is well-formed                       | Provider output is never schema-checked, although AI output is (`src/ai/guardrails.ts`)                                                                                              |
-| Every quote is current                                   | `observedAt` is recorded on every offer and its staleness is checked nowhere                                                                                                         |
-| Everything is quoted in one currency                     | There is no FX layer; a mixed-currency response yields zero results and one diagnostic, which reads to a user as "no trips found"                                                    |
+| Assumption in the code                                   | Why a mock cannot catch it                                                                                                                                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 concurrent provider calls is a safe pace               | The bound itself is now enforced by one shared limiter and asserted end to end, but the _number_ was chosen with no vendor in mind, and in-process mocks never make it cost anything                                      |
+| `ProviderMetadata.rateLimitPerMinute` paces the search   | Declared on every adapter and read by nothing                                                                                                                                                                             |
+| One call returns every offer worth having (`maxResults`) | No cursor, page token or total count anywhere in the provider contracts                                                                                                                                                   |
+| A failed call is simply a failed call                    | No retry or backoff at the provider boundary; only the queue has any                                                                                                                                                      |
+| The vendor's times arrive as local wall-clock            | Settled in our own types: flight times are `LocalDateTime` and a `Z`-suffixed one is rejected. What a vendor actually sends — local, zoned or UTC — is the adapter's problem to map, and only a real response shows which |
+| The adapter maps a vendor's silence to `null`            | The domain models an unstated fact as `null` and treats it as its own case. Whether a given vendor omits the field, sends an empty string or sends a misleading default is a per-vendor mapping question                  |
+| A provider response is well-formed                       | Provider output is never schema-checked, although AI output is (`src/ai/guardrails.ts`)                                                                                                                                   |
+| Every quote is current                                   | `observedAt` is recorded on every offer and its staleness is checked nowhere                                                                                                                                              |
+| Everything is quoted in one currency                     | There is no FX layer; a mixed-currency response yields zero results and one diagnostic, which reads to a user as "no trips found"                                                                                         |
 
 #### Vendor selection and commercial terms
 
@@ -256,14 +256,19 @@ assumption, so each needs a deliberate check rather than a passing test.
   one.
 - **Malformed, partial, empty and stale responses** — a field missing, a null where a number is
   typed, an empty result set, a success wrapping an error, a cached response past its validity.
-  Each needs a decided outcome: reject the offer, degrade it, or mark it unknown.
+  Each needs a decided outcome: reject the offer, degrade it, or mark it unknown. "Mark it
+  unknown" is now a real option for baggage and connection ticketing; decide which other
+  fields deserve it.
 - **Currency** — which currencies can be requested, whether the response honours the request, where
   taxes and fees sit, and what happens to a response that mixes them.
-- **Timezone** — whether times are local, UTC or zoned, and reconcile that with `IsoDateTime`. The
-  contradiction listed above is settled here, not guessed at.
+- **Timezone** — whether times are local, UTC or zoned, and map them onto `LocalDateTime` in the
+  adapter. The domain now states plainly that a flight time is the clock face at its airport and
+  refuses anything claiming to be an instant, so this is a mapping question rather than an open
+  contradiction.
 - **Price freshness** — whether prices are cached, live or require revalidation before a click
   through, the quoted validity window, and how that lands on `observedAt` and on what the user is
-  shown.
+  shown. Our own page cache holds a result for five minutes and displays its age; a vendor whose
+  quotes expire sooner than that makes the TTL wrong.
 
 #### Limits, budgets and observability
 
