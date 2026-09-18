@@ -213,3 +213,13 @@ production notification pipeline, no deployment target. These are Phase 1 and la
 The Postgres repository implementation and the BullMQ driver are also absent. Both have their
 interfaces defined and their absent case handled explicitly, which is what makes them
 straightforward to add without touching anything above them.
+
+Absent by shape rather than by schedule: **multi-country trips and a map or globe discovery
+surface**. `TripCandidate` models one origin, one destination, one flight and one hotel, and every
+engine that reads it assumes that. A trip across several countries is a sequence of legs and stays
+— a new domain type, with cost, constraints, usable time and scoring following it. Ground
+transport such as car rental, rail and ferry would likewise be a new provider kind rather than a
+stretched `transfers`, and a globe or map view would add a geo data dependency (country geometry,
+place coordinates, tiles) that no adapter covers today. Recorded so the current shape is understood
+as a deliberate Phase 1 narrowing, not an assumption the product is stuck with. See
+`implementation-plan.md`, "Noted, not yet planned — the globe explorer".
