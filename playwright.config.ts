@@ -65,7 +65,10 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: `npx next build && npx next start --port ${PORT}`,
+    // `npm run build`, not `npx next build`: the build has a `prebuild` step
+    // that copies MapLibre's worker into `public/`, and without it the globe
+    // renders an empty ocean and no test notices.
+    command: `npm run build && npx next start --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: !isCI,
     // A cold production build is slow on first run.

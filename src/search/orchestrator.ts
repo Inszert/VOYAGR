@@ -6,6 +6,7 @@ import type {
   TripCandidate,
   WeatherOutlook,
 } from '@/core/trip/types';
+import { summariseDestinations } from './destinations';
 import { AppError, isAppError } from '@/lib/errors';
 import { err, ok } from '@/lib/result';
 import { createLimiter, type Limiter } from '@/lib/concurrency';
@@ -593,6 +594,8 @@ export async function runSearch(
     results: eligible.slice(0, plan.limits.maxResults),
     nearMisses: ineligible.slice(0, plan.limits.maxNearMisses),
     routeOffers: collectRouteOffers(unique, plan.limits.maxSwapOptionsPerRoute),
+    // From every eligible trip, deliberately - not from the page above it.
+    destinationSummaries: summariseDestinations(eligible),
     diagnostics,
   };
 }

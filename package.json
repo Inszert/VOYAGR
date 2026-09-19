@@ -2,13 +2,15 @@
   "name": "voyagr",
   "version": "0.1.0",
   "private": true,
-  "description": "Voyagr \u2014 AI travel deal hunter that continuously optimizes complete trips.",
+  "description": "Voyagr — AI travel deal hunter that continuously optimizes complete trips.",
   "engines": {
     "node": ">=20.9.0"
   },
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-map-worker.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-map-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -32,6 +34,7 @@
   "dependencies": {
     "bullmq": "^6.3.7",
     "ioredis": "^6.0.0",
+    "maplibre-gl": "^6.10.0",
     "next": "16.3.5",
     "pg": "^8.23.0",
     "pino": "^10.3.1",

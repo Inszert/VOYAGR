@@ -13,6 +13,7 @@ import type {
 } from '@/core/trip/types';
 import type { ProviderKind } from '@/providers/types';
 import type { DataProvenance } from '@/core/trip/provenance';
+import type { DestinationSummary } from './destinations';
 
 /**
  * Search orchestration types (implementation plan 1.1).
@@ -217,5 +218,14 @@ export interface SearchOutcome {
   readonly nearMisses: readonly RankedTrip[];
   /** Components seen per route, for swapping. */
   readonly routeOffers: readonly RouteOffers[];
+  /**
+   * What was found at each destination, across every eligible trip.
+   *
+   * Separate from `results` because `results` is a page and this is an
+   * answer: the discovery map asks "where can I go?", and deriving that from
+   * the top forty would drop the cheap places that lost on score - which are
+   * the ones somebody browsing a map came for.
+   */
+  readonly destinationSummaries: readonly DestinationSummary[];
   readonly diagnostics: SearchDiagnostics;
 }

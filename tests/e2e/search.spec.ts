@@ -316,3 +316,87 @@ test.describe('flexible dates', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+test.describe('the discovery map', () => {
+  test('answers "where can I go" without any JavaScript drawing it', async ({ page }) => {
+    // The globe is decoration; this list is the content. Every destination on
+    // the map is here too, in the same order, with the same figures.
+    await page.goto(A_SEARCH);
+
+    const section = page.getByRole('region', { name: 'Where you can go' });
+    await expect(section).toBeVisible();
+
+    const entries = section.getByRole('listitem');
+    expect(await entries.count()).toBeGreaterThan(1);
+  });
+
+  test('explains why each destination appears', async ({ page }) => {
+    await page.goto(`${A_SEARCH}&mapMode=cheapest`);
+
+    const section = page.getByRole('region', { name: 'Where you can go' });
+    // Section 14: do not hide the optimisation logic.
+    await expect(section.getByText(/Cheapest trip found here/).first()).toBeVisible();
+  });
+
+  test('reorders when the ranking changes, and says so in the URL', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const section = page.getByRole('region', { name: 'Where you can go' });
+    await section.getByRole('link', { name: 'Fastest' }).click();
+
+    await expect(page).toHaveURL(/mapMode=fastest/);
+    await expect(section.getByText(/in the air, there and back/).first()).toBeVisible();
+  });
+
+  test('narrows to a destination without running another search', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const section = page.getByRole('region', { name: 'Where you can go' });
+    await section.getByRole('listitem').first().getByRole('link').click();
+
+    await expect(page).toHaveURL(/fDest=[A-Z]{3}/);
+    await expect(page).toHaveURL(/origins=VIE/);
+    await expect(page.getByRole('link', { name: 'Show every destination' })).toBeVisible();
+  });
+
+  test('says what it cannot yet compare', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const section = page.getByRole('region', { name: 'Where you can go' });
+    await expect(section.getByText(/Flights only for now/)).toBeVisible();
+  });
+
+  test('draws a globe from data we ship, reaching nobody', async ({ page }) => {
+    const external: string[] = [];
+    page.on('request', (request) => {
+      const { host } = new URL(request.url());
+      if (!host.startsWith('127.0.0.1') && !host.startsWith('localhost'))
+        external.push(request.url());
+    });
+
+    await page.goto(A_SEARCH);
+    await expect(page.getByRole('region', { name: 'Where you can go' })).toBeVisible();
+
+    // The canvas is present and the style actually loaded - the failure this
+    // guards is a map that renders a background and silently never loads a
+    // source, which looks like an empty ocean rather than like a bug.
+    const canvas = page.locator('.maplibregl-canvas');
+    await expect(canvas).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Made with Natural Earth')).toBeAttached();
+
+    // No tile server, no API key, no third party in the render path.
+    expect(external).toEqual([]);
+  });
+
+  test('has no accessibility violations across the map panel', async ({ page }) => {
+    await page.goto(A_SEARCH);
+    await expect(page.getByRole('region', { name: 'Where you can go' })).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .include('[aria-labelledby="map-heading"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+});

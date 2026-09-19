@@ -23,6 +23,18 @@ export interface DestinationFixture {
   readonly hasBeach: boolean;
   /** Mean daily maximum in Celsius by month index (0 = January). */
   readonly monthlyHighC: readonly number[];
+  /**
+   * Airport position, `[longitude, latitude]` - GeoJSON order, not the
+   * latitude-first order people say out loud. Getting it the wrong way round
+   * puts Antalya in the Indian Ocean, so the order is stated rather than
+   * assumed.
+   *
+   * Hand-entered development data to two decimal places, about a kilometre,
+   * which is the resolution a map marker at country zoom can express. Like
+   * everything else in this file it is a stand-in for the `destinations` table
+   * (specification section 21) and nothing costs, constrains or scores from it.
+   */
+  readonly position: readonly [number, number];
 }
 
 export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
@@ -36,6 +48,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 14900,
     hasBeach: true,
     monthlyHighC: [15, 16, 19, 23, 27, 33, 36, 36, 32, 27, 21, 16],
+    position: [30.79, 36.9],
   },
   {
     airport: 'CHQ',
@@ -47,6 +60,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 16500,
     hasBeach: true,
     monthlyHighC: [15, 15, 17, 20, 24, 28, 30, 30, 27, 24, 20, 17],
+    position: [24.15, 35.53],
   },
   {
     airport: 'LCA',
@@ -58,6 +72,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 18900,
     hasBeach: true,
     monthlyHighC: [17, 17, 20, 24, 28, 32, 35, 35, 32, 28, 23, 18],
+    position: [33.63, 34.88],
   },
   {
     airport: 'PMI',
@@ -69,6 +84,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 13500,
     hasBeach: true,
     monthlyHighC: [15, 15, 17, 19, 23, 27, 30, 31, 27, 23, 19, 16],
+    position: [2.74, 39.55],
   },
   {
     airport: 'TBS',
@@ -80,6 +96,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 17900,
     hasBeach: false,
     monthlyHighC: [7, 9, 14, 20, 24, 28, 32, 32, 27, 20, 13, 8],
+    position: [44.95, 41.67],
   },
   {
     airport: 'BUS',
@@ -91,6 +108,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 18500,
     hasBeach: true,
     monthlyHighC: [11, 11, 13, 17, 21, 25, 27, 28, 25, 21, 16, 13],
+    position: [41.6, 41.61],
   },
   {
     airport: 'SPU',
@@ -102,6 +120,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 11900,
     hasBeach: true,
     monthlyHighC: [11, 12, 15, 19, 24, 28, 31, 31, 26, 21, 16, 12],
+    position: [16.3, 43.54],
   },
   {
     airport: 'FAO',
@@ -113,6 +132,7 @@ export const DESTINATION_FIXTURES: readonly DestinationFixture[] = [
     baselineFlightCents: 15900,
     hasBeach: true,
     monthlyHighC: [16, 17, 19, 21, 23, 27, 29, 30, 27, 23, 19, 17],
+    position: [-7.97, 37.01],
   },
 ];
 
@@ -140,6 +160,10 @@ export function resolveDestination(airport: string): DestinationFixture {
       baselineFlightCents: 15000,
       hasBeach: false,
       monthlyHighC: [5, 7, 12, 17, 21, 25, 27, 27, 22, 16, 10, 6],
+      // Null Island, and deliberately so: an unknown airport has no position,
+      // and the map drops a destination it cannot place rather than inventing
+      // somewhere plausible for it.
+      position: [0, 0],
     }
   );
 }

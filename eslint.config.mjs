@@ -14,6 +14,9 @@ const config = [
       'test-results/**',
       'next-env.d.ts',
       'public/sw.js',
+      // Copied out of node_modules by scripts/copy-map-worker.mjs. Vendor
+      // bundles, not our source, and linting them says nothing about us.
+      'public/maplibre/**',
     ],
   },
 

@@ -4,6 +4,8 @@ import { explainTrip } from '@/search/explain';
 import { applyFilters, hasActiveFilters, type ResultFilters } from '@/search/filters';
 import { EmptyState } from '@/components/ui';
 import { buildDateBreakdown } from '@/search/date-options';
+import { parseMapMode } from '@/discovery/map-model';
+import { DestinationMap } from '@/components/discovery/destination-map';
 import { DateOptions } from './date-options';
 import { ResultFiltersPanel } from './result-filters';
 import type { SearchOutcome } from '@/search/types';
@@ -102,6 +104,20 @@ export function SearchResults({
             ))}
           </ul>
         </div>
+      ) : null}
+
+      {/*
+        Explore, then compare, then choose - sections 11 and 8 before section
+        10. Where you can go is a bigger question than which of these forty,
+        and asking it underneath the answers is asking it too late.
+      */}
+      {diagnostics.eligibleCount > 0 ? (
+        <DestinationMap
+          outcome={outcome}
+          mode={parseMapMode(searchValues.mapMode)}
+          searchValues={searchValues}
+          selected={filters.destination}
+        />
       ) : null}
 
       {/*

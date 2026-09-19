@@ -11,6 +11,7 @@ import { WarningList } from './warning-list';
 import { DEFAULT_SEARCH_LIMITS } from '@/search/types';
 import { NO_FILTERS } from '@/search/filters';
 import { explainTrip, summariseReasons } from '@/search/explain';
+import { summariseDestinations } from '@/search/destinations';
 import { buildRankedTrip } from './test-support';
 
 /**
@@ -279,6 +280,7 @@ describe('SearchResults counts', () => {
           results: [trip],
           nearMisses: [],
           routeOffers: [],
+          destinationSummaries: summariseDestinations([trip]),
           diagnostics: {
             provenance: 'live',
             plan: {
@@ -329,6 +331,7 @@ describe('data provenance', () => {
             results: [trip],
             nearMisses: [],
             routeOffers: [],
+            destinationSummaries: summariseDestinations([trip]),
             diagnostics: buildDiagnostics({ provenance: 'mock' }),
           } as never
         }
@@ -353,6 +356,7 @@ describe('data provenance', () => {
             results: [trip],
             nearMisses: [],
             routeOffers: [],
+            destinationSummaries: summariseDestinations([trip]),
             diagnostics: buildDiagnostics({ provenance: 'live' }),
           } as never
         }
@@ -442,6 +446,7 @@ describe('what the dates are worth', () => {
           results: trips,
           nearMisses: [],
           routeOffers: [],
+          destinationSummaries: summariseDestinations(trips),
           diagnostics: buildDiagnostics({
             plan: {
               ...(buildDiagnostics() as unknown as { plan: Record<string, unknown> }).plan,

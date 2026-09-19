@@ -7,5 +7,9 @@ test-results/
 package-lock.json
 next-env.d.ts
 public/icons/
+# Copied from node_modules on every build; not ours to format.
+public/maplibre/
+# Natural Earth data, shipped as fetched and minified.
+public/geo/
 docs/PRODUCT-SPECIFICATION.md
 SETUP-CHECKLIST.md

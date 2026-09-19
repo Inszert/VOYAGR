@@ -43,6 +43,7 @@ function outcomeOf(...trips: ReturnType<typeof buildRankedTrip>[]): SearchOutcom
     results: trips,
     nearMisses: [],
     routeOffers,
+    destinationSummaries: [],
     diagnostics: {},
   } as unknown as SearchOutcome;
 }

@@ -18,6 +18,15 @@ const contentSecurityPolicy = [
   "font-src 'self' data:",
   // Provider APIs are called server-side only; the browser talks to our origin.
   `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}`,
+  /*
+   * Still `'self'`, and the discovery globe is why that is worth a note.
+   *
+   * MapLibre renders vector data on a worker, and the usual advice is to allow
+   * `blob:` here for it. That is not needed: `scripts/copy-map-worker.mjs`
+   * puts MapLibre's worker under `/maplibre/` and the globe points at it, so
+   * the worker is same-origin like everything else. A CSP entry avoided is a
+   * CSP entry that cannot be leaned on later for something else.
+   */
   "worker-src 'self'",
   "manifest-src 'self'",
   "frame-ancestors 'none'",

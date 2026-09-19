@@ -1,5 +1,6 @@
 import { findDestination } from '@/providers/fixtures/destinations';
 import type { AirportCode } from '@/core/trip/types';
+import type { DestinationGeo } from '@/discovery/map-model';
 
 /**
  * Airport code to place name, for display only.
@@ -24,4 +25,35 @@ export function resolveDestinationNames(
   }
 
   return names;
+}
+
+/**
+ * Where a destination is, for the discovery map.
+ *
+ * Lives here for the same reason the names do: this module is the only place
+ * in the application allowed to read provider fixture data, so replacing the
+ * stand-in with the real `destinations` table is a change to one file.
+ *
+ * Returns null for anything the catalogue does not know, and the map drops it.
+ * A marker placed somewhere plausible would be an invented fact, and on a map
+ * an invented fact is unusually convincing - a dot on a coastline looks like
+ * knowledge.
+ */
+export function resolveDestinationGeo(destination: AirportCode): DestinationGeo | null {
+  const fixture = findDestination(destination);
+  if (!fixture) return null;
+
+  const [longitude, latitude] = fixture.position;
+  // The fallback profile sits at [0, 0], which is in the Atlantic. Treat it as
+  // "unplaced" rather than drawing the Gulf of Guinea.
+  if (longitude === 0 && latitude === 0) return null;
+
+  return {
+    name: fixture.name,
+    country: fixture.country,
+    position: fixture.position,
+    // Everything the product can currently reach is an airport a scheduled
+    // airline flies to. Smaller tiers arrive with the places they describe.
+    tier: 'major',
+  };
 }

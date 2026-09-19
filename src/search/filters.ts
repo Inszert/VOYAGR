@@ -48,6 +48,14 @@ export interface ResultFilters {
    * the number the user just clicked on.
    */
   readonly dates: string | null;
+  /**
+   * Keep only one destination, by airport code.
+   *
+   * Set by picking a place on the discovery map. A filter and not a search for
+   * the same reason as the dates: the trips are priced already, and narrowing
+   * to one of them is free and exact.
+   */
+  readonly destination: string | null;
 }
 
 export const NO_FILTERS: ResultFilters = {
@@ -61,6 +69,7 @@ export const NO_FILTERS: ResultFilters = {
   excludeSelfTransfer: false,
   requirePricedTransfer: false,
   dates: null,
+  destination: null,
 };
 
 /** Query-string keys, prefixed so they cannot collide with the search itself. */
@@ -75,6 +84,7 @@ export const FILTER_KEYS = [
   'fNoSelfTransfer',
   'fTransferPriced',
   'fDates',
+  'fDest',
 ] as const;
 
 function numberOrNull(raw: string | undefined): number | null {
@@ -115,6 +125,9 @@ export function parseFilters(
     excludeSelfTransfer: isOn(params.fNoSelfTransfer),
     requirePricedTransfer: isOn(params.fTransferPriced),
     dates: DATE_WINDOW_PATTERN.test(params.fDates ?? '') ? (params.fDates as string) : null,
+    destination: /^[A-Za-z]{3}$/.test(params.fDest ?? '')
+      ? (params.fDest as string).toUpperCase()
+      : null,
   };
 }
 
@@ -129,7 +142,8 @@ export function hasActiveFilters(filters: ResultFilters): boolean {
     filters.minReviewScore !== null ||
     filters.excludeSelfTransfer ||
     filters.requirePricedTransfer ||
-    filters.dates !== null
+    filters.dates !== null ||
+    filters.destination !== null
   );
 }
 
@@ -188,6 +202,10 @@ export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolea
   if (filters.dates !== null) {
     const { departureDate, returnDate } = trip.candidate.dates;
     if (`${departureDate}..${returnDate}` !== filters.dates) return false;
+  }
+
+  if (filters.destination !== null && trip.candidate.destination !== filters.destination) {
+    return false;
   }
 
   return true;

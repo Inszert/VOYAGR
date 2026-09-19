@@ -34,6 +34,7 @@ function outcomeOf(trips: readonly RankedTrip[], windows: readonly DateWindow[] 
     results: trips,
     nearMisses: [],
     routeOffers: [],
+    destinationSummaries: [],
     diagnostics: {
       plan: {
         dateWindows: windows,

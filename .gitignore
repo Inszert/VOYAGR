@@ -9,6 +9,9 @@ node_modules/
 !.yarn/versions
 
 # ---- build output ----
+# Copied from node_modules by scripts/copy-map-worker.mjs. Generated, not
+# authored: committing it would let a 500KB artifact drift from its library.
+public/maplibre/
 .next/
 out/
 build/

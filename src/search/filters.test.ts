@@ -209,3 +209,31 @@ describe('the date filter', () => {
     expect(hasActiveFilters({ ...NO_FILTERS, dates: '2026-06-10..2026-06-15' })).toBe(true);
   });
 });
+
+describe('the destination filter', () => {
+  it('keeps only trips to the chosen place', () => {
+    const antalya = buildRankedTrip({ id: 'a', destination: 'AYT' });
+    const split = buildRankedTrip({ id: 'b', destination: 'SPU' });
+
+    const { trips, hidden } = applyFilters([antalya, split], {
+      ...NO_FILTERS,
+      destination: 'AYT',
+    });
+
+    expect(trips.map((trip) => trip.candidate.id)).toEqual(['a']);
+    expect(hidden).toBe(1);
+  });
+
+  it('reads an airport code however it was cased', () => {
+    expect(parseFilters({ fDest: 'ayt' }, 'EUR').destination).toBe('AYT');
+  });
+
+  it('ignores anything that is not an airport code', () => {
+    expect(parseFilters({ fDest: 'Antalya' }, 'EUR').destination).toBeNull();
+    expect(parseFilters({ fDest: '' }, 'EUR').destination).toBeNull();
+  });
+
+  it('counts as an active filter', () => {
+    expect(hasActiveFilters({ ...NO_FILTERS, destination: 'AYT' })).toBe(true);
+  });
+});
