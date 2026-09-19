@@ -157,7 +157,7 @@ Decisions worth carrying forward:
 process stops. What the end-to-end suite proves is the same round trip through the repository — a
 preference survives signing out, clearing cookies and signing back in. Real durability is 1.4.
 
-### 1.4 Postgres persistence ⚠️ written, unproven
+### 1.4 Postgres persistence ✅ complete
 
 _In plain words: put everything in a real database so it is still there tomorrow._
 
@@ -170,21 +170,19 @@ Implement `Repositories` against Postgres. Apply `0001_init.sql`.
 `migrations/`, the factory selects it whenever `DATABASE_URL` is set, and
 `repository-contract.test.ts` is one suite run against every backend.
 
-**Not proven, and this is the honest status.** No PostgreSQL instance was reachable from the
-development machine — no Docker, no local server, and the read-only Postgres MCP refused its
-connection — so the Postgres half of the contract suite has never executed. The SQL is written and
-typechecked; it has never met a database. Until someone runs it, treat 1.4 as code review rather
-than as a passing test.
+**Proven.** The contract suite runs against a live PostgreSQL 17 instance and both backends pass
+the same 26 tests. Earlier this section read "written, unproven" because no database was reachable
+from the development machine; one is now configured and the migrations are applied.
 
-To close it:
+Running it:
 
 ```
-TEST_DATABASE_URL=postgresql://... npm run db:migrate
-TEST_DATABASE_URL=postgresql://... npm test
+npm run db:migrate                 # reads .env
+npm test                           # the suite picks up TEST_DATABASE_URL
 ```
 
-The suite skips the Postgres backend when that variable is absent, and the skip is reported as a
-skipped test rather than as silence, so nobody reads a green run as coverage it does not have.
+With no `TEST_DATABASE_URL` the Postgres backend is skipped and reported as a skipped test rather
+than as silence, so the suite still passes with no database and nobody mistakes that for coverage.
 
 Decisions worth carrying forward:
 

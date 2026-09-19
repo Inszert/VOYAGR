@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { money } from '@/core/money';
 import { buildProfile } from '@/core/trip/test-support';
 import { AppError } from '@/lib/errors';
+import { resetEnvCache } from '@/lib/env';
 import { createMemoryRepositories } from './memory';
 import { createPostgresRepositories } from './postgres';
 import { closePool, query } from './client';
@@ -40,6 +41,11 @@ const backends: Backend[] = [
 
 if (POSTGRES_URL) {
   process.env.DATABASE_URL = POSTGRES_URL;
+
+  // Imports are hoisted and evaluated before this line, and one of them builds
+  // a logger, which memoises the environment. Without dropping that cache the
+  // pool would be asked for a DATABASE_URL that was read before it was set.
+  resetEnvCache();
 
   backends.push({
     name: 'postgres',

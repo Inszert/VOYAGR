@@ -22,7 +22,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install --with-deps chromium",
-    "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "test:db": "vitest run src/db/repository-contract.test.ts"

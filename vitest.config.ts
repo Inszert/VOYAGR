@@ -1,5 +1,31 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
+
+/**
+ * Load `TEST_DATABASE_URL` from `.env`, and nothing else.
+ *
+ * Deliberately one variable rather than the whole file. The suite's defining
+ * property is that it passes with no database, and copying `DATABASE_URL` in
+ * would quietly point `getRepositories()` at a real server for every test that
+ * ever touched it - turning "no external services required" into a lie that
+ * only shows up on someone else's machine.
+ *
+ * The repository contract tests opt in explicitly by reading this one variable.
+ */
+function loadTestDatabaseUrl(): void {
+  if (process.env.TEST_DATABASE_URL || !existsSync('.env')) return;
+
+  for (const line of readFileSync('.env', 'utf8').split(/\r?\n/)) {
+    const match = /^\s*TEST_DATABASE_URL\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+
+    const value = match[1]?.trim().replace(/^["']|["']$/g, '');
+    if (value) process.env.TEST_DATABASE_URL = value;
+  }
+}
+
+loadTestDatabaseUrl();
 
 /**
  * Vitest configuration.
