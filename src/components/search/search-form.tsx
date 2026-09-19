@@ -1,4 +1,5 @@
-import { Button, Card, Field, Select } from '@/components/ui';
+import { Button, Card, Disclosure, Field, RadioChip, Select } from '@/components/ui';
+import { FLEXIBILITY_HINTS, FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS } from '@/search/flexibility';
 import {
   OPTIMISATION_MODES,
   OPTIMISATION_MODE_LABELS,
@@ -35,6 +36,9 @@ export interface SearchFormProps {
 export const SEARCH_FORM_DEFAULTS: Readonly<Record<string, string>> = {
   origins: 'VIE',
   destinations: 'AYT, CHQ, SPU',
+  flexibility: 'custom',
+  departureDate: '2026-06-06',
+  returnDate: '2026-06-13',
   earliestDeparture: '2026-06-01',
   latestReturn: '2026-06-30',
   minNights: '4',
@@ -129,6 +133,60 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
               required
             />
             <Field
+              label="Leaving"
+              name="departureDate"
+              type="date"
+              defaultValue={value('departureDate')}
+              error={errors.departureDate}
+            />
+            <Field
+              label="Coming back"
+              name="returnDate"
+              type="date"
+              defaultValue={value('returnDate')}
+              error={errors.returnDate}
+            />
+          </div>
+
+          {/*
+            Section 8: flexible dates are not an advanced option.
+
+            So they sit here, in the open, directly under the two dates they
+            widen - not behind the disclosure, which holds the exact window
+            instead. Most people do not care which week; the ones who do can
+            still say so, one level down.
+          */}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-ink text-sm font-medium">How flexible are the dates?</legend>
+            <div className="flex flex-wrap gap-2">
+              {FLEXIBILITY_PRESETS.map((preset) => (
+                <RadioChip
+                  key={preset}
+                  name="flexibility"
+                  value={preset}
+                  label={FLEXIBILITY_LABELS[preset]}
+                  hint={FLEXIBILITY_HINTS[preset]}
+                  defaultChecked={value('flexibility') === preset}
+                />
+              ))}
+              <RadioChip
+                name="flexibility"
+                value="custom"
+                label="Exact window"
+                hint="Use the travel window set below."
+                defaultChecked={value('flexibility') === 'custom'}
+              />
+            </div>
+          </fieldset>
+        </fieldset>
+
+        <Disclosure summary="Set an exact travel window">
+          <p className="text-ink-muted text-sm">
+            Used when &ldquo;Exact window&rdquo; is chosen above. A window plus a trip length says
+            &ldquo;four to seven nights, any time in June&rdquo; - which the presets cannot express.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Field
               label="Earliest departure"
               name="earliestDeparture"
               type="date"
@@ -165,7 +223,7 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
               required
             />
           </div>
-        </fieldset>
+        </Disclosure>
 
         <fieldset className="flex flex-col gap-4">
           <legend className="text-ink text-sm font-semibold">Who and how much</legend>

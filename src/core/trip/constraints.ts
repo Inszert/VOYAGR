@@ -1,4 +1,4 @@
-import { localHour } from '../dates';
+import { dayOfWeek, localHour } from '../dates';
 import { greaterThan, subtract, type Money } from '../money';
 import type { TripCost } from './cost';
 import type { SearchProfile, TripCandidate } from './types';
@@ -20,6 +20,8 @@ export type ConstraintCode =
   | 'NIGHTS_ABOVE_MAXIMUM'
   | 'DEPARTURE_BEFORE_WINDOW'
   | 'RETURN_AFTER_WINDOW'
+  | 'DEPARTURE_DAY_NOT_ALLOWED'
+  | 'RETURN_DAY_NOT_ALLOWED'
   | 'ORIGIN_NOT_ALLOWED'
   | 'PASSENGER_COUNT_MISMATCH'
   | 'DIRECT_FLIGHT_REQUIRED'
@@ -62,6 +64,17 @@ function bothLegs(outbound: boolean | null, inbound: boolean | null): boolean | 
   if (outbound === null || inbound === null) return null;
   return true;
 }
+
+/** Indexed by `dayOfWeek`, so 0 is Sunday. */
+const DAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
 
 function isDirect(candidate: TripCandidate): boolean {
   return (
@@ -135,6 +148,41 @@ export function evaluateEligibility(
       code: 'RETURN_AFTER_WINDOW',
       message: 'Return falls after the latest acceptable date.',
       detail: { returnDate: candidate.dates.returnDate, latestReturn: profile.latestReturn },
+    });
+  }
+
+  /*
+   * Checked here as well as in the planner, because the planner is not the
+   * only thing that produces a candidate. A Travel Watch re-check runs a
+   * stored profile against a freshly fetched trip, and a user who narrowed
+   * "any week in June" to "weekends only" must stop being alerted about the
+   * Tuesday departure that watch was created from.
+   */
+  if (
+    profile.departureDaysOfWeek !== null &&
+    !profile.departureDaysOfWeek.includes(dayOfWeek(candidate.dates.departureDate))
+  ) {
+    violations.push({
+      code: 'DEPARTURE_DAY_NOT_ALLOWED',
+      message: `Departs on a ${DAY_NAMES[dayOfWeek(candidate.dates.departureDate)]}, which is not one of the days you chose.`,
+      detail: {
+        departureDate: candidate.dates.departureDate,
+        allowedDays: profile.departureDaysOfWeek.join(','),
+      },
+    });
+  }
+
+  if (
+    profile.returnDaysOfWeek !== null &&
+    !profile.returnDaysOfWeek.includes(dayOfWeek(candidate.dates.returnDate))
+  ) {
+    violations.push({
+      code: 'RETURN_DAY_NOT_ALLOWED',
+      message: `Returns on a ${DAY_NAMES[dayOfWeek(candidate.dates.returnDate)]}, which is not one of the days you chose.`,
+      detail: {
+        returnDate: candidate.dates.returnDate,
+        allowedDays: profile.returnDaysOfWeek.join(','),
+      },
     });
   }
 

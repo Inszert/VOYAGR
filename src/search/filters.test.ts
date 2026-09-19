@@ -171,3 +171,41 @@ describe('applyFilters', () => {
     expect(applyFilters(trips, NO_FILTERS)).toEqual({ trips, hidden: 0 });
   });
 });
+
+describe('the date filter', () => {
+  it('keeps only trips on the chosen dates', () => {
+    const june10 = buildRankedTrip({
+      id: 'a',
+      dates: { departureDate: '2026-06-10', returnDate: '2026-06-15', nights: 5 },
+    });
+    const june17 = buildRankedTrip({
+      id: 'b',
+      dates: { departureDate: '2026-06-17', returnDate: '2026-06-22', nights: 5 },
+    });
+
+    const { trips, hidden } = applyFilters([june10, june17], {
+      ...NO_FILTERS,
+      dates: '2026-06-10..2026-06-15',
+    });
+
+    expect(trips.map((trip) => trip.candidate.id)).toEqual(['a']);
+    expect(hidden).toBe(1);
+  });
+
+  it('ignores a date filter that is not a pair of dates', () => {
+    // A malformed filter must not narrow a result set nobody asked to narrow,
+    // and must not fail the page where the user expected trips.
+    expect(parseFilters({ fDates: 'june-ish' }, 'EUR').dates).toBeNull();
+    expect(parseFilters({ fDates: '2026-06-10' }, 'EUR').dates).toBeNull();
+  });
+
+  it('reads a well-formed window', () => {
+    expect(parseFilters({ fDates: '2026-06-10..2026-06-15' }, 'EUR').dates).toBe(
+      '2026-06-10..2026-06-15',
+    );
+  });
+
+  it('counts as an active filter', () => {
+    expect(hasActiveFilters({ ...NO_FILTERS, dates: '2026-06-10..2026-06-15' })).toBe(true);
+  });
+});

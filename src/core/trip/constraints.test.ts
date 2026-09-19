@@ -364,3 +364,45 @@ describe('a provider that did not say', () => {
     expect(warnings.some((w) => w.code === 'SELF_TRANSFER_UNKNOWN')).toBe(false);
   });
 });
+
+describe('day-of-week rules', () => {
+  // 2026-06-10 is a Wednesday, 2026-06-15 a Monday.
+  it('rules out a departure on a day the profile excludes', () => {
+    const result = evaluateEligibility(
+      buildCandidate(),
+      costTripCandidate(buildCandidate()),
+      buildProfile({ departureDaysOfWeek: [5] }),
+    );
+
+    expect(result.violations.map((violation) => violation.code)).toContain(
+      'DEPARTURE_DAY_NOT_ALLOWED',
+    );
+    expect(
+      result.violations.find((v) => v.code === 'DEPARTURE_DAY_NOT_ALLOWED')?.message,
+    ).toContain('Wednesday');
+  });
+
+  it('rules out a return on a day the profile excludes', () => {
+    const result = evaluateEligibility(
+      buildCandidate(),
+      costTripCandidate(buildCandidate()),
+      buildProfile({ returnDaysOfWeek: [0] }),
+    );
+
+    expect(result.violations.map((violation) => violation.code)).toContain(
+      'RETURN_DAY_NOT_ALLOWED',
+    );
+  });
+
+  it('allows any day when no rule is set', () => {
+    const result = evaluateEligibility(
+      buildCandidate(),
+      costTripCandidate(buildCandidate()),
+      buildProfile(),
+    );
+
+    expect(result.violations.map((violation) => violation.code)).not.toContain(
+      'DEPARTURE_DAY_NOT_ALLOWED',
+    );
+  });
+});

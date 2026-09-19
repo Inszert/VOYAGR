@@ -131,6 +131,8 @@ export function buildProfile(overrides: Partial<SearchProfile> = {}): SearchProf
     maxNights: 6,
     earliestDeparture: '2026-06-01',
     latestReturn: '2026-06-30',
+    departureDaysOfWeek: null,
+    returnDaysOfWeek: null,
     targetBudget: money(65000, 'EUR'),
     maxBudget: money(85000, 'EUR'),
     reserveBudget: null,

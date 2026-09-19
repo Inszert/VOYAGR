@@ -38,6 +38,16 @@ export interface ResultFilters {
   readonly excludeSelfTransfer: boolean;
   /** Hide trips where no airport transfer was priced. */
   readonly requirePricedTransfer: boolean;
+  /**
+   * Keep only one set of dates, as `2026-06-10..2026-06-15`.
+   *
+   * A filter rather than a new search on purpose: the search already priced
+   * every date window it sampled, so narrowing to one of them costs nothing
+   * and - more importantly - shows exactly the trips whose total the date
+   * breakdown quoted. A re-search would return a different set of trips from
+   * the number the user just clicked on.
+   */
+  readonly dates: string | null;
 }
 
 export const NO_FILTERS: ResultFilters = {
@@ -50,6 +60,7 @@ export const NO_FILTERS: ResultFilters = {
   minReviewScore: null,
   excludeSelfTransfer: false,
   requirePricedTransfer: false,
+  dates: null,
 };
 
 /** Query-string keys, prefixed so they cannot collide with the search itself. */
@@ -63,6 +74,7 @@ export const FILTER_KEYS = [
   'fMinReview',
   'fNoSelfTransfer',
   'fTransferPriced',
+  'fDates',
 ] as const;
 
 function numberOrNull(raw: string | undefined): number | null {
@@ -74,6 +86,9 @@ function numberOrNull(raw: string | undefined): number | null {
 function isOn(raw: string | undefined): boolean {
   return raw === 'on' || raw === 'true';
 }
+
+/** `2026-06-10..2026-06-15`. Anything else is not a date filter. */
+const DATE_WINDOW_PATTERN = /^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Read filters from query parameters.
@@ -99,6 +114,7 @@ export function parseFilters(
     minReviewScore: numberOrNull(params.fMinReview),
     excludeSelfTransfer: isOn(params.fNoSelfTransfer),
     requirePricedTransfer: isOn(params.fTransferPriced),
+    dates: DATE_WINDOW_PATTERN.test(params.fDates ?? '') ? (params.fDates as string) : null,
   };
 }
 
@@ -112,7 +128,8 @@ export function hasActiveFilters(filters: ResultFilters): boolean {
     filters.freeCancellationOnly ||
     filters.minReviewScore !== null ||
     filters.excludeSelfTransfer ||
-    filters.requirePricedTransfer
+    filters.requirePricedTransfer ||
+    filters.dates !== null
   );
 }
 
@@ -167,6 +184,11 @@ export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolea
   }
 
   if (filters.requirePricedTransfer && !trip.candidate.transfer) return false;
+
+  if (filters.dates !== null) {
+    const { departureDate, returnDate } = trip.candidate.dates;
+    if (`${departureDate}..${returnDate}` !== filters.dates) return false;
+  }
 
   return true;
 }

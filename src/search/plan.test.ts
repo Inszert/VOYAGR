@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { money } from '@/core/money';
+import { dayOfWeek } from '@/core/dates';
 import { resolveEntitlements } from '@/core/entitlements';
 import { buildProfile } from '@/core/trip/test-support';
 import { AppError } from '@/lib/errors';
@@ -226,5 +227,71 @@ describe('entitlements bound the plan', () => {
     );
 
     expect(plan.destinations).toHaveLength(8);
+  });
+});
+
+describe('day-of-week rules', () => {
+  it('keeps only departures on the days allowed', () => {
+    const windows = enumerateDateWindows(
+      buildProfile({
+        earliestDeparture: '2026-06-01',
+        latestReturn: '2026-06-30',
+        minNights: 2,
+        maxNights: 2,
+        // Friday.
+        departureDaysOfWeek: [5],
+      }),
+    );
+
+    expect(windows.length).toBeGreaterThan(0);
+    for (const window of windows) {
+      expect(dayOfWeek(window.departureDate)).toBe(5);
+    }
+  });
+
+  it('keeps a longer trip whose return lands on an allowed day', () => {
+    // The return rule must skip a trip length rather than stop enumerating:
+    // three nights from a Friday misses a Sunday, four nights does not.
+    const windows = enumerateDateWindows(
+      buildProfile({
+        earliestDeparture: '2026-06-01',
+        latestReturn: '2026-06-30',
+        minNights: 1,
+        maxNights: 3,
+        departureDaysOfWeek: [5],
+        returnDaysOfWeek: [1],
+      }),
+    );
+
+    expect(windows.length).toBeGreaterThan(0);
+    for (const window of windows) {
+      expect(window.nights).toBe(3);
+      expect(dayOfWeek(window.returnDate)).toBe(1);
+    }
+  });
+
+  it('explains an impossible day rule rather than returning nothing', () => {
+    expect(() =>
+      buildSearchPlan(
+        request({
+          profile: buildProfile({
+            earliestDeparture: '2026-06-01',
+            latestReturn: '2026-06-05',
+            minNights: 1,
+            maxNights: 1,
+            departureDaysOfWeek: [0],
+          }),
+        }),
+      ),
+    ).toThrow(/days of the week/);
+  });
+
+  it('is unaffected when no day rule is set', () => {
+    const profile = buildProfile({ minNights: 3, maxNights: 3 });
+
+    expect(enumerateDateWindows(profile).length).toBe(
+      enumerateDateWindows({ ...profile, departureDaysOfWeek: null, returnDaysOfWeek: null })
+        .length,
+    );
   });
 });

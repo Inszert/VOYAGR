@@ -105,6 +105,11 @@ export function toSearchProfile(
     maxNights: parsed.maxNights,
     earliestDeparture: defaults.earliestDeparture,
     latestReturn: defaults.latestReturn,
+    // The model is not trusted to narrow a window to particular days of the
+    // week. It supplies intent; the flexibility presets - which are pure
+    // functions, not prose - are the only thing that sets a day rule.
+    departureDaysOfWeek: null,
+    returnDaysOfWeek: null,
     targetBudget,
     maxBudget,
     reserveBudget: null,

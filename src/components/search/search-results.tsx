@@ -3,6 +3,8 @@ import { flightAlternatives, hotelAlternatives } from '@/search/alternatives';
 import { explainTrip } from '@/search/explain';
 import { applyFilters, hasActiveFilters, type ResultFilters } from '@/search/filters';
 import { EmptyState } from '@/components/ui';
+import { buildDateBreakdown } from '@/search/date-options';
+import { DateOptions } from './date-options';
 import { ResultFiltersPanel } from './result-filters';
 import type { SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
@@ -100,6 +102,19 @@ export function SearchResults({
             ))}
           </ul>
         </div>
+      ) : null}
+
+      {/*
+        Above the filters and above the results, because it changes which
+        results are worth looking at. A price comparison across dates placed
+        under forty cards is a comparison nobody scrolls to.
+      */}
+      {diagnostics.eligibleCount > 0 ? (
+        <DateOptions
+          breakdown={buildDateBreakdown(outcome)}
+          searchValues={searchValues}
+          selected={filters.dates}
+        />
       ) : null}
 
       {diagnostics.eligibleCount > 0 ? (

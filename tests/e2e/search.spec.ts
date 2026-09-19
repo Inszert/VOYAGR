@@ -243,3 +243,76 @@ test.describe('running a search', () => {
     expect(findings).toEqual([]);
   });
 });
+
+test.describe('flexible dates', () => {
+  test('shows what the dates are worth, and says what it sampled', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const section = page.getByRole('region', { name: 'What the dates are worth' });
+    await expect(section).toBeVisible();
+
+    // The sample is stated. Eight rows presented as a whole calendar would be
+    // a chart lying about its own resolution.
+    await expect(section.getByText(/Priced \d+ of the \d+ date combinations/)).toBeVisible();
+  });
+
+  test('narrows to one set of dates without running another search', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const section = page.getByRole('region', { name: 'What the dates are worth' });
+    const before = await page.getByRole('article').count();
+
+    await section.getByRole('link').first().click();
+
+    await expect(page).toHaveURL(/fDates=/);
+    // The search itself is untouched, so no provider call was made for this.
+    await expect(page).toHaveURL(/origins=VIE/);
+    expect(await page.getByRole('article').count()).toBeLessThanOrEqual(before);
+
+    await expect(page.getByRole('link', { name: 'Show every date' })).toBeVisible();
+  });
+
+  test('offers the flexibility presets without opening anything', async ({ page }) => {
+    await page.goto('/');
+
+    const group = page.getByRole('group', { name: 'How flexible are the dates?' });
+    await expect(group).toBeVisible();
+    await expect(group.getByText('A long weekend')).toBeVisible();
+  });
+
+  test('a weekend search returns only weekend trips', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByLabel('Leaving').fill('2026-06-05');
+    await page.getByLabel('Coming back').fill('2026-06-07');
+    // The input is visually hidden, so the label is clicked - which is what a
+    // user does anyway.
+    await page.getByText('A weekend', { exact: true }).click();
+    await page.getByRole('button', { name: 'Search trips' }).click();
+
+    await expect(page).toHaveURL(/flexibility=weekend/);
+
+    const section = page.getByRole('region', { name: 'What the dates are worth' });
+    await expect(section).toBeVisible();
+
+    // Every window offered departs on a Friday or Saturday and returns on a
+    // Sunday. Saturday to Monday is two nights from a Saturday, which is a day
+    // off work rather than a weekend.
+    for (const text of await section.getByRole('link').allInnerTexts()) {
+      expect(text).toMatch(/^(Fri|Sat) /);
+      expect(text).toContain('Sun ');
+    }
+  });
+
+  test('has no accessibility violations across the date comparison', async ({ page }) => {
+    await page.goto(A_SEARCH);
+    await expect(page.getByRole('region', { name: 'What the dates are worth' })).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .include('[aria-labelledby="date-options-heading"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+});

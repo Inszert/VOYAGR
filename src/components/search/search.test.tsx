@@ -376,3 +376,133 @@ describe('data provenance', () => {
     expect(screen.getByText('Live price')).toBeInTheDocument();
   });
 });
+
+describe('the flexibility control', () => {
+  it('offers the presets in the open, not behind a disclosure', () => {
+    // Section 8: flexible dates are not an advanced option. A control a user
+    // has to go looking for is one most users never find.
+    render(<SearchForm values={{}} />);
+
+    const group = screen.getByRole('group', { name: 'How flexible are the dates?' });
+
+    expect(within(group).getByRole('radio', { name: /A weekend/ })).toBeTruthy();
+    expect(within(group).getByRole('radio', { name: /± 3 days/ })).toBeTruthy();
+    expect(within(group).getByRole('radio', { name: /Anytime that month/ })).toBeTruthy();
+  });
+
+  it('names each choice with what it actually does', () => {
+    // "± 3 days" alone cannot be told apart from every other product's "± 3
+    // days", so the name carries the meaning as well as the label.
+    render(<SearchForm values={{}} />);
+
+    expect(
+      screen.getByRole('radio', { name: /three days either side, and three shorter or longer/i }),
+    ).toBeTruthy();
+  });
+
+  it('is one choice rather than several', () => {
+    render(<SearchForm values={{}} />);
+
+    // Radios, not checkboxes: the options are mutually exclusive, and a
+    // checkbox behaving like a radio is a lie told to a screen reader.
+    expect(screen.queryByRole('checkbox', { name: /A weekend/ })).toBeNull();
+  });
+
+  it('restores the chosen preset from the submitted values', () => {
+    render(<SearchForm values={{ origins: 'VIE', flexibility: 'weekend' }} />);
+
+    expect((screen.getByRole('radio', { name: /A weekend/ }) as HTMLInputElement).checked).toBe(
+      true,
+    );
+  });
+});
+
+describe('what the dates are worth', () => {
+  const WINDOWS = [
+    { departureDate: '2026-06-10', returnDate: '2026-06-15', nights: 5 },
+    { departureDate: '2026-06-17', returnDate: '2026-06-22', nights: 5 },
+  ];
+
+  const tripOn = (window: (typeof WINDOWS)[number], hotelPrice: number) =>
+    buildRankedTrip({
+      id: window.departureDate,
+      dates: window,
+      hotel: { ...buildHotelOffer(), totalPrice: money(hotelPrice, 'EUR') },
+    });
+
+  const renderBreakdown = async (trips: ReturnType<typeof buildRankedTrip>[]) => {
+    const { SearchResults } = await import('./search-results');
+
+    render(
+      <SearchResults
+        profile={buildProfile()}
+        filters={NO_FILTERS}
+        searchValues={{ origins: 'VIE' }}
+        outcome={{
+          results: trips,
+          nearMisses: [],
+          routeOffers: [],
+          diagnostics: buildDiagnostics({
+            plan: {
+              ...(buildDiagnostics() as unknown as { plan: Record<string, unknown> }).plan,
+              dateWindows: WINDOWS,
+              dateWindowsAvailable: 165,
+            },
+            eligibleCount: trips.length,
+          }),
+        }}
+      />,
+    );
+  };
+
+  it('says what moving to the cheapest dates saves', async () => {
+    // Section 37's bar for this feature: can flexible dates *visibly* save
+    // money? A comparison the user has to do themselves has not answered it.
+    await renderBreakdown([tripOn(WINDOWS[0]!, 90_000), tripOn(WINDOWS[1]!, 30_000)]);
+
+    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+
+    expect(within(section).getByText(/saves/i).textContent).toContain(format(money(60_000, 'EUR')));
+  });
+
+  it('says dates it found nothing for found nothing, not nothing to pay', async () => {
+    await renderBreakdown([tripOn(WINDOWS[0]!, 30_000)]);
+
+    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+
+    expect(within(section).getByText('Nothing found')).toBeTruthy();
+    // A zero would read as free, which is the one misreading that costs money.
+    expect(within(section).queryByText(format(money(0, 'EUR')))).toBeNull();
+  });
+
+  it('admits it sampled the window rather than covering it', async () => {
+    await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
+
+    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+
+    expect(within(section).getByText(/Priced 2 of the 165/)).toBeTruthy();
+  });
+
+  it('narrows to a set of dates without re-running the search', async () => {
+    await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
+
+    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+    const link = within(section).getAllByRole('link')[0] as HTMLAnchorElement;
+
+    // A filter over trips already priced, carrying the search it narrows - not
+    // a new search, which would cost provider calls and return different trips
+    // from the ones whose price the user just clicked.
+    expect(link.getAttribute('href')).toContain('fDates=2026-06-10..2026-06-15');
+    expect(link.getAttribute('href')).toContain('origins=VIE');
+  });
+
+  it('says what it cannot yet compare across dates', async () => {
+    // Section 8 also lists events, holidays and availability. Naming the gap
+    // beats a control that silently matches everything.
+    await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
+
+    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+
+    expect(within(section).getByText(/Events, public holidays and live availability/)).toBeTruthy();
+  });
+});

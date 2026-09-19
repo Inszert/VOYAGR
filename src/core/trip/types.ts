@@ -229,6 +229,18 @@ export interface SearchProfile {
   readonly maxNights: number;
   readonly earliestDeparture: IsoDate;
   readonly latestReturn: IsoDate;
+  /**
+   * Days of the week a departure may fall on, 0 (Sunday) to 6 (Saturday).
+   * Null means any day.
+   *
+   * This is what makes "a weekend" expressible. A weekend is not a shorter
+   * travel window - it is a window plus a rule about which days inside it
+   * count. Without this the planner would price a Tuesday departure and the
+   * page would call it a weekend break.
+   */
+  readonly departureDaysOfWeek: readonly number[] | null;
+  /** Days of the week a return may fall on. Null means any day. */
+  readonly returnDaysOfWeek: readonly number[] | null;
   /** Target spend for a good trip. */
   readonly targetBudget: Money;
   /** Hard ceiling. Exceeding it makes a trip ineligible, not merely worse. */

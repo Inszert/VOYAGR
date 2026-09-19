@@ -94,6 +94,18 @@ export function clampDate(value: IsoDate, min: IsoDate, max: IsoDate): IsoDate {
   return value;
 }
 
+/**
+ * Day of the week, 0 (Sunday) to 6 (Saturday).
+ *
+ * `getUTCDay`, never `getDay`: the local variant would return a different day
+ * for the same calendar date depending on which side of midnight the server's
+ * timezone happens to fall on, which is how a Friday departure becomes a
+ * Thursday one on a machine in Los Angeles.
+ */
+export function dayOfWeek(isoDate: IsoDate): number {
+  return new Date(toUtcMillis(isoDate)).getUTCDay();
+}
+
 // --- Local wall-clock times -------------------------------------------------
 
 const LOCAL_DATE_TIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;

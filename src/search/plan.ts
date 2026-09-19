@@ -1,4 +1,4 @@
-import { addDays, daysBetween, isIsoDate } from '@/core/dates';
+import { addDays, dayOfWeek, daysBetween, isIsoDate } from '@/core/dates';
 import { AppError } from '@/lib/errors';
 import type { AirportCode, SearchProfile } from '@/core/trip/types';
 import {
@@ -59,6 +59,11 @@ function normaliseAirports(codes: readonly AirportCode[], limit: number): Airpor
  *
  * Enumerated departure-first so that the sampling below spreads across the
  * whole window rather than favouring one trip length.
+ *
+ * `departureDaysOfWeek` and `returnDaysOfWeek` narrow this rather than the
+ * window does: "a long weekend in June" is the whole of June plus a rule about
+ * which days count, and expressing it as a shorter window would either miss
+ * most of the weekends or admit the Tuesdays between them.
  */
 export function enumerateDateWindows(profile: SearchProfile): DateWindow[] {
   const windows: DateWindow[] = [];
@@ -69,9 +74,25 @@ export function enumerateDateWindows(profile: SearchProfile): DateWindow[] {
     departureDate <= lastDeparture;
     departureDate = addDays(departureDate, 1)
   ) {
+    if (
+      profile.departureDaysOfWeek !== null &&
+      !profile.departureDaysOfWeek.includes(dayOfWeek(departureDate))
+    ) {
+      continue;
+    }
+
     for (let nights = profile.minNights; nights <= profile.maxNights; nights += 1) {
       const returnDate = addDays(departureDate, nights);
       if (returnDate > profile.latestReturn) break;
+
+      // `continue`, not `break`: a later trip length may land on an allowed
+      // return day even when this one did not.
+      if (
+        profile.returnDaysOfWeek !== null &&
+        !profile.returnDaysOfWeek.includes(dayOfWeek(returnDate))
+      ) {
+        continue;
+      }
 
       windows.push({ departureDate, returnDate, nights });
     }
@@ -171,10 +192,16 @@ export function buildSearchPlan(request: SearchRequest): SearchPlan {
   );
 
   const available = enumerateDateWindows(profile);
+  const dayRule =
+    profile.departureDaysOfWeek !== null || profile.returnDaysOfWeek !== null
+      ? ' on the days of the week chosen'
+      : '';
   requireValid(
     available.length > 0,
-    `No trip of ${profile.minNights}-${profile.maxNights} nights fits between ${profile.earliestDeparture} and ${profile.latestReturn}`,
-    'No trip of that length fits inside those dates.',
+    `No trip of ${profile.minNights}-${profile.maxNights} nights fits between ${profile.earliestDeparture} and ${profile.latestReturn}${dayRule}`,
+    dayRule
+      ? 'No trip of that length fits inside those dates on the days you chose.'
+      : 'No trip of that length fits inside those dates.',
   );
 
   const dateWindows = sampleEvenly(available, limits.maxDateWindows);

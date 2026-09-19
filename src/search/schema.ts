@@ -4,6 +4,12 @@ import { isIsoDate } from '@/core/dates';
 import type { OptimisationMode, SearchProfile, TravelStyle } from '@/core/trip/types';
 import { err, ok, type Result } from '@/lib/result';
 import type { SearchRequest } from './types';
+import {
+  applyFlexibility,
+  FLEXIBILITY_PRESETS,
+  type DateFlexibility,
+  type FlexibilityPreset,
+} from './flexibility';
 
 /**
  * The structured search schema (implementation plan 1.2).
@@ -100,7 +106,52 @@ const wholeNumber = (label: string) =>
     .number({ error: `Enter ${label} as a number.` })
     .int(`Enter ${label} as a whole number.`);
 
+/**
+ * Days of the week as `5,6`. Empty or absent means "any day".
+ *
+ * Only exists so a profile survives a round trip through a URL - it is what a
+ * saved Travel Watch replays from. People pick days with the flexibility
+ * chips, never by typing this.
+ */
+const daysOfWeek = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => {
+    if (value === undefined || value === '') return null;
+
+    const days = value
+      .split(',')
+      .map((part) => Number(part.trim()))
+      .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+
+    return days.length > 0 ? days : null;
+  });
+
+const optionalIsoDate = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value === undefined || value === '' ? null : value));
+
+/**
+ * The flexibility control (1.10.1 section 8).
+ *
+ * `custom` means "use the four window fields as given", which is what every
+ * link written before this control existed does - including the ones a saved
+ * Travel Watch replays. Absent reads as `custom` for exactly that reason.
+ */
+export const FLEXIBILITY_CHOICES = [...FLEXIBILITY_PRESETS, 'custom'] as const;
+
+export type FlexibilityChoice = (typeof FLEXIBILITY_CHOICES)[number];
+
 export const searchFormSchema = z.object({
+  flexibility: z.enum(FLEXIBILITY_CHOICES).optional().default('custom'),
+  /** The dates a person actually typed. Widened by the chosen preset. */
+  departureDate: optionalIsoDate,
+  returnDate: optionalIsoDate,
+  departureDays: daysOfWeek,
+  returnDays: daysOfWeek,
   origins: airportList('departure airport'),
   destinations: airportList('destination'),
   earliestDeparture: isoDate('the earliest departure'),
@@ -147,6 +198,23 @@ export type SearchFormErrors = Partial<Record<SearchFormField | 'form', string>>
 function checkCrossFieldRules(values: SearchFormValues): SearchFormErrors {
   const errors: SearchFormErrors = {};
 
+  if (values.flexibility !== 'custom') {
+    // A preset widens the dates a person typed, so it needs them. Validated
+    // here rather than as a required field, because they are genuinely
+    // optional on the custom path every pre-existing link uses.
+    if (values.departureDate === null || !isIsoDate(values.departureDate)) {
+      errors.departureDate = 'Enter the date you would like to leave.';
+    } else if (values.returnDate === null || !isIsoDate(values.returnDate)) {
+      errors.returnDate = 'Enter the date you would like to come back.';
+    } else if (values.returnDate <= values.departureDate) {
+      errors.returnDate = 'The return must be after the departure.';
+    }
+
+    // The window fields are derived from the preset, so a complaint about them
+    // would name a field the user cannot see, let alone fix.
+    return errors;
+  }
+
   if (values.maxNights < values.minNights) {
     errors.maxNights = 'The longest trip cannot be shorter than the shortest.';
   }
@@ -177,14 +245,51 @@ function checkCrossFieldRules(values: SearchFormValues): SearchFormErrors {
   return errors;
 }
 
+/**
+ * The travel window a submission describes.
+ *
+ * One place decides this, because two would drift: the profile the search runs
+ * and the summary the page prints must agree about what "a long weekend" meant.
+ *
+ * A preset widens the two dates the person typed. `custom` takes the four
+ * window fields verbatim, which is both the escape hatch section 8 asks for
+ * and what every link written before the presets existed already sends.
+ */
+export function resolveDateFlexibility(values: SearchFormValues): DateFlexibility {
+  if (
+    values.flexibility !== 'custom' &&
+    values.departureDate !== null &&
+    values.returnDate !== null
+  ) {
+    return applyFlexibility(
+      values.flexibility as FlexibilityPreset,
+      values.departureDate,
+      values.returnDate,
+    );
+  }
+
+  return {
+    earliestDeparture: values.earliestDeparture,
+    latestReturn: values.latestReturn,
+    minNights: values.minNights,
+    maxNights: values.maxNights,
+    departureDaysOfWeek: values.departureDays,
+    returnDaysOfWeek: values.returnDays,
+  };
+}
+
 export function toSearchProfile(values: SearchFormValues): SearchProfile {
+  const dates = resolveDateFlexibility(values);
+
   return {
     passengers: values.passengers,
     origins: values.origins,
-    minNights: values.minNights,
-    maxNights: values.maxNights,
-    earliestDeparture: values.earliestDeparture,
-    latestReturn: values.latestReturn,
+    minNights: dates.minNights,
+    maxNights: dates.maxNights,
+    earliestDeparture: dates.earliestDeparture,
+    latestReturn: dates.latestReturn,
+    departureDaysOfWeek: dates.departureDaysOfWeek,
+    returnDaysOfWeek: dates.returnDaysOfWeek,
     targetBudget: fromMajor(values.targetBudget, values.currency),
     maxBudget: fromMajor(values.maxBudget, values.currency),
     reserveBudget:
@@ -269,6 +374,18 @@ export function searchProfileToQuery(
     travelStyle: profile.travelStyle,
     optimisationMode: profile.optimisationMode,
   };
+
+  /*
+   * Always the resolved window, never the preset that produced it.
+   *
+   * A saved Travel Watch replays this string months later. "A long weekend"
+   * re-derived at replay time would quietly slide six weeks forward from
+   * whenever the worker happened to run, so the watch would stop being the
+   * search the user saved. The dates are the promise; the preset was only how
+   * they were typed.
+   */
+  if (profile.departureDaysOfWeek) params.departureDays = profile.departureDaysOfWeek.join(',');
+  if (profile.returnDaysOfWeek) params.returnDays = profile.returnDaysOfWeek.join(',');
 
   if (profile.reserveBudget) params.reserveBudget = String(toMajor(profile.reserveBudget));
   if (profile.minHotelReviewScore !== null) {

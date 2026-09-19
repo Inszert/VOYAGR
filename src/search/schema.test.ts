@@ -192,3 +192,118 @@ describe('searchProfileToQuery', () => {
     expect(query).not.toContain('reserveBudget');
   });
 });
+
+describe('flexibility presets in the form', () => {
+  /** The profile a submission resolves to, or a thrown test failure. */
+  const profileFrom = (overrides: Record<string, string | undefined> = {}) => {
+    const result = parse(overrides);
+    if (!result.ok) throw new Error(`expected a valid form, got ${JSON.stringify(result.error)}`);
+    return result.value.request.profile;
+  };
+
+  it('treats a submission with no flexibility field as a custom window', () => {
+    // Every link written before the presets existed - including the one a
+    // saved Travel Watch replays - sends exactly this.
+    const profile = profileFrom();
+
+    expect(profile.earliestDeparture).toBe('2026-06-01');
+    expect(profile.latestReturn).toBe('2026-06-30');
+    expect(profile.minNights).toBe(4);
+    expect(profile.departureDaysOfWeek).toBeNull();
+  });
+
+  it('widens the typed dates when a preset is chosen', () => {
+    const profile = profileFrom({
+      flexibility: 'plus-minus-3',
+      departureDate: '2026-06-06',
+      returnDate: '2026-06-13',
+    });
+
+    expect(profile.earliestDeparture).toBe('2026-06-03');
+    expect(profile.latestReturn).toBe('2026-06-16');
+    // The window fields submitted alongside are ignored, not merged.
+    expect(profile.minNights).toBe(4);
+    expect(profile.maxNights).toBe(10);
+  });
+
+  it('sets the day rules a weekend preset implies', () => {
+    const profile = profileFrom({
+      flexibility: 'weekend',
+      departureDate: '2026-06-06',
+      returnDate: '2026-06-08',
+    });
+
+    expect(profile.departureDaysOfWeek).toEqual([5, 6]);
+    expect(profile.returnDaysOfWeek).toEqual([0]);
+  });
+
+  it('asks for the dates a preset needs rather than guessing them', () => {
+    const result = parse({ flexibility: 'weekend', departureDate: '' });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.departureDate).toBeTruthy();
+  });
+
+  it('rejects a return before the departure', () => {
+    const result = parse({
+      flexibility: 'exact',
+      departureDate: '2026-06-13',
+      returnDate: '2026-06-06',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.returnDate).toBeTruthy();
+  });
+
+  it('does not complain about a window the preset overrode', () => {
+    // The window fields are derived when a preset is set, so a message about
+    // one would name a field the user cannot see, let alone fix.
+    const result = parse({
+      flexibility: 'exact',
+      departureDate: '2026-06-06',
+      returnDate: '2026-06-13',
+      minNights: '9',
+      maxNights: '2',
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('round-trips the day rules through a query string', () => {
+    const profile = profileFrom({
+      flexibility: 'long-weekend',
+      departureDate: '2026-06-04',
+      returnDate: '2026-06-07',
+    });
+
+    const query = Object.fromEntries(new URLSearchParams(searchProfileToQuery(profile, ['AYT'])));
+    const result = parseSearchForm(query);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.request.profile).toEqual(profile);
+  });
+
+  it('writes the resolved dates, not the preset that produced them', () => {
+    // A saved watch replays this string months later. Re-deriving "a weekend"
+    // at replay time would slide it forward from whenever the worker ran, so
+    // the watch would stop being the search that was saved.
+    const profile = profileFrom({
+      flexibility: 'weekend',
+      departureDate: '2026-06-06',
+      returnDate: '2026-06-08',
+    });
+
+    const query = new URLSearchParams(searchProfileToQuery(profile, ['AYT']));
+
+    expect(query.get('flexibility')).toBeNull();
+    expect(query.get('earliestDeparture')).toBe('2026-06-06');
+    expect(query.get('departureDays')).toBe('5,6');
+  });
+
+  it('ignores a day list that is not days of the week', () => {
+    expect(profileFrom({ departureDays: 'monday, 9, -1' }).departureDaysOfWeek).toBeNull();
+  });
+});
