@@ -557,16 +557,17 @@ class PostgresPriceHistoryRepository implements PriceHistoryRepository {
   async findLowest(
     watchId: string,
     componentType: PriceObservationRecord['componentType'],
+    currency: string,
   ): Promise<PriceObservationRecord | null> {
     // Ordered by amount then by time, so the *first* time a price was seen wins
     // a tie. "It has been this cheap since Tuesday" is the honest answer.
     const rows = await query<PriceRow>(
       `SELECT ${PRICE_COLUMNS}
          FROM price_history
-        WHERE watch_id = $1 AND component_type = $2
+        WHERE watch_id = $1 AND component_type = $2 AND currency = $3
         ORDER BY amount ASC, observed_at ASC
         LIMIT 1`,
-      [watchId, componentType],
+      [watchId, componentType, currency],
     );
     return rows[0] ? toObservation(rows[0]) : null;
   }

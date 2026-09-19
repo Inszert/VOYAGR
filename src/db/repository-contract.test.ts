@@ -471,7 +471,7 @@ describe.each(backends)('$name repository contract', (backend) => {
         });
       }
 
-      const lowest = await repositories.priceHistory.findLowest(watchId, 'trip_total');
+      const lowest = await repositories.priceHistory.findLowest(watchId, 'trip_total', 'EUR');
 
       expect(lowest?.amount.amount).toBe(65000);
       expect(lowest?.observedAt).toBe('2026-06-02T09:00:00.000Z');
@@ -491,15 +491,44 @@ describe.each(backends)('$name repository contract', (backend) => {
         conditions: null,
       });
 
-      expect(await repositories.priceHistory.findLowest(watchId, 'flight')).not.toBeNull();
-      expect(await repositories.priceHistory.findLowest(watchId, 'hotel')).toBeNull();
+      expect(await repositories.priceHistory.findLowest(watchId, 'flight', 'EUR')).not.toBeNull();
+      expect(await repositories.priceHistory.findLowest(watchId, 'hotel', 'EUR')).toBeNull();
+    });
+
+    it('never compares one currency against another', async () => {
+      // 50000 GBP is not cheaper than 60000 EUR, and a repository that ordered
+      // by minor units alone would say it was.
+      const user = await aUser();
+      const watchId = await aWatchId(user.id);
+
+      for (const [amount, currency] of [
+        [60000, 'EUR'],
+        [50000, 'GBP'],
+      ] as const) {
+        await repositories.priceHistory.record({
+          watchId,
+          componentType: 'trip_total',
+          componentId: 'candidate-1',
+          amount: money(amount, currency),
+          providerId: 'voyagr.cost-engine',
+          observedAt: '2026-06-01T09:00:00.000Z',
+          conditions: null,
+        });
+      }
+
+      expect(
+        (await repositories.priceHistory.findLowest(watchId, 'trip_total', 'EUR'))?.amount,
+      ).toEqual(money(60000, 'EUR'));
+      expect(
+        (await repositories.priceHistory.findLowest(watchId, 'trip_total', 'GBP'))?.amount,
+      ).toEqual(money(50000, 'GBP'));
     });
 
     it('returns null when a watch has no history at all', async () => {
       const user = await aUser();
       const watchId = await aWatchId(user.id);
 
-      expect(await repositories.priceHistory.findLowest(watchId, 'trip_total')).toBeNull();
+      expect(await repositories.priceHistory.findLowest(watchId, 'trip_total', 'EUR')).toBeNull();
       expect(await repositories.priceHistory.listForWatch(watchId)).toEqual([]);
     });
   });

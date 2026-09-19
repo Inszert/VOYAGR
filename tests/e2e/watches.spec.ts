@@ -144,6 +144,19 @@ test.describe('travel watches', () => {
     ).toBeChecked();
   });
 
+  test('is honest about having recorded no prices yet', async ({ page }) => {
+    // Nothing has run this watch, so "best seen so far" has no evidence behind
+    // it and the page says so rather than showing a number.
+    await signUp(page);
+    await saveASearch(page, 'Nothing recorded yet');
+
+    await page.goto('/watches');
+    const row = page.getByRole('article', { name: 'Nothing recorded yet' });
+
+    await expect(row.getByText('Nothing yet')).toBeVisible();
+    await expect(row.getByText('Prices recorded')).toBeVisible();
+  });
+
   test('sends anonymous visitors to sign in', async ({ page }) => {
     await page.goto('/watches');
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();

@@ -122,8 +122,15 @@ describe('refreshWatch', () => {
   });
 
   it('does not treat a more expensive result as an improvement', async () => {
-    const watch = await aWatch({ bestKnownTotal: money(61000, 'EUR') });
+    const watch = await aWatch();
 
+    await refreshWatch(watch.id, {
+      repositories,
+      now: () => clock,
+      search: searchReturning(61000),
+    });
+
+    clock += 6 * 60 * MINUTE;
     const result = await refreshWatch(watch.id, {
       repositories,
       now: () => clock,
@@ -131,8 +138,27 @@ describe('refreshWatch', () => {
     });
 
     expect(result.improvedBest).toBe(false);
+    // The cheaper observation is still on record, so it is still the best.
     expect((await repositories.travelWatches.findById(watch.id))?.bestKnownTotal).toEqual(
       money(61000, 'EUR'),
+    );
+  });
+
+  it('re-derives the best total from history rather than trusting a cached one', async () => {
+    // `bestKnownTotal` is a cache of "the cheapest we have ever recorded". A
+    // value with no observation behind it cannot be substantiated, so the first
+    // run that records anything replaces it. Deliberate: one source of truth
+    // and one value derived from it beats two numbers meant to agree.
+    const watch = await aWatch({ bestKnownTotal: money(61000, 'EUR') });
+
+    await refreshWatch(watch.id, {
+      repositories,
+      now: () => clock,
+      search: searchReturning(72000),
+    });
+
+    expect((await repositories.travelWatches.findById(watch.id))?.bestKnownTotal).toEqual(
+      money(72000, 'EUR'),
     );
   });
 
@@ -178,5 +204,74 @@ describe('refreshWatch', () => {
     const after = await repositories.travelWatches.findById(watch.id);
     // Free plan floor is 6 hours.
     expect(Date.parse(after!.nextRunAt) - clock).toBe(6 * 60 * MINUTE);
+  });
+});
+
+describe('price history accumulates', () => {
+  it('writes the total and every priced component on each run', async () => {
+    const watch = await aWatch();
+
+    await refreshWatch(watch.id, {
+      repositories,
+      now: () => clock,
+      search: searchReturning(68000),
+    });
+
+    const history = await repositories.priceHistory.listForWatch(watch.id);
+
+    expect(history).toHaveLength(4);
+    expect(history.every((row) => row.providerId.length > 0)).toBe(true);
+    expect(history.every((row) => row.observedAt === new Date(clock).toISOString())).toBe(true);
+  });
+
+  it('accumulates across runs, and the lowest total can be queried', async () => {
+    // This is Phase 1.7's "done when", end to end.
+    const watch = await aWatch();
+
+    for (const [total, offsetHours] of [
+      [72000, 0],
+      [65000, 6],
+      [69000, 12],
+    ] as const) {
+      clock = Date.parse('2026-09-19T12:00:00.000Z') + offsetHours * 60 * MINUTE;
+      await repositories.travelWatches.update(watch.id, {
+        nextRunAt: new Date(clock - MINUTE).toISOString(),
+      });
+      await refreshWatch(watch.id, {
+        repositories,
+        now: () => clock,
+        search: searchReturning(total),
+      });
+    }
+
+    const history = await repositories.priceHistory.listForWatch(watch.id);
+    expect(history).toHaveLength(12);
+
+    const lowest = await repositories.priceHistory.findLowest(watch.id, 'trip_total', 'EUR');
+    expect(lowest?.amount).toEqual(money(65000, 'EUR'));
+    // The watch's cached best agrees, because it is derived from this.
+    expect((await repositories.travelWatches.findById(watch.id))?.bestKnownTotal).toEqual(
+      money(65000, 'EUR'),
+    );
+  });
+
+  it('records a run that found nothing without writing a price', async () => {
+    // "No eligible trip today" is not an observation of a price, and inventing
+    // one would put a number in the history that nobody was ever offered.
+    const watch = await aWatch();
+    const empty = { results: [], nearMisses: [], diagnostics: { degraded: false } };
+
+    const result = await refreshWatch(watch.id, {
+      repositories,
+      now: () => clock,
+      search: async () => empty as never,
+    });
+
+    expect(result.observations).toBe(0);
+    expect(await repositories.priceHistory.listForWatch(watch.id)).toEqual([]);
+    // But the watch still ran and still rescheduled.
+    expect((await repositories.travelWatches.findById(watch.id))?.lastRunAt).toBe(
+      new Date(clock).toISOString(),
+    );
   });
 });

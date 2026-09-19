@@ -206,10 +206,18 @@ export interface TravelWatchRepository {
 export interface PriceHistoryRepository {
   record(observation: Omit<PriceObservationRecord, 'id'>): Promise<PriceObservationRecord>;
   listForWatch(watchId: string, limit?: number): Promise<PriceObservationRecord[]>;
-  /** Cheapest observation recorded for a watch, or null when none exist. */
+  /**
+   * Cheapest observation recorded for a watch, or null when none exist.
+   *
+   * `currency` is required, not optional. Comparing minor units across
+   * currencies is meaningless - 50000 GBP is not cheaper than 60000 EUR - and
+   * `src/core/money.ts` refuses to do it, so a repository method that did it
+   * silently would contradict the one rule the whole money model rests on.
+   */
   findLowest(
     watchId: string,
     componentType: PriceObservationRecord['componentType'],
+    currency: string,
   ): Promise<PriceObservationRecord | null>;
 }
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { money } from '@/core/money';
 import { resolveEntitlements } from '@/core/entitlements';
 import { buildProfile } from '@/core/trip/test-support';
 import { createMemoryRepositories } from '@/db/memory';
@@ -254,5 +255,64 @@ describe('describing the next run', () => {
     const [row] = await watches.listForUser(user.id);
 
     expect(row!.nextRunLabel).toBe('Due now');
+  });
+});
+
+describe('what the watches list reports about history', () => {
+  it('says nothing has been recorded before the first run', async () => {
+    const search = await save();
+    await watches.startWatching(user, search.id);
+
+    const [row] = await watches.listForUser(user.id);
+
+    expect(row!.lowestRecorded).toBeNull();
+    expect(row!.observationCount).toBe(0);
+  });
+
+  it('reports the cheapest recorded total and how much looking is behind it', async () => {
+    // "Best seen so far" means nothing without knowing how many observations
+    // stand behind it. One price is not a trend.
+    const search = await save();
+    const watch = await watches.startWatching(user, search.id);
+
+    for (const amount of [72000, 65000]) {
+      await repositories.priceHistory.record({
+        watchId: watch.id,
+        componentType: 'trip_total',
+        componentId: 'candidate-1',
+        amount: money(amount, 'EUR'),
+        providerId: 'voyagr.cost-engine',
+        observedAt: new Date(clock).toISOString(),
+        conditions: null,
+      });
+    }
+
+    const [row] = await watches.listForUser(user.id);
+
+    expect(row!.lowestRecorded).toEqual(money(65000, 'EUR'));
+    expect(row!.observationCount).toBe(2);
+  });
+
+  it('reads the lowest in the search currency, not the lowest number', async () => {
+    const search = await save();
+    const watch = await watches.startWatching(user, search.id);
+
+    for (const [amount, currency] of [
+      [65000, 'EUR'],
+      [40000, 'GBP'],
+    ] as const) {
+      await repositories.priceHistory.record({
+        watchId: watch.id,
+        componentType: 'trip_total',
+        componentId: 'candidate-1',
+        amount: money(amount, currency),
+        providerId: 'voyagr.cost-engine',
+        observedAt: new Date(clock).toISOString(),
+        conditions: null,
+      });
+    }
+
+    // The saved search is in EUR, so GBP 400 is not its best price.
+    expect((await watches.listForUser(user.id))[0]!.lowestRecorded).toEqual(money(65000, 'EUR'));
   });
 });

@@ -46,6 +46,15 @@ export interface WatchWithSearch {
    * server render and a hydration.
    */
   readonly nextRunLabel: string;
+  /**
+   * The cheapest total ever recorded for this watch, and how many observations
+   * stand behind it.
+   *
+   * Read from price history rather than from the watch's cached figure, so the
+   * page shows a number with evidence rather than one that merely persisted.
+   */
+  readonly lowestRecorded: TravelWatchRecord['bestKnownTotal'];
+  readonly observationCount: number;
 }
 
 export interface WatchDependencies {
@@ -171,13 +180,32 @@ export class WatchService {
 
     const now = this.now();
 
-    return watches.flatMap((watch) => {
+    const rows = watches.flatMap((watch) => {
       const search = byId.get(watch.tripSearchId);
       // A watch whose search is gone cannot be replayed or explained, so it is
       // not shown. The cascade should make this impossible; being defensive
       // costs nothing.
-      return search ? [{ watch, search, nextRunLabel: describeNextRun(watch, now) }] : [];
+      return search ? [{ watch, search }] : [];
     });
+
+    return Promise.all(
+      rows.map(async ({ watch, search }) => {
+        const currency = search.profile.targetBudget.currency;
+
+        const [lowest, history] = await Promise.all([
+          this.repositories.priceHistory.findLowest(watch.id, 'trip_total', currency),
+          this.repositories.priceHistory.listForWatch(watch.id),
+        ]);
+
+        return {
+          watch,
+          search,
+          nextRunLabel: describeNextRun(watch, now),
+          lowestRecorded: lowest?.amount ?? null,
+          observationCount: history.length,
+        };
+      }),
+    );
   }
 
   async setStatus(

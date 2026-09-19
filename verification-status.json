@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1.6-workers-and-scheduled-refresh",
+  "stage": "phase-1.7-price-history",
   "generatedAt": "2026-09-18",
   "overall": "PASS",
   "environment": {
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "514 tests across 29 files, all passing, including the repository contract suite against live PostgreSQL and the queue driver against live Redis.",
+      "detail": "533 tests across 30 files, all passing, including the repository contract suite against live PostgreSQL and the queue driver against live Redis.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -183,6 +183,14 @@
       "command": "npm test",
       "detail": "Flight times are a LocalDateTime distinct from an instant: a Z-suffixed or offset-bearing flight time is rejected, the clock face is read through one helper rather than through Date, and a test asserts a candidate carrying a UTC-claiming flight time is refused rather than silently misread. Baggage and self-transfer are boolean | null: an unstated fact does not satisfy a hard requirement, produces a needs_verification warning rather than a false denial, takes half the scoring penalty, and lowers data confidence. Asserted end to end against a provider that prices flights without stating what is included.",
       "notes": "The mock flight provider always states its facts, so the unknown path is exercised by unit tests and by a purpose-built terse provider in the orchestrator suite rather than by the standard fixtures. Whether a real vendor omits a field, sends an empty string or sends a misleading default is a per-vendor mapping question, tracked in the live-provider readiness task."
+    },
+    {
+      "id": "price-history",
+      "name": "Price history (Phase 1.7)",
+      "status": "PASS",
+      "command": "npm test && npm run worker",
+      "detail": "Every refresh records the trip total and each priced component with full provenance: who quoted it, when we observed it, in what currency and under what conditions. Asserted: no transfer row rather than a zero when none was priced, the total attributed to the cost engine rather than to one provider, the quoted-versus-estimated share recorded as a condition, history accumulating across runs, and the lowest total queryable per currency. Verified end to end against live PostgreSQL and Redis: a due watch was enqueued, refreshed and wrote four observations.",
+      "notes": "Every refresh writes a row whether or not the price moved, which is deliberate - \"it did not change\" is information - but it means no retention policy exists yet and the table grows without bound. Presentation of the history, and deciding whether a change is worth an alert, are Phase 1.8 and Phase 2."
     }
   ],
   "knownIssues": [

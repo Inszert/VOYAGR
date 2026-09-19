@@ -256,13 +256,16 @@ class MemoryPriceHistoryRepository implements PriceHistoryRepository {
   async findLowest(
     watchId: string,
     componentType: PriceObservationRecord['componentType'],
+    currency: string,
   ): Promise<PriceObservationRecord | null> {
     const candidates = (this.byWatch.get(watchId) ?? []).filter(
-      (record) => record.componentType === componentType,
+      (record) => record.componentType === componentType && record.amount.currency === currency,
     );
 
     if (candidates.length === 0) return null;
 
+    // Strictly cheaper wins, so an equal price leaves the earlier observation
+    // in place: "it has been this cheap since Tuesday" is the honest answer.
     return candidates.reduce((lowest, candidate) =>
       candidate.amount.amount < lowest.amount.amount ? candidate : lowest,
     );

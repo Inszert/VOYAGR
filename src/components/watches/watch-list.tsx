@@ -33,6 +33,9 @@ export interface WatchRow {
   readonly search: TripSearchRecord;
   /** Resolved by the service, which owns the clock. */
   readonly nextRunLabel: string;
+  /** Cheapest total on record, with the number of observations behind it. */
+  readonly lowestRecorded: TravelWatchRecord['bestKnownTotal'];
+  readonly observationCount: number;
 }
 
 export interface WatchListProps {
@@ -76,7 +79,7 @@ function WatchAction({
 export function WatchList({ rows, pauseAction, resumeAction, archiveAction }: WatchListProps) {
   return (
     <ul className="flex flex-col gap-4">
-      {rows.map(({ watch, search, nextRunLabel }) => (
+      {rows.map(({ watch, search, nextRunLabel, lowestRecorded, observationCount }) => (
         <li key={watch.id}>
           <Card as="article" aria-labelledby={`watch-${watch.id}`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -110,8 +113,16 @@ export function WatchList({ rows, pauseAction, resumeAction, archiveAction }: Wa
               <div className="flex justify-between gap-4">
                 <dt className="text-ink-muted">Best seen so far</dt>
                 <dd className="text-ink tabular-nums">
-                  {watch.bestKnownTotal ? format(watch.bestKnownTotal) : 'Nothing yet'}
+                  {lowestRecorded ? format(lowestRecorded) : 'Nothing yet'}
                 </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-ink-muted">Prices recorded</dt>
+                {/*
+                  Shown because "best seen so far" means nothing without knowing
+                  how much looking is behind it. One observation is not a trend.
+                */}
+                <dd className="text-ink tabular-nums">{observationCount}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-ink-muted">Budget ceiling</dt>

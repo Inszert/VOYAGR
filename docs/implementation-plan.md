@@ -272,7 +272,7 @@ dedupe keys were full of them — ISO timestamps alone contribute three. The in-
 accepted them happily. Keys are now hashed into valid ids at the driver boundary, and the contract
 documents that a dedupe key is opaque.
 
-### 1.7 Price history
+### 1.7 Price history ✅ complete
 
 _In plain words: write down every price we see, and where and when we saw it._
 
@@ -280,6 +280,33 @@ Record every observation with source, timestamp, currency and conditions. A pric
 provenance cannot honestly be shown.
 
 - **Done when:** a watch accumulates history and the lowest observed total can be queried.
+
+**Delivered.** `src/watches/observations.ts` turns a refreshed trip into rows; the refresh handler
+writes them. Verified against live PostgreSQL and Redis: one due watch, enqueued, refreshed, four
+observations written, watch rescheduled.
+
+Decisions worth carrying forward:
+
+- **The total and its parts are both recorded.** The total is what a user watches; the parts are
+  what explains it, and "the flight dropped but the hotel rose" is not answerable from one number.
+- **`observedAt` is when _we_ saw the price**, not when the provider first quoted it. The
+  provider's own timestamp stays on the offer. This column is what makes the rows a time series,
+  and a cached upstream response must not be able to backdate itself into one.
+- **The total is attributed to the cost engine, not to a provider.** It is assembled from several,
+  and naming one would be a lie about where the number came from.
+- **How much of a total was quoted rather than estimated is recorded as a condition of it.** A
+  cheap total that is mostly our own estimates is not the same observation as one a provider stood
+  behind, and six months later nobody will remember which.
+- **No transfer row rather than a zero** when none was priced. A zero is a price nobody was
+  offered, and it would poison every later comparison against it.
+- **`bestKnownTotal` is now derived from history, not set beside it.** It is a cache of "the
+  cheapest we have ever recorded", re-read from the history after each write, so the two cannot
+  drift. A cached value with no observation behind it cannot be substantiated and is replaced.
+
+**Fixed on the way:** `findLowest` compared minor units across currencies, so 50000 GBP ranked
+below 60000 EUR. `src/core/money.ts` refuses that comparison on principle and a repository doing it
+silently contradicted the rule the whole money model rests on. Currency is now a required argument,
+and both backends are held to it by the contract suite.
 
 ### 1.8 Deal detection
 
