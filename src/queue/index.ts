@@ -1,6 +1,7 @@
 import { getEnv } from '@/lib/env';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
+import { createBullMqQueueDriver } from './bullmq';
 import { createMemoryQueueDriver } from './memory';
 import type { QueueDriver } from './types';
 
@@ -29,13 +30,7 @@ export function createQueueDriver(): QueueDriver {
       );
     }
 
-    // The BullMQ driver is the next step here. Until it exists, refuse rather
-    // than pretend: see `docs/architecture.md` for the intended shape.
-    throw new AppError(
-      'CONFIGURATION_ERROR',
-      'The BullMQ queue driver is not implemented yet. Set QUEUE_DRIVER=memory.',
-      { publicMessage: 'Background jobs are not configured.' },
-    );
+    return createBullMqQueueDriver();
   }
 
   return createMemoryQueueDriver();
@@ -57,5 +52,6 @@ export async function resetQueue(): Promise<void> {
   driver = undefined;
 }
 
+export { BullMqQueueDriver, createBullMqQueueDriver } from './bullmq';
 export { createMemoryQueueDriver, MemoryQueueDriver } from './memory';
 export * from './types';

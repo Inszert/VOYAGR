@@ -230,7 +230,7 @@ Decisions worth carrying forward:
   but nothing runs them until 1.6, and a countdown implying otherwise would describe work nobody
   is doing.
 
-### 1.6 Workers and scheduled refresh
+### 1.6 Workers and scheduled refresh ✅ complete
 
 _In plain words: little helpers in the background check your saved trips again and again on a timer._
 
@@ -243,6 +243,34 @@ BullMQ driver behind the existing queue interface; a scheduler that picks up due
   a faster tier later is configuration, not a scheduler change.
 - **Done when:** watches refresh on schedule against mocks, with Redis running, and the schedule
   survives a worker restart.
+
+**Delivered.** `src/queue/bullmq.ts`, `src/watches/scheduler.ts`, `src/watches/refresh.ts` and
+`src/worker/main.ts`, run with `npm run worker`. Verified against a live Redis 8 and PostgreSQL 17.
+
+Decisions worth carrying forward:
+
+- **The schedule lives in the database, not in Redis.** A watch's `nextRunAt` is the only source of
+  truth for when it runs, and the scheduler is a timer that asks the database what is due. That is
+  what makes the schedule survive a worker restart, a Redis flush or a move to another machine —
+  rather than a durable repeating job that is only as durable as the queue holding it.
+- **The dedupe key includes the deadline, not just the watch id.** Keying on the id alone would
+  stop a watch being enqueued again after it ran, until its old job was cleaned up.
+- **A refresh always reschedules.** Search failed, providers down, whole thing threw — the watch
+  still gets a new `nextRunAt`. A watch that stops rescheduling has silently stopped, and nothing
+  in the product would announce it.
+- **The cadence is resolved from the owner's plan at run time**, not captured when the watch was
+  made, so a plan change takes effect without touching a row.
+- **Only eligible trips set the best-known total.** A cheaper trip that breaks the user's own hard
+  limits is not a better trip, and recording it as the benchmark would make every honest result
+  afterwards look like a price rise. A currency change is recorded but never called an improvement.
+- **The worker is a plain Node process**, not something Next-specific. A worker has no request and
+  no rendering, and running it inside the web server would tie the monitoring loop's uptime to the
+  website's.
+
+**Found only by running against real Redis:** BullMQ rejects a job id containing a colon, and the
+dedupe keys were full of them — ISO timestamps alone contribute three. The in-memory driver had
+accepted them happily. Keys are now hashed into valid ids at the driver boundary, and the contract
+documents that a dedupe key is opaque.
 
 ### 1.7 Price history
 

@@ -25,7 +25,8 @@
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
-    "test:db": "vitest run src/db/repository-contract.test.ts"
+    "test:db": "vitest run src/db/repository-contract.test.ts",
+    "worker": "tsx --env-file-if-exists=.env scripts/worker.mjs"
   },
   "dependencies": {
     "bullmq": "^6.3.7",
@@ -60,6 +61,7 @@
     "prettier": "^3.9.8",
     "prettier-plugin-tailwindcss": "^0.7.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.7"

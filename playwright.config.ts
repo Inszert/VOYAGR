@@ -72,5 +72,23 @@ export default defineConfig({
     timeout: 180_000,
     stdout: 'pipe',
     stderr: 'pipe',
+    /*
+     * Hermetic on purpose.
+     *
+     * Next loads `.env` automatically, so on a machine with real Postgres and
+     * Redis configured the suite would sign accounts up into the developer's
+     * own database and queue jobs onto their Redis - polluting both, and making
+     * the run depend on whoever happens to have what configured.
+     *
+     * These are blanked rather than unset because `parseEnv` already treats an
+     * empty string as absent, and because Next will not overwrite a variable
+     * that is already present in the process environment.
+     */
+    env: {
+      DATABASE_URL: '',
+      TEST_DATABASE_URL: '',
+      REDIS_URL: '',
+      QUEUE_DRIVER: 'memory',
+    },
   },
 });

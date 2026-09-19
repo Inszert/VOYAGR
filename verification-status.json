@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1.5-saved-searches-and-watches",
+  "stage": "phase-1.6-workers-and-scheduled-refresh",
   "generatedAt": "2026-09-18",
   "overall": "PASS",
   "environment": {
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "492 tests across 26 files, all passing, including the repository contract suite against a live PostgreSQL instance.",
+      "detail": "514 tests across 29 files, all passing, including the repository contract suite against live PostgreSQL and the queue driver against live Redis.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -87,7 +87,7 @@
       "status": "PASS",
       "command": "npm run test:e2e",
       "detail": "44 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, and the full search flow — submitting the form, restoring a search from its URL, the score explanation, the cost breakdown, the No-Surprise warnings, a rejected form, an empty result set and keyboard-only operation.",
-      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download."
+      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The Playwright web server runs with DATABASE_URL and REDIS_URL blanked, so the suite is hermetic and cannot write test accounts into a developer's real database."
     },
     {
       "id": "accessibility",
@@ -132,10 +132,10 @@
     {
       "id": "queue",
       "name": "Background jobs",
-      "status": "WARN",
-      "command": "npm test",
-      "detail": "In-process driver fully implemented and tested: delays, retries with exponential backoff, deduplication, stats, deterministic drain.",
-      "notes": "The BullMQ driver is not implemented yet. A Redis 8.10.1 instance is now configured and verified reachable, with SET/GET and Lua EVAL working, which is what BullMQ requires. Phase 1.6 implements the driver."
+      "status": "PASS",
+      "command": "npm test && npm run worker",
+      "detail": "Both drivers implement one contract. The in-process driver is fully tested; the BullMQ driver is tested against a live Redis 8.10.1 for round trip, deduplication, delayed jobs and - the Phase 1.6 requirement - surviving a restart of the process that enqueued the work. The worker boots against live Redis and PostgreSQL, sweeps due watches and refreshes them.",
+      "notes": "Queue tests create and then obliterate uniquely named queues, so they touch nothing already on the instance. Behaviour under worker crash mid-job, Redis failover and multi-worker contention is untested."
     },
     {
       "id": "ai-guardrails",

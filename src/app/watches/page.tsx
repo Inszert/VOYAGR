@@ -5,6 +5,7 @@ import { Card } from '@/components/ui';
 import { WatchList } from '@/components/watches/watch-list';
 import { archiveWatchAction, pauseWatchAction, resumeWatchAction } from '@/app/actions/watches';
 import { getCurrentUser } from '@/auth/current-user';
+import { getCapabilities } from '@/lib/env';
 import { getRepositories } from '@/db';
 import { WatchService } from '@/watches/service';
 
@@ -31,6 +32,11 @@ export default async function WatchesPage() {
 
   const active = rows.filter((row) => row.watch.status === 'active').length;
 
+  // An in-process queue in the web server is not reachable by a worker, so a
+  // watch would sit at its deadline forever. Only a shared queue means the
+  // scheduling shown here corresponds to anything.
+  const workerCanRun = getCapabilities().bullmq;
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -42,19 +48,22 @@ export default async function WatchesPage() {
       </div>
 
       {/*
-        Said plainly rather than implied. Until 1.6 there is no scheduler, so a
-        watch sits at its deadline without anything picking it up, and a page
-        that showed a countdown would be describing work nobody is doing.
+        Whether anything is actually running them is a deployment fact, not a
+        code fact: the worker is a separate process. Saying "we are checking" on
+        a page whose worker nobody started would be describing work nobody is
+        doing, so the claim is tied to the queue being a shared one.
       */}
-      <Card as="section" aria-labelledby="not-running-heading">
-        <h2 id="not-running-heading" className="text-ink text-sm font-semibold">
-          Background checking is not switched on yet
-        </h2>
-        <p className="text-ink-muted mt-1 text-sm">
-          Your watches are saved and scheduled, but nothing is running them in the background yet.
-          Use “Run this search now” to check a trip in the meantime.
-        </p>
-      </Card>
+      {workerCanRun ? null : (
+        <Card as="section" aria-labelledby="not-running-heading">
+          <h2 id="not-running-heading" className="text-ink text-sm font-semibold">
+            Background checking is not switched on here
+          </h2>
+          <p className="text-ink-muted mt-1 text-sm">
+            Your watches are saved and scheduled, but this deployment has no shared job queue, so
+            nothing is running them. Use “Run this search now” to check a trip in the meantime.
+          </p>
+        </Card>
+      )}
 
       {rows.length === 0 ? (
         <Card>

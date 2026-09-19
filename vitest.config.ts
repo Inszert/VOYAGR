@@ -3,29 +3,66 @@ import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 /**
- * Load `TEST_DATABASE_URL` from `.env`, and nothing else.
+ * Expose the connection strings in `.env` to tests as `TEST_*`, and nothing
+ * else from that file.
  *
- * Deliberately one variable rather than the whole file. The suite's defining
- * property is that it passes with no database, and copying `DATABASE_URL` in
- * would quietly point `getRepositories()` at a real server for every test that
- * ever touched it - turning "no external services required" into a lie that
- * only shows up on someone else's machine.
+ * Deliberately an allow-list, and deliberately renamed. The suite's defining
+ * property is that it passes with no external services; copying `DATABASE_URL`,
+ * `REDIS_URL` or `QUEUE_DRIVER` through under their own names would quietly
+ * point `getRepositories()` and `createQueueDriver()` at real servers for every
+ * test that touches them, turning "no external services required" into a lie
+ * that only shows up on someone else's machine.
  *
- * The repository contract tests opt in explicitly by reading this one variable.
+ * Integration tests opt in by reading a `TEST_*` variable explicitly, and skip
+ * themselves when it is absent.
  */
-function loadTestDatabaseUrl(): void {
-  if (process.env.TEST_DATABASE_URL || !existsSync('.env')) return;
+/*
+ * `TEST_DATABASE_URL` has no fallback, deliberately.
+ *
+ * The repository contract suite TRUNCATEs every table between tests. Falling
+ * back to `DATABASE_URL` would mean that merely having a database configured is
+ * enough for `npm test` to empty it - and the day that database is not a
+ * development one, the mistake is unrecoverable. Pointing the tests at a
+ * database has to be a thing someone typed on purpose.
+ *
+ * `TEST_REDIS_URL` may fall back, because the queue tests only ever create and
+ * then obliterate queues under their own uniquely generated names, and touch
+ * nothing that was already there.
+ */
+const TEST_ENV_KEYS = {
+  TEST_DATABASE_URL: null,
+  TEST_REDIS_URL: 'REDIS_URL',
+} as const;
+
+function readEnvFile(): Map<string, string> {
+  const values = new Map<string, string>();
+  if (!existsSync('.env')) return values;
 
   for (const line of readFileSync('.env', 'utf8').split(/\r?\n/)) {
-    const match = /^\s*TEST_DATABASE_URL\s*=\s*(.*)$/.exec(line);
-    if (!match) continue;
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+    if (!match?.[1]) continue;
 
-    const value = match[1]?.trim().replace(/^["']|["']$/g, '');
-    if (value) process.env.TEST_DATABASE_URL = value;
+    const value = match[2]?.trim().replace(/^["']|["']$/g, '');
+    if (value) values.set(match[1], value);
+  }
+
+  return values;
+}
+
+function loadTestEnv(): void {
+  const values = readEnvFile();
+
+  for (const [testKey, plainKey] of Object.entries(TEST_ENV_KEYS)) {
+    if (process.env[testKey]) continue;
+
+    // A dedicated TEST_* entry always wins, so a throwaway instance can be
+    // pointed at without touching what the application itself uses.
+    const value = values.get(testKey) ?? (plainKey ? values.get(plainKey) : undefined);
+    if (value) process.env[testKey] = value;
   }
 }
 
-loadTestDatabaseUrl();
+loadTestEnv();
 
 /**
  * Vitest configuration.

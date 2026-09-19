@@ -49,7 +49,12 @@ export interface EnqueueOptions {
   readonly attempts?: number;
   /**
    * Deduplication key. Enqueuing the same key twice while one is pending is a
-   * no-op, which keeps a burst of user actions from queueing duplicate refreshes.
+   * no-op, which keeps a burst of user actions from queueing duplicate
+   * refreshes.
+   *
+   * Opaque: a driver may encode it however its backend requires. BullMQ, for
+   * one, refuses a job id containing a colon, so the key is hashed rather than
+   * used verbatim. Never parse a key back out of a job id.
    */
   readonly dedupeKey?: string;
 }

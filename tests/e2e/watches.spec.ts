@@ -118,7 +118,7 @@ test.describe('travel watches', () => {
     await expect(page.getByText('No watches yet.')).toBeVisible();
     // Nothing runs them yet, and the page says so rather than implying it does.
     await expect(
-      page.getByRole('heading', { name: 'Background checking is not switched on yet' }),
+      page.getByRole('heading', { name: 'Background checking is not switched on here' }),
     ).toBeVisible();
   });
 
