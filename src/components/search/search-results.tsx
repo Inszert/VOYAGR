@@ -1,5 +1,7 @@
 import { Badge, Card, Disclosure } from '@/components/ui';
+import { flightAlternatives, hotelAlternatives } from '@/search/alternatives';
 import type { SearchOutcome } from '@/search/types';
+import type { SearchProfile } from '@/core/trip/types';
 import { TripCard } from './trip-card';
 
 /**
@@ -18,6 +20,8 @@ import { TripCard } from './trip-card';
 
 export interface SearchResultsProps {
   outcome: SearchOutcome;
+  /** Needed to re-score a swapped trip against what the user actually asked for. */
+  profile: SearchProfile;
   /** How long ago these results were computed. Zero for a fresh search. */
   resultAgeMs?: number;
 }
@@ -27,7 +31,7 @@ function minutesAgo(ageMs: number): number {
   return Math.floor(ageMs / 60_000);
 }
 
-export function SearchResults({ outcome, resultAgeMs = 0 }: SearchResultsProps) {
+export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResultsProps) {
   const { results, nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
 
@@ -78,7 +82,21 @@ export function SearchResults({ outcome, resultAgeMs = 0 }: SearchResultsProps) 
         <ol className="flex flex-col gap-4">
           {results.map((trip, index) => (
             <li key={trip.candidate.id}>
-              <TripCard trip={trip} rank={index} />
+              {/*
+                Alternatives are computed for the top result only. Evaluating
+                every possible swap for forty cards would be work nobody asked
+                for, and the top result is the one people actually examine.
+              */}
+              <TripCard
+                trip={trip}
+                rank={index}
+                {...(index === 0
+                  ? {
+                      flightAlternatives: flightAlternatives({ outcome, current: trip, profile }),
+                      hotelAlternatives: hotelAlternatives({ outcome, current: trip, profile }),
+                    }
+                  : {})}
+              />
             </li>
           ))}
         </ol>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { buildFlightOffer, buildHotelOffer, buildTransferOffer } from '@/core/trip/test-support';
 import { format, money } from '@/core/money';
+import { buildProfile } from '@/core/trip/test-support';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
 import { SearchForm } from './search-form';
@@ -215,6 +216,7 @@ describe('SearchResults counts', () => {
 
     render(
       <SearchResults
+        profile={buildProfile()}
         outcome={{
           results: [trip],
           nearMisses: [],

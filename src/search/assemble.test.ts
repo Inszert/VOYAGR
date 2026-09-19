@@ -7,9 +7,9 @@ import {
   buildTransferOffer,
   buildWeather,
 } from '@/core/trip/test-support';
+import { candidateId } from '@/core/trip/identity';
 import {
   assembleRouteCandidates,
-  candidateId,
   flightDestination,
   flightOrigin,
   interleave,

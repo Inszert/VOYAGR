@@ -15,6 +15,7 @@ import { isAppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import type { SearchFormErrors } from '@/search/schema';
 import type { SearchOutcome } from '@/search/types';
+import type { SearchProfile } from '@/core/trip/types';
 
 /**
  * Search page.
@@ -81,6 +82,7 @@ export default async function SearchPage({
   const defaults = preferencesToFormDefaults(readExplicitPreferences(stored));
 
   let outcome: SearchOutcome | null = null;
+  let searchProfile: SearchProfile | null = null;
   let resultAgeMs = 0;
   let errors: SearchFormErrors = {};
 
@@ -91,6 +93,8 @@ export default async function SearchPage({
       // Anonymous visitors get the default plan's allowance, so the limit is
       // resolved from a plan in both cases rather than being a constant here.
       const entitlements = user?.entitlements ?? resolveEntitlements();
+
+      searchProfile = parsed.value.request.profile;
 
       const request = {
         ...parsed.value.request,
@@ -153,7 +157,7 @@ export default async function SearchPage({
             action={saveSearchAction}
           />
 
-          <SearchResults outcome={outcome} resultAgeMs={resultAgeMs} />
+          <SearchResults outcome={outcome} profile={searchProfile!} resultAgeMs={resultAgeMs} />
         </>
       ) : null}
     </div>

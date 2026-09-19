@@ -1,7 +1,3 @@
-import { costTripCandidate } from '@/core/trip/cost';
-import { detectTravelWarnings, evaluateEligibility } from '@/core/trip/constraints';
-import { scoreTrip } from '@/core/trip/scoring';
-import { computeUsableTime } from '@/core/trip/usable-time';
 import type {
   AirportCode,
   FlightOffer,
@@ -24,6 +20,7 @@ import type {
   WeatherProvider,
 } from '@/providers/types';
 import { assembleRouteCandidates, interleave } from './assemble';
+import { evaluateTrip } from './evaluate';
 import { buildSearchPlan } from './plan';
 import type {
   DateWindow,
@@ -323,16 +320,7 @@ function rankCandidate(
   }
 
   try {
-    const cost = costTripCandidate(candidate);
-
-    return {
-      candidate,
-      cost,
-      eligibility: evaluateEligibility(candidate, cost, request.profile),
-      warnings: detectTravelWarnings(candidate, cost),
-      score: scoreTrip(candidate, cost, request.profile),
-      usableTime: computeUsableTime(candidate),
-    };
+    return evaluateTrip(candidate, request.profile);
   } catch (error) {
     // A candidate the core refuses to cost is dropped rather than shown with a
     // partial total: loud in the logs, absent from the results.

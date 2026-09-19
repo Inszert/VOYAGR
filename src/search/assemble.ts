@@ -6,6 +6,7 @@ import type {
   TripCandidate,
   WeatherOutlook,
 } from '@/core/trip/types';
+import { candidateId } from '@/core/trip/identity';
 import type { DateWindow, SearchLimits } from './types';
 
 /**
@@ -77,25 +78,6 @@ export function selectTransfer(offers: readonly TransferOffer[]): TransferOffer 
   }
 
   return cheapest;
-}
-
-/**
- * A content-derived candidate id.
- *
- * Deliberately not a counter or a UUID: the same combination must carry the
- * same id on every run so price history, alerts and "what changed" comparisons
- * line up across refreshes.
- */
-export function candidateId(
-  origin: AirportCode,
-  destination: AirportCode,
-  window: DateWindow,
-  flight: FlightOffer,
-  hotel: HotelOffer,
-): string {
-  return [origin, destination, window.departureDate, `${window.nights}n`, flight.id, hotel.id].join(
-    '|',
-  );
 }
 
 export interface RouteAssemblyInput {

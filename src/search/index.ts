@@ -8,6 +8,7 @@
 
 export { runSearch, type SearchDependencies } from './orchestrator';
 export { buildSearchPlan, enumerateDateWindows, sampleEvenly } from './plan';
+export { candidateId } from '@/core/trip/identity';
 export {
   assembleRouteCandidates,
   interleave,

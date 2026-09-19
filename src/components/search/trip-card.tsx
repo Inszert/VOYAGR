@@ -2,8 +2,10 @@ import { format } from '@/core/money';
 import { Badge, Card, Disclosure } from '@/components/ui';
 import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/booking/handoff';
 import type { RankedTrip } from '@/search/types';
+import type { Alternative } from '@/search/alternatives';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
+import { SwapPanel } from './swap-panel';
 import { WarningList } from './warning-list';
 
 /**
@@ -32,9 +34,21 @@ export interface TripCardProps {
   trip: RankedTrip;
   /** Zero-based position in the results list. */
   rank: number;
+  /**
+   * Other flights and hotels this search saw, each already evaluated as a whole
+   * trip. Omitted for a card that is not the one being examined, because
+   * evaluating alternatives for forty results would be work nobody asked for.
+   */
+  flightAlternatives?: readonly Alternative[];
+  hotelAlternatives?: readonly Alternative[];
 }
 
-export function TripCard({ trip, rank }: TripCardProps) {
+export function TripCard({
+  trip,
+  rank,
+  flightAlternatives = [],
+  hotelAlternatives = [],
+}: TripCardProps) {
   const { candidate, cost, score, warnings, usableTime, eligibility } = trip;
   const headingId = `trip-${candidate.id}-heading`;
   const warningsId = `trip-${candidate.id}-warnings`;
@@ -130,6 +144,18 @@ export function TripCard({ trip, rank }: TripCardProps) {
       <Disclosure summary={`How the score of ${score.score} was calculated`}>
         <ScoreExplanation score={score} headingId={scoreId} />
       </Disclosure>
+
+      <SwapPanel
+        heading="Change the flight"
+        alternatives={flightAlternatives}
+        currency={cost.total.currency}
+      />
+
+      <SwapPanel
+        heading="Change the hotel"
+        alternatives={hotelAlternatives}
+        currency={cost.total.currency}
+      />
 
       <Disclosure summary="Flight and hotel details">
         <dl className="grid gap-3 text-sm sm:grid-cols-2">

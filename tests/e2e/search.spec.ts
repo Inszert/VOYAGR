@@ -99,6 +99,35 @@ test.describe('running a search', () => {
     await expect(page.getByText(/exceeds the maximum budget/).first()).toBeVisible();
   });
 
+  test('offers alternative flights priced as whole trips', async ({ page }) => {
+    // Phase 1.10: a swap recalculates everything, and the list says what the
+    // trip would cost and score - never just what the flight costs.
+    await page.goto(A_SEARCH);
+
+    const top = page.getByRole('article').first();
+
+    // Scoped to this panel: a bare `.first()` on the card would happily match
+    // text inside one of the other, still-closed disclosures. Located by the
+    // `details` element the Disclosure component is documented to render,
+    // because browsers do not agree on exposing it as a named `group` role.
+    const panel = top.locator('details', { hasText: 'Change the flight' });
+    await panel.getByText('Change the flight').click();
+
+    await expect(panel.getByText('Chosen')).toBeVisible();
+    await expect(panel.getByText(/total/).first()).toBeVisible();
+    await expect(panel.getByText(/score \d+/).first()).toBeVisible();
+  });
+
+  test('offers alternative hotels the same way', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const top = page.getByRole('article').first();
+    const panel = top.locator('details', { hasText: 'Change the hotel' });
+    await panel.getByText('Change the hotel').click();
+
+    await expect(panel.getByText(/cheaper|more|Same price/).first()).toBeVisible();
+  });
+
   test('is operable by keyboard alone', async ({ page }) => {
     await page.goto(A_SEARCH);
 

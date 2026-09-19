@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1.7-price-history",
+  "stage": "phase-1.10-component-swapping",
   "generatedAt": "2026-09-18",
   "overall": "PASS",
   "environment": {
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "533 tests across 30 files, all passing, including the repository contract suite against live PostgreSQL and the queue driver against live Redis.",
+      "detail": "592 tests across 35 files, all passing, including the repository contract suite against live PostgreSQL and the queue driver against live Redis.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -86,7 +86,7 @@
       "name": "End-to-end smoke tests",
       "status": "PASS",
       "command": "npm run test:e2e",
-      "detail": "44 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, and the full search flow — submitting the form, restoring a search from its URL, the score explanation, the cost breakdown, the No-Surprise warnings, a rejected form, an empty result set and keyboard-only operation.",
+      "detail": "92 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, and the full search flow — submitting the form, restoring a search from its URL, the score explanation, the cost breakdown, the No-Surprise warnings, a rejected form, an empty result set and keyboard-only operation.",
       "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The Playwright web server runs with DATABASE_URL and REDIS_URL blanked, so the suite is hermetic and cannot write test accounts into a developer's real database."
     },
     {

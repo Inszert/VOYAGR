@@ -375,13 +375,40 @@ Decisions worth carrying forward:
 - **Alerts are tagged per watch**, so one trip cannot stack five notifications on a phone while its
   price wobbles.
 
-### 1.10 Flight and hotel swapping
+### 1.10 Flight and hotel swapping ✅ complete
 
 _In plain words: let you switch one flight or hotel, and fix every number to match._
 
 Swap a component and recalculate the total, usable time and score.
 
 - **Done when:** swapping a flight updates every derived figure consistently.
+
+**Delivered.** `src/core/trip/swap.ts` produces the new trip, `src/search/evaluate.ts` is the one
+path that costs and scores any trip, and `src/search/alternatives.ts` offers every flight and hotel
+the search saw — each evaluated as a whole trip.
+
+Decisions worth carrying forward:
+
+- **A swap produces a trip; it never does arithmetic.** The same engines that costed the original
+  cost the replacement. A swap that computed its own total would be a second place for a number to
+  come from.
+- **`evaluateTrip` is shared with the orchestrator**, not reimplemented. A swapped trip scored by a
+  second, similar-looking routine is a trip scored differently.
+- **Alternatives are priced as whole trips, never as components.** A cheaper flight that lands at
+  midnight usually makes the holiday worse, and a list of fares would invite exactly that mistake.
+  Each row gives the trip total, the score, and both deltas.
+- **A swap to a different city is refused**, because that is a different holiday and would leave the
+  candidate's destination disagreeing with the itinerary under it. A currency mismatch is refused
+  with a reason, rather than failing later inside a total nobody can trace.
+- **Swapping the transfer keeps the trip id.** The ride in from the airport is not what makes a
+  trip that trip, and moving the id would break the price history of a watch whose owner merely
+  changed how they get in.
+- **Removing the transfer yields an excluded cost line, never a zero**, so the total stays honest
+  about what it no longer covers.
+- **An option that breaches the budget is still shown, marked.** Hiding it would be deciding for
+  the user.
+- **Alternatives are computed for the top result only.** Evaluating every swap for forty cards is
+  work nobody asked for.
 
 ### Live-provider readiness — the gate before 1.11
 
