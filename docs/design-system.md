@@ -39,19 +39,53 @@ rewrite. No runtime CSS-in-JS cost, and it composes cleanly with server componen
 
 Defined in `src/app/globals.css`. Components reference **semantic** names, never raw colours.
 
-| Group    | Tokens                                                     |
-| -------- | ---------------------------------------------------------- |
-| Surface  | `surface`, `surface-raised`, `surface-sunken`              |
-| Ink      | `ink`, `ink-muted`, `ink-inverse`                          |
-| Border   | `border`, `border-strong`                                  |
-| Brand    | `brand-50` … `brand-900`                                   |
-| Accent   | `accent-300`, `accent-500`, `accent-700`                   |
-| Status   | `positive-*`, `caution-*`, `critical-*`                    |
-| Tint ink | `brand-ink`, `positive-ink`, `caution-ink`, `critical-ink` |
-| Radius   | `radius-card`, `radius-control`                            |
+| Group     | Tokens                                                                                        |
+| --------- | --------------------------------------------------------------------------------------------- |
+| Surface   | `surface`, `surface-raised`, `surface-sunken`, `surface-overlay`                              |
+| Elevation | `shadow-raised`, `shadow-floating`, `shadow-lifted`                                           |
+| Motion    | `duration-quick`, `duration-settled`, `duration-deliberate`, `ease-standard`, `ease-emphasis` |
+| Display   | `font-display`, `text-display-sm`, `text-display-md`, `text-display-lg`                       |
+| Ink       | `ink`, `ink-muted`, `ink-inverse`                                                             |
+| Border    | `border`, `border-strong`                                                                     |
+| Brand     | `brand-50` … `brand-900`                                                                      |
+| Accent    | `accent-300`, `accent-500`, `accent-700`                                                      |
+| Status    | `positive-*`, `caution-*`, `critical-*`                                                       |
+| Tint ink  | `brand-ink`, `positive-ink`, `caution-ink`, `critical-ink`                                    |
+| Radius    | `radius-card`, `radius-control`                                                               |
 
 Colours are authored in **OKLCH**, which keeps perceived lightness consistent across hues — a
 caution amber and a positive green at the same lightness actually look equally prominent.
+
+### Depth is a hierarchy, not a decoration
+
+Four elevation steps and no free-form shadows. Elevation says what is on top of what, and a product
+where any component can invent its own depth has no hierarchy — just a lot of shadows.
+
+Each step is two shadows: a tight one for the contact edge and a wide, soft one for the cast. One
+shadow at that size reads as a grey smear rather than as height.
+
+In the dark scheme the shadows are nearly inert, because a black cast on a dark surface is
+invisible. Lift there comes from the surface colour, which is why `surface-raised` is _lighter_
+than `surface` in dark mode rather than darker.
+
+`surface-overlay` is a fourth layer rather than a translucent `surface-raised`, because glass over
+arbitrary content needs its own value per scheme to stay legible. The backdrop blur is progressive:
+where it is unsupported the surface colour alone still meets contrast.
+
+### Motion is three durations and two curves
+
+Anything longer than `duration-deliberate` is an animation the user is waiting for rather than one
+that helps them. `ease-emphasis` overshoots very slightly, which is what makes a panel feel like it
+arrived rather than appeared.
+
+All of it is neutralised under `prefers-reduced-motion`, in one base-layer rule, so no component
+has to remember to opt out.
+
+### The display face is a system serif
+
+No web font. No third-party request, no layout shift while it loads, and it still works offline
+behind the service worker. A licensed display face can replace `--font-display` without touching a
+single component.
 
 ### The tint-ink tokens exist for a reason
 

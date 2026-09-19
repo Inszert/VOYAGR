@@ -134,9 +134,9 @@ export default async function SearchPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-ink text-2xl font-semibold tracking-tight">Find a complete trip</h1>
-        <p className="text-ink-muted mt-2 max-w-2xl">
+      <div className="max-w-3xl">
+        <h1 className="text-ink font-display text-display-md">Find a complete trip</h1>
+        <p className="text-ink-muted mt-4 text-lg">
           Flights, a hotel and the ride from the airport, priced together and ranked by what the
           whole trip is worth to you — not by the cheapest headline fare.
         </p>

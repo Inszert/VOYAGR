@@ -50,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SkipLink targetId="main-content" />
 
         <div className="flex min-h-dvh flex-col">
-          <header className="border-border bg-surface-raised border-b">
+          <header className="border-border bg-surface-overlay backdrop-blur-glass sticky top-0 z-20 border-b">
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-4">
               <Link href="/" className="text-ink text-lg font-semibold tracking-tight">
                 Voyagr

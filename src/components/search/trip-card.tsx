@@ -63,10 +63,25 @@ export function TripCard({
   const rankLabel = RANK_LABEL[rank];
 
   return (
-    <Card as="article" aria-labelledby={headingId} className="flex flex-col gap-4">
+    <Card
+      as="article"
+      aria-labelledby={headingId}
+      // The top result sits above the rest, because it is the answer and the
+      // others are the alternatives to it.
+      elevation={rank === 0 ? 'floating' : 'raised'}
+      feature={rank === 0}
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 id={headingId} className="text-ink text-lg font-semibold">
+          <h3
+            id={headingId}
+            className={
+              rank === 0
+                ? 'text-ink font-display text-display-sm'
+                : 'text-ink text-lg font-semibold'
+            }
+          >
             {candidate.destinationName} from {candidate.origin}
           </h3>
           <p className="text-ink-muted text-sm">

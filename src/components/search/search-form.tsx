@@ -93,7 +93,7 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
   };
 
   return (
-    <Card as="section" aria-labelledby="search-form-heading">
+    <Card as="section" aria-labelledby="search-form-heading" elevation="raised">
       <h2 id="search-form-heading" className="text-ink text-xl font-semibold">
         Describe the trip
       </h2>

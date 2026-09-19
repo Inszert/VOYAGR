@@ -60,13 +60,79 @@
   --color-ink-muted: oklch(0.46 0.014 250);
   --color-ink-inverse: oklch(0.99 0.003 240);
 
-  --radius-card: 0.75rem;
+  /*
+   * Surfaces that sit above the page: menus, sheets, the globe's controls.
+   * A fourth layer, not a lighter `surface-raised`, because glass over content
+   * needs its own value in each scheme to stay legible.
+   */
+  --color-surface-overlay: oklch(1 0 0 / 0.82);
+
   --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  /* Editorial surfaces: hero panels, destination cards, the globe frame. */
+  --radius-surface: 1.25rem;
+  --radius-pill: 9999px;
+
+  /*
+   * Elevation.
+   *
+   * Two shadows per step: a tight one for the contact edge and a wide, soft
+   * one for the cast. One shadow at this size reads as a grey smear rather
+   * than as height. Tuned for a light scheme and softened again in dark, where
+   * a black shadow on a dark surface is invisible and the lift has to come
+   * from the surface colour instead.
+   */
+  --shadow-raised: 0 1px 2px oklch(0.2 0.02 250 / 0.06), 0 1px 3px oklch(0.2 0.02 250 / 0.1);
+  --shadow-floating: 0 2px 4px oklch(0.2 0.02 250 / 0.06), 0 8px 24px oklch(0.2 0.02 250 / 0.12);
+  --shadow-lifted: 0 4px 8px oklch(0.2 0.02 250 / 0.08), 0 16px 48px oklch(0.2 0.02 250 / 0.16);
+
+  --blur-glass: 16px;
+
+  /*
+   * Motion.
+   *
+   * Three durations and two curves, so transitions across the product agree
+   * with each other. `emphasis` overshoots very slightly, which is what makes
+   * a panel feel like it arrived rather than appeared. Every one of these is
+   * neutralised under `prefers-reduced-motion` in the base layer below.
+   */
+  --duration-quick: 120ms;
+  --duration-settled: 220ms;
+  --duration-deliberate: 420ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasis: cubic-bezier(0.2, 0, 0, 1.2);
 
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /*
+   * Display face for editorial headings.
+   *
+   * A system serif stack rather than a web font, deliberately: no third-party
+   * request, no layout shift while it loads, and it still works with the
+   * service worker offline. A licensed display face can replace this value
+   * without touching a component.
+   */
+  --font-display: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
   /* Tabular figures matter: prices in a comparison table must align. */
   --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  /*
+   * Editorial type scale.
+   *
+   * Larger and tighter than the body scale, for the few places a heading is
+   * meant to carry a page rather than label a section. Line heights are set
+   * with each size so a display heading cannot be given body leading by
+   * accident.
+   */
+  --text-display-sm: 1.75rem;
+  --text-display-sm--line-height: 1.15;
+  --text-display-sm--letter-spacing: -0.015em;
+  --text-display-md: 2.5rem;
+  --text-display-md--line-height: 1.08;
+  --text-display-md--letter-spacing: -0.02em;
+  --text-display-lg: 3.5rem;
+  --text-display-lg--line-height: 1.02;
+  --text-display-lg--letter-spacing: -0.025em;
 }
 
 /*
@@ -85,6 +151,18 @@
     --color-ink: oklch(0.96 0.005 250);
     --color-ink-muted: oklch(0.73 0.012 250);
     --color-ink-inverse: oklch(0.19 0.015 250);
+
+    /* Glass over a dark page: darker than the raised surface, not lighter. */
+    --color-surface-overlay: oklch(0.24 0.016 250 / 0.82);
+
+    /*
+     * Shadows carry almost no weight on a dark page - a black cast on a dark
+     * surface is invisible. Elevation there comes from the surface value, and
+     * these are kept only for the contact edge.
+     */
+    --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.3);
+    --shadow-floating: 0 2px 4px oklch(0 0 0 / 0.3), 0 8px 24px oklch(0 0 0 / 0.36);
+    --shadow-lifted: 0 4px 8px oklch(0 0 0 / 0.34), 0 16px 48px oklch(0 0 0 / 0.44);
 
     /* Status ink lightens so it clears 4.5:1 against a dark tinted chip. */
     --color-brand-ink: oklch(0.84 0.08 225);
