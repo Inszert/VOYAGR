@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CategoryGrid } from '@/components/discovery/category-grid';
 import { SearchForm } from '@/components/search/search-form';
 import { SearchResults } from '@/components/search/search-results';
 import { SaveSearchForm } from '@/components/watches/save-search-form';
@@ -77,6 +78,17 @@ export default async function SearchPage({
   // A signed-in user's saved preferences become the form's defaults. They are
   // defaults and nothing more: they never filter results or override a field
   // the user has actually filled in.
+  // Read once, on the server, so every seasonal category on the page agrees
+  // about what day it is.
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Identifies this particular search, for the form's remount key.
+  const formKey = new URLSearchParams(
+    Object.entries(values).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  ).toString();
+
   const user = await getCurrentUser();
   const stored = user ? await getRepositories().preferences.find(user.id) : null;
   const defaults = preferencesToFormDefaults(readExplicitPreferences(stored));
@@ -142,7 +154,23 @@ export default async function SearchPage({
         </p>
       </div>
 
-      <SearchForm values={values} defaults={defaults} errors={errors} />
+      {/*
+        Discovery first, and only for someone who has not searched yet. Once
+        there are results on the page, the categories would be ten ways to
+        throw away the search the user just ran.
+      */}
+      {outcome ? null : <CategoryGrid today={today} defaults={defaults} />}
+
+      {/*
+        Keyed on the query, so the inputs remount when the search changes.
+        
+        The fields are uncontrolled and `defaultValue` applies only on mount,
+        so a client-side navigation - from a discovery tile, or from "Run this
+        search now" on the watches page - would otherwise leave the form
+        showing the previous search while the results below it showed the new
+        one. Two answers to "what did I ask for?" on one page.
+      */}
+      <SearchForm key={formKey} values={values} defaults={defaults} errors={errors} />
 
       {outcome ? (
         <>

@@ -18,6 +18,42 @@ const A_SEARCH =
   '&latestReturn=2026-06-30&minNights=4&maxNights=7&passengers=2&currency=EUR' +
   '&targetBudget=650&maxBudget=850&travelStyle=balanced&optimisationMode=best_value';
 
+test.describe('discovery', () => {
+  test('offers a way in for someone who does not know where they want to go', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { name: 'Not sure where yet?' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Beach escapes/ })).toBeVisible();
+  });
+
+  test('picking a category runs a search ranked that way', async ({ page }) => {
+    // Section 6: choosing a category must immediately affect the search.
+    await page.goto('/');
+    await page.getByRole('link', { name: /Travel cheaply/ }).click();
+
+    await expect(page.getByRole('combobox', { name: 'Optimise for' })).toHaveValue('cheapest');
+    await expect(page.getByRole('heading', { name: /trips? match|No trip matched/ })).toBeVisible();
+  });
+
+  test('steps out of the way once there are results', async ({ page }) => {
+    // Ten ways to discard the search you just ran is not discovery.
+    await page.goto(A_SEARCH);
+
+    await expect(page.getByRole('heading', { name: 'Not sure where yet?' })).toHaveCount(0);
+  });
+
+  test('works with the keyboard and carries nothing hidden', async ({ page }) => {
+    await page.goto('/');
+
+    const tile = page.getByRole('link', { name: /City breaks/ });
+    await tile.focus();
+    await expect(tile).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('combobox', { name: 'Travel style' })).toHaveValue('explore');
+  });
+});
+
 test.describe('running a search', () => {
   test('submits the form and returns ranked trips', async ({ page }) => {
     await page.goto('/');
