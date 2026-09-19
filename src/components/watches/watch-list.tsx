@@ -2,8 +2,9 @@
 
 import { useActionState } from 'react';
 import Link from 'next/link';
-import { format, toMajor } from '@/core/money';
+import { format } from '@/core/money';
 import { Badge, Button, Card, type BadgeTone } from '@/components/ui';
+import { searchProfileToQuery } from '@/search/schema';
 import type { WatchFormState } from '@/app/actions/watches';
 import type { TravelWatchRecord, TripSearchRecord } from '@/db/repository';
 
@@ -41,26 +42,9 @@ export interface WatchListProps {
   archiveAction: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
 }
 
-/** Rebuild the query string that reproduces a saved search. */
+/** Rebuild the query string that reproduces a saved search, in full. */
 function searchHref(search: TripSearchRecord): string {
-  const { profile } = search;
-
-  return `/?${new URLSearchParams({
-    origins: profile.origins.join(', '),
-    destinations: search.destinations.join(', '),
-    earliestDeparture: profile.earliestDeparture,
-    latestReturn: profile.latestReturn,
-    minNights: String(profile.minNights),
-    maxNights: String(profile.maxNights),
-    passengers: String(profile.passengers),
-    currency: profile.targetBudget.currency,
-    // `toMajor` rather than dividing by 100: not every currency has two
-    // decimal places, and the money module is the only thing that knows.
-    targetBudget: String(toMajor(profile.targetBudget)),
-    maxBudget: String(toMajor(profile.maxBudget)),
-    travelStyle: profile.travelStyle,
-    optimisationMode: profile.optimisationMode,
-  }).toString()}`;
+  return `/?${searchProfileToQuery(search.profile, search.destinations)}`;
 }
 
 function WatchAction({

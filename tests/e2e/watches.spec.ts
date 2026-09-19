@@ -122,6 +122,28 @@ test.describe('travel watches', () => {
     ).toBeVisible();
   });
 
+  test('re-runs a saved search with its hard constraints intact', async ({ page }) => {
+    await signUp(page);
+
+    // A search with requirements that a partial replay link would have dropped.
+    await page.goto(`${A_SEARCH}&requireDirectFlights=on&requireFreeCancellation=on`);
+    await page.getByRole('textbox', { name: /Name this search/ }).fill('Fussy search');
+    await page.getByRole('button', { name: 'Watch this trip' }).click();
+    await expect(page.getByRole('heading', { name: 'We are watching this trip' })).toBeVisible();
+
+    await page.goto('/watches');
+    await page
+      .getByRole('article', { name: 'Fussy search' })
+      .getByRole('link', { name: 'Run this search now' })
+      .click();
+
+    // The re-run is the search that was saved, not a looser one.
+    await expect(page.getByRole('checkbox', { name: 'Direct flights only' })).toBeChecked();
+    await expect(
+      page.getByRole('checkbox', { name: 'Hotel must be free to cancel' }),
+    ).toBeChecked();
+  });
+
   test('sends anonymous visitors to sign in', async ({ page }) => {
     await page.goto('/watches');
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();

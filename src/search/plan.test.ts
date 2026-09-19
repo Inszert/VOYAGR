@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { money } from '@/core/money';
+import { resolveEntitlements } from '@/core/entitlements';
 import { buildProfile } from '@/core/trip/test-support';
 import { AppError } from '@/lib/errors';
 import { buildSearchPlan, enumerateDateWindows, sampleEvenly } from './plan';
@@ -197,4 +198,33 @@ describe('buildSearchPlan rejects a request that cannot describe a trip', () => 
       }
     });
   }
+});
+
+describe('entitlements bound the plan', () => {
+  it('caps destinations to what a plan allows', () => {
+    // The account page shows this number to the user, so the search has to
+    // apply the same one rather than a constant that merely happens to match.
+    const free = resolveEntitlements('free');
+
+    const plan = buildSearchPlan(
+      request({
+        destinations: ['AYT', 'CHQ', 'LCA', 'PMI', 'TBS', 'BUS', 'SPU', 'FAO'],
+        limits: { maxDestinations: free.maxDestinationsPerSearch },
+      }),
+    );
+
+    expect(plan.destinations).toHaveLength(free.maxDestinationsPerSearch);
+    expect(plan.destinationsRequested).toBe(8);
+  });
+
+  it('lets a more generous plan search wider', () => {
+    const plan = buildSearchPlan(
+      request({
+        destinations: ['AYT', 'CHQ', 'LCA', 'PMI', 'TBS', 'BUS', 'SPU', 'FAO'],
+        limits: { maxDestinations: 8 },
+      }),
+    );
+
+    expect(plan.destinations).toHaveLength(8);
+  });
 });

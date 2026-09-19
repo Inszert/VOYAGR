@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { fromMajor } from '@/core/money';
+import { fromMajor, toMajor } from '@/core/money';
 import { isIsoDate } from '@/core/dates';
 import type { OptimisationMode, SearchProfile, TravelStyle } from '@/core/trip/types';
 import { err, ok, type Result } from '@/lib/result';
@@ -232,4 +232,56 @@ export function parseSearchForm(
     request: { profile: toSearchProfile(parsed.data), destinations: parsed.data.destinations },
     values: parsed.data,
   });
+}
+
+/**
+ * The inverse of `parseSearchForm`: a profile back into a query string.
+ *
+ * Exists because a saved search has to be re-runnable, and a hand-built link
+ * that lists "most of" the fields silently drops the user's hard constraints —
+ * someone who saved "direct flights only, free cancellation" gets results
+ * ignoring both, which looks like the system forgetting what they asked for.
+ *
+ * Every field of `SearchProfile` is written here. A round-trip test asserts
+ * that parsing the output reproduces the input, so adding a field to the
+ * profile and forgetting it here fails a test rather than quietly losing a
+ * constraint.
+ */
+export function searchProfileToQuery(
+  profile: SearchProfile,
+  destinations: readonly string[],
+): string {
+  const currency = profile.targetBudget.currency;
+
+  const params: Record<string, string> = {
+    origins: profile.origins.join(', '),
+    destinations: destinations.join(', '),
+    earliestDeparture: profile.earliestDeparture,
+    latestReturn: profile.latestReturn,
+    minNights: String(profile.minNights),
+    maxNights: String(profile.maxNights),
+    passengers: String(profile.passengers),
+    currency,
+    // `toMajor` rather than dividing by 100: not every currency has two decimal
+    // places, and the money module is the only thing that knows which.
+    targetBudget: String(toMajor(profile.targetBudget)),
+    maxBudget: String(toMajor(profile.maxBudget)),
+    travelStyle: profile.travelStyle,
+    optimisationMode: profile.optimisationMode,
+  };
+
+  if (profile.reserveBudget) params.reserveBudget = String(toMajor(profile.reserveBudget));
+  if (profile.minHotelReviewScore !== null) {
+    params.minHotelReviewScore = String(profile.minHotelReviewScore);
+  }
+  if (profile.maxBeachDistanceMetres !== null) {
+    params.maxBeachDistanceMetres = String(profile.maxBeachDistanceMetres);
+  }
+
+  // An unchecked box submits nothing, so only a true requirement is written.
+  if (profile.requireDirectFlights) params.requireDirectFlights = 'on';
+  if (profile.requireCheckedBaggage) params.requireCheckedBaggage = 'on';
+  if (profile.requireFreeCancellation) params.requireFreeCancellation = 'on';
+
+  return new URLSearchParams(params).toString();
 }

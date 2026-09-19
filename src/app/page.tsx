@@ -8,6 +8,7 @@ import { getSearchCache } from '@/search/cache';
 import { parseSearchForm } from '@/search/schema';
 import { resolveDestinationNames } from '@/search/destination-names';
 import { getCurrentUser } from '@/auth/current-user';
+import { resolveEntitlements } from '@/core/entitlements';
 import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
 import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
@@ -87,13 +88,22 @@ export default async function SearchPage({
     const parsed = parseSearchForm(values);
 
     if (parsed.ok) {
+      // Anonymous visitors get the default plan's allowance, so the limit is
+      // resolved from a plan in both cases rather than being a constant here.
+      const entitlements = user?.entitlements ?? resolveEntitlements();
+
       const request = {
         ...parsed.value.request,
         destinationNames: resolveDestinationNames(parsed.value.request.destinations),
-        // How many results a page should show is a presentation decision, so it
-        // is made here rather than in the engine's defaults. The engine still
-        // ranks everything, and the diagnostics still report how many matched.
-        limits: { maxResults: 10 },
+        limits: {
+          // How many results a page shows is a presentation decision, so it is
+          // made here rather than in the engine's defaults. The engine still
+          // ranks everything and the diagnostics still report how many matched.
+          maxResults: 10,
+          // Resolved from the plan, not hard-coded. The account page tells the
+          // user this number; it has to be the one the search actually applies.
+          maxDestinations: entitlements.maxDestinationsPerSearch,
+        },
       };
 
       try {

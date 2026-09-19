@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSearchForm, toSearchProfile, searchFormSchema } from './schema';
+import { parseSearchForm, searchFormSchema, searchProfileToQuery, toSearchProfile } from './schema';
 
 /**
  * The structured schema is the boundary every search crosses, whether it was
@@ -128,5 +128,67 @@ describe('toSearchProfile', () => {
     expect(profile.targetBudget.currency).toBe(profile.maxBudget.currency);
     expect(profile.minNights).toBeLessThanOrEqual(profile.maxNights);
     expect(profile.earliestDeparture < profile.latestReturn).toBe(true);
+  });
+});
+
+describe('searchProfileToQuery', () => {
+  const roundTrip = (profile: ReturnType<typeof toSearchProfile>, destinations: string[]) => {
+    const query = searchProfileToQuery(profile, destinations);
+    const values: Record<string, string> = {};
+    for (const [key, value] of new URLSearchParams(query)) values[key] = value;
+    return parseSearchForm(values);
+  };
+
+  it('round-trips every field of a fully specified profile', () => {
+    // The guard that matters: adding a field to SearchProfile and forgetting it
+    // in the query builder fails here rather than silently dropping one of the
+    // user's hard constraints when a saved search is re-run.
+    const profile = toSearchProfile(
+      searchFormSchema.parse({
+        ...valid,
+        reserveBudget: '120',
+        minHotelReviewScore: '8.4',
+        maxBeachDistanceMetres: '450',
+        requireDirectFlights: 'on',
+        requireCheckedBaggage: 'on',
+        requireFreeCancellation: 'on',
+      }),
+    );
+
+    const result = roundTrip(profile, ['AYT', 'CHQ']);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.request.profile).toEqual(profile);
+    expect(result.value.request.destinations).toEqual(['AYT', 'CHQ']);
+  });
+
+  it('round-trips a profile with every optional field absent', () => {
+    const profile = toSearchProfile(searchFormSchema.parse(valid));
+    const result = roundTrip(profile, ['AYT']);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.request.profile).toEqual(profile);
+  });
+
+  it('keeps hard requirements that a partial link would have dropped', () => {
+    const profile = toSearchProfile(
+      searchFormSchema.parse({ ...valid, requireDirectFlights: 'on', minHotelReviewScore: '9' }),
+    );
+
+    const query = searchProfileToQuery(profile, ['AYT']);
+
+    expect(query).toContain('requireDirectFlights=on');
+    expect(query).toContain('minHotelReviewScore=9');
+  });
+
+  it('does not write a requirement the user did not set', () => {
+    const profile = toSearchProfile(searchFormSchema.parse(valid));
+    const query = searchProfileToQuery(profile, ['AYT']);
+
+    expect(query).not.toContain('requireDirectFlights');
+    expect(query).not.toContain('reserveBudget');
   });
 });
