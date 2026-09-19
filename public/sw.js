@@ -149,15 +149,26 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? 'Voyagr', {
-      body: payload.body ?? '',
-      // A tag collapses repeat alerts for the same watch, which is the
-      // notification-fatigue mitigation from specification section 18.
-      tag: payload.tag,
-      data: { url: payload.url ?? '/', ...payload.data },
-      badge: '/icons/icon-192.png',
-      icon: '/icons/icon-192.png',
-    }),
+    (async () => {
+      await self.registration.showNotification(payload.title ?? 'Voyagr', {
+        body: payload.body ?? '',
+        // A tag collapses repeat alerts for the same watch, which is the
+        // notification-fatigue mitigation from specification section 18.
+        tag: payload.tag,
+        data: { url: payload.url ?? '/', ...payload.data },
+        badge: '/icons/icon-192.png',
+        icon: '/icons/icon-192.png',
+      });
+
+      // Tell any tab that is already open. Someone looking at their watches
+      // when a deal lands should see it arrive, not find it on next reload -
+      // and a page that already shows the news has no business also making
+      // the user dismiss a notification about it.
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ type: 'voyagr:alert', title: payload.title, url: payload.url });
+      }
+    })(),
   );
 });
 

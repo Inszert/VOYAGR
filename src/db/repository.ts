@@ -226,6 +226,15 @@ export interface PriceHistoryRepository {
     componentType: PriceObservationRecord['componentType'],
     currency: string,
   ): Promise<PriceObservationRecord | null>;
+  /**
+   * Delete observations recorded before `before`, and report how many went.
+   *
+   * The cheapest observation ever recorded for each watch, component and
+   * currency is always kept, however old it is. Without that exception,
+   * pruning would raise every watch's best-known total and invent a price rise
+   * the user never experienced - `bestKnownTotal` is derived from this table.
+   */
+  pruneOlderThan(before: IsoDateTime): Promise<number>;
 }
 
 export interface NotificationRepository {

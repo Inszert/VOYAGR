@@ -65,7 +65,17 @@ export class WebPushChannel implements NotificationChannel {
       };
     }
 
-    const webPush = await import('web-push');
+    /*
+     * `.default`, not the namespace.
+     *
+     * `web-push` is CommonJS, so a dynamic import from an ES module yields a
+     * namespace object whose members live under `default`. Reaching for
+     * `webPush.setVapidDetails` on the namespace finds undefined - and finds it
+     * only at the moment a real notification is being sent, which is the worst
+     * possible time to discover it.
+     */
+    const webPush = (await import('web-push')).default;
+
     webPush.setVapidDetails(
       env.VAPID_SUBJECT,
       // Both are non-null here: `isConfigured()` was checked above.

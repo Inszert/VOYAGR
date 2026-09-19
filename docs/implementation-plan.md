@@ -340,7 +340,7 @@ Decisions worth carrying forward:
   replace the wording and nothing else: the decision, the severity and every figure are settled
   before it is called.
 
-### 1.9 Web Push notifications ⚠️ built, delivery unproven
+### 1.9 Web Push notifications ✅ complete
 
 _In plain words: send the "good news!" message to your phone or computer._
 
@@ -354,10 +354,21 @@ wording may come from the model; the decision to send never does.
 page, and `src/notifications/deliver.ts` running as a queued job. The service worker already had
 `push` and `notificationclick` handlers.
 
-**Not proven.** No VAPID keys are configured, so nothing has been pushed to a real browser. The
-pipeline is tested to the channel boundary with an injected channel; the last hop — a real push
-service, a real device — is untested. To close it: `npm run vapid:generate`, paste the pair into
-`.env`, sign in, turn alerts on, and let a watch find a material drop.
+**Proven end to end.** A real Chrome profile subscribed through `fcm.googleapis.com`; the worker
+detected a genuine drop with the real detector, queued delivery through BullMQ, and `web-push`
+delivered it. The browser received the push and the notification deep-linked back to the search
+that found the trip. The only synthetic input was one earlier, dearer price observation standing in
+for "yesterday it cost more".
+
+**Found only by that run:** `web-push` is CommonJS, so `await import('web-push')` yields a
+namespace whose members live under `default`. The channel reached for `setVapidDetails` on the
+namespace, found `undefined`, and would have done so only at the moment a real notification was
+being sent. Every unit test had injected a fake channel, so the real one had never run.
+
+**Two things worth knowing about the proof.** Playwright's default browser context is incognito,
+and Chrome deliberately has no Push API there with no way to feature-detect it — a persistent
+profile is the only way to exercise the real thing. And the Playwright suite runs with the VAPID
+keys blanked, so it behaves identically whether or not the person running it has generated a pair.
 
 Decisions worth carrying forward:
 

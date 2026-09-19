@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1.10-component-swapping",
+  "stage": "phase-1-complete-except-live-providers",
   "generatedAt": "2026-09-18",
   "overall": "PASS",
   "environment": {
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "592 tests across 35 files, all passing, including the repository contract suite against live PostgreSQL and the queue driver against live Redis.",
+      "detail": "603 tests across 36 files, all passing.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -191,6 +191,22 @@
       "command": "npm test && npm run worker",
       "detail": "Every refresh records the trip total and each priced component with full provenance: who quoted it, when we observed it, in what currency and under what conditions. Asserted: no transfer row rather than a zero when none was priced, the total attributed to the cost engine rather than to one provider, the quoted-versus-estimated share recorded as a condition, history accumulating across runs, and the lowest total queryable per currency. Verified end to end against live PostgreSQL and Redis: a due watch was enqueued, refreshed and wrote four observations.",
       "notes": "Every refresh writes a row whether or not the price moved, which is deliberate - \"it did not change\" is information - but it means no retention policy exists yet and the table grows without bound. Presentation of the history, and deciding whether a change is worth an alert, are Phase 1.8 and Phase 2."
+    },
+    {
+      "id": "web-push",
+      "name": "Web Push delivery (Phase 1.9)",
+      "status": "PASS",
+      "command": "manual: real browser against live Postgres, Redis and FCM",
+      "detail": "A real Chrome profile subscribed via fcm.googleapis.com; the worker detected a drop with the real deal detector, queued delivery through BullMQ, and web-push delivered it. The browser received the push and it deep-linked back to the originating search. The notification row was stamped delivered.",
+      "notes": "Proven once, by hand, with a seeded prior price observation standing in for an earlier dearer run. Not part of npm test: it needs VAPID keys, a real push service and a non-incognito browser profile, none of which belong in a suite that must pass with no external services. The Playwright suite runs with the keys blanked so it behaves the same on any machine. Delivery to Safari/APNs and to Firefox is untested."
+    },
+    {
+      "id": "housekeeping",
+      "name": "Worker housekeeping",
+      "status": "PASS",
+      "command": "npm test",
+      "detail": "The worker sweeps expired sessions every six hours and prunes price observations older than 90 days daily. Asserted on both backends: a live session is never swept, and the cheapest observation per watch, component and currency survives pruning whatever its age.",
+      "notes": "Price-history retention is the policy docs/security.md requires before launch, for that table only. Account deletion and the rest of a user's data still have no answer."
     }
   ],
   "knownIssues": [

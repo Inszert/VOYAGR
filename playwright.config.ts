@@ -89,6 +89,12 @@ export default defineConfig({
       TEST_DATABASE_URL: '',
       REDIS_URL: '',
       QUEUE_DRIVER: 'memory',
+      // Blanked too, so the suite behaves the same whether or not the person
+      // running it has generated keys. Subscribing for real would reach a push
+      // service, which is neither fast nor hermetic; the configured control is
+      // covered by a component test instead.
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: '',
+      VAPID_PRIVATE_KEY: '',
     },
   },
 });

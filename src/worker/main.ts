@@ -5,6 +5,7 @@ import { createQueueDriver } from '@/queue';
 import { createRefreshHandler } from '@/watches/refresh';
 import { createDeliveryHandler } from '@/notifications/deliver';
 import { startScheduler, sweepDueWatches, type SchedulerHandle } from '@/watches/scheduler';
+import { startMaintenance, type MaintenanceHandle, type MaintenanceOptions } from './maintenance';
 import type { QueueDriver } from '@/queue/types';
 
 /**
@@ -25,6 +26,7 @@ const log = getLogger('worker.main');
 export interface WorkerHandle {
   readonly queue: QueueDriver;
   readonly scheduler: SchedulerHandle;
+  readonly maintenance: MaintenanceHandle;
   stop(): Promise<void>;
 }
 
@@ -33,6 +35,7 @@ export interface WorkerOptions {
   readonly schedulerIntervalMs?: number;
   /** Sweep once immediately, so a restart picks up what is already overdue. */
   readonly sweepOnStart?: boolean;
+  readonly maintenance?: MaintenanceOptions;
 }
 
 export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHandle> {
@@ -56,13 +59,20 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     { intervalMs: options.schedulerIntervalMs },
   );
 
+  // Housekeeping lives with the worker because it is the only process that is
+  // supposed to be long-running. Putting it in the web server would mean it
+  // ran once per instance, or not at all on a serverless one.
+  const maintenance = startMaintenance({ repositories }, options.maintenance);
+
   log.info({ queue: queue.name, backend: repositories.backend }, 'worker started');
 
   return {
     queue,
     scheduler,
+    maintenance,
     async stop() {
       scheduler.stop();
+      maintenance.stop();
       await queue.stop();
       log.info('worker stopped');
     },

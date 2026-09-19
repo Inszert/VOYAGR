@@ -270,6 +270,36 @@ class MemoryPriceHistoryRepository implements PriceHistoryRepository {
       candidate.amount.amount < lowest.amount.amount ? candidate : lowest,
     );
   }
+
+  async pruneOlderThan(before: string): Promise<number> {
+    let removed = 0;
+
+    for (const [watchId, records] of this.byWatch) {
+      // The cheapest per component and currency survives whatever its age.
+      // Dropping it would raise the watch's best-known total and invent a
+      // price rise the user never experienced.
+      const cheapest = new Map<string, PriceObservationRecord>();
+
+      for (const record of records) {
+        const key = `${record.componentType}|${record.amount.currency}`;
+        const incumbent = cheapest.get(key);
+
+        if (!incumbent || record.amount.amount < incumbent.amount.amount) {
+          cheapest.set(key, record);
+        }
+      }
+
+      const keep = new Set([...cheapest.values()].map((record) => record.id));
+      const surviving = records.filter(
+        (record) => keep.has(record.id) || record.observedAt >= before,
+      );
+
+      removed += records.length - surviving.length;
+      this.byWatch.set(watchId, surviving);
+    }
+
+    return removed;
+  }
 }
 
 class MemoryNotificationRepository implements NotificationRepository {

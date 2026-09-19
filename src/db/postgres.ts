@@ -571,6 +571,24 @@ class PostgresPriceHistoryRepository implements PriceHistoryRepository {
     );
     return rows[0] ? toObservation(rows[0]) : null;
   }
+
+  async pruneOlderThan(before: string): Promise<number> {
+    // `DISTINCT ON` picks one row per group in the ORDER BY's first-per-group
+    // sense, which with `amount ASC` is the cheapest ever seen. Those survive
+    // whatever their age; everything else older than the cutoff goes.
+    const rows = await query<{ id: string }>(
+      `DELETE FROM price_history p
+        WHERE p.observed_at < $1
+          AND p.id NOT IN (
+            SELECT DISTINCT ON (watch_id, component_type, currency) id
+              FROM price_history
+             ORDER BY watch_id, component_type, currency, amount ASC, observed_at ASC
+          )
+        RETURNING p.id`,
+      [before],
+    );
+    return rows.length;
+  }
 }
 
 // --- Notifications and push subscriptions ----------------------------------

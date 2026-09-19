@@ -580,6 +580,37 @@ describe.each(backends)('$name repository contract', (backend) => {
       ).toEqual(money(50000, 'GBP'));
     });
 
+    it('prunes old observations but never the cheapest ever seen', async () => {
+      // bestKnownTotal is derived from this table, so dropping the cheapest row
+      // would raise it and invent a price rise nobody experienced.
+      const user = await aUser();
+      const watchId = await aWatchId(user.id);
+
+      for (const [amount, observedAt] of [
+        [61000, '2025-01-01T09:00:00.000Z'],
+        [72000, '2025-02-01T09:00:00.000Z'],
+        [68000, '2026-09-18T09:00:00.000Z'],
+      ] as const) {
+        await repositories.priceHistory.record({
+          watchId,
+          componentType: 'trip_total',
+          componentId: 'candidate-1',
+          amount: money(amount, 'EUR'),
+          providerId: 'voyagr.cost-engine',
+          observedAt,
+          conditions: null,
+        });
+      }
+
+      const removed = await repositories.priceHistory.pruneOlderThan('2026-06-01T00:00:00.000Z');
+
+      expect(removed).toBe(1);
+      expect(
+        (await repositories.priceHistory.findLowest(watchId, 'trip_total', 'EUR'))?.amount,
+      ).toEqual(money(61000, 'EUR'));
+      expect(await repositories.priceHistory.listForWatch(watchId)).toHaveLength(2);
+    });
+
     it('returns null when a watch has no history at all', async () => {
       const user = await aUser();
       const watchId = await aWatchId(user.id);
