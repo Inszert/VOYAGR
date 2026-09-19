@@ -5,6 +5,7 @@ import type { TripScore } from '@/core/trip/scoring';
 import type { UsableTimeResult } from '@/core/trip/usable-time';
 import type { AirportCode, IsoDate, SearchProfile, TripCandidate } from '@/core/trip/types';
 import type { ProviderKind } from '@/providers/types';
+import type { DataProvenance } from '@/core/trip/provenance';
 
 /**
  * Search orchestration types (implementation plan 1.1).
@@ -141,6 +142,14 @@ export interface RankedTrip {
 
 export interface SearchDiagnostics {
   readonly plan: SearchPlan;
+  /**
+   * Where these prices came from (1.10.1 section 4).
+   *
+   * Derived from the adapters that answered, not guessed. The weakest claim
+   * wins: one mock component makes the whole result set demo data, because a
+   * trip cannot be half-bookable.
+   */
+  readonly provenance: DataProvenance;
   readonly providerCalls: number;
   /**
    * Highest number of provider calls that were in flight at once.

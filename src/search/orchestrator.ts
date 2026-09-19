@@ -21,6 +21,7 @@ import type {
 } from '@/providers/types';
 import { assembleRouteCandidates, interleave } from './assemble';
 import { evaluateTrip } from './evaluate';
+import { combineProvenance, provenanceForProvider } from '@/core/trip/provenance';
 import { buildSearchPlan } from './plan';
 import type {
   DateWindow,
@@ -461,6 +462,13 @@ export async function runSearch(
 
   const diagnostics: SearchDiagnostics = {
     plan,
+    // Asked of the adapters that actually answered, rather than assumed from
+    // configuration: a registry can be part live and part mock.
+    provenance: combineProvenance([
+      provenanceForProvider(deps.flights.metadata.isMock),
+      provenanceForProvider(deps.hotels.metadata.isMock),
+      provenanceForProvider(deps.transfers.metadata.isMock),
+    ]),
     providerCalls: counter.calls,
     peakProviderConcurrency: limiter.peakInFlight,
     issues,

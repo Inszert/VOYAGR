@@ -14,5 +14,6 @@ export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from '.
 export { Card, CardDescription, CardHeader, CardTitle, type CardProps } from './card';
 export { Disclosure, type DisclosureProps } from './disclosure';
 export { Field, type FieldProps } from './field';
+export { DemoDataNotice, ProvenanceBadge, type ProvenanceBadgeProps } from './provenance-badge';
 export { Select, type SelectOption, type SelectProps } from './select';
 export { SkipLink, type SkipLinkProps } from './skip-link';

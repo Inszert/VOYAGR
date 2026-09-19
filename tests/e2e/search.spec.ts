@@ -128,6 +128,18 @@ test.describe('running a search', () => {
     await expect(panel.getByText(/cheaper|more|Same price/).first()).toBeVisible();
   });
 
+  test('says plainly that the data is not real', async ({ page }) => {
+    // 1.10.1 section 4: never pretend mock data is live data. Every provider
+    // is a fixture today, and the page has to lead with that.
+    await page.goto(A_SEARCH);
+
+    await expect(page.getByRole('note')).toContainText('these trips are not real');
+    await expect(page.getByRole('note')).toContainText('Nothing here can be booked');
+
+    // And beside the price itself, not only at the top of the page.
+    await expect(page.getByRole('article').first().getByText('Demo data')).toBeVisible();
+  });
+
   test('is operable by keyboard alone', async ({ page }) => {
     await page.goto(A_SEARCH);
 

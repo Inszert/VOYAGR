@@ -1,8 +1,9 @@
 import { format } from '@/core/money';
-import { Badge, Card, Disclosure } from '@/components/ui';
+import { Badge, Card, Disclosure, ProvenanceBadge } from '@/components/ui';
 import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/booking/handoff';
 import type { RankedTrip } from '@/search/types';
 import type { Alternative } from '@/search/alternatives';
+import type { DataProvenance } from '@/core/trip/provenance';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
 import { SwapPanel } from './swap-panel';
@@ -34,6 +35,8 @@ export interface TripCardProps {
   trip: RankedTrip;
   /** Zero-based position in the results list. */
   rank: number;
+  /** Where this trip's prices came from. */
+  provenance?: DataProvenance;
   /**
    * Other flights and hotels this search saw, each already evaluated as a whole
    * trip. Omitted for a card that is not the one being examined, because
@@ -46,6 +49,7 @@ export interface TripCardProps {
 export function TripCard({
   trip,
   rank,
+  provenance = 'unavailable',
   flightAlternatives = [],
   hotelAlternatives = [],
 }: TripCardProps) {
@@ -73,7 +77,11 @@ export function TripCard({
         </div>
 
         <div className="text-right">
-          <p className="text-ink text-xl font-semibold tabular-nums">{format(cost.total)}</p>
+          {/* Beside the number, never in a footnote. */}
+          <p className="text-ink flex items-center justify-end gap-2 text-xl font-semibold tabular-nums">
+            {format(cost.total)}
+            <ProvenanceBadge provenance={provenance} explain={false} />
+          </p>
           <p className="text-ink-muted text-sm tabular-nums">
             {format(cost.perPerson)} each · {format(cost.perNight)} a night
           </p>

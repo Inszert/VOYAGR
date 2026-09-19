@@ -1,4 +1,4 @@
-import { Badge, Card, Disclosure } from '@/components/ui';
+import { Badge, Card, DemoDataNotice, Disclosure } from '@/components/ui';
 import { flightAlternatives, hotelAlternatives } from '@/search/alternatives';
 import type { SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
@@ -56,6 +56,12 @@ export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResul
         </p>
       </div>
 
+      {/*
+        Before the results, not after them. A notice that everything below is
+        fictional is worthless underneath the fiction.
+      */}
+      {diagnostics.provenance === 'mock' ? <DemoDataNotice /> : null}
+
       {diagnostics.degraded ? (
         <div
           role="status"
@@ -90,6 +96,7 @@ export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResul
               <TripCard
                 trip={trip}
                 rank={index}
+                provenance={diagnostics.provenance}
                 {...(index === 0
                   ? {
                       flightAlternatives: flightAlternatives({ outcome, current: trip, profile }),
@@ -120,7 +127,7 @@ export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResul
             {nearMisses.map((trip) => (
               <li key={trip.candidate.id}>
                 {/* Rank is deliberately out of range: a near miss is not ranked. */}
-                <TripCard trip={trip} rank={-1} />
+                <TripCard trip={trip} rank={-1} provenance={diagnostics.provenance} />
               </li>
             ))}
           </ol>

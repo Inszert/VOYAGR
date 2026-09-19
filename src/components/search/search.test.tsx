@@ -20,6 +20,41 @@ import { buildRankedTrip } from './test-support';
  * must be visible without being hunted for, and a booking link must be safe.
  */
 
+/**
+ * A complete diagnostics object.
+ *
+ * Built in full rather than stubbed, because `SearchResults` reads several
+ * fields and a partial stub fails on whichever one the test did not think of.
+ */
+function buildDiagnostics(overrides: Record<string, unknown> = {}) {
+  return {
+    provenance: 'live',
+    plan: {
+      origins: ['VIE'],
+      destinations: ['AYT'],
+      dateWindows: [{ departureDate: '2026-06-10', returnDate: '2026-06-15', nights: 5 }],
+      dateWindowsAvailable: 40,
+      originsRequested: 1,
+      destinationsRequested: 1,
+      currency: 'EUR',
+      passengers: 2,
+      earliestDate: '2026-06-10',
+      latestDate: '2026-06-15',
+      limits: DEFAULT_SEARCH_LIMITS,
+    },
+    providerCalls: 12,
+    peakProviderConcurrency: 6,
+    issues: [],
+    degraded: false,
+    candidatesAssembled: 212,
+    candidatesEvaluated: 212,
+    eligibleCount: 192,
+    ineligibleCount: 20,
+    durationMs: 0,
+    ...overrides,
+  } as never;
+}
+
 describe('CostBreakdown', () => {
   it('shows every counted line with what is known about it', () => {
     const trip = buildRankedTrip();
@@ -221,6 +256,7 @@ describe('SearchResults counts', () => {
           results: [trip],
           nearMisses: [],
           diagnostics: {
+            provenance: 'live',
             plan: {
               origins: ['VIE'],
               destinations: ['AYT'],
@@ -250,5 +286,63 @@ describe('SearchResults counts', () => {
 
     expect(screen.getByRole('heading', { name: '192 trips match' })).toBeInTheDocument();
     expect(screen.getByText(/Showing the best 1\./)).toBeInTheDocument();
+  });
+});
+
+describe('data provenance', () => {
+  it('warns before the results when everything below is fictional', async () => {
+    // A notice that the data is fake is worthless underneath the fake data.
+    const { SearchResults } = await import('./search-results');
+    const trip = buildRankedTrip();
+
+    render(
+      <SearchResults
+        profile={buildProfile()}
+        outcome={
+          {
+            results: [trip],
+            nearMisses: [],
+            diagnostics: buildDiagnostics({ provenance: 'mock' }),
+          } as never
+        }
+      />,
+    );
+
+    expect(screen.getByRole('note')).toHaveTextContent('these trips are not real');
+    expect(screen.getByText(/Nothing here can be booked/)).toBeInTheDocument();
+  });
+
+  it('shows no demo notice when the prices are live', async () => {
+    const { SearchResults } = await import('./search-results');
+    const trip = buildRankedTrip();
+
+    render(
+      <SearchResults
+        profile={buildProfile()}
+        outcome={
+          {
+            results: [trip],
+            nearMisses: [],
+            diagnostics: buildDiagnostics({ provenance: 'live' }),
+          } as never
+        }
+      />,
+    );
+
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
+  it('puts the source beside the price, not in a footnote', () => {
+    const trip = buildRankedTrip();
+    render(<TripCard trip={trip} rank={0} provenance="mock" />);
+
+    // "€670 · Demo data" has to be readable at the same glance as the price.
+    expect(screen.getByText('Demo data')).toBeInTheDocument();
+    expect(screen.getAllByText('Data source:').length).toBeGreaterThan(0);
+  });
+
+  it('labels a live price as live', () => {
+    render(<TripCard trip={buildRankedTrip()} rank={0} provenance="live" />);
+    expect(screen.getByText('Live price')).toBeInTheDocument();
   });
 });
