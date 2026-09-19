@@ -1,0 +1,44 @@
+{
+  "name": "example-rate-limited",
+  "provider": "example",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.invalid/v1/search?origin=VIE&destination=AYT",
+        "headers": { "accept": "application/json", "authorization": "[redacted]" },
+        "body": null
+      },
+      "response": {
+        "status": 429,
+        "statusText": "Too Many Requests",
+        "headers": {
+          "content-type": "application/json",
+          "retry-after": "30",
+          "ratelimit-limit": "120",
+          "ratelimit-remaining": "0",
+          "ratelimit-reset": "Sat, 19 Sep 2026 09:00:30 GMT"
+        },
+        "body": "{\"errors\":[{\"type\":\"rate_limit_error\",\"code\":\"rate_limit_exceeded\",\"message\":\"You have exceeded the rate limit.\"}]}"
+      },
+      "recordedAt": "2026-09-19T09:00:00.000Z",
+      "note": "A 429 with Retry-After. Exists so the retry policy can be tested without waiting for a real vendor to throttle us."
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.invalid/v1/search?origin=VIE&destination=AYT",
+        "headers": { "accept": "application/json", "authorization": "[redacted]" },
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": { "content-type": "application/json", "ratelimit-remaining": "119" },
+        "body": "{\"data\":[{\"id\":\"offer-1\",\"total\":\"312.40\",\"currency\":\"EUR\"}],\"meta\":{\"after\":null}}"
+      },
+      "recordedAt": "2026-09-19T09:00:31.000Z",
+      "note": "The retry, after the window elapsed."
+    }
+  ]
+}

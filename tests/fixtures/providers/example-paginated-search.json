@@ -1,0 +1,45 @@
+{
+  "name": "example-paginated-search",
+  "provider": "example",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.invalid/v1/search?origin=VIE&destination=AYT&limit=2",
+        "headers": { "accept": "application/json", "authorization": "[redacted]" },
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "application/json",
+          "ratelimit-limit": "120",
+          "ratelimit-remaining": "118"
+        },
+        "body": "{\"data\":[{\"id\":\"offer-1\",\"total\":\"312.40\",\"currency\":\"EUR\"},{\"id\":\"offer-2\",\"total\":\"329.00\",\"currency\":\"EUR\"}],\"meta\":{\"after\":\"cursor-2\"}}"
+      },
+      "recordedAt": "2026-09-19T09:00:00.000Z",
+      "note": "First page of a cursor-paginated search. Hand-written against a fictional vendor so the harness has something to exercise before a real one is chosen."
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.invalid/v1/search?origin=VIE&destination=AYT&limit=2&after=cursor-2",
+        "headers": { "accept": "application/json", "authorization": "[redacted]" },
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "application/json",
+          "ratelimit-limit": "120",
+          "ratelimit-remaining": "117"
+        },
+        "body": "{\"data\":[{\"id\":\"offer-3\",\"total\":\"298.10\",\"currency\":\"EUR\"}],\"meta\":{\"after\":null}}"
+      },
+      "recordedAt": "2026-09-19T09:00:01.000Z"
+    }
+  ]
+}
