@@ -131,6 +131,21 @@ test.describe('accounts', () => {
     expect(unknownEmail).toBe(wrongPassword);
   });
 
+  test('offers alerts without ever asking for permission unprompted', async ({ page }) => {
+    // A permission prompt nobody invited is how a site gets its notifications
+    // blocked permanently, and that block is not reversible from our side.
+    const { email, password } = newAccount();
+    await signUp(page, email, password);
+
+    const permissionAsked = await page.evaluate(() => Notification.permission);
+    expect(permissionAsked).toBe('default');
+
+    await expect(page.getByRole('heading', { name: 'Alerts on this device' })).toBeVisible();
+    // No VAPID key is configured for the hermetic e2e server, and the page says
+    // so rather than showing a button that could not work.
+    await expect(page.getByText('not configured on this server yet')).toBeVisible();
+  });
+
   test('sends anonymous visitors to sign in', async ({ page }) => {
     await page.goto('/account');
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();

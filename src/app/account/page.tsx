@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Badge, Button, Card } from '@/components/ui';
+import { PushToggle } from '@/components/notifications/push-toggle';
 import { PasswordForm } from '@/components/auth/password-form';
 import { PreferencesForm } from '@/components/auth/preferences-form';
 import { savePreferencesAction } from '@/app/actions/preferences';
 import { changePasswordAction, signOutAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
 import { readExplicitPreferences, readInferredPreferences } from '@/auth/preferences';
+import { getEnv } from '@/lib/env';
 import { getRepositories } from '@/db';
 
 /**
@@ -84,6 +86,12 @@ export default async function AccountPage() {
       </Card>
 
       <PreferencesForm preferences={explicit} action={savePreferencesAction} />
+
+      {/*
+        The public key only. The private one never leaves the server, which is
+        the entire point of the pair.
+      */}
+      <PushToggle vapidPublicKey={getEnv().NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
 
       <PasswordForm action={changePasswordAction} />
 

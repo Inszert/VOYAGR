@@ -10,7 +10,7 @@ import { resolveDestinationNames } from '@/search/destination-names';
 import { WatchService } from './service';
 import type { Repositories, TravelWatchRecord, TripSearchRecord } from '@/db/repository';
 import type { SearchOutcome } from '@/search/types';
-import type { Job } from '@/queue/types';
+import type { Job, QueueDriver } from '@/queue/types';
 
 /**
  * Refreshing one Travel Watch (implementation plan 1.6).
@@ -34,6 +34,14 @@ const log = getLogger('watches.refresh');
 
 export interface RefreshDependencies {
   readonly repositories: Repositories;
+  /**
+   * Where to queue delivery of an alert this run raises.
+   *
+   * Optional. Without it the alert is still recorded and still visible; only
+   * the push is skipped. Recording and delivering are separate steps precisely
+   * so one can work without the other.
+   */
+  readonly queue?: Pick<QueueDriver, 'enqueue'>;
   readonly now?: () => number;
   /** Injectable so a test can refresh without reaching a provider. */
   readonly search?: typeof runSearch;
@@ -134,7 +142,14 @@ export async function refreshWatch(
 
   const alerted =
     observed.verdict && observed.trip
-      ? await raiseAlert(watch, saved, observed.trip, observed.verdict, repositories)
+      ? await raiseAlert(
+          watch,
+          saved,
+          observed.trip,
+          observed.verdict,
+          repositories,
+          dependencies.queue,
+        )
       : false;
 
   // Always last, and always reached.
@@ -242,6 +257,7 @@ async function raiseAlert(
   trip: SearchOutcome['results'][number],
   verdict: DealVerdict,
   repositories: Repositories,
+  queue: Pick<QueueDriver, 'enqueue'> | undefined,
 ): Promise<boolean> {
   if (!verdict.material) return false;
 
@@ -252,16 +268,25 @@ async function raiseAlert(
     searchQuery: searchProfileToQuery(search.profile, search.destinations),
   });
 
-  await repositories.notifications.create({
+  const notification = await repositories.notifications.create({
     userId: watch.userId,
     watchId: watch.id,
     // Assigned by the deterministic core, never by whoever writes the words.
     severity: verdict.severity,
     title: content.title,
     body: content.body,
+    url: content.url,
     readAt: null,
     deliveredAt: null,
   });
+
+  // Queued rather than pushed inline: a slow or unreachable push service must
+  // not hold up the refresh, and the alert is already safely recorded.
+  await queue?.enqueue(
+    'notification.deliver',
+    { notificationId: notification.id },
+    { dedupeKey: `notification.deliver:${notification.id}` },
+  );
 
   log.info(
     { watchId: watch.id, severity: verdict.severity, dropShare: verdict.dropShare },

@@ -408,6 +408,62 @@ describe.each(backends)('$name repository contract', (backend) => {
     });
   });
 
+  describe('notifications', () => {
+    async function anAlert(userId: string, overrides: Record<string, unknown> = {}) {
+      return repositories.notifications.create({
+        userId,
+        watchId: null,
+        severity: 'important',
+        title: 'A deal',
+        body: 'It got cheaper.',
+        url: '/?origins=VIE',
+        readAt: null,
+        deliveredAt: null,
+        ...overrides,
+      });
+    }
+
+    it('round-trips an alert including where it points', async () => {
+      const user = await aUser();
+      const created = await anAlert(user.id);
+
+      const found = await repositories.notifications.findById(created.id);
+
+      expect(found?.title).toBe('A deal');
+      // Without this the notification lands the user nowhere in particular.
+      expect(found?.url).toBe('/?origins=VIE');
+      expect(found?.deliveredAt).toBeNull();
+    });
+
+    it('stamps delivered and read independently', async () => {
+      const user = await aUser();
+      const created = await anAlert(user.id);
+
+      await repositories.notifications.markDelivered(created.id, '2026-09-19T12:00:00.000Z');
+      expect((await repositories.notifications.findById(created.id))?.readAt).toBeNull();
+
+      await repositories.notifications.markRead(created.id, '2026-09-19T12:30:00.000Z');
+
+      const found = await repositories.notifications.findById(created.id);
+      expect(found?.deliveredAt).toBe('2026-09-19T12:00:00.000Z');
+      expect(found?.readAt).toBe('2026-09-19T12:30:00.000Z');
+    });
+
+    it('returns null for an alert that does not exist', async () => {
+      expect(await repositories.notifications.findById(randomUUID())).toBeNull();
+    });
+
+    it('lists only one user’s alerts', async () => {
+      const user = await aUser();
+      const other = await aUser();
+
+      await anAlert(user.id);
+      await anAlert(other.id);
+
+      expect(await repositories.notifications.listByUser(user.id)).toHaveLength(1);
+    });
+  });
+
   describe('price history', () => {
     async function aWatchId(userId: string) {
       const search = await repositories.tripSearches.create({

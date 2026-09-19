@@ -180,7 +180,7 @@ class MemoryTripSearchRepository implements TripSearchRepository {
 
   async update(
     id: string,
-    patch: Partial<Pick<TripSearchRecord, 'name' | 'profile'>>,
+    patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,
   ): Promise<TripSearchRecord> {
     const existing = this.byId.get(id);
     if (!existing) {
@@ -275,6 +275,10 @@ class MemoryPriceHistoryRepository implements PriceHistoryRepository {
 class MemoryNotificationRepository implements NotificationRepository {
   private readonly byId = new Map<string, NotificationRecord>();
 
+  async findById(id: string): Promise<NotificationRecord | null> {
+    return this.byId.get(id) ?? null;
+  }
+
   async create(input: Omit<NotificationRecord, 'id' | 'createdAt'>): Promise<NotificationRecord> {
     const record: NotificationRecord = { ...input, id: randomUUID(), createdAt: now() };
     this.byId.set(record.id, record);
@@ -292,6 +296,12 @@ class MemoryNotificationRepository implements NotificationRepository {
     const existing = this.byId.get(id);
     if (!existing) return;
     this.byId.set(id, { ...existing, readAt });
+  }
+
+  async markDelivered(id: string, deliveredAt: string): Promise<void> {
+    const existing = this.byId.get(id);
+    if (!existing) return;
+    this.byId.set(id, { ...existing, deliveredAt });
   }
 }
 

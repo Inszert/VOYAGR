@@ -582,6 +582,7 @@ interface NotificationRow {
   severity: NotificationRecord['severity'];
   title: string;
   body: string;
+  url: string | null;
   created_at: Date;
   read_at: Date | null;
   delivered_at: Date | null;
@@ -595,20 +596,30 @@ function toNotification(row: NotificationRow): NotificationRecord {
     severity: row.severity,
     title: row.title,
     body: row.body,
+    url: row.url,
     createdAt: toIso(row.created_at),
     readAt: toIsoOrNull(row.read_at),
     deliveredAt: toIsoOrNull(row.delivered_at),
   };
 }
 
-const NOTIFICATION_COLUMNS = `id, user_id, watch_id, severity, title, body, created_at,
+const NOTIFICATION_COLUMNS = `id, user_id, watch_id, severity, title, body, url, created_at,
                               read_at, delivered_at`;
 
 class PostgresNotificationRepository implements NotificationRepository {
+  async findById(id: string): Promise<NotificationRecord | null> {
+    const rows = await query<NotificationRow>(
+      `SELECT ${NOTIFICATION_COLUMNS} FROM notifications WHERE id = $1`,
+      [id],
+    );
+    return rows[0] ? toNotification(rows[0]) : null;
+  }
+
   async create(input: Omit<NotificationRecord, 'id' | 'createdAt'>): Promise<NotificationRecord> {
     const rows = await query<NotificationRow>(
-      `INSERT INTO notifications (user_id, watch_id, severity, title, body, read_at, delivered_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO notifications
+         (user_id, watch_id, severity, title, body, url, read_at, delivered_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING ${NOTIFICATION_COLUMNS}`,
       [
         input.userId,
@@ -616,6 +627,7 @@ class PostgresNotificationRepository implements NotificationRepository {
         input.severity,
         input.title,
         input.body,
+        input.url,
         input.readAt,
         input.deliveredAt,
       ],
@@ -637,6 +649,10 @@ class PostgresNotificationRepository implements NotificationRepository {
 
   async markRead(id: string, readAt: string): Promise<void> {
     await query('UPDATE notifications SET read_at = $2 WHERE id = $1', [id, readAt]);
+  }
+
+  async markDelivered(id: string, deliveredAt: string): Promise<void> {
+    await query('UPDATE notifications SET delivered_at = $2 WHERE id = $1', [id, deliveredAt]);
   }
 }
 

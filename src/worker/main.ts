@@ -3,6 +3,7 @@ import { getLogger } from '@/lib/logger';
 import { getRepositories } from '@/db';
 import { createQueueDriver } from '@/queue';
 import { createRefreshHandler } from '@/watches/refresh';
+import { createDeliveryHandler } from '@/notifications/deliver';
 import { startScheduler, sweepDueWatches, type SchedulerHandle } from '@/watches/scheduler';
 import type { QueueDriver } from '@/queue/types';
 
@@ -38,7 +39,8 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
   const repositories = getRepositories();
   const queue = createQueueDriver();
 
-  queue.register('travel-watch.refresh', createRefreshHandler({ repositories }));
+  queue.register('travel-watch.refresh', createRefreshHandler({ repositories, queue }));
+  queue.register('notification.deliver', createDeliveryHandler({ repositories }));
 
   await queue.start();
 

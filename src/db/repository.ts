@@ -130,6 +130,13 @@ export interface NotificationRecord {
   readonly severity: 'important' | 'interesting' | 'fyi';
   readonly title: string;
   readonly body: string;
+  /**
+   * Where tapping this alert lands, relative to the app origin.
+   *
+   * Decided when the alert is written, from the search that found the deal,
+   * rather than rebuilt at delivery time from state that may have moved on.
+   */
+  readonly url: string | null;
   readonly createdAt: IsoDateTime;
   readonly readAt: IsoDateTime | null;
   readonly deliveredAt: IsoDateTime | null;
@@ -222,9 +229,15 @@ export interface PriceHistoryRepository {
 }
 
 export interface NotificationRepository {
+  findById(id: string): Promise<NotificationRecord | null>;
   create(input: Omit<NotificationRecord, 'id' | 'createdAt'>): Promise<NotificationRecord>;
   listByUser(userId: string, limit?: number): Promise<NotificationRecord[]>;
   markRead(id: string, readAt: IsoDateTime): Promise<void>;
+  /**
+   * Stamped only when something was genuinely sent, so "we told you" is a claim
+   * backed by an actual delivery rather than by an attempt.
+   */
+  markDelivered(id: string, deliveredAt: IsoDateTime): Promise<void>;
 }
 
 export interface PushSubscriptionRepository {
