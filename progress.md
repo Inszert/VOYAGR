@@ -1,20 +1,27 @@
 # Progress
 
-**Last updated:** 2026-09-18
-**Stage:** Engineering foundation complete. Phase 1.1 and 1.2 complete; 1.3 next.
+**Last updated:** 2026-09-20
+**Stage:** Phase 1 complete except live providers. Phase 1.10.1 (the frontend build-out) complete.
+**Next:** the live-provider readiness gate, then 1.11.
 
 ---
 
 ## Where things stand
 
-The repository holds a working, tested engineering foundation plus the first product feature: the
-search engine. It builds, lints, typechecks, passes 283 unit and component tests and 26 end-to-end
-tests, and runs with **no database, no Redis, no provider credentials and no AI key**.
+Voyagr runs end to end against deterministic mock providers: a person can search, understand why a
+trip ranks where it does, see what moving their dates is worth, discover destinations on a globe,
+read about a place, create an account, save a Travel Watch, have a worker re-price it in the
+background, and receive a browser push when a materially better combination appears.
 
-A search can be run from the browser against the mock providers and returns ranked, costed,
-constrained trips that explain themselves. There is still no live provider, no account, no
-persistence, no monitoring loop and no notification pipeline, and nothing here books anything.
-That is intentional — see `docs/implementation-plan.md`.
+**Nothing here is a real price.** Every provider is a mock, and the UI says so on every surface
+that shows money. That is a product decision, not a gap left open: see `docs/provider-evaluation.md`
+for what choosing a vendor requires and why it has not been done.
+
+`npm run verify` is clean: 812 unit and component tests, plus 148 end-to-end tests with axe
+assertions on every user-facing surface.
+
+The repository still runs with **no database, no Redis, no provider credentials and no AI key** —
+each of those turns a feature on rather than being required to boot.
 
 ---
 
@@ -22,169 +29,117 @@ That is intentional — see `docs/implementation-plan.md`.
 
 ### Deterministic core — `src/core/`
 
-The part that carries the product's credibility. Pure, exhaustively tested.
+The part that carries the product's credibility. Pure: no clock, no randomness, no I/O.
 
-- **Money** — integer minor units, currency-safe arithmetic, remainder-preserving allocation,
-  explicit rounding modes. Mixing currencies throws rather than converting implicitly.
-- **True trip cost** — three totals (known, estimated, combined), every line tagged and attributed,
-  excluded costs surfaced rather than dropped, category breakdown that provably equals its total.
-- **Hard constraints** — budget ceilings, duration, date windows, origin, party size, and explicit
-  user requirements. All violations collected, never short-circuited.
-- **Travel warnings** — the No-Surprise check: self-transfer risk, baggage, late arrival, long
-  transfer, non-refundable rates, estimate-heavy totals, weak forecasts.
-- **Usable vacation time** — real hours at the destination, not nights.
-- **Scoring** — weighted, style- and mode-aware, and explainable by construction: a test asserts the
-  score equals the sum of its reported contributions.
+Integer money with an explicit currency. Trip cost, with every line tagged `known`, `estimated` or
+`excluded` and nothing silently dropped. Hard eligibility rules, including day-of-week rules so
+"a weekend" means one. Scoring with declared weights, per-factor contributions and a separate
+evidence-strength figure. Usable time. Calendar-date arithmetic in UTC, and wall-clock local times
+that never pretend to be instants.
 
-### Search orchestration — `src/search/` (Phase 1.1)
+### Search — `src/search/`
 
-The first product feature. `runSearch()` takes a `SearchProfile` and a destination list and returns
-ranked, costed, constrained trips.
+Planning that bounds the fan-out and reports what it sampled. Orchestration across five adapter
+kinds behind one shared concurrency limiter, where a provider failing degrades a search rather than
+aborting it. Assembly, costing, ranking, near-misses with their violations attached, component
+swap options priced as whole trips, and per-destination summaries drawn from every eligible trip
+rather than from the page of results.
 
-- **Planning is separate from execution.** `buildSearchPlan()` decides what will be asked of the
-  providers before anything is asked, and it is where the combinatorics stop. A profile allowing
-  165 date windows is sampled down to a bounded, evenly spread set — sampled rather than truncated,
-  so a flexible search does not quietly become a search of the first week. What was dropped is
-  reported, not hidden.
-- **Fan-out is bounded and shaped.** Weather and transfers are fetched once per destination rather
-  than once per trip; a destination with no flights costs no hotel call; and every provider call in
-  a search passes through one shared limiter. The limiter is a shared object rather than a number
-  handed to each fan-out precisely because the first version was the latter, and a nested fan-out
-  that applies the same number twice permits its square. The observed peak is reported in the
-  diagnostics and asserted in a test, so the bound is provable rather than merely intended.
-- **One provider failing degrades a search, never aborts it.** Each call is isolated and each
-  failure is recorded with its public message only, so the diagnostics are safe to return to a
-  client. An adapter that throws instead of returning a `Result` is handled identically.
-- **No number is produced here.** Assembly decides which candidates exist; `cost.ts`,
-  `constraints.ts` and `scoring.ts` decide what they are worth. Ranking is score, then price, then
-  id — the last tiebreak exists so two equal trips cannot swap places between refreshes and look
-  like news.
-- **Ineligible trips are returned, not discarded.** `nearMisses` carries every violation, so a
-  search that finds nothing can explain what came close.
+A five-minute page cache absorbs reloads and duplicate tabs, collapses identical concurrent
+searches, never caches a failure, and reports the age of what it served. `runSearch` itself is not
+wrapped: a Travel Watch exists to find out whether the price moved.
 
-### Search UI and structured schema — `src/search/schema.ts`, `src/components/search/` (Phase 1.2)
+Date flexibility presets — exact, plus-or-minus one, three and seven days, weekend, long weekend,
+month, custom — as pure functions from two typed dates to the four fields the planner needs. Result
+filters that narrow what the search already found rather than re-running it.
 
-The screens. A structured form at `/`, a results list, and a detail view inside each card.
+### Accounts, persistence and monitoring
 
-- **A search is a URL.** The form submits as a GET, so a search can be shared, bookmarked and
-  reloaded, the back button behaves, and the page works before JavaScript arrives. Native
-  `<select>` and `<details>` are used for the same reason — platform controls, not hand-rolled
-  ones. A saved watch in 1.5 needs the same properties.
-- **Structured input is the foundation.** `schema.ts` validates the form deterministically and
-  converts budgets to `Money` with `fromMajor`. The natural-language box in Phase 2 will fill this
-  schema in, never bypass it.
-- **One booking seam.** `src/booking/handoff.ts` builds every outbound link. It is also a trust
-  boundary: a provider's `deepLink` goes into an `href`, so anything that is not `http(s)` is
-  dropped rather than rendered.
-- **Estimates never look like quotes**, warnings sit in the card rather than behind a disclosure,
-  and excluded costs get a section that says the trip will cost more than the total shown.
+Accounts with throttled sign-in scoped per client, saved preferences and plan entitlements the
+search actually applies. Repository interfaces with an in-memory implementation and a PostgreSQL
+one, both held to a single shared contract suite — 26 tests, run against a live database.
 
-### Honesty fixes carried into the core
+A BullMQ and Redis worker, proven against real Redis and real Postgres, that re-prices watches on a
+schedule, records price history, detects materially better deals against what was seen before, and
+sweeps expired sessions.
 
-Three things the search work exposed, fixed rather than deferred.
+### Notifications — `src/notifications/`
 
-- **A flight time is a `LocalDateTime`, not an instant.** The type claimed UTC while every reader
-  took the hour straight off the clock face, and the mock wrote local-looking hours with a `Z` so
-  the two errors cancelled. Flight times are now a distinct type that refuses a zone suffix, read
-  through one helper, with the reason written down: 23:40 in Antalya must read as 23:40 whether the
-  process runs in Vienna or a UTC CI box.
-- **A provider's silence is `null`, not `false`.** Baggage and self-transfer were non-nullable
-  booleans, so "the provider did not say" became a confident denial in exactly the fields the
-  No-Surprise check reads. Unknown is now its own case everywhere: it does not satisfy a hard
-  requirement, it raises a `needs_verification` warning instead of a false statement, it takes half
-  the scoring penalty rather than all or none, and it lowers the trip's data confidence.
-- **A reload no longer re-runs the search.** A five-minute page-level cache absorbs reloads,
-  duplicate tabs and back-navigation, collapses identical concurrent searches into one run, never
-  caches a failure, and reports the age of what it served. `runSearch` itself is not wrapped: a
-  Travel Watch refresh exists to find out whether the price moved.
+Web Push behind a channel abstraction, proven end to end in a real browser: a genuine
+worker-detected deal produced a real push notification. Dead subscriptions are dropped on 404 and
+410 rather than retried forever.
 
-### Provider architecture — `src/providers/`
+### Frontend — Phase 1.10.1
 
-Adapter interfaces for flights, hotels, weather, transfers and places. Five deterministic mocks,
-varying by a hash of the query rather than randomness. A registry resolving implementations from
-configuration, where selecting an unimplemented live provider is a hard error, never a silent
+- **Design system.** Radix primitives on OKLCH Tailwind tokens, with elevation, motion and an
+  editorial display face as tokens rather than per-component choices.
+- **Homepage discovery.** Ten categories as presets over the existing search schema, which can
+  never override what the user themselves set. No photographs — see `docs/imagery-options.md`.
+- **Rich result cards.** "Why this trip?" in words before any score, an at-a-glance summary, and
+  the factor breakdown one disclosure down for anyone who wants it.
+- **Filters.** Only the ones backed by real data, and an unknown fact never silently passes or
+  fails one.
+- **Flexible dates.** Presets in the open, and a price comparison across every date window the
+  search priced, with the saving stated and the sampling admitted.
+- **Discovery globe.** MapLibre with a Natural Earth basemap committed here: no tile server, no API
+  key, no third party in the render path, asserted by a test. The globe is decoration and the list
+  beside it is the content.
+- **Destination pages.** Built from the same adapters, naming what they cannot tell you.
+- **Data provenance.** Every surface that shows money says where it came from, and mock data never
+  visually masquerades as a real price.
+
+### Provider readiness — `src/providers/`
+
+Adapter interfaces for flights, hotels, weather, transfers and places, five deterministic mocks,
+and a registry where selecting an unimplemented live provider is a hard error rather than a silent
 fallback to fixtures.
 
-### AI abstraction — `src/ai/`
-
-An interface with no method that can return a price, a total or an eligibility decision. Guardrails
-that schema-check model output, convert intent to `Money` deterministically, and discard generated
-prose containing figures its source facts do not support. A deterministic rule-based mock provider.
-
-### Persistence — `src/db/`
-
-Repository interfaces for users, searches, watches, price history, notifications and push
-subscriptions. A complete in-memory implementation. A Postgres schema and a migration runner, needed
-only when a real database arrives. `pg` is behind a dynamic import, so no driver loads without a
-`DATABASE_URL`.
-
-### Background jobs — `src/queue/`
-
-Job contract with a full in-process driver: delays, retries with exponential backoff,
-deduplication, stats and deterministic draining for tests.
-
-### Application and UI
-
-Next.js App Router scaffold, foundation status page, offline page, error and not-found boundaries,
-a health endpoint that reports capabilities without leaking configuration. A design system of Radix
-primitives on OKLCH Tailwind tokens, accessible in both colour schemes. PWA manifest, generated
-icons and a hand-written service worker that is network-first for anything priced.
-
-### Engineering baseline
-
-Structured logging with central redaction, an error taxonomy separating public from internal
-detail, security response headers, validated configuration, GitHub Actions CI across four jobs,
-Dependabot, Claude Code project configuration and eleven agents, and seven documents.
+Encoded from the vendor research: provider-specific pagination cursors nothing outside an adapter
+may parse; an operation-aware retry policy where "never retry an order creation" is a property of
+the operation and not overridable by a provider; per-operation, per-provider timeouts. Plus a
+vendor-agnostic recorded-HTTP fixture harness that replays completely offline.
 
 ---
 
-## Fixed during the bootstrap
+## Not started, deliberately
 
-Two real defects, both caught by the tooling rather than by inspection:
+**Live providers (1.11).** Gated on the readiness task in `docs/implementation-plan.md`. One
+question is still outstanding with every candidate vendor: whether background polling for price
+monitoring is permitted under their terms. Until that has an answer in writing, choosing a vendor
+would be choosing one that might forbid the product's central feature.
 
-1. **Status badges failed contrast in dark mode** (2.04:1, against a 4.5:1 requirement). Caught by
-   axe in the Playwright suite. Fixed at the source by introducing scheme-aware `*-ink` tokens
-   rather than by excluding the rule.
-2. **`describeEnv()` omitted unset secrets entirely** instead of reporting them as `false`, so a
-   configuration report read "no such setting" rather than "not configured". Caught by a unit test.
+**Specification sections 15 to 22** — seasonal intelligence, seasonal globe layers, hidden places,
+events and national holidays, trip types, the trip builder. Each needs data the product does not
+have. They are named in the interface where a user might expect them rather than rendered as
+controls that silently match everything.
 
-One design correction: the usable-time model originally clamped arrival-day time to hotel check-in,
-which double-penalised a midday arrival — reception stores bags and the day starts anyway. The
-clamp was removed and the two now-unused assumptions deleted rather than left as dead configuration.
+**Booking and payments.** Nothing here books anything.
 
----
+**Per-destination cost of living.** A candidate carries no food, activities or local-transport
+estimate. `TripCandidate.extraCosts` is the seam; a guessed line would be worse than an absent one.
 
-## Not started
+**A standalone trip detail route.** The card carries the breakdown, the score, the warnings and the
+swaps. A separate route would need to re-run the search and would then show different prices than
+the list it was opened from.
 
-Everything in `docs/implementation-plan.md` from Phase 1.3 onward: accounts, Postgres persistence,
-saved watches, workers, price history, deal detection, Web Push delivery, component swapping, and
-the first live provider.
-
-Also absent by design: a standalone trip detail route. It would either re-run the search and show
-different prices than the list it was opened from, or need a result cache that arrives with 1.4
-and 1.5.
-
-Within the search engine specifically: a candidate carries no food, activities or local-transport
-estimate. Those need per-destination cost-of-living data the project does not have, and a guessed
-line would be worse than an absent one. `TripCandidate.extraCosts` is the seam.
-
-Also absent and noted in `docs/security.md`: authentication, rate limiting, CSRF protection, audit
-logging, a nonce-based CSP, and a data retention policy.
+Also absent and noted in `docs/security.md`: rate limiting beyond sign-in, CSRF protection, audit
+logging, a nonce-based CSP, and a data retention policy beyond session and price-history sweeps.
 
 ---
 
 ## Known constraints
 
-| Item                      | Detail                                                                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ESLint pinned to 9.x      | `eslint-config-next@16` bundles an `eslint-plugin-react` incompatible with ESLint 10. Dev-only dependency. Revisit when Next ships support.                                                             |
-| Playwright browser binary | Could not be downloaded in the bootstrap environment (CDN unreachable). The suite was verified against locally installed Chrome via `PLAYWRIGHT_CHANNEL=chrome`. CI installs bundled Chromium normally. |
-| CSP `'unsafe-inline'`     | Required by Next.js streaming injection. Worth replacing with a nonce-based CSP before handling payments.                                                                                               |
-| No git remote             | CI cannot run until one is configured.                                                                                                                                                                  |
+| Item                      | Detail                                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ESLint pinned to 9.x      | `eslint-config-next@16` bundles an `eslint-plugin-react` incompatible with ESLint 10. Dev-only dependency. Revisit when Next ships support.                                                                 |
+| Playwright browser binary | Could not be downloaded in this environment. The suite was verified against locally installed Chrome via `PLAYWRIGHT_CHANNEL=chrome`. CI installs bundled Chromium normally.                                |
+| CSP `'unsafe-inline'`     | Required by Next.js streaming injection. Worth replacing with a nonce-based CSP before handling payments.                                                                                                   |
+| MapLibre worker is copied | `scripts/copy-map-worker.mjs` copies it out of `node_modules` on every build, because MapLibre resolves it relative to `import.meta.url` and a bundled chunk is the wrong place. See `docs/map-options.md`. |
+| No git remote             | CI cannot run until one is configured.                                                                                                                                                                      |
 
 ---
 
 ## Next step
 
-Phase 1.1 — search orchestration. It is the first piece that turns the foundation into a product,
-and it exercises every layer at once: adapters, cost engine, constraints, scoring.
+The live-provider readiness gate — specifically the background-polling question. Every other
+finding is recorded and encoded; no vendor should be selected while that one is open.

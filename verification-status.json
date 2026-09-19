@@ -1,8 +1,8 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1-complete-except-live-providers",
-  "generatedAt": "2026-09-18",
+  "stage": "phase-1-complete-except-live-providers; phase-1.10.1 frontend complete",
+  "generatedAt": "2026-09-20",
   "overall": "PASS",
   "environment": {
     "os": "Windows 11 Pro 10.0.26200",
@@ -20,7 +20,7 @@
       "status": "PASS",
       "command": "npm run format:check",
       "detail": "Prettier reports all matched files conform.",
-      "notes": "docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are excluded from formatting as user-authored documents."
+      "notes": "docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are excluded from formatting as user-authored documents. public/geo and public/maplibre are excluded: the first is Natural Earth data shipped as fetched, the second is copied from node_modules on every build."
     },
     {
       "id": "linting",
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "603 tests across 36 files, all passing.",
+      "detail": "812 tests across 49 files, all passing.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -71,7 +71,7 @@
       "name": "Coverage",
       "status": "PASS",
       "command": "npm run test:coverage",
-      "detail": "Lines 77.67%, branches 87.50%, functions 85.82%. All above configured thresholds (60/70/60).",
+      "detail": "Lines 77.43%, branches 87.78%, functions 86.88%. All above configured thresholds (60/70/60).",
       "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly."
     },
     {
@@ -79,14 +79,14 @@
       "name": "Production build",
       "status": "PASS",
       "command": "npm run build",
-      "detail": "Next.js 16 production build succeeds. 4 static routes prerendered, /api/health dynamic."
+      "detail": "Next.js 16 production build succeeds. A prebuild step copies the MapLibre worker into public/maplibre so the globe can reach it."
     },
     {
       "id": "e2e",
       "name": "End-to-end smoke tests",
       "status": "PASS",
       "command": "npm run test:e2e",
-      "detail": "92 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, and the full search flow — submitting the form, restoring a search from its URL, the score explanation, the cost breakdown, the No-Surprise warnings, a rejected form, an empty result set and keyboard-only operation.",
+      "detail": "148 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, accounts and Travel Watches, and the full discovery and search flow - homepage categories, submitting the form, restoring a search from its URL, the score explanation, the cost breakdown, the No-Surprise warnings, component swapping, result filters, flexible dates including a weekend search returning only weekends, the discovery globe and its destination pages.",
       "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The Playwright web server runs with DATABASE_URL and REDIS_URL blanked, so the suite is hermetic and cannot write test accounts into a developer's real database."
     },
     {
@@ -94,7 +94,7 @@
       "name": "Accessibility",
       "status": "PASS",
       "command": "npm run test:e2e",
-      "detail": "axe-core reports zero violations against wcag2a, wcag2aa, wcag21a and wcag21aa in both desktop and mobile viewports, on the app shell and on the search page with results rendered.",
+      "detail": "axe-core reports zero violations against wcag2a, wcag2aa, wcag21a and wcag21aa in both desktop and mobile viewports, on the app shell, the search page with results, the flexible-date comparison, the discovery map panel and a destination page.",
       "notes": "This check found and led to fixing a real dark-mode contrast failure in status badges (2.04:1 against a 4.5:1 requirement). axe is a floor, not proof of accessibility: it cannot tell whether the cost breakdown reads sensibly in a screen reader, only that its table markup is valid. The search flow is asserted to be keyboard-operable, but no manual screen-reader pass has been done."
     },
     {
@@ -151,7 +151,7 @@
       "status": "WARN",
       "command": "npm run test:e2e",
       "detail": "Manifest valid and served, all three declared icons served as real PNGs, service worker served with a must-revalidate policy, offline page renders.",
-      "notes": "Service worker registration and runtime caching behaviour have not been exercised in a browser — the worker is disabled in development by design, and the E2E suite asserts the file is served rather than that it installs and caches. Install-to-homescreen and push delivery are untested."
+      "notes": "Service worker registration and runtime caching behaviour have not been exercised in a browser \u2014 the worker is disabled in development by design, and the E2E suite asserts the file is served rather than that it installs and caches. Install-to-homescreen and push delivery are untested."
     },
     {
       "id": "manual-review",
@@ -174,7 +174,7 @@
       "status": "PASS",
       "command": "npm test && npm run test:e2e",
       "detail": "47 tests. The structured schema is asserted to normalise airport codes, convert budgets to Money in minor units, read an absent checkbox as false, keep optional numbers null rather than zero, and reject fourteen kinds of bad input with a message on the offending field. The booking seam is asserted to drop javascript:, data:, file: and non-URL deep links, and to mark every outbound link noopener and sponsored. Components are asserted on roles and accessible names: estimates labelled in words, excluded costs surfaced, warnings visible without expanding anything, violations listed on a near miss, and the results heading reporting what matched rather than what is shown.",
-      "notes": "No standalone trip detail route exists, by design — see the note in docs/implementation-plan.md 1.2. Place names come from provider fixtures via src/search/destination-names.ts, a marked stand-in for the destinations table (specification section 21); it is display-only and no computed figure reads it. The page is server-rendered on every request with no caching, which is correct against instant mocks and will need revisiting when a live provider makes a search cost money."
+      "notes": "No standalone trip detail route exists, by design \u2014 see the note in docs/implementation-plan.md 1.2. Place names come from provider fixtures via src/search/destination-names.ts, a marked stand-in for the destinations table (specification section 21); it is display-only and no computed figure reads it. The page is server-rendered on every request with no caching, which is correct against instant mocks and will need revisiting when a live provider makes a search cost money."
     },
     {
       "id": "data-honesty",

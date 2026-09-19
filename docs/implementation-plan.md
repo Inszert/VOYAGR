@@ -514,7 +514,36 @@ told in each case. An offer silently downgraded is exactly the surprise §31.5 e
   concurrency bound is proven under real latency rather than against instant mocks; per-provider
   budgets and observability are specified; and the full suite still passes with no network access.
 
-# 1.10.1 Master Frontend + Fable + Travel Discovery Specification
+# 1.10.1 Master Frontend + Fable + Travel Discovery Specification ✅ complete
+
+**Built, in the order agreed:** design-system uplift; homepage discovery (§§5-6); rich result cards
+and filters (§§9-10); flexible dates (§8); the discovery globe and destination pages (§§11-14, §18).
+Provenance, accessibility, responsive behaviour and deterministic mocks were held throughout, and
+`npm run verify` is clean at 812 unit tests and 148 end-to-end tests with axe.
+
+**Decisions taken, and where they are written down:**
+
+- **Fable (§1) was not blocked on.** The interface was built directly in the existing design system.
+- **MapLibre, and no basemap vendor** (§§11-14). Land comes from a Natural Earth outline committed
+  to the repository; there is no tile server, no API key and no third-party request from the map.
+  `docs/map-options.md` records the alternatives and what adopting one would cost.
+- **No imagery provider** (§5). `docs/imagery-options.md` records why, and what choosing one
+  commits us to.
+- **Filters narrow rather than re-search** (§10), because a search is dozens of billed provider
+  calls and a chip toggle must not be one.
+
+**Deliberately not built, because the data does not exist:** §§15-17 seasonal intelligence and
+seasonal globe layers; §§19-22 trip types, hidden places, events and national holidays, and the
+trip builder; the train, bus, ferry and car transport filters in §13; the "best season" and "most
+interesting" globe modes in §14; and the imagery in §§5 and 18.
+
+None of these are rendered as empty controls. Each is named in the interface at the point a user
+might expect it — a transport filter offering "train" that quietly returns flights is worse than no
+filter, and silence about a travel warning reads as "nothing to report".
+
+**Deferred with a reason, not a gap:** a standalone trip-detail route. The card already carries the
+cost breakdown, the score, the warnings and the swap options; a separate route would have to re-run
+the search and would then show different prices than the list it was opened from.
 
     ## Purpose
 
