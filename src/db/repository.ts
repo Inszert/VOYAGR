@@ -77,6 +77,14 @@ export interface TripSearchRecord {
   readonly userId: string;
   readonly name: string;
   readonly profile: SearchProfile;
+  /**
+   * Where the search looks.
+   *
+   * A `SearchProfile` says what kind of trip is wanted, not where: destinations
+   * live on the request. Without them a saved search cannot be replayed, and a
+   * watch that cannot replay its own search is not a watch.
+   */
+  readonly destinations: readonly string[];
   readonly createdAt: IsoDateTime;
   readonly updatedAt: IsoDateTime;
 }
@@ -177,7 +185,7 @@ export interface TripSearchRepository {
   create(input: Omit<TripSearchRecord, 'createdAt' | 'updatedAt'>): Promise<TripSearchRecord>;
   update(
     id: string,
-    patch: Partial<Pick<TripSearchRecord, 'name' | 'profile'>>,
+    patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,
   ): Promise<TripSearchRecord>;
 }
 

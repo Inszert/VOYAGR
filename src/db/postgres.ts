@@ -292,6 +292,7 @@ interface TripSearchRow {
   user_id: string;
   name: string;
   profile: SearchProfile;
+  destinations: string[];
   created_at: Date;
   updated_at: Date;
 }
@@ -302,15 +303,18 @@ function toTripSearch(row: TripSearchRow): TripSearchRecord {
     userId: row.user_id,
     name: row.name,
     profile: row.profile,
+    destinations: row.destinations,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
 }
 
+const SEARCH_COLUMNS = 'id, user_id, name, profile, destinations, created_at, updated_at';
+
 class PostgresTripSearchRepository implements TripSearchRepository {
   async findById(id: string): Promise<TripSearchRecord | null> {
     const rows = await query<TripSearchRow>(
-      'SELECT id, user_id, name, profile, created_at, updated_at FROM trip_searches WHERE id = $1',
+      `SELECT ${SEARCH_COLUMNS} FROM trip_searches WHERE id = $1`,
       [id],
     );
     return rows[0] ? toTripSearch(rows[0]) : null;
@@ -318,7 +322,7 @@ class PostgresTripSearchRepository implements TripSearchRepository {
 
   async listByUser(userId: string): Promise<TripSearchRecord[]> {
     const rows = await query<TripSearchRow>(
-      `SELECT id, user_id, name, profile, created_at, updated_at
+      `SELECT ${SEARCH_COLUMNS}
          FROM trip_searches
         WHERE user_id = $1
         ORDER BY created_at DESC`,
@@ -329,23 +333,32 @@ class PostgresTripSearchRepository implements TripSearchRepository {
 
   async create(input: Omit<TripSearchRecord, 'createdAt' | 'updatedAt'>) {
     const rows = await query<TripSearchRow>(
-      `INSERT INTO trip_searches (id, user_id, name, profile)
-       VALUES ($1, $2, $3, $4::jsonb)
-       RETURNING id, user_id, name, profile, created_at, updated_at`,
-      [input.id, input.userId, input.name, JSON.stringify(input.profile)],
+      `INSERT INTO trip_searches (id, user_id, name, profile, destinations)
+       VALUES ($1, $2, $3, $4::jsonb, $5)
+       RETURNING ${SEARCH_COLUMNS}`,
+      [input.id, input.userId, input.name, JSON.stringify(input.profile), [...input.destinations]],
     );
     return toTripSearch(requireRow(rows[0], 'trip search', input.id));
   }
 
-  async update(id: string, patch: Partial<Pick<TripSearchRecord, 'name' | 'profile'>>) {
+  async update(
+    id: string,
+    patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,
+  ) {
     const rows = await query<TripSearchRow>(
       `UPDATE trip_searches
           SET name = COALESCE($2, name),
               profile = COALESCE($3::jsonb, profile),
+              destinations = COALESCE($4, destinations),
               updated_at = now()
         WHERE id = $1
-        RETURNING id, user_id, name, profile, created_at, updated_at`,
-      [id, patch.name ?? null, patch.profile ? JSON.stringify(patch.profile) : null],
+        RETURNING ${SEARCH_COLUMNS}`,
+      [
+        id,
+        patch.name ?? null,
+        patch.profile ? JSON.stringify(patch.profile) : null,
+        patch.destinations ? [...patch.destinations] : null,
+      ],
     );
     return toTripSearch(requireRow(rows[0], 'trip search', id));
   }

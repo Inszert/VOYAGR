@@ -243,6 +243,7 @@ describe.each(backends)('$name repository contract', (backend) => {
         userId: user.id,
         name: 'June somewhere warm',
         profile,
+        destinations: ['AYT', 'CHQ'],
       });
 
       const found = await repositories.tripSearches.findById(created.id);
@@ -251,6 +252,8 @@ describe.each(backends)('$name repository contract', (backend) => {
       // was created with; a budget that came back as a float would be a defect.
       expect(found?.profile).toEqual(profile);
       expect(found?.profile.targetBudget).toEqual({ amount: 65000, currency: 'EUR' });
+      // Without these the watch could not replay the search it was made from.
+      expect(found?.destinations).toEqual(['AYT', 'CHQ']);
     });
 
     it('lists only the searches belonging to one user', async () => {
@@ -262,18 +265,21 @@ describe.each(backends)('$name repository contract', (backend) => {
         userId: user.id,
         name: 'First',
         profile: buildProfile(),
+        destinations: ['AYT'],
       });
       const second = await repositories.tripSearches.create({
         id: randomUUID(),
         userId: user.id,
         name: 'Second',
         profile: buildProfile(),
+        destinations: ['CHQ'],
       });
       await repositories.tripSearches.create({
         id: randomUUID(),
         userId: other.id,
         name: 'Theirs',
         profile: buildProfile(),
+        destinations: ['SPU'],
       });
 
       const listed = await repositories.tripSearches.listByUser(user.id);
@@ -291,6 +297,7 @@ describe.each(backends)('$name repository contract', (backend) => {
         userId: user.id,
         name: 'Original',
         profile,
+        destinations: ['AYT'],
       });
 
       const updated = await repositories.tripSearches.update(created.id, { name: 'Renamed' });
@@ -307,6 +314,7 @@ describe.each(backends)('$name repository contract', (backend) => {
         userId,
         name: 'Watched',
         profile: buildProfile(),
+        destinations: ['AYT'],
       });
 
       return repositories.travelWatches.create({
@@ -401,6 +409,7 @@ describe.each(backends)('$name repository contract', (backend) => {
         userId,
         name: 'Watched',
         profile: buildProfile(),
+        destinations: ['AYT'],
       });
       const watch = await repositories.travelWatches.create({
         id: randomUUID(),

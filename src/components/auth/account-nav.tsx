@@ -28,6 +28,9 @@ export async function AccountNav() {
 
   return (
     <nav aria-label="Account" className="flex items-center gap-4 text-sm">
+      <Link href="/watches" className="text-ink underline underline-offset-4">
+        Watches
+      </Link>
       <Link href="/account" className="text-ink underline underline-offset-4">
         {/* The email is the least ambiguous label for "which account is this?" */}
         {user.email}

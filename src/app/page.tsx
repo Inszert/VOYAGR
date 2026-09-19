@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { SearchForm } from '@/components/search/search-form';
 import { SearchResults } from '@/components/search/search-results';
+import { SaveSearchForm } from '@/components/watches/save-search-form';
+import { saveSearchAction } from '@/app/actions/watches';
 import { runSearch } from '@/search/orchestrator';
 import { getSearchCache } from '@/search/cache';
 import { parseSearchForm } from '@/search/schema';
@@ -34,6 +36,20 @@ export const metadata: Metadata = {
 /** A GET form always submits its text inputs, so `origins` marks a real search. */
 function wasSubmitted(params: Readonly<Record<string, string | undefined>>): boolean {
   return typeof params.origins === 'string';
+}
+
+/**
+ * A starting name for a saved search.
+ *
+ * Built from what the user actually asked for, so the name means something the
+ * moment they see it rather than being "Saved search 3".
+ */
+function suggestedSearchName(values: Record<string, string | undefined>): string {
+  const destinations = (values.destinations ?? '').trim();
+  const from = (values.earliestDeparture ?? '').slice(0, 7);
+
+  if (destinations && from) return `${destinations} in ${from}`;
+  return destinations || 'Saved search';
 }
 
 /** Repeated query keys collapse to the first value; the form never sends them. */
@@ -114,7 +130,22 @@ export default async function SearchPage({
 
       <SearchForm values={values} defaults={defaults} errors={errors} />
 
-      {outcome ? <SearchResults outcome={outcome} resultAgeMs={resultAgeMs} /> : null}
+      {outcome ? (
+        <>
+          <SaveSearchForm
+            query={new URLSearchParams(
+              Object.entries(values).filter(
+                (entry): entry is [string, string] => typeof entry[1] === 'string',
+              ),
+            ).toString()}
+            suggestedName={suggestedSearchName(values)}
+            signedIn={Boolean(user)}
+            action={saveSearchAction}
+          />
+
+          <SearchResults outcome={outcome} resultAgeMs={resultAgeMs} />
+        </>
+      ) : null}
     </div>
   );
 }

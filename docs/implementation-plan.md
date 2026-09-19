@@ -200,7 +200,7 @@ Decisions worth carrying forward:
   BIGINT as a string precisely so nobody loses precision, and a value that is not a safe integer
   raises rather than rounds.
 
-### 1.5 Saved searches and Travel Watches
+### 1.5 Saved searches and Travel Watches ✅ complete
 
 _In plain words: let you keep a search, so the app keeps looking for you after you close it._
 
@@ -208,6 +208,29 @@ A search becomes a watch. Status, priority, `nextRunAt`.
 
 - The active-watch limit is read from the user's entitlements, not from a constant.
 - **Done when:** a saved watch persists and appears with its next scheduled run.
+
+**Delivered.** `src/core/watch-schedule.ts`, `src/watches/service.ts`, `/watches`, a save panel on
+the results page, and migration `0003_saved_search_destinations.sql`.
+
+Decisions worth carrying forward:
+
+- **A saved search stores its destinations.** A `SearchProfile` says what kind of trip is wanted,
+  not where — that lives on the request. Without them a watch cannot replay its own search, which
+  is most of what a watch is.
+- **Saving and watching are two records, not a flag.** A search can be kept without spending a
+  monitoring slot, and a watch can be paused without losing the search behind it.
+- **Every limit is read from entitlements, including on resume.** A limit enforced on creation but
+  not on resuming is not a limit.
+- **Watching an already-watched search resumes it rather than creating a second watch**, which
+  would double the provider calls and alert the user twice about one trip.
+- **Asking for a priority the plan does not include is not an error**, it is quietly the normal
+  cadence. Otherwise the flag becomes a way around the entitlement.
+- **The service owns the clock, so it owns "when does this next run".** A component reading
+  `Date.now()` during render is impure, untestable without mocking time, and disagrees with itself
+  between server render and hydration.
+- **The page says background checking is not switched on yet.** Watches are saved and scheduled,
+  but nothing runs them until 1.6, and a countdown implying otherwise would describe work nobody
+  is doing.
 
 ### 1.6 Workers and scheduled refresh
 
