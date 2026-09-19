@@ -6,7 +6,8 @@ import type {
   TripCandidate,
   WeatherOutlook,
 } from '@/core/trip/types';
-import { isAppError } from '@/lib/errors';
+import { AppError, isAppError } from '@/lib/errors';
+import { err, ok } from '@/lib/result';
 import { createLimiter, type Limiter } from '@/lib/concurrency';
 import { getLogger } from '@/lib/logger';
 import { getProviderRegistry } from '@/providers/registry';
@@ -19,6 +20,7 @@ import type {
   TransferProvider,
   WeatherProvider,
 } from '@/providers/types';
+import { collectPages } from '@/providers/paging';
 import { assembleRouteCandidates, interleave } from './assemble';
 import { evaluateTrip } from './evaluate';
 import { combineProvenance, provenanceForProvider } from '@/core/trip/provenance';
@@ -27,6 +29,7 @@ import type {
   DateWindow,
   ProviderIssue,
   RankedTrip,
+  RouteOffers,
   SearchDiagnostics,
   SearchOutcome,
   SearchPlan,
@@ -53,6 +56,15 @@ import type {
 
 const log = getLogger('search.orchestrator');
 
+/**
+ * Stands in when a page call failed.
+ *
+ * `callProvider` has already recorded the real failure as a reported issue, so
+ * this exists only to stop `collectPages` walking further. It is never shown
+ * to anyone.
+ */
+const PAGE_FAILED = new AppError('PROVIDER_ERROR', 'Provider page failed; already reported');
+
 export interface SearchDependencies {
   readonly flights: FlightProvider;
   readonly hotels: HotelProvider;
@@ -74,6 +86,11 @@ function defaultDependencies(): SearchDependencies {
 }
 
 /** Everything one provider call needs in order to report itself when it fails. */
+/** Mutable tally of real provider calls, for the diagnostics. */
+interface CallCounter {
+  calls: number;
+}
+
 interface CallContext {
   readonly kind: ProviderKind;
   readonly providerId: string;
@@ -92,8 +109,14 @@ async function callProvider<T>(
   context: CallContext,
   issues: ProviderIssue[],
   limiter: Limiter,
+  counter: CallCounter,
   run: () => Promise<ProviderResult<T>>,
 ): Promise<T | null> {
+  // Counted here, where a call actually happens, rather than at each call
+  // site. Once a query can span several pages, a caller counting its own
+  // calls is a caller that will drift from the truth.
+  counter.calls += 1;
+
   try {
     // The only place in the search that takes a slot. Acquiring one around the
     // fan-out instead would deadlock: see the rule in `concurrency.ts`.
@@ -156,8 +179,6 @@ async function fetchDestinationContexts(
 
   const entries = await Promise.all(
     plan.destinations.map(async (destination) => {
-      counter.calls += 2;
-
       const [outlook, transfers] = await Promise.all([
         callProvider(
           {
@@ -167,6 +188,7 @@ async function fetchDestinationContexts(
           },
           issues,
           limiter,
+          counter,
           () =>
             deps.weather.getOutlook(
               { destination, startDate: plan.earliestDate, endDate: plan.latestDate },
@@ -181,6 +203,7 @@ async function fetchDestinationContexts(
           },
           issues,
           limiter,
+          counter,
           () =>
             deps.transfers.searchTransfers(
               {
@@ -212,35 +235,49 @@ async function fetchFlightsForWindow(
   window: DateWindow,
   issues: ProviderIssue[],
   limiter: Limiter,
+  counter: CallCounter,
 ): Promise<readonly FlightOffer[]> {
-  const offers = await callProvider(
-    {
-      kind: 'flights',
-      providerId: deps.flights.metadata.id,
-      scope: `flights:${window.departureDate}..${window.returnDate}`,
+  // Enough headroom for every route to be represented, rather than for one
+  // cheap destination to fill the whole response.
+  const wanted =
+    plan.origins.length * plan.destinations.length * plan.limits.maxFlightOffersPerRoute;
+
+  const context = {
+    kind: 'flights' as const,
+    providerId: deps.flights.metadata.id,
+    scope: `flights:${window.departureDate}..${window.returnDate}`,
+  };
+
+  // Paged, because "one call returns everything" is false for every vendor
+  // evaluated. Each page is a separate provider call and takes its own slot.
+  const { result, error } = await collectPages<FlightOffer>(
+    async (cursor) => {
+      const page = await callProvider(context, issues, limiter, counter, () =>
+        deps.flights.searchFlights(
+          {
+            origins: plan.origins,
+            destinations: plan.destinations,
+            departureDate: window.departureDate,
+            returnDate: window.returnDate,
+            passengers: plan.passengers,
+            currency: plan.currency,
+            directOnly: request.profile.requireDirectFlights,
+            maxResults: plan.limits.maxFlightOffersPerRoute * plan.destinations.length,
+            ...(cursor ? { cursor } : {}),
+          },
+          requestOptions(plan, request.requestId),
+        ),
+      );
+
+      return page ? ok(page) : err(PAGE_FAILED);
     },
-    issues,
-    limiter,
-    () =>
-      deps.flights.searchFlights(
-        {
-          origins: plan.origins,
-          destinations: plan.destinations,
-          departureDate: window.departureDate,
-          returnDate: window.returnDate,
-          passengers: plan.passengers,
-          currency: plan.currency,
-          directOnly: request.profile.requireDirectFlights,
-          // Enough headroom for every route to be represented, rather than for
-          // one cheap destination to fill the whole response.
-          maxResults:
-            plan.origins.length * plan.destinations.length * plan.limits.maxFlightOffersPerRoute,
-        },
-        requestOptions(plan, request.requestId),
-      ),
+    { maxItems: wanted, maxPages: plan.limits.maxPagesPerSearch },
   );
 
-  return offers ?? [];
+  // `callProvider` already recorded the failure; nothing more to report here.
+  void error;
+
+  return result.items;
 }
 
 async function fetchHotels(
@@ -251,41 +288,51 @@ async function fetchHotels(
   window: DateWindow,
   issues: ProviderIssue[],
   limiter: Limiter,
+  counter: CallCounter,
 ): Promise<readonly HotelOffer[]> {
   const { profile } = request;
 
-  const offers = await callProvider(
-    {
-      kind: 'hotels',
-      providerId: deps.hotels.metadata.id,
-      scope: `hotels:${destination}:${window.departureDate}..${window.returnDate}`,
+  const context = {
+    kind: 'hotels' as const,
+    providerId: deps.hotels.metadata.id,
+    scope: `hotels:${destination}:${window.departureDate}..${window.returnDate}`,
+  };
+
+  const { result } = await collectPages<HotelOffer>(
+    async (cursor) => {
+      const page = await callProvider(context, issues, limiter, counter, () =>
+        deps.hotels.searchHotels(
+          {
+            ...(cursor ? { cursor } : {}),
+            destination,
+            checkIn: window.departureDate,
+            checkOut: window.returnDate,
+            guests: plan.passengers,
+            currency: plan.currency,
+            // Hard requirements are pushed into the query rather than filtered
+            // afterwards, so the provider does not spend its response budget on
+            // rooms that could never be eligible.
+            ...(profile.minHotelReviewScore !== null
+              ? { minReviewScore: profile.minHotelReviewScore }
+              : {}),
+            ...(profile.requireFreeCancellation ? { freeCancellationOnly: true } : {}),
+            // Headroom above the keep-limit, because the provider applies
+            // those filters to this budget before we see anything.
+            maxResults: plan.limits.maxHotelOffersPerDestination * 3,
+          },
+          requestOptions(plan, request.requestId),
+        ),
+      );
+
+      return page ? ok(page) : err(PAGE_FAILED);
     },
-    issues,
-    limiter,
-    () =>
-      deps.hotels.searchHotels(
-        {
-          destination,
-          checkIn: window.departureDate,
-          checkOut: window.returnDate,
-          guests: plan.passengers,
-          currency: plan.currency,
-          // Hard requirements are pushed into the query rather than filtered
-          // afterwards, so the provider does not spend its response budget on
-          // rooms that could never be eligible.
-          ...(profile.minHotelReviewScore !== null
-            ? { minReviewScore: profile.minHotelReviewScore }
-            : {}),
-          ...(profile.requireFreeCancellation ? { freeCancellationOnly: true } : {}),
-          // Headroom above the keep-limit, because the provider applies those
-          // filters to this budget before we see anything.
-          maxResults: plan.limits.maxHotelOffersPerDestination * 3,
-        },
-        requestOptions(plan, request.requestId),
-      ),
+    {
+      maxItems: plan.limits.maxHotelOffersPerDestination * 3,
+      maxPages: plan.limits.maxPagesPerSearch,
+    },
   );
 
-  return offers ?? [];
+  return result.items;
 }
 
 /**
@@ -345,6 +392,55 @@ function compareRanked(a: RankedTrip, b: RankedTrip): number {
   );
 }
 
+/**
+ * The distinct flights and hotels seen for each route.
+ *
+ * Built from every candidate that was assembled, so the swap options a user is
+ * offered do not depend on how many results the page happens to show. Bounded,
+ * because a wide search sees a lot and nobody compares thirty hotels.
+ */
+function collectRouteOffers(candidates: readonly TripCandidate[], limit: number): RouteOffers[] {
+  const byRoute = new Map<
+    string,
+    { route: RouteOffers; flights: Map<string, FlightOffer>; hotels: Map<string, HotelOffer> }
+  >();
+
+  for (const candidate of candidates) {
+    const key = `${candidate.destination}|${candidate.dates.departureDate}|${candidate.dates.nights}`;
+    let entry = byRoute.get(key);
+
+    if (!entry) {
+      entry = {
+        route: {
+          destination: candidate.destination,
+          departureDate: candidate.dates.departureDate,
+          nights: candidate.dates.nights,
+          flights: [],
+          hotels: [],
+        },
+        flights: new Map(),
+        hotels: new Map(),
+      };
+      byRoute.set(key, entry);
+    }
+
+    if (!entry.flights.has(candidate.flight.id))
+      entry.flights.set(candidate.flight.id, candidate.flight);
+    if (!entry.hotels.has(candidate.hotel.id))
+      entry.hotels.set(candidate.hotel.id, candidate.hotel);
+  }
+
+  return [...byRoute.values()].map((entry) => ({
+    ...entry.route,
+    flights: [...entry.flights.values()]
+      .sort((a, b) => a.price.amount - b.price.amount)
+      .slice(0, limit),
+    hotels: [...entry.hotels.values()]
+      .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount)
+      .slice(0, limit),
+  }));
+}
+
 /** Index the flight offers for one window by the airport they arrive at. */
 function groupByArrival(offers: readonly FlightOffer[]): Map<AirportCode, FlightOffer[]> {
   const grouped = new Map<AirportCode, FlightOffer[]>();
@@ -396,9 +492,8 @@ export async function runSearch(
   // holds up nothing but itself.
   const perWindow = await Promise.all(
     plan.dateWindows.map(async (window) => {
-      counter.calls += 1;
       const flightsByDestination = groupByArrival(
-        await fetchFlightsForWindow(plan, deps, request, window, issues, limiter),
+        await fetchFlightsForWindow(plan, deps, request, window, issues, limiter, counter),
       );
 
       return Promise.all(
@@ -408,7 +503,6 @@ export async function runSearch(
           // single biggest saving in the whole fan-out.
           if (routeFlights.length === 0) return [];
 
-          counter.calls += 1;
           const hotels = await fetchHotels(
             plan,
             deps,
@@ -417,6 +511,7 @@ export async function runSearch(
             window,
             issues,
             limiter,
+            counter,
           );
           if (hotels.length === 0) return [];
 
@@ -497,6 +592,7 @@ export async function runSearch(
   return {
     results: eligible.slice(0, plan.limits.maxResults),
     nearMisses: ineligible.slice(0, plan.limits.maxNearMisses),
+    routeOffers: collectRouteOffers(unique, plan.limits.maxSwapOptionsPerRoute),
     diagnostics,
   };
 }

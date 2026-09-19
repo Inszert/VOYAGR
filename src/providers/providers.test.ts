@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { isOk, unwrap } from '@/lib/result';
+import type { ProviderPage } from './types';
+
+/** The items of a page, for the many assertions that only care about those. */
+function pageOf<T>(result: Parameters<typeof unwrap<ProviderPage<T>, Error>>[0]): readonly T[] {
+  return unwrap(result).items;
+}
 import { createMockFlightProvider } from './flights/mock';
 import { createMockHotelProvider } from './hotels/mock';
 import { createMockWeatherProvider } from './weather/mock';
@@ -30,33 +36,33 @@ describe('mock flight provider', () => {
     const result = await provider.searchFlights(flightQuery);
 
     expect(isOk(result)).toBe(true);
-    expect(unwrap(result).length).toBeGreaterThan(0);
+    expect(unwrap(result).items.length).toBeGreaterThan(0);
   });
 
   it('is deterministic across calls', async () => {
     // Fixtures that shift between runs make every downstream test flaky.
-    const first = unwrap(await provider.searchFlights(flightQuery));
-    const second = unwrap(await provider.searchFlights(flightQuery));
+    const first = pageOf(await provider.searchFlights(flightQuery));
+    const second = pageOf(await provider.searchFlights(flightQuery));
 
     expect(first).toEqual(second);
   });
 
   it('varies with the query', async () => {
-    const vienna = unwrap(await provider.searchFlights(flightQuery));
-    const other = unwrap(await provider.searchFlights({ ...flightQuery, destinations: ['CHQ'] }));
+    const vienna = pageOf(await provider.searchFlights(flightQuery));
+    const other = pageOf(await provider.searchFlights({ ...flightQuery, destinations: ['CHQ'] }));
 
     expect(vienna[0]?.price.amount).not.toBe(other[0]?.price.amount);
   });
 
   it('prices for the whole party', async () => {
-    const forTwo = unwrap(await provider.searchFlights(flightQuery));
-    const forOne = unwrap(await provider.searchFlights({ ...flightQuery, passengers: 1 }));
+    const forTwo = pageOf(await provider.searchFlights(flightQuery));
+    const forOne = pageOf(await provider.searchFlights({ ...flightQuery, passengers: 1 }));
 
     expect(forTwo[0]!.price.amount).toBeGreaterThan(forOne[0]!.price.amount);
   });
 
   it('honours the direct-only flag', async () => {
-    const result = unwrap(await provider.searchFlights({ ...flightQuery, directOnly: true }));
+    const result = pageOf(await provider.searchFlights({ ...flightQuery, directOnly: true }));
 
     for (const offer of result) {
       expect(offer.outbound.segments).toHaveLength(1);
@@ -65,19 +71,19 @@ describe('mock flight provider', () => {
   });
 
   it('respects maxResults', async () => {
-    const result = unwrap(await provider.searchFlights({ ...flightQuery, maxResults: 2 }));
+    const result = pageOf(await provider.searchFlights({ ...flightQuery, maxResults: 2 }));
     expect(result.length).toBeLessThanOrEqual(2);
   });
 
   it('returns offers sorted by price', async () => {
-    const result = unwrap(await provider.searchFlights(flightQuery));
+    const result = pageOf(await provider.searchFlights(flightQuery));
     const prices = result.map((offer) => offer.price.amount);
 
     expect([...prices].sort((a, b) => a - b)).toEqual(prices);
   });
 
   it('stamps every offer with a provider and an observation time', async () => {
-    for (const offer of unwrap(await provider.searchFlights(flightQuery))) {
+    for (const offer of pageOf(await provider.searchFlights(flightQuery))) {
       expect(offer.providerId).toBe('mock-flights');
       expect(offer.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     }
@@ -100,21 +106,21 @@ describe('mock hotel provider', () => {
   const provider = createMockHotelProvider();
 
   it('is deterministic', async () => {
-    const first = unwrap(await provider.searchHotels(hotelQuery));
-    const second = unwrap(await provider.searchHotels(hotelQuery));
+    const first = pageOf(await provider.searchHotels(hotelQuery));
+    const second = pageOf(await provider.searchHotels(hotelQuery));
 
     expect(first).toEqual(second);
   });
 
   it('scales the total with the length of stay', async () => {
-    const short = unwrap(await provider.searchHotels({ ...hotelQuery, checkOut: '2026-06-12' }));
-    const long = unwrap(await provider.searchHotels(hotelQuery));
+    const short = pageOf(await provider.searchHotels({ ...hotelQuery, checkOut: '2026-06-12' }));
+    const long = pageOf(await provider.searchHotels(hotelQuery));
 
     expect(long[0]!.totalPrice.amount).toBeGreaterThan(short[0]!.totalPrice.amount);
   });
 
   it('returns nothing for an inverted date range', async () => {
-    const result = unwrap(
+    const result = pageOf(
       await provider.searchHotels({ ...hotelQuery, checkIn: '2026-06-15', checkOut: '2026-06-10' }),
     );
 
@@ -122,7 +128,7 @@ describe('mock hotel provider', () => {
   });
 
   it('honours the minimum review score filter', async () => {
-    const result = unwrap(await provider.searchHotels({ ...hotelQuery, minReviewScore: 8.5 }));
+    const result = pageOf(await provider.searchHotels({ ...hotelQuery, minReviewScore: 8.5 }));
 
     for (const offer of result) {
       expect(offer.reviewScore).toBeGreaterThanOrEqual(8.5);
@@ -134,13 +140,13 @@ describe('mock hotel provider', () => {
       await provider.searchHotels({ ...hotelQuery, freeCancellationOnly: true }),
     );
 
-    for (const offer of result) {
+    for (const offer of result.items) {
       expect(offer.freeCancellation).toBe(true);
     }
   });
 
   it('omits beach distance for a landlocked destination', async () => {
-    const result = unwrap(await provider.searchHotels({ ...hotelQuery, destination: 'TBS' }));
+    const result = pageOf(await provider.searchHotels({ ...hotelQuery, destination: 'TBS' }));
 
     for (const offer of result) {
       expect(offer.distanceToBeachMetres).toBeNull();
@@ -302,5 +308,60 @@ describe('mock places provider', () => {
     );
 
     expect(result.length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('pagination', () => {
+  const provider = createMockFlightProvider();
+
+  it('returns a cursor while more results remain', async () => {
+    const first = unwrap(await provider.searchFlights({ ...flightQuery, maxResults: 1 }));
+
+    expect(first.items).toHaveLength(1);
+    expect(first.nextCursor).toBeTruthy();
+  });
+
+  it('continues from the cursor without repeating an offer', async () => {
+    const first = unwrap(await provider.searchFlights({ ...flightQuery, maxResults: 1 }));
+    const second = unwrap(
+      await provider.searchFlights({ ...flightQuery, maxResults: 1, cursor: first.nextCursor! }),
+    );
+
+    expect(second.items[0]?.id).not.toBe(first.items[0]?.id);
+  });
+
+  it('reports a null cursor on the last page', async () => {
+    // How a caller knows to stop, and the only thing it may infer from a cursor.
+    let cursor: string | undefined;
+    let pages = 0;
+
+    for (;;) {
+      const page: { items: readonly unknown[]; nextCursor: string | null } = unwrap(
+        await provider.searchFlights({
+          ...flightQuery,
+          maxResults: 1,
+          ...(cursor ? { cursor } : {}),
+        }),
+      );
+
+      pages += 1;
+      if (!page.nextCursor || pages > 20) break;
+      cursor = page.nextCursor;
+    }
+
+    expect(pages).toBeGreaterThan(1);
+    expect(pages).toBeLessThanOrEqual(20);
+  });
+
+  it('is deterministic across paged calls', async () => {
+    const a = unwrap(await provider.searchFlights({ ...flightQuery, maxResults: 2 }));
+    const b = unwrap(await provider.searchFlights({ ...flightQuery, maxResults: 2 }));
+
+    expect(a).toEqual(b);
+  });
+
+  it('ignores a cursor it did not issue rather than failing', async () => {
+    const page = unwrap(await provider.searchFlights({ ...flightQuery, cursor: 'nonsense' }));
+    expect(page.items.length).toBeGreaterThan(0);
   });
 });

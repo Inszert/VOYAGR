@@ -7,6 +7,7 @@ import { resolveDestination } from '../fixtures/destinations';
 import type {
   HotelProvider,
   HotelSearchQuery,
+  ProviderPage,
   ProviderHealth,
   ProviderRequestOptions,
   ProviderResult,
@@ -34,6 +35,13 @@ const HOTEL_NAME_SUFFIXES = [
 
 const BOARD_TYPES = ['room_only', 'breakfast', 'breakfast', 'half_board', 'all_inclusive'] as const;
 
+function decodeHotelOffset(cursor: string | undefined): number {
+  if (!cursor) return 0;
+
+  const parsed = Number.parseInt(cursor.replace('mock-page-', ''), 10);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export class MockHotelProvider implements HotelProvider {
   readonly metadata = {
     id: 'mock-hotels',
@@ -55,17 +63,20 @@ export class MockHotelProvider implements HotelProvider {
   async searchHotels(
     query: HotelSearchQuery,
     _options?: ProviderRequestOptions,
-  ): Promise<ProviderResult<readonly HotelOffer[]>> {
+  ): Promise<ProviderResult<ProviderPage<HotelOffer>>> {
     const nights = nightsBetween(query.checkIn, query.checkOut);
     if (nights <= 0) {
-      return ok([]);
+      return ok({ items: [], nextCursor: null });
     }
 
     const profile = resolveDestination(query.destination);
-    const maxResults = query.maxResults ?? 8;
+    const pageSize = query.maxResults ?? 8;
     const offers: HotelOffer[] = [];
 
-    for (let index = 0; index < maxResults; index += 1) {
+    // Generated beyond one page so the cursor has somewhere to go.
+    const generated = pageSize * 3;
+
+    for (let index = 0; index < generated; index += 1) {
       const seed = `${query.destination}|${query.checkIn}|${query.checkOut}|${query.guests}|${index}`;
       const random = deterministicSource(seed);
 
@@ -134,7 +145,16 @@ export class MockHotelProvider implements HotelProvider {
       offers.push(offer);
     }
 
-    return ok(offers.sort((a, b) => a.totalPrice.amount - b.totalPrice.amount));
+    const sorted = offers.sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
+
+    const offset = decodeHotelOffset(query.cursor);
+    const page = sorted.slice(offset, offset + pageSize);
+    const nextOffset = offset + page.length;
+
+    return ok({
+      items: page,
+      nextCursor: nextOffset < sorted.length ? `mock-page-${nextOffset}` : null,
+    });
   }
 }
 

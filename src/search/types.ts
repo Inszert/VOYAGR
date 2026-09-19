@@ -3,7 +3,14 @@ import type { TripCost } from '@/core/trip/cost';
 import type { EligibilityResult, TravelWarning } from '@/core/trip/constraints';
 import type { TripScore } from '@/core/trip/scoring';
 import type { UsableTimeResult } from '@/core/trip/usable-time';
-import type { AirportCode, IsoDate, SearchProfile, TripCandidate } from '@/core/trip/types';
+import type {
+  AirportCode,
+  FlightOffer,
+  HotelOffer,
+  IsoDate,
+  SearchProfile,
+  TripCandidate,
+} from '@/core/trip/types';
 import type { ProviderKind } from '@/providers/types';
 import type { DataProvenance } from '@/core/trip/provenance';
 
@@ -46,6 +53,16 @@ export interface SearchLimits {
    * Enforced by a single shared limiter rather than by a number handed to each
    * fan-out, so nesting cannot multiply it.
    */
+  /**
+   * Pages to request from one provider for one query before giving up.
+   *
+   * A cursor that never becomes null would otherwise page forever. Two covers
+   * a vendor whose first page is smaller than we asked for, without turning a
+   * search into a crawl.
+   */
+  /** Distinct flights and hotels offered as swap options, per route. */
+  readonly maxSwapOptionsPerRoute: number;
+  readonly maxPagesPerSearch: number;
   readonly providerConcurrency: number;
   readonly providerTimeoutMs: number;
 }
@@ -70,6 +87,8 @@ export const DEFAULT_SEARCH_LIMITS: SearchLimits = {
   maxCandidates: 600,
   maxResults: 40,
   maxNearMisses: 10,
+  maxSwapOptionsPerRoute: 8,
+  maxPagesPerSearch: 2,
   providerConcurrency: 6,
   providerTimeoutMs: 8_000,
 };
@@ -170,6 +189,23 @@ export interface SearchDiagnostics {
   readonly durationMs: number;
 }
 
+/**
+ * The distinct components a search saw for one route.
+ *
+ * Collected from every candidate that was evaluated, not from the handful that
+ * survived ranking. Component swapping reads this: deriving "what else could I
+ * fly?" from a truncated results list means the options on offer depend on how
+ * many results the page happens to show, which is nonsense the user would feel
+ * as options appearing and vanishing for no reason.
+ */
+export interface RouteOffers {
+  readonly destination: AirportCode;
+  readonly departureDate: IsoDate;
+  readonly nights: number;
+  readonly flights: readonly FlightOffer[];
+  readonly hotels: readonly HotelOffer[];
+}
+
 export interface SearchOutcome {
   /** Eligible trips, best first. */
   readonly results: readonly RankedTrip[];
@@ -179,5 +215,7 @@ export interface SearchOutcome {
    * what came close and why it did not qualify.
    */
   readonly nearMisses: readonly RankedTrip[];
+  /** Components seen per route, for swapping. */
+  readonly routeOffers: readonly RouteOffers[];
   readonly diagnostics: SearchDiagnostics;
 }

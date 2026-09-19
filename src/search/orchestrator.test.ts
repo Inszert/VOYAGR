@@ -292,13 +292,14 @@ describe('runSearch with a provider that leaves facts unstated', () => {
         selfTransfer: null,
       });
 
-      return ok(
-        result.value.map((offer) => ({
+      return ok({
+        ...result.value,
+        items: result.value.items.map((offer) => ({
           ...offer,
           outbound: strip(offer.outbound),
           inbound: strip(offer.inbound),
         })),
-      );
+      });
     },
   };
 

@@ -6,6 +6,7 @@ import { resolveDestination } from '../fixtures/destinations';
 import type {
   FlightProvider,
   FlightSearchQuery,
+  ProviderPage,
   ProviderHealth,
   ProviderRequestOptions,
   ProviderResult,
@@ -140,6 +141,24 @@ function buildLeg(
   };
 }
 
+/**
+ * The mock's cursor.
+ *
+ * An offset behind an opaque-looking prefix, because a caller must not be able
+ * to build one by hand: a real provider's cursor is a token whose meaning
+ * belongs to the vendor, and the mock has to teach the same discipline.
+ */
+function encodeOffset(offset: number): string {
+  return `mock-page-${offset}`;
+}
+
+function decodeOffset(cursor: string | undefined): number {
+  if (!cursor) return 0;
+
+  const parsed = Number.parseInt(cursor.replace('mock-page-', ''), 10);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export class MockFlightProvider implements FlightProvider {
   readonly metadata = {
     id: 'mock-flights',
@@ -161,8 +180,8 @@ export class MockFlightProvider implements FlightProvider {
   async searchFlights(
     query: FlightSearchQuery,
     _options?: ProviderRequestOptions,
-  ): Promise<ProviderResult<readonly FlightOffer[]>> {
-    const maxResults = query.maxResults ?? 6;
+  ): Promise<ProviderResult<ProviderPage<FlightOffer>>> {
+    const pageSize = query.maxResults ?? 6;
     const offers: FlightOffer[] = [];
 
     for (const origin of query.origins) {
@@ -221,9 +240,19 @@ export class MockFlightProvider implements FlightProvider {
       }
     }
 
-    const sorted = offers.sort((a, b) => a.price.amount - b.price.amount).slice(0, maxResults);
+    const sorted = offers.sort((a, b) => a.price.amount - b.price.amount);
 
-    return ok(sorted);
+    // The mock paginates for real. A fixture that always returned everything
+    // in one call would leave the paging path untested until a live provider
+    // exercised it in production, which is exactly the wrong moment.
+    const offset = decodeOffset(query.cursor);
+    const page = sorted.slice(offset, offset + pageSize);
+    const nextOffset = offset + page.length;
+
+    return ok({
+      items: page,
+      nextCursor: nextOffset < sorted.length ? encodeOffset(nextOffset) : null,
+    });
   }
 }
 

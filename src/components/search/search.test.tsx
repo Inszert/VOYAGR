@@ -255,6 +255,7 @@ describe('SearchResults counts', () => {
         outcome={{
           results: [trip],
           nearMisses: [],
+          routeOffers: [],
           diagnostics: {
             provenance: 'live',
             plan: {
@@ -302,6 +303,7 @@ describe('data provenance', () => {
           {
             results: [trip],
             nearMisses: [],
+            routeOffers: [],
             diagnostics: buildDiagnostics({ provenance: 'mock' }),
           } as never
         }
@@ -323,6 +325,7 @@ describe('data provenance', () => {
           {
             results: [trip],
             nearMisses: [],
+            routeOffers: [],
             diagnostics: buildDiagnostics({ provenance: 'live' }),
           } as never
         }

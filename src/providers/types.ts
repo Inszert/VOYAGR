@@ -1,3 +1,4 @@
+import type { OperationPolicy, ProviderOperation } from './policy';
 import type { Result } from '@/lib/result';
 import type { AppError } from '@/lib/errors';
 import type {
@@ -23,6 +24,31 @@ import type {
 
 export type ProviderKind = 'flights' | 'hotels' | 'weather' | 'transfers' | 'places';
 
+/**
+ * A provider's own pagination cursor.
+ *
+ * Opaque, and provider-specific by design: Duffel returns a `meta.after`
+ * string, Booking.com a `next_page` token, and another vendor will do
+ * something else again. Nothing outside the adapter that produced a cursor may
+ * parse, compare or construct one - it is a token to hand back, not data.
+ */
+export type PageCursor = string;
+
+/**
+ * One page of results.
+ *
+ * Every list-returning provider method returns this rather than a bare array,
+ * because "one call returns everything worth having" turned out to be false
+ * for every vendor evaluated. An adapter that genuinely has no pagination
+ * returns all its items with a null cursor, and callers cannot tell the
+ * difference - which is the point.
+ */
+export interface ProviderPage<T> {
+  readonly items: readonly T[];
+  /** Cursor for the next page, or null when this is the last one. */
+  readonly nextCursor: PageCursor | null;
+}
+
 export interface ProviderMetadata {
   /** Stable identifier recorded on every offer and price observation. */
   readonly id: string;
@@ -35,6 +61,17 @@ export interface ProviderMetadata {
    * Travel Watch refreshes. `null` when the adapter has no meaningful limit.
    */
   readonly rateLimitPerMinute: number | null;
+  /**
+   * Per-operation policy this provider needs that differs from the default.
+   *
+   * Timeouts and attempt counts are vendor facts - one vendor's search budget
+   * is not another's. The retry *stance* is deliberately not overridable: that
+   * an order creation must never be replayed is a property of what the
+   * operation does, not of who serves it.
+   */
+  readonly operationOverrides?: Partial<
+    Record<ProviderOperation, Partial<Omit<OperationPolicy, 'stance'>>>
+  >;
 }
 
 export type ProviderHealthStatus = 'healthy' | 'degraded' | 'unavailable';
@@ -76,7 +113,10 @@ export interface FlightSearchQuery {
   readonly passengers: number;
   readonly currency: string;
   readonly directOnly?: boolean;
+  /** Items per page. A provider may cap this below what is asked. */
   readonly maxResults?: number;
+  /** Continue from a previous page. Omit for the first. */
+  readonly cursor?: PageCursor;
 }
 
 export interface FlightProvider extends ProviderAdapter {
@@ -84,7 +124,7 @@ export interface FlightProvider extends ProviderAdapter {
   searchFlights(
     query: FlightSearchQuery,
     options?: ProviderRequestOptions,
-  ): Promise<ProviderResult<readonly FlightOffer[]>>;
+  ): Promise<ProviderResult<ProviderPage<FlightOffer>>>;
 }
 
 // --- Hotels ----------------------------------------------------------------
@@ -98,6 +138,7 @@ export interface HotelSearchQuery {
   readonly minReviewScore?: number;
   readonly freeCancellationOnly?: boolean;
   readonly maxResults?: number;
+  readonly cursor?: PageCursor;
 }
 
 export interface HotelProvider extends ProviderAdapter {
@@ -105,7 +146,7 @@ export interface HotelProvider extends ProviderAdapter {
   searchHotels(
     query: HotelSearchQuery,
     options?: ProviderRequestOptions,
-  ): Promise<ProviderResult<readonly HotelOffer[]>>;
+  ): Promise<ProviderResult<ProviderPage<HotelOffer>>>;
 }
 
 // --- Weather ---------------------------------------------------------------

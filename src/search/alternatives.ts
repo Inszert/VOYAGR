@@ -41,14 +41,29 @@ export interface AlternativesInput {
   readonly limit?: number;
 }
 
-/** Trips for the same place and dates: the only ones a component can swap into. */
-function sameRoute(outcome: SearchOutcome, current: RankedTrip): RankedTrip[] {
-  return [...outcome.results, ...outcome.nearMisses].filter(
-    (trip) =>
-      trip.candidate.destination === current.candidate.destination &&
-      trip.candidate.dates.departureDate === current.candidate.dates.departureDate &&
-      trip.candidate.dates.nights === current.candidate.dates.nights,
+/**
+ * The components the search saw for this trip's route.
+ *
+ * Read from `routeOffers`, which the orchestrator collects from every
+ * candidate it evaluated, rather than from the results list. Deriving the
+ * options from a truncated ranking means what a user can swap into depends on
+ * how many results the page happens to show - which they would experience as
+ * options appearing and disappearing for no reason.
+ */
+function offersForRoute(outcome: SearchOutcome, current: RankedTrip) {
+  const match = outcome.routeOffers.find(
+    (route) =>
+      route.destination === current.candidate.destination &&
+      route.departureDate === current.candidate.dates.departureDate &&
+      route.nights === current.candidate.dates.nights,
   );
+
+  // Falling back to the trip's own components means the panel shows "Chosen"
+  // and nothing else, which is honest, rather than throwing.
+  return {
+    flights: match?.flights ?? [current.candidate.flight],
+    hotels: match?.hotels ?? [current.candidate.hotel],
+  };
 }
 
 function compare(
@@ -76,8 +91,7 @@ export function flightAlternatives(input: AlternativesInput): Alternative[] {
   const seen = new Set<string>();
   const alternatives: Alternative[] = [];
 
-  for (const trip of sameRoute(input.outcome, current)) {
-    const flight = trip.candidate.flight;
+  for (const flight of offersForRoute(input.outcome, current).flights) {
     if (seen.has(flight.id)) continue;
     seen.add(flight.id);
 
@@ -114,8 +128,7 @@ export function hotelAlternatives(input: AlternativesInput): Alternative[] {
   const seen = new Set<string>();
   const alternatives: Alternative[] = [];
 
-  for (const trip of sameRoute(input.outcome, current)) {
-    const hotel = trip.candidate.hotel;
+  for (const hotel of offersForRoute(input.outcome, current).hotels) {
     if (seen.has(hotel.id)) continue;
     seen.add(hotel.id);
 

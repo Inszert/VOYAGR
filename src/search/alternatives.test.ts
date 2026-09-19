@@ -16,8 +16,35 @@ import type { SearchOutcome } from './types';
 
 const profile = buildProfile();
 
+/**
+ * An outcome whose route offers hold every component the trips carry.
+ *
+ * Mirrors what the orchestrator does: swap options come from everything the
+ * search evaluated, not from the trips that survived ranking.
+ */
 function outcomeOf(...trips: ReturnType<typeof buildRankedTrip>[]): SearchOutcome {
-  return { results: trips, nearMisses: [], diagnostics: {} } as unknown as SearchOutcome;
+  const first = trips[0]!;
+
+  const routeOffers = [
+    {
+      destination: first.candidate.destination,
+      departureDate: first.candidate.dates.departureDate,
+      nights: first.candidate.dates.nights,
+      flights: trips
+        .filter((trip) => trip.candidate.destination === first.candidate.destination)
+        .map((trip) => trip.candidate.flight),
+      hotels: trips
+        .filter((trip) => trip.candidate.destination === first.candidate.destination)
+        .map((trip) => trip.candidate.hotel),
+    },
+  ];
+
+  return {
+    results: trips,
+    nearMisses: [],
+    routeOffers,
+    diagnostics: {},
+  } as unknown as SearchOutcome;
 }
 
 describe('flightAlternatives', () => {
