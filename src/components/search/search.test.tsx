@@ -9,6 +9,8 @@ import { SearchForm } from './search-form';
 import { TripCard } from './trip-card';
 import { WarningList } from './warning-list';
 import { DEFAULT_SEARCH_LIMITS } from '@/search/types';
+import { NO_FILTERS } from '@/search/filters';
+import { explainTrip, summariseReasons } from '@/search/explain';
 import { buildRankedTrip } from './test-support';
 
 /**
@@ -153,15 +155,34 @@ describe('TripCard', () => {
     expect(screen.getByText(/No airport transfer was priced/)).toBeInTheDocument();
   });
 
-  it('explains its ranking in the card itself', () => {
+  it('explains its ranking in human terms, not as a score', () => {
+    // Section 9 forbids exposing meaningless technical scoring. The factor
+    // breakdown is still available, one disclosure down, for anyone who wants it.
     const trip = buildRankedTrip();
-    render(<TripCard trip={trip} rank={0} />);
+    const reasons = explainTrip(trip, buildProfile());
 
-    expect(screen.getByRole('heading', { name: 'Why it ranks here' })).toBeInTheDocument();
-    expect(screen.getByText(/Strongest:/)).toBeInTheDocument();
+    render(<TripCard trip={trip} rank={0} reasons={reasons} />);
+
+    expect(screen.getByRole('heading', { name: 'Why this trip?' })).toBeInTheDocument();
+    expect(screen.getByText(summariseReasons(reasons))).toBeInTheDocument();
     expect(
       screen.getByText(`How the score of ${trip.score.score} was calculated`),
     ).toBeInTheDocument();
+  });
+
+  it('shows what the parts cost, and never a zero for an unpriced transfer', () => {
+    // An unpriced transfer is a cost we could not get, not one that is free.
+    render(<TripCard trip={buildRankedTrip({ transfer: null })} rank={0} />);
+
+    // "Not priced" is the assertion that matters: the figure itself, never a
+    // zero. The label appears in the cost breakdown too, hence getAllByText.
+    expect(screen.getAllByText('Airport transfer').length).toBeGreaterThan(0);
+    expect(screen.getByText('Not priced')).toBeInTheDocument();
+  });
+
+  it('states the weather as a range rather than a single confident number', () => {
+    render(<TripCard trip={buildRankedTrip()} rank={0} />);
+    expect(screen.getByText(/\d+–\d+°C|\d+°C/)).toBeInTheDocument();
   });
 
   it('lists every violation when a trip is outside the limits', () => {
@@ -252,6 +273,8 @@ describe('SearchResults counts', () => {
     render(
       <SearchResults
         profile={buildProfile()}
+        filters={NO_FILTERS}
+        searchValues={{}}
         outcome={{
           results: [trip],
           nearMisses: [],
@@ -299,6 +322,8 @@ describe('data provenance', () => {
     render(
       <SearchResults
         profile={buildProfile()}
+        filters={NO_FILTERS}
+        searchValues={{}}
         outcome={
           {
             results: [trip],
@@ -321,6 +346,8 @@ describe('data provenance', () => {
     render(
       <SearchResults
         profile={buildProfile()}
+        filters={NO_FILTERS}
+        searchValues={{}}
         outcome={
           {
             results: [trip],

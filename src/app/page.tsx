@@ -7,6 +7,7 @@ import { saveSearchAction } from '@/app/actions/watches';
 import { runSearch } from '@/search/orchestrator';
 import { getSearchCache } from '@/search/cache';
 import { parseSearchForm } from '@/search/schema';
+import { parseFilters } from '@/search/filters';
 import { resolveDestinationNames } from '@/search/destination-names';
 import { getCurrentUser } from '@/auth/current-user';
 import { resolveEntitlements } from '@/core/entitlements';
@@ -185,7 +186,13 @@ export default async function SearchPage({
             action={saveSearchAction}
           />
 
-          <SearchResults outcome={outcome} profile={searchProfile!} resultAgeMs={resultAgeMs} />
+          <SearchResults
+            outcome={outcome}
+            profile={searchProfile!}
+            filters={parseFilters(values, searchProfile!.targetBudget.currency)}
+            searchValues={values}
+            resultAgeMs={resultAgeMs}
+          />
         </>
       ) : null}
     </div>

@@ -1,5 +1,9 @@
 import { Badge, Card, DemoDataNotice, Disclosure } from '@/components/ui';
 import { flightAlternatives, hotelAlternatives } from '@/search/alternatives';
+import { explainTrip } from '@/search/explain';
+import { applyFilters, hasActiveFilters, type ResultFilters } from '@/search/filters';
+import { EmptyState } from '@/components/ui';
+import { ResultFiltersPanel } from './result-filters';
 import type { SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
 import { TripCard } from './trip-card';
@@ -22,6 +26,9 @@ export interface SearchResultsProps {
   outcome: SearchOutcome;
   /** Needed to re-score a swapped trip against what the user actually asked for. */
   profile: SearchProfile;
+  filters: ResultFilters;
+  /** The search these filters narrow, carried into the filter form. */
+  searchValues: Readonly<Record<string, string | undefined>>;
   /** How long ago these results were computed. Zero for a fresh search. */
   resultAgeMs?: number;
 }
@@ -31,9 +38,20 @@ function minutesAgo(ageMs: number): number {
   return Math.floor(ageMs / 60_000);
 }
 
-export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResultsProps) {
-  const { results, nearMisses, diagnostics } = outcome;
+export function SearchResults({
+  outcome,
+  profile,
+  filters,
+  searchValues,
+  resultAgeMs = 0,
+}: SearchResultsProps) {
+  const { nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
+
+  // Narrowed here rather than in the search: filters remove trips the search
+  // already paid for, and re-running it per chip would cost provider calls.
+  const { trips: results, hidden } = applyFilters(outcome.results, filters);
+  const filtered = hasActiveFilters(filters);
 
   return (
     <section aria-labelledby="results-heading" className="flex flex-col gap-4">
@@ -43,7 +61,7 @@ export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResul
           capped list "10 trips match" when 192 did would be a number the user
           could act on and we made up.
         */}
-        <h2 id="results-heading" className="text-ink text-xl font-semibold">
+        <h2 id="results-heading" className="text-ink font-display text-display-sm">
           {diagnostics.eligibleCount > 0
             ? `${diagnostics.eligibleCount} ${diagnostics.eligibleCount === 1 ? 'trip' : 'trips'} match`
             : 'No trip matched'}
@@ -84,6 +102,37 @@ export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResul
         </div>
       ) : null}
 
+      {diagnostics.eligibleCount > 0 ? (
+        <ResultFiltersPanel
+          filters={filters}
+          searchValues={searchValues}
+          hidden={hidden}
+          currency={profile.targetBudget.currency}
+        />
+      ) : null}
+
+      {results.length === 0 && filtered ? (
+        // Different from "no trip matched": the search found trips and the
+        // filters removed them, so the thing to change is the filters.
+        <EmptyState
+          title="Your filters hid every trip"
+          description={`The search found ${diagnostics.eligibleCount}, and the filters above removed all of them. Loosen one to see them again.`}
+          action={
+            <a
+              href={`/?${new URLSearchParams(
+                Object.entries(searchValues).filter(
+                  (entry): entry is [string, string] =>
+                    typeof entry[1] === 'string' && !entry[0].startsWith('f'),
+                ),
+              ).toString()}`}
+              className="text-brand-ink text-sm underline underline-offset-4"
+            >
+              Clear the filters
+            </a>
+          }
+        />
+      ) : null}
+
       {results.length > 0 ? (
         <ol className="flex flex-col gap-4">
           {results.map((trip, index) => (
@@ -97,6 +146,7 @@ export function SearchResults({ outcome, profile, resultAgeMs = 0 }: SearchResul
                 trip={trip}
                 rank={index}
                 provenance={diagnostics.provenance}
+                reasons={explainTrip(trip, profile)}
                 {...(index === 0
                   ? {
                       flightAlternatives: flightAlternatives({ outcome, current: trip, profile }),

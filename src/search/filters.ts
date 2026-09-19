@@ -1,0 +1,187 @@
+import { fromMajor, greaterThan, type Money } from '@/core/money';
+import { localHour } from '@/core/dates';
+import type { RankedTrip } from './types';
+
+/**
+ * Narrowing a result set (1.10.1 section 10).
+ *
+ * Filters narrow what the search already found. They do **not** re-run it.
+ *
+ * That is a cost decision before it is a design one: a search is dozens of
+ * provider calls, and with a live vendor each is billed. Re-running on every
+ * chip toggle would make an idle user expensive. The result set is already
+ * bounded, ranked and complete enough to narrow honestly.
+ *
+ * Filters live in the query string for the same reason categories do: the page
+ * works before JavaScript, a narrowed view can be shared, and the back button
+ * undoes it. The underlying search is served from the page cache, so toggling
+ * a filter costs no provider calls at all.
+ *
+ * Pure and deterministic. Every predicate reads a figure the engines already
+ * computed; none of them recomputes a total or re-scores a trip.
+ */
+
+export interface ResultFilters {
+  /** Hide trips whose total exceeds this. */
+  readonly maxTotal: Money | null;
+  /** Hide anything with a connection. */
+  readonly directOnly: boolean;
+  /** Connections allowed per leg. Null means no limit. */
+  readonly maxStops: number | null;
+  /** Earliest acceptable outbound departure hour, local at the origin. */
+  readonly departAfterHour: number | null;
+  /** Latest acceptable arrival hour, local at the destination. */
+  readonly arriveBeforeHour: number | null;
+  readonly freeCancellationOnly: boolean;
+  readonly minReviewScore: number | null;
+  /** Hide connections sold on separate tickets. */
+  readonly excludeSelfTransfer: boolean;
+  /** Hide trips where no airport transfer was priced. */
+  readonly requirePricedTransfer: boolean;
+}
+
+export const NO_FILTERS: ResultFilters = {
+  maxTotal: null,
+  directOnly: false,
+  maxStops: null,
+  departAfterHour: null,
+  arriveBeforeHour: null,
+  freeCancellationOnly: false,
+  minReviewScore: null,
+  excludeSelfTransfer: false,
+  requirePricedTransfer: false,
+};
+
+/** Query-string keys, prefixed so they cannot collide with the search itself. */
+export const FILTER_KEYS = [
+  'fMaxTotal',
+  'fDirect',
+  'fMaxStops',
+  'fDepartAfter',
+  'fArriveBefore',
+  'fFreeCancel',
+  'fMinReview',
+  'fNoSelfTransfer',
+  'fTransferPriced',
+] as const;
+
+function numberOrNull(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function isOn(raw: string | undefined): boolean {
+  return raw === 'on' || raw === 'true';
+}
+
+/**
+ * Read filters from query parameters.
+ *
+ * Anything unreadable is simply absent. A malformed filter must not narrow a
+ * result set in a way nobody asked for, and it must not fail the page either -
+ * the user would see an error where they expected trips.
+ */
+export function parseFilters(
+  params: Readonly<Record<string, string | undefined>>,
+  currency: string,
+): ResultFilters {
+  const maxTotalMajor = numberOrNull(params.fMaxTotal);
+
+  return {
+    maxTotal:
+      maxTotalMajor !== null && maxTotalMajor > 0 ? fromMajor(maxTotalMajor, currency) : null,
+    directOnly: isOn(params.fDirect),
+    maxStops: numberOrNull(params.fMaxStops),
+    departAfterHour: numberOrNull(params.fDepartAfter),
+    arriveBeforeHour: numberOrNull(params.fArriveBefore),
+    freeCancellationOnly: isOn(params.fFreeCancel),
+    minReviewScore: numberOrNull(params.fMinReview),
+    excludeSelfTransfer: isOn(params.fNoSelfTransfer),
+    requirePricedTransfer: isOn(params.fTransferPriced),
+  };
+}
+
+export function hasActiveFilters(filters: ResultFilters): boolean {
+  return (
+    filters.maxTotal !== null ||
+    filters.directOnly ||
+    filters.maxStops !== null ||
+    filters.departAfterHour !== null ||
+    filters.arriveBeforeHour !== null ||
+    filters.freeCancellationOnly ||
+    filters.minReviewScore !== null ||
+    filters.excludeSelfTransfer ||
+    filters.requirePricedTransfer
+  );
+}
+
+/** Connections on the busier leg: what "two stops" means to a traveller. */
+function stopsOf(trip: RankedTrip): number {
+  const { outbound, inbound } = trip.candidate.flight;
+
+  return Math.max(outbound.segments.length - 1, inbound.segments.length - 1);
+}
+
+/**
+ * Whether one trip survives the filters.
+ *
+ * An unknown fact never silently fails a filter. A hotel with no review score
+ * is not "below 8", and a flight that did not say whether it is self-transfer
+ * is not "not self-transfer" - those are the `null`s the provenance work
+ * introduced, and a filter that treated them as answers would reintroduce
+ * exactly the confident guess it removed.
+ */
+export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolean {
+  if (filters.maxTotal && greaterThan(trip.cost.total, filters.maxTotal)) return false;
+
+  const stops = stopsOf(trip);
+  if (filters.directOnly && stops > 0) return false;
+  if (filters.maxStops !== null && stops > filters.maxStops) return false;
+
+  const { outbound, inbound } = trip.candidate.flight;
+
+  if (filters.departAfterHour !== null) {
+    const departsAt = outbound.segments[0]?.departsAt;
+    if (!departsAt || localHour(departsAt) < filters.departAfterHour) return false;
+  }
+
+  if (filters.arriveBeforeHour !== null) {
+    const arrivesAt = outbound.segments.at(-1)?.arrivesAt;
+    if (!arrivesAt || localHour(arrivesAt) > filters.arriveBeforeHour) return false;
+  }
+
+  if (filters.freeCancellationOnly && !trip.candidate.hotel.freeCancellation) return false;
+
+  if (filters.minReviewScore !== null) {
+    const score = trip.candidate.hotel.reviewScore;
+    // Unrated is not "below the bar"; it is unknown, and the user asked for a
+    // score they could rely on.
+    if (score === null || score < filters.minReviewScore) return false;
+  }
+
+  if (filters.excludeSelfTransfer) {
+    // Only a confirmed `false` passes. `null` means the provider did not say,
+    // which is not the same as "no".
+    if (outbound.selfTransfer !== false || inbound.selfTransfer !== false) return false;
+  }
+
+  if (filters.requirePricedTransfer && !trip.candidate.transfer) return false;
+
+  return true;
+}
+
+export interface FilteredResults {
+  readonly trips: readonly RankedTrip[];
+  /** How many the filters removed, so the page can say so. */
+  readonly hidden: number;
+}
+
+export function applyFilters(
+  trips: readonly RankedTrip[],
+  filters: ResultFilters,
+): FilteredResults {
+  const kept = trips.filter((trip) => matchesFilters(trip, filters));
+
+  return { trips: kept, hidden: trips.length - kept.length };
+}

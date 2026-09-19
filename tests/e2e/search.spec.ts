@@ -79,7 +79,7 @@ test.describe('running a search', () => {
 
     const top = page.getByRole('article').first();
 
-    await expect(top.getByRole('heading', { name: 'Why it ranks here' })).toBeVisible();
+    await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
 
     // The score breaks down into the factors that produced it, on demand.
     const scoreDisclosure = top.getByText(/How the score of \d+ was calculated/);
@@ -174,6 +174,45 @@ test.describe('running a search', () => {
 
     // And beside the price itself, not only at the top of the page.
     await expect(page.getByRole('article').first().getByText('Demo data')).toBeVisible();
+  });
+
+  test('narrows results without searching again', async ({ page }) => {
+    // Section 10. Filters remove trips the search already paid for; re-running
+    // it per chip would cost provider calls.
+    await page.goto(A_SEARCH);
+    const before = await page.getByRole('article').count();
+
+    // Clicked by its label, which is what a user does: the input itself is
+    // visually hidden so the chip can be styled, and only the label is a
+    // pointer target.
+    await page.getByText('Direct only').click();
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+
+    await expect(page.getByRole('checkbox', { name: 'Direct only' })).toBeChecked();
+    // The filter is in the URL, so the narrowed view is shareable.
+    await expect(page).toHaveURL(/fDirect=on/);
+    // And the search behind it is unchanged.
+    await expect(page).toHaveURL(/origins=VIE/);
+
+    const after = await page.getByRole('article').count();
+    expect(after).toBeLessThanOrEqual(before);
+  });
+
+  test('says when its filters hid everything, and offers a way back', async ({ page }) => {
+    await page.goto(`${A_SEARCH}&fMaxTotal=1`);
+
+    await expect(page.getByRole('heading', { name: 'Your filters hid every trip' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Clear the filters' })).toBeVisible();
+  });
+
+  test('explains a trip in words rather than as a score', async ({ page }) => {
+    await page.goto(A_SEARCH);
+
+    const top = page.getByRole('article').first();
+    await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
+    // The at-a-glance figures a card should carry.
+    await expect(top.getByText('Airport transfer').first()).toBeVisible();
+    await expect(top.getByText('Weather').first()).toBeVisible();
   });
 
   test('is operable by keyboard alone', async ({ page }) => {

@@ -4,6 +4,7 @@ import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/book
 import type { RankedTrip } from '@/search/types';
 import type { Alternative } from '@/search/alternatives';
 import type { DataProvenance } from '@/core/trip/provenance';
+import { summariseReasons, type TripReason } from '@/search/explain';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
 import { SwapPanel } from './swap-panel';
@@ -31,12 +32,45 @@ function hoursLabel(minutes: number) {
   return `${Math.round(minutes / 60)} hours`;
 }
 
+/** Stops on the busier leg: what a traveller means by "one stop". */
+function stopsLabel(candidate: RankedTrip['candidate']): string {
+  const stops = Math.max(
+    candidate.flight.outbound.segments.length - 1,
+    candidate.flight.inbound.segments.length - 1,
+  );
+
+  if (stops === 0) return 'direct';
+  return `${stops} stop${stops === 1 ? '' : 's'}`;
+}
+
+/**
+ * The outlook in one phrase.
+ *
+ * Averaged across the trip's days and stated as a range, because a single
+ * number would imply a precision the forecast does not have - and days far
+ * enough out are climatology rather than a forecast at all.
+ */
+function weatherLabel(candidate: RankedTrip['candidate']): string {
+  if (candidate.weather.length === 0) return 'Not available';
+
+  const highs = candidate.weather.map((day) => day.temperatureMaxC);
+  const low = Math.round(Math.min(...highs));
+  const high = Math.round(Math.max(...highs));
+
+  const confident = candidate.weather.every((day) => day.confidence >= 0.5);
+  const range = low === high ? `${low}°C` : `${low}–${high}°C`;
+
+  return confident ? range : `${range}, typical for the season`;
+}
+
 export interface TripCardProps {
   trip: RankedTrip;
   /** Zero-based position in the results list. */
   rank: number;
   /** Where this trip's prices came from. */
   provenance?: DataProvenance;
+  /** Why this trip is being shown, in human terms. */
+  reasons?: readonly TripReason[];
   /**
    * Other flights and hotels this search saw, each already evaluated as a whole
    * trip. Omitted for a card that is not the one being examined, because
@@ -50,6 +84,7 @@ export function TripCard({
   trip,
   rank,
   provenance = 'unavailable',
+  reasons = [],
   flightAlternatives = [],
   hotelAlternatives = [],
 }: TripCardProps) {
@@ -103,6 +138,39 @@ export function TripCard({
         </div>
       </div>
 
+      <dl className="border-border grid grid-cols-2 gap-x-6 gap-y-2 border-y py-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-ink-muted">Flights</dt>
+          <dd className="text-ink tabular-nums">
+            {format(candidate.flight.price)}
+            <span className="text-ink-muted"> · {stopsLabel(candidate)}</span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Hotel</dt>
+          <dd className="text-ink tabular-nums">
+            {format(candidate.hotel.totalPrice)}
+            <span className="text-ink-muted"> · {candidate.dates.nights} nights</span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Airport transfer</dt>
+          <dd className="text-ink tabular-nums">
+            {candidate.transfer ? (
+              `${format(candidate.transfer.pricePerDirection)} each way`
+            ) : (
+              // Never a zero. An unpriced transfer is a cost we could not get,
+              // not a cost that does not exist.
+              <span className="text-caution-ink">Not priced</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Weather</dt>
+          <dd className="text-ink">{weatherLabel(candidate)}</dd>
+        </div>
+      </dl>
+
       <div className="flex flex-wrap items-center gap-2">
         {rankLabel ? (
           <Badge tone="brand" srPrefix="Ranking">
@@ -122,16 +190,17 @@ export function TripCard({
         </Badge>
       </div>
 
+      {/*
+        Section 9: explain the ranking in human terms and do not expose
+        meaningless technical scoring. Every figure in this sentence comes from
+        the engines; the factor breakdown is still there, one disclosure down,
+        for anyone who wants it.
+      */}
       <div>
         <h4 id={scoreId} className="text-ink text-sm font-medium">
-          Why it ranks here
+          Why this trip?
         </h4>
-        <p className="text-ink-muted mt-1 text-sm">
-          Strongest:{' '}
-          {score.strengths.map((factor) => factor.label.toLowerCase()).join(', ') || 'nothing yet'}.
-          Weakest:{' '}
-          {score.weaknesses.map((factor) => factor.label.toLowerCase()).join(', ') || 'nothing'}.
-        </p>
+        <p className="text-ink mt-1">{summariseReasons(reasons)}</p>
       </div>
 
       {eligibility.violations.length > 0 ? (
