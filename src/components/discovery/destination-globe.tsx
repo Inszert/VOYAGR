@@ -92,7 +92,13 @@ export function DestinationGlobe({ points, mode, labels }: DestinationGlobeProps
           container: element,
           center: INITIAL_VIEW.centre,
           zoom: INITIAL_VIEW.zoom,
-          attributionControl: { compact: true, customAttribution: 'Made with Natural Earth' },
+          /*
+           * Not compact, because compact adds a toggle button - and a button
+           * inside an `aria-hidden` container is focusable content that
+           * cannot be read, which axe flags and a keyboard user would feel as
+           * a tab stop that announces nothing.
+           */
+          attributionControl: { compact: false, customAttribution: 'Made with Natural Earth' },
           style: {
             version: 8,
             // A globe rather than a flat rectangle, which is what section 11
@@ -247,6 +253,18 @@ export function DestinationGlobe({ points, mode, labels }: DestinationGlobeProps
             zoom: created.getZoom() + 2,
           });
         });
+
+        /*
+         * Out of the tab order.
+         *
+         * MapLibre gives its canvas `tabindex="0"` so the map can be panned
+         * with the keyboard. Here the map is decoration inside an
+         * `aria-hidden` container, and focusable content that cannot be read
+         * is worse than no keyboard access: it is a tab stop that announces
+         * nothing and does nothing a person can perceive. The list beside the
+         * map is the keyboard path, and it goes to the same places.
+         */
+        created.getCanvas().setAttribute('tabindex', '-1');
 
         /*
          * Hide the map if it never actually loads.

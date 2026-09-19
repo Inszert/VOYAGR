@@ -352,7 +352,10 @@ test.describe('the discovery map', () => {
     await page.goto(A_SEARCH);
 
     const section = page.getByRole('region', { name: 'Where you can go' });
-    await section.getByRole('listitem').first().getByRole('link').click();
+    await section
+      .getByRole('link', { name: /^Show only trips to/ })
+      .first()
+      .click();
 
     await expect(page).toHaveURL(/fDest=[A-Z]{3}/);
     await expect(page).toHaveURL(/origins=VIE/);

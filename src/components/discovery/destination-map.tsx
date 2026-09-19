@@ -52,6 +52,16 @@ function href(
 
 export function DestinationMap({ outcome, mode, searchValues, selected }: DestinationMapProps) {
   const points = buildMapPoints({ outcome, mode, geo: resolveDestinationGeo });
+  const { plan } = outcome.diagnostics;
+
+  // Carried to the destination pages so the outlook there covers the dates
+  // this search actually priced, rather than a window nobody asked about.
+  const dates = {
+    startDate: plan.earliestDate,
+    endDate: plan.latestDate,
+    passengers: plan.passengers,
+    currency: plan.currency,
+  };
 
   // One destination is not a discovery surface; it is the search the user
   // already ran.
@@ -122,6 +132,16 @@ export function DestinationMap({ outcome, mode, searchValues, selected }: Destin
                     isSelected ? 'border-brand-500 bg-brand-500/5' : '',
                   ].join(' ')}
                 >
+                  {/*
+                    What the link does, in front of what it says.
+
+                    There are two links per entry now - narrow to this place,
+                    and read about it - and a name that begins "Antalya
+                    Turkey From EUR 401" does not distinguish them by ear. The
+                    visible text still follows in order, which is what WCAG
+                    2.5.3 asks of a name.
+                  */}
+                  <span className="sr-only">Show only trips to </span>
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                     <span className="text-ink text-sm font-medium">
                       {point.name}
@@ -133,6 +153,23 @@ export function DestinationMap({ outcome, mode, searchValues, selected }: Destin
                   </div>
                   {/* Section 14: explain why a destination appears. */}
                   <p className="text-ink-muted mt-1 text-sm">{point.reason}</p>
+                </a>
+                {/*
+                  Outside the narrowing link, not inside it. A link inside a
+                  link is invalid markup and unusable with a keyboard, and
+                  these are genuinely two different intentions: show me these
+                  trips, versus tell me about this place.
+                */}
+                <a
+                  href={`/destinations/${point.destination.toLowerCase()}?${new URLSearchParams({
+                    startDate: dates.startDate,
+                    endDate: dates.endDate,
+                    passengers: String(dates.passengers),
+                    currency: dates.currency,
+                  }).toString()}`}
+                  className="text-brand-ink mt-1 inline-block text-sm underline underline-offset-4"
+                >
+                  About {point.name}
                 </a>
               </li>
             );
