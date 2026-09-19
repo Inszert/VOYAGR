@@ -275,3 +275,83 @@ describe('price history accumulates', () => {
     );
   });
 });
+
+describe('alerting on a material drop', () => {
+  async function refreshAt(watchId: string, total: number, hoursLater: number) {
+    clock = Date.parse('2026-09-19T12:00:00.000Z') + hoursLater * 60 * MINUTE;
+    await repositories.travelWatches.update(watchId, {
+      nextRunAt: new Date(clock - MINUTE).toISOString(),
+    });
+    return refreshWatch(watchId, {
+      repositories,
+      now: () => clock,
+      search: searchReturning(total),
+    });
+  }
+
+  it('produces exactly one alert for one material drop', async () => {
+    // Phase 1.8's "done when", both halves. The second refresh sees the same
+    // price, which is no longer cheaper than anything, so it stays quiet.
+    const watch = await aWatch();
+
+    expect((await refreshAt(watch.id, 68000, 0)).alerted).toBe(false);
+    expect((await refreshAt(watch.id, 61000, 6)).alerted).toBe(true);
+    expect((await refreshAt(watch.id, 61000, 12)).alerted).toBe(false);
+
+    const alerts = await repositories.notifications.listByUser('user-1');
+    expect(alerts).toHaveLength(1);
+  });
+
+  it('produces none for a trivial change', async () => {
+    const watch = await aWatch();
+
+    await refreshAt(watch.id, 24000, 0);
+    const trivial = await refreshAt(watch.id, 23800, 6);
+
+    expect(trivial.alerted).toBe(false);
+    expect(await repositories.notifications.listByUser('user-1')).toEqual([]);
+  });
+
+  it('alerts again when the price drops materially a second time', async () => {
+    const watch = await aWatch();
+
+    await refreshAt(watch.id, 68000, 0);
+    await refreshAt(watch.id, 61000, 6);
+    expect((await refreshAt(watch.id, 54000, 12)).alerted).toBe(true);
+
+    expect(await repositories.notifications.listByUser('user-1')).toHaveLength(2);
+  });
+
+  it('writes the severity the core assigned, not one chosen by the wording', async () => {
+    const watch = await aWatch();
+
+    await refreshAt(watch.id, 68000, 0);
+    await refreshAt(watch.id, 60000, 6);
+
+    const [alert] = await repositories.notifications.listByUser('user-1');
+    expect(alert?.severity).toBe('important');
+  });
+
+  it('states the drop and the new total, and links back to the search', async () => {
+    const watch = await aWatch();
+
+    await refreshAt(watch.id, 68000, 0);
+    await refreshAt(watch.id, 61000, 6);
+
+    const [alert] = await repositories.notifications.listByUser('user-1');
+
+    expect(alert?.title).toContain('€70.00');
+    expect(alert?.body).toContain('€610.00');
+    // Created but not yet delivered: delivery is a separate step, so a failed
+    // push cannot mean the user never learns there was a deal.
+    expect(alert?.deliveredAt).toBeNull();
+    expect(alert?.readAt).toBeNull();
+  });
+
+  it('never alerts on a price rise', async () => {
+    const watch = await aWatch();
+
+    await refreshAt(watch.id, 61000, 0);
+    expect((await refreshAt(watch.id, 72000, 6)).alerted).toBe(false);
+  });
+});

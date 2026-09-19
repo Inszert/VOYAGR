@@ -1,11 +1,14 @@
 import { lessThan } from '@/core/money';
+import { detectDeal, type DealVerdict } from '@/core/deal-detection';
 import { observationsFor } from './observations';
+import { buildAlertContent } from './alerts';
+import { searchProfileToQuery } from '@/search/schema';
 import { resolveEntitlements } from '@/core/entitlements';
 import { getLogger } from '@/lib/logger';
 import { runSearch } from '@/search/orchestrator';
 import { resolveDestinationNames } from '@/search/destination-names';
 import { WatchService } from './service';
-import type { Repositories, TravelWatchRecord } from '@/db/repository';
+import type { Repositories, TravelWatchRecord, TripSearchRecord } from '@/db/repository';
 import type { SearchOutcome } from '@/search/types';
 import type { Job } from '@/queue/types';
 
@@ -44,6 +47,8 @@ export interface RefreshResult {
   readonly observations: number;
   /** True when this run beat every total previously recorded for the watch. */
   readonly improvedBest: boolean;
+  /** True when the drop was material enough to alert the user about. */
+  readonly alerted: boolean;
 }
 
 /**
@@ -65,21 +70,42 @@ export async function refreshWatch(
 
   if (!watch) {
     log.warn({ watchId }, 'refresh skipped: watch no longer exists');
-    return { watchId, ran: false, candidatesFound: 0, observations: 0, improvedBest: false };
+    return {
+      watchId,
+      ran: false,
+      candidatesFound: 0,
+      observations: 0,
+      improvedBest: false,
+      alerted: false,
+    };
   }
 
   if (watch.status !== 'active') {
     // Paused between being enqueued and being picked up. Not an error, and not
     // rescheduled either: resuming is what schedules it again.
     log.info({ watchId, status: watch.status }, 'refresh skipped: watch is not active');
-    return { watchId, ran: false, candidatesFound: 0, observations: 0, improvedBest: false };
+    return {
+      watchId,
+      ran: false,
+      candidatesFound: 0,
+      observations: 0,
+      improvedBest: false,
+      alerted: false,
+    };
   }
 
   const saved = await repositories.tripSearches.findById(watch.tripSearchId);
 
   if (!saved) {
     log.error({ watchId }, 'refresh skipped: saved search is gone');
-    return { watchId, ran: false, candidatesFound: 0, observations: 0, improvedBest: false };
+    return {
+      watchId,
+      ran: false,
+      candidatesFound: 0,
+      observations: 0,
+      improvedBest: false,
+      alerted: false,
+    };
   }
 
   const owner = await repositories.users.findById(watch.userId);
@@ -104,7 +130,12 @@ export async function refreshWatch(
 
   const observed = outcome
     ? await recordObservations(watch, outcome, repositories, new Date(now()).toISOString())
-    : { observations: 0, improvedBest: false };
+    : { observations: 0, improvedBest: false, verdict: null, trip: null };
+
+  const alerted =
+    observed.verdict && observed.trip
+      ? await raiseAlert(watch, saved, observed.trip, observed.verdict, repositories)
+      : false;
 
   // Always last, and always reached.
   await service.recordRun(watchId, entitlements, watch.priority);
@@ -117,6 +148,8 @@ export async function refreshWatch(
       candidatesFound,
       observations: observed.observations,
       improvedBest: observed.improvedBest,
+      dealReason: observed.verdict?.reason ?? null,
+      alerted,
       degraded: outcome?.diagnostics.degraded ?? null,
     },
     'travel watch refreshed',
@@ -128,6 +161,7 @@ export async function refreshWatch(
     candidatesFound,
     observations: observed.observations,
     improvedBest: observed.improvedBest,
+    alerted,
   };
 }
 
@@ -144,7 +178,13 @@ async function recordObservations(
   outcome: SearchOutcome,
   repositories: Repositories,
   observedAt: string,
-): Promise<{ observations: number; improvedBest: boolean }> {
+): Promise<{
+  observations: number;
+  improvedBest: boolean;
+  /** Null when there was nothing to judge. */
+  verdict: DealVerdict | null;
+  trip: SearchOutcome['results'][number] | null;
+}> {
   // Only eligible trips count. A cheaper trip that breaks the user's own hard
   // limits is not a better trip, and recording it as the benchmark would make
   // every honest result afterwards look like a price rise.
@@ -153,7 +193,7 @@ async function recordObservations(
     null,
   );
 
-  if (!cheapest) return { observations: 0, improvedBest: false };
+  if (!cheapest) return { observations: 0, improvedBest: false, verdict: null, trip: null };
 
   const rows = observationsFor(watch.id, cheapest, observedAt);
   for (const row of rows) {
@@ -172,10 +212,63 @@ async function recordObservations(
   // so the new figure is recorded and simply not called an improvement.
   const comparable = previous !== null && previous.currency === currency;
 
+  // Judged against the best *before* this run, which is why `previous` is read
+  // from the watch as it was loaded. Comparing against the value we just wrote
+  // would mean nothing was ever a deal.
+  const verdict = detectDeal({ current: cheapest.cost.total, previousBest: previous });
+
   return {
     observations: rows.length,
     improvedBest: comparable && lowest !== null && lessThan(lowest.amount, previous),
+    verdict,
+    trip: cheapest,
   };
+}
+
+/**
+ * Record an alert for a material drop.
+ *
+ * Exactly one, and only for a drop that cleared both thresholds. "Exactly one"
+ * falls out of comparing against the previous best rather than a fixed figure:
+ * once a drop has been alerted, that price becomes the best known, so the next
+ * refresh finding the same price is not cheaper than anything and says nothing.
+ *
+ * Creating the notification and delivering it are separate steps on purpose.
+ * A push that fails must not mean the user never learns there was a deal.
+ */
+async function raiseAlert(
+  watch: TravelWatchRecord,
+  search: TripSearchRecord,
+  trip: SearchOutcome['results'][number],
+  verdict: DealVerdict,
+  repositories: Repositories,
+): Promise<boolean> {
+  if (!verdict.material) return false;
+
+  const content = buildAlertContent({
+    search,
+    trip,
+    verdict,
+    searchQuery: searchProfileToQuery(search.profile, search.destinations),
+  });
+
+  await repositories.notifications.create({
+    userId: watch.userId,
+    watchId: watch.id,
+    // Assigned by the deterministic core, never by whoever writes the words.
+    severity: verdict.severity,
+    title: content.title,
+    body: content.body,
+    readAt: null,
+    deliveredAt: null,
+  });
+
+  log.info(
+    { watchId: watch.id, severity: verdict.severity, dropShare: verdict.dropShare },
+    'deal alert raised',
+  );
+
+  return true;
 }
 
 /** The queue handler. Thin on purpose: the behaviour is testable without a queue. */

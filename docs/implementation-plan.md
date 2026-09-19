@@ -308,7 +308,7 @@ below 60000 EUR. `src/core/money.ts` refuses that comparison on principle and a 
 silently contradicted the rule the whole money model rests on. Currency is now a required argument,
 and both backends are held to it by the contract suite.
 
-### 1.8 Deal detection
+### 1.8 Deal detection ✅ complete
 
 _In plain words: compare the new price to the old ones and decide if it is a real bargain worth telling you about._
 
@@ -318,6 +318,27 @@ material. Severity is assigned here, never by a model.
 - Thresholds are explicit and tunable. A EUR 2 drop on EUR 240 is not an alert.
 - **Done when:** a materially better trip produces exactly one alert, and a trivial change produces
   none.
+
+**Delivered.** `src/core/deal-detection.ts` decides; `src/watches/alerts.ts` words what was already
+decided; the refresh handler records the notification.
+
+Decisions worth carrying forward:
+
+- **Two bars, not one.** A percentage bar alone calls EUR 40 off EUR 4,000 news; an absolute bar
+  alone calls 5% off a EUR 60 flight news. A drop must clear both. The specification's own example
+  — EUR 2 off EUR 240 — fails both.
+- **"Exactly one alert" falls out of the model rather than being enforced by a flag.** A drop is
+  judged against the _previous_ best; once alerted, that price becomes the best known, so the next
+  refresh finding the same price is not cheaper than anything and says nothing.
+- **Severity is assigned by the core**, never by whoever writes the words. Either a large share or
+  a large absolute sum promotes a drop to important.
+- **The verdict carries a machine-readable reason**, so "why was I not told?" is answerable from a
+  field rather than from a log.
+- **Creating an alert and delivering it are separate steps.** A push that fails must not mean the
+  user never learns there was a deal.
+- **`alerts.ts` is the seam where a model may eventually write the prose** (§24.5). It could
+  replace the wording and nothing else: the decision, the severity and every figure are settled
+  before it is called.
 
 ### 1.9 Web Push notifications
 
@@ -427,6 +448,1207 @@ told in each case. An offer silently downgraded is exactly the surprise §31.5 e
   above has a documented, tested answer backed by a sandbox run or a committed HTTP fixture; the
   concurrency bound is proven under real latency rather than against instant mocks; per-provider
   budgets and observability are specified; and the full suite still passes with no network access.
+
+# Master Frontend + Fable + Travel Discovery Specification
+
+## Purpose
+
+Build a **premium, highly interactive travel-discovery product**, not a generic travel booking website, SaaS dashboard, AI chatbot, or template.
+
+The product should feel like an **interactive map of travel possibilities** where users can discover:
+
+- Where they can go
+- When they should go
+- Why they should go
+- What the destination is like during those dates
+- How much the trip will cost
+- How they can get there
+- What they can do there
+- Which hidden places are nearby
+- Which events and seasonal experiences are happening
+- How flexible dates change the price
+- Which option best matches their preferences
+
+The final experience should feel premium, visual, fast, playful and intelligent.
+
+---
+
+# 1. FABLE AS THE PRIMARY FRONTEND/DESIGN TOOL
+
+Use **Fable as the primary frontend design and UI implementation environment** when creating and refining the product interface.
+
+The frontend should be visually designed in Fable and then integrated with the existing application architecture.
+
+Do not let the existing engineering architecture force the interface to look basic.
+
+The backend/data architecture and the frontend experience should remain separate concerns.
+
+The goal is:
+
+**Existing robust backend architecture + Fable-quality frontend/design + carefully selected third-party technology = premium travel product.**
+
+---
+
+# 2. THIRD-PARTY LIBRARIES AND SERVICES
+
+Use high-quality third-party libraries, APIs and open-source packages whenever they materially improve the product.
+
+Do NOT unnecessarily rebuild complex functionality from scratch.
+
+Potential categories include:
+
+- 3D globe libraries
+- Map libraries
+- Geographic visualization
+- Map clustering
+- Geographic data
+- Globe interactions
+- Animation libraries
+- Gesture libraries
+- Page transition libraries
+- Calendar libraries
+- Flexible-date components
+- Heatmaps
+- Charts
+- Price-history visualization
+- Virtualized lists
+- Image optimization
+- Responsive image delivery
+- Accessible UI primitives
+- Icon libraries
+- Typography systems
+- Destination imagery APIs
+- Weather APIs
+- Event APIs
+- National holiday APIs
+- Geographic/location APIs
+- Flight APIs
+- Hotel APIs
+- Transport APIs
+
+Examples of appropriate technology may include Mapbox, MapLibre, Three.js, deck.gl, GSAP, Framer Motion/Motion, Radix UI, Lucide, TanStack tools or other comparable production-quality libraries.
+
+These are examples, not mandatory dependencies.
+
+Choose technology based on:
+
+- Performance
+- Reliability
+- Accessibility
+- Maintenance
+- Licensing
+- Mobile support
+- Bundle size
+- Visual quality
+- Ease of integration
+- Ability to replace the provider later
+
+Do not add dependencies simply because they look impressive.
+
+Do not turn the application into a collection of unrelated widgets.
+
+Everything should feel like one coherent product.
+
+---
+
+# 3. IMPORTANT ARCHITECTURE RULE
+
+Do not destroy or bypass the existing backend architecture.
+
+The existing provider adapters, orchestration, repositories, queues, AI abstraction and normalized travel models should remain the source of truth.
+
+Frontend code should consume normalized application data.
+
+Do not put provider-specific logic directly into UI components.
+
+Do not make the UI depend directly on individual travel providers.
+
+Keep provider-specific integrations behind adapters.
+
+Third-party frontend services should also be replaceable where practical.
+
+---
+
+# 4. DO NOT FAKE LIVE DATA
+
+The visual experience can be designed before live providers exist.
+
+However:
+
+Never pretend mock data is live data.
+
+Clearly distinguish between:
+
+- Live
+- Cached
+- Estimated
+- Historical
+- Typical/seasonal
+- Mock/demo
+- AI-generated
+- Unavailable
+
+For example:
+
+**€184 · Live price**
+
+is different from:
+
+**€184 · Estimated**
+
+and different from:
+
+**Typical price: €160–€220**
+
+The UI must communicate this honestly.
+
+---
+
+# 5. OVERALL VISUAL DIRECTION
+
+Avoid:
+
+- Generic SaaS dashboards
+- Basic booking websites
+- Generic card grids
+- Corporate enterprise styling
+- Chatbot-first interfaces
+- Excessive tables
+- Flat pages
+- Boring forms
+- Template-looking layouts
+
+Create:
+
+- Premium editorial travel design
+- Large destination imagery
+- Strong typography
+- Beautiful cards
+- Layered surfaces
+- Depth
+- Subtle glass/blur where appropriate
+- Smooth transitions
+- Rich hover states
+- Interactive maps
+- Interactive globe
+- Visual discovery
+- Elegant data visualization
+- Strong spacing
+- Responsive layouts
+- Cinematic destination presentation
+
+The interface should feel closer to a **premium travel magazine + interactive map + intelligent trip planner** than a normal booking engine.
+
+---
+
+# 6. HOMEPAGE / DISCOVERY
+
+The homepage should immediately communicate that this is a discovery product.
+
+Instead of only:
+
+Origin → Destination → Dates → Search
+
+allow users to discover possibilities visually.
+
+Examples:
+
+- Beach escapes
+- Mountain escapes
+- Christmas trips
+- Snow destinations
+- Green/lush destinations
+- Autumn colors
+- Spring blossoms
+- City breaks
+- Romantic trips
+- Road trips
+- Nature
+- Food & wine
+- Adventure
+- Events
+- Hidden places
+- Budget travel
+- Warm escapes
+- Northern lights
+- Ski trips
+
+These should be interactive visual categories rather than plain text links.
+
+Clicking one should immediately affect the discovery/search experience.
+
+---
+
+# 7. SEARCH
+
+The main search should support:
+
+- Origin
+- Destination
+- Flexible destination
+- Dates
+- Flexible dates
+- Travelers
+- Budget
+- Transport preferences
+- Accommodation preferences
+- Trip type
+- Interests
+- Seasonal preferences
+
+The interface should progressively reveal complexity.
+
+Do not overwhelm the user with every option immediately.
+
+Simple search first.
+
+Advanced controls appear naturally when useful.
+
+---
+
+# 8. FLEXIBLE DATES MUST BE A CORE FEATURE
+
+Flexible dates should not be a hidden advanced option.
+
+Support concepts such as:
+
+- Exact dates
+- ±1 day
+- ±3 days
+- ±7 days
+- Weekend
+- Long weekend
+- Cheapest dates
+- Best weather
+- Best value
+- Month
+- Custom date range
+
+Show the user visually how changing dates affects:
+
+- Price
+- Weather
+- Events
+- Holidays
+- Availability
+- Travel time
+- Seasonal conditions
+
+Use calendars, heatmaps and visual price differences.
+
+Example:
+
+**July 12–19 — €620**
+
+**July 15–22 — €510**
+
+**July 19–26 — €465**
+
+Make the savings visually obvious.
+
+---
+
+# 9. RESULT CARDS
+
+Travel results should be rich, visual and interactive.
+
+Each result can show:
+
+- Destination image
+- Destination
+- Dates
+- Total trip cost
+- Flight price
+- Accommodation price
+- Ground transport
+- Number of stops
+- Total travel time
+- Weather
+- Seasonal condition
+- Events
+- Deal information
+- Price confidence
+- Ranking score
+- Why it is recommended
+- Warnings
+- Availability
+- Save
+- Watch
+- Compare
+
+Example explanation:
+
+**Why this trip?**
+
+> 18% cheaper than your usual budget, excellent hiking conditions and direct flights available.
+
+Do not expose meaningless technical scoring.
+
+Explain ranking in human terms.
+
+---
+
+# 10. TRAVEL RESULT FILTERS
+
+Filters must be genuinely interactive.
+
+Examples:
+
+### Price
+
+- Total budget
+- Flight budget
+- Accommodation budget
+
+### Transport
+
+- Flight
+- Train
+- Bus
+- Car
+- Ferry
+- Mixed transport
+
+### Flight
+
+- Direct
+- Maximum stops
+- Departure time
+- Arrival time
+
+### Trip
+
+- Round trip
+- City trip
+- Road trip
+- Multi-city
+- Scenic route
+- Open jaw
+- Flexible itinerary
+
+### Experience
+
+- Beach
+- Mountains
+- Snow
+- Nature
+- Food
+- Nightlife
+- Culture
+- Events
+- Adventure
+- Hidden places
+
+### Season
+
+- Snowy
+- Green
+- Sunny
+- Autumn
+- Blossoms
+- Ski season
+- Christmas
+- Hiking season
+- Aurora
+
+Filters should immediately update results with smooth transitions.
+
+---
+
+# 11. ANYWHERE / DISCOVERY GLOBE
+
+The globe should become one of the signature features of the product.
+
+It should not be a decorative 3D object.
+
+It should answer:
+
+**"Where can I go?"**
+
+and eventually:
+
+**"Where should I go during my dates?"**
+
+The globe should be visually impressive and highly interactive.
+
+---
+
+# 12. GLOBE BEHAVIOR
+
+The globe should support:
+
+- Rotation
+- Zoom
+- Dragging
+- Hover
+- Click
+- Destination selection
+- Region selection
+- Country selection
+- City selection
+- Clustering
+- Animated transitions
+- Search
+- Filters
+- Seasonal layers
+
+At low zoom:
+
+Show major destinations and cities.
+
+As the user zooms:
+
+Reveal progressively smaller destinations.
+
+Further zoom:
+
+Reveal:
+
+- Smaller towns
+- Nature
+- Hidden places
+- Scenic locations
+- Events
+- Attractions
+
+Avoid displaying thousands of markers at once.
+
+Use intelligent clustering and progressive disclosure.
+
+---
+
+# 13. GLOBE TRANSPORT FILTERS
+
+Users should be able to choose:
+
+- Flights
+- Trains
+- Buses
+- Cars
+- Ferries
+- Mixed transport
+
+The globe can visually show reachable destinations based on the selected transport method.
+
+Examples:
+
+**Flight only**
+
+**Train + flight**
+
+**Train only**
+
+**Road trip**
+
+**Multi-modal**
+
+---
+
+# 14. GLOBE OPTIMIZATION MODES
+
+Allow users to switch between:
+
+- Cheapest
+- Fastest
+- Fewest stops
+- Best value
+- Best weather
+- Best season
+- Most interesting
+- Flexible
+
+Do not hide the optimization logic.
+
+Explain why a destination appears.
+
+---
+
+# 15. SEASONAL WORLD DISCOVERY
+
+Seasonality must be a core discovery layer.
+
+The same destination can be completely different depending on the date.
+
+The system should understand concepts such as:
+
+- Snow
+- Green/lush landscapes
+- Spring blossoms
+- Autumn colors
+- Warm weather
+- Beach season
+- Ski season
+- Hiking season
+- Rainy season
+- Aurora season
+- Flower season
+- Christmas season
+- Festival season
+- Surf season
+
+---
+
+# 16. SEASONAL GLOBE
+
+The globe should visually respond to the selected dates and season.
+
+Examples:
+
+Select January:
+
+Show destinations with:
+
+- Snow
+- Skiing
+- Aurora
+- Winter events
+- Christmas/winter experiences
+
+Select April:
+
+Show:
+
+- Green landscapes
+- Blossoms
+- Mild-weather destinations
+- Hiking opportunities
+
+Select October:
+
+Show:
+
+- Autumn colors
+- Mild destinations
+- Seasonal events
+- Food/wine experiences
+
+The visual layer should feel alive.
+
+However, do not falsely color entire countries if conditions vary significantly by region.
+
+Use region-level or destination-level data where appropriate.
+
+---
+
+# 17. SEASONAL RECOMMENDATION ENGINE
+
+Create a discovery layer such as:
+
+### "What looks good during your dates?"
+
+Then show:
+
+**Snow**
+
+Switzerland · Norway · Austria · Northern Sweden
+
+**Green**
+
+Slovenia · Scotland · Azores · Northern Italy
+
+**Autumn**
+
+Japan · Canada · Central Europe
+
+**Warm**
+
+Canary Islands · Southern Europe · North Africa
+
+Recommendations should use explainable signals such as:
+
+- Historical climate
+- Current forecast where appropriate
+- Snow probability
+- Temperature
+- Rain probability
+- Daylight
+- Seasonal attractions
+- Events
+- Holidays
+- Transport availability
+- Price
+- User preferences
+
+Historical conditions must be clearly presented as typical rather than guaranteed.
+
+---
+
+# 18. DESTINATION DISCOVERY
+
+Selecting a destination should open an immersive destination experience.
+
+Show:
+
+- Large imagery
+- Weather
+- Typical seasonal conditions
+- Current forecast when relevant
+- Events
+- National holidays
+- Travel warnings
+- Price level
+- Typical accommodation price
+- Transport options
+- Recommended trip length
+- Recommended trip styles
+- Hidden places
+- Popular places
+- Food
+- Nature
+- Nightlife
+- Activities
+
+The page should feel like discovering a place rather than viewing a database record.
+
+---
+
+# 19. TRIP TYPES
+
+Support different trip intentions.
+
+Examples:
+
+### City Escape
+
+Explore one city.
+
+### Road Trip
+
+Multiple stops connected by road.
+
+### Round Trip
+
+Base destination with return.
+
+### Scenic Route
+
+Optimize the journey itself.
+
+### Hidden Places
+
+Prioritize less-obvious destinations.
+
+### Food Trip
+
+Optimize around restaurants, food regions and experiences.
+
+### Nature Trip
+
+Mountains, lakes, forests, national parks.
+
+### Event Trip
+
+Build around a concert, festival, sports event or holiday.
+
+### Christmas Trip
+
+Markets, winter cities, seasonal experiences.
+
+The UI should adapt based on the selected trip type.
+
+---
+
+# 20. HIDDEN PLACES SYSTEM
+
+Create a dedicated hidden-place discovery layer.
+
+Categories can include:
+
+- Hidden nature
+- Secret beaches
+- Waterfalls
+- Mountains
+- Villages
+- Viewpoints
+- Lakes
+- Forests
+- Food spots
+- Historical locations
+- Quiet towns
+- Scenic roads
+- Local experiences
+
+Different categories can have distinct visual identities.
+
+Hovering over a location should show:
+
+- Photo
+- Name
+- Short description
+- Distance
+- Why it is interesting
+- Best season
+- Accessibility
+
+Clicking opens more information.
+
+Do not imply that something is genuinely "secret" if it is simply popular online.
+
+Use labels such as:
+
+**Less-known**
+
+**Off the main tourist route**
+
+**Local favorite**
+
+where appropriate.
+
+---
+
+# 21. EVENTS AND CONTEXT
+
+Travel recommendations should understand the world around the destination.
+
+Include:
+
+- Concerts
+- Festivals
+- Sporting events
+- Christmas markets
+- National holidays
+- Cultural events
+- Seasonal events
+- School/public holidays where relevant
+- Major closures
+- Weather warnings
+- Travel warnings
+
+Events should influence recommendations when relevant.
+
+For example:
+
+**Vienna — July 12–16**
+
+Music festival during your dates.
+
+Or:
+
+**Japan — late October**
+
+Peak autumn colors in selected regions.
+
+---
+
+# 22. TRIP BUILDER
+
+Once users choose an idea, transition from discovery into planning.
+
+The trip builder should allow users to modify:
+
+- Destinations
+- Hotels
+- Flights
+- Ground transport
+- Activities
+- Hidden places
+- Dates
+- Order of destinations
+
+Users should be able to drag/rearrange itinerary items.
+
+Changes should immediately recalculate:
+
+- Total price
+- Travel time
+- Number of stops
+- Distance
+- Weather
+- Availability
+- Warnings
+- Trip score/explanation
+
+The experience should feel dynamic rather than like filling out a form.
+
+---
+
+# 23. ANIMATION
+
+Animation is important but must be intentional.
+
+Use animation for:
+
+- Page transitions
+- Destination transitions
+- Globe rotation
+- Globe zoom
+- Marker appearance
+- Clustering
+- Card entrance
+- Filtering
+- Sorting
+- Calendar changes
+- Price changes
+- Trip-builder changes
+- Loading
+- Skeletons
+- Save/watch actions
+- Expanding details
+- Image transitions
+
+Animation should communicate:
+
+- What changed
+- Where something came from
+- What the user selected
+- What the system is calculating
+
+Avoid animation simply for decoration.
+
+Respect:
+
+**prefers-reduced-motion**
+
+---
+
+# 24. RESPONSIVE DESIGN
+
+The experience must work beautifully on:
+
+- Desktop
+- Laptop
+- Tablet
+- Mobile
+
+Do not simply shrink the desktop UI.
+
+Mobile should have its own interaction strategy.
+
+Examples:
+
+- Bottom sheets
+- Swipeable cards
+- Touch-friendly globe controls
+- Collapsible filters
+- Sticky search
+- Full-screen destination imagery
+- Mobile trip builder
+- Simplified map layers
+
+---
+
+# 25. ACCESSIBILITY
+
+Maintain:
+
+- Keyboard navigation
+- Visible focus
+- Screen-reader support
+- Semantic HTML
+- Accessible dialogs
+- Accessible filters
+- Accessible maps
+- Accessible calendars
+- Good contrast
+- Reduced motion
+- Non-color-only information
+
+The globe/map must never be the only way to access information.
+
+Provide equivalent list/search interfaces.
+
+---
+
+# 26. PERFORMANCE
+
+The visual experience must remain fast.
+
+Use:
+
+- Lazy loading
+- Optimized images
+- Responsive image sizes
+- SSR where appropriate
+- Code splitting
+- Virtualized lists
+- Marker clustering
+- Progressive rendering
+- Caching
+- Efficient map layers
+- Deferred heavy 3D functionality
+
+Do not load the entire world at once.
+
+Do not render thousands of DOM elements unnecessarily.
+
+---
+
+# 27. DESIGN SYSTEM
+
+Create a consistent design system for:
+
+- Typography
+- Colors
+- Spacing
+- Cards
+- Buttons
+- Inputs
+- Filters
+- Tags
+- Badges
+- Maps
+- Globe controls
+- Calendars
+- Dialogs
+- Sheets
+- Tooltips
+- Loading states
+- Error states
+- Empty states
+
+The product should feel like one carefully designed system.
+
+---
+
+# 28. PHASE 1.2 — FIRST MAJOR FRONTEND IMPLEMENTATION
+
+The main visual implementation should begin here.
+
+Build:
+
+- Homepage
+- Search experience
+- Result list
+- Rich result cards
+- Filters
+- Categories
+- Destination detail
+- Trip detail
+- Cost breakdown
+- Flexible dates
+- Initial globe architecture
+- Destination visualization
+- Core animations
+- Responsive experience
+
+The globe does not need full production intelligence yet.
+
+It should already have the correct visual architecture so it does not have to be bolted onto the product later.
+
+---
+
+# 29. PHASE 1.5–1.10
+
+Progressively add the visual interfaces for:
+
+- Saved searches
+- Travel Watches
+- Notifications
+- Price history
+- Deal detection
+- Flight/hotel swapping
+- Saved trips
+- Monitoring states
+- Price changes
+- Watch status
+
+These should feel like natural extensions of the main product.
+
+---
+
+# 30. PHASE 1.11 — LIVE TRAVEL DATA
+
+When the provider architecture reaches the live-provider stage:
+
+Connect the frontend to:
+
+- Real flight inventory
+- Real hotel inventory
+- Other live providers where available
+
+The frontend should not need to be redesigned.
+
+The same normalized result components should work with:
+
+**Mock data**
+
+and:
+
+**Live provider data**
+
+Only the underlying adapter/provider should change.
+
+---
+
+# 31. PHASE 2 — INTELLIGENCE
+
+Expand the experience with:
+
+- Buy/Wait
+- Price history presentation
+- Deal score
+- Restaurants
+- Activities
+- AI itinerary
+- What-if simulator
+- Flexible-date heatmaps
+- Alternative airports
+- Smarter notifications
+- Seasonal discovery
+- Events
+- Weather-aware recommendations
+
+This is where the globe becomes substantially more intelligent.
+
+---
+
+# 32. PHASE 3 — DISCOVERY AND PERSONALIZATION
+
+Add:
+
+- Anywhere
+- Surprise Me
+- Hidden Gems
+- Travel profile
+- Adaptive monitoring
+- Budget allocation
+- Group travel
+- Richer PWA experience
+- Personalized seasonal recommendations
+- Personalized globe
+- More detailed geographic discovery
+
+The system should gradually understand what types of trips the user likes without making the experience feel invasive.
+
+Preferences should remain transparent and editable.
+
+---
+
+# 33. GLOBE / WORLD EXPLORER FUTURE EXPANSION
+
+Eventually support:
+
+- Country selection
+- Region selection
+- Cities
+- Hidden places
+- Nature
+- Food
+- Nightlife
+- Events
+- Beaches
+- Mountains
+- Scenic locations
+- Multi-country trips
+- Ground transportation
+- Cars
+- Rail
+- Ferries
+- Multi-modal journeys
+
+The globe should evolve into a true **world travel explorer**.
+
+---
+
+# 34. VISUAL HIERARCHY
+
+Always prioritize:
+
+1. Destination
+2. Why it is interesting
+3. When to go
+4. Total cost
+5. How to get there
+6. What conditions to expect
+7. What can be done there
+8. Important warnings
+9. Details
+
+Do not bury the important information under technical metadata.
+
+---
+
+# 35. TRUST AND EXPLANATIONS
+
+Every recommendation should be explainable.
+
+Instead of:
+
+**Score: 87.4**
+
+prefer:
+
+**Why this is recommended**
+
+- €120 below your budget
+- Direct flight available
+- Excellent hiking conditions
+- Mild weather during your dates
+- Festival happening during your stay
+
+Users should understand why something appears.
+
+---
+
+# 36. DO NOT OVER-AUTOMATE THE USER
+
+The product should assist discovery and planning without taking control away from the user.
+
+Users must be able to:
+
+- Change filters
+- Change dates
+- Change budget
+- Change destination
+- Change transport
+- Remove recommendations
+- Modify preferences
+- Rearrange trips
+- Compare alternatives
+
+The system should recommend, explain and adapt.
+
+The user remains in control.
+
+---
+
+# 37. QUALITY BAR
+
+Before considering the frontend complete, ask:
+
+Does this look like a real premium travel product?
+
+Does it feel better than a normal booking website?
+
+Can a user discover destinations without already knowing where they want to go?
+
+Can the user understand price, season, weather and transport?
+
+Can flexible dates visibly save money?
+
+Can the globe actually help discovery?
+
+Can users understand why a recommendation appears?
+
+Does everything work on mobile?
+
+Does animation feel intentional?
+
+Does the experience remain fast?
+
+Does the interface clearly distinguish live information from estimates and mock data?
+
+If the answer is no, continue refining.
+
+---
+
+# 38. MOST IMPORTANT PRODUCT PRINCIPLE
+
+The final product should feel like:
+
+**"Show me the world, tell me where I can go, show me when it is best, explain why, show me what it costs, and help me turn the idea into a real trip."**
+
+Not:
+
+**"Fill in a booking form and receive a list of flights."**
+
+The product should progressively evolve:
+
+**Explore → Discover → Compare → Understand → Select → Plan → Monitor → Travel**
+
+The globe, seasonal intelligence, flexible dates, live travel inventory, hidden places, events and trip builder should all eventually become parts of the same coherent experience.
+
+Build the frontend architecture early enough that these capabilities can be added progressively without redesigning the entire product.
 
 ### 1.11 First live provider
 
