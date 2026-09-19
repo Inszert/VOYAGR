@@ -441,17 +441,17 @@ do not replace them (sequencing rule 3).
 Found by reviewing the Phase 1.1 code against a live-provider contract. Each is a mock-invisible
 assumption, so each needs a deliberate check rather than a passing test.
 
-| Assumption in the code                                   | Why a mock cannot catch it                                                                                                                                                                                                |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 6 concurrent provider calls is a safe pace               | The bound itself is now enforced by one shared limiter and asserted end to end, but the _number_ was chosen with no vendor in mind, and in-process mocks never make it cost anything                                      |
-| `ProviderMetadata.rateLimitPerMinute` paces the search   | Declared on every adapter and read by nothing                                                                                                                                                                             |
-| One call returns every offer worth having (`maxResults`) | No cursor, page token or total count anywhere in the provider contracts                                                                                                                                                   |
-| A failed call is simply a failed call                    | No retry or backoff at the provider boundary; only the queue has any                                                                                                                                                      |
-| The vendor's times arrive as local wall-clock            | Settled in our own types: flight times are `LocalDateTime` and a `Z`-suffixed one is rejected. What a vendor actually sends — local, zoned or UTC — is the adapter's problem to map, and only a real response shows which |
-| The adapter maps a vendor's silence to `null`            | The domain models an unstated fact as `null` and treats it as its own case. Whether a given vendor omits the field, sends an empty string or sends a misleading default is a per-vendor mapping question                  |
-| A provider response is well-formed                       | Provider output is never schema-checked, although AI output is (`src/ai/guardrails.ts`)                                                                                                                                   |
-| Every quote is current                                   | `observedAt` is recorded on every offer and its staleness is checked nowhere                                                                                                                                              |
-| Everything is quoted in one currency                     | There is no FX layer; a mixed-currency response yields zero results and one diagnostic, which reads to a user as "no trips found"                                                                                         |
+| Assumption in the code                                 | Why a mock cannot catch it                                                                                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 concurrent provider calls is a safe pace             | The bound itself is now enforced by one shared limiter and asserted end to end, but the _number_ was chosen with no vendor in mind, and in-process mocks never make it cost anything                                              |
+| `ProviderMetadata.rateLimitPerMinute` paces the search | Declared on every adapter and read by nothing                                                                                                                                                                                     |
+| ~~One call returns every offer worth having~~          | **Resolved.** Provider methods return `ProviderPage<T>` with an opaque, provider-specific cursor; `collectPages` walks them under both an item and a page bound; the mocks paginate for real, so the path is exercised by default |
+| ~~A failed call is simply a failed call~~              | **Resolved.** `src/providers/policy.ts` is operation-aware: an operation that creates something is never retried, and a provider cannot override that stance. Wiring it into a live adapter is still 1.11                         |
+| The vendor's times arrive as local wall-clock          | Settled in our own types: flight times are `LocalDateTime` and a `Z`-suffixed one is rejected. What a vendor actually sends — local, zoned or UTC — is the adapter's problem to map, and only a real response shows which         |
+| The adapter maps a vendor's silence to `null`          | The domain models an unstated fact as `null` and treats it as its own case. Whether a given vendor omits the field, sends an empty string or sends a misleading default is a per-vendor mapping question                          |
+| A provider response is well-formed                     | Provider output is never schema-checked, although AI output is (`src/ai/guardrails.ts`)                                                                                                                                           |
+| Every quote is current                                 | `observedAt` is recorded on every offer and its staleness is checked nowhere                                                                                                                                                      |
+| Everything is quoted in one currency                   | There is no FX layer; a mixed-currency response yields zero results and one diagnostic, which reads to a user as "no trips found"                                                                                                 |
 
 #### Vendor selection and commercial terms
 
@@ -472,7 +472,9 @@ assumption, so each needs a deliberate check rather than a passing test.
   backoff the vendor expects. Defined once, at the provider boundary.
 - **Timeouts** — that a live adapter honours `ProviderRequestOptions.signal` and `timeoutMs`, what
   the vendor's own timeout is, and whether a search needs an overall deadline as well as a per-call
-  one.
+  one. The universal 8-second default is gone: `src/providers/policy.ts` sets a timeout per
+  operation, and a provider declares its own overrides. What remains is confirming each vendor's
+  real figures.
 - **Malformed, partial, empty and stale responses** — a field missing, a null where a number is
   typed, an empty result set, a success wrapping an error, a cached response past its validity.
   Each needs a decided outcome: reject the offer, degrade it, or mark it unknown. "Mark it
