@@ -350,4 +350,75 @@ describe('DuffelFlightProvider', () => {
   it('refuses to be built without a key', () => {
     expect(() => new DuffelFlightProvider({ token: '' })).toThrow(/DUFFEL/);
   });
+
+  it('tells Duffel how long it may wait for the airlines', async () => {
+    const bodies: string[] = [];
+    let call = 0;
+
+    const provider = new DuffelFlightProvider({
+      token: TOKEN,
+      fetchImpl: (_url, init) => {
+        call += 1;
+        if (init?.body) bodies.push(String(init.body));
+        return call === 1 ? respond({ data: { id: 'orq_1' } }) : respond({ data: [] });
+      },
+    });
+
+    await provider.searchFlights({
+      origins: ['VIE'],
+      destinations: ['BCN'],
+      departureDate: '2026-10-22',
+      returnDate: '2026-10-29',
+      passengers: 1,
+      currency: 'EUR',
+    });
+
+    // Without it Duffel waits for the slowest airline, which measured at
+    // twenty seconds - longer than any search page should block for.
+    expect(JSON.parse(bodies[0] as string).data.supplier_timeout).toBe(8_000);
+  });
+
+  it('keeps the supplier wait inside what the API accepts', () => {
+    const body = async (supplierTimeoutMs: number) => {
+      const bodies: string[] = [];
+      let call = 0;
+
+      const provider = new DuffelFlightProvider({
+        token: TOKEN,
+        supplierTimeoutMs,
+        fetchImpl: (_url, init) => {
+          call += 1;
+          if (init?.body) bodies.push(String(init.body));
+          return call === 1 ? respond({ data: { id: 'orq_1' } }) : respond({ data: [] });
+        },
+      });
+
+      return provider
+        .searchFlights({
+          origins: ['VIE'],
+          destinations: ['BCN'],
+          departureDate: '2026-10-22',
+          returnDate: '2026-10-29',
+          passengers: 1,
+          currency: 'EUR',
+        })
+        .then(() => JSON.parse(bodies[0] as string).data.supplier_timeout as number);
+    };
+
+    // Duffel takes 2000-60000 and rejects the request outside it, so a
+    // mistuned option must not become a 422 on every search.
+    return Promise.all([body(10), body(120_000)]).then(([low, high]) => {
+      expect(low).toBe(2_000);
+      expect(high).toBe(60_000);
+    });
+  });
+
+  it('asks the search for longer than the eight seconds a mock needs', () => {
+    // A vendor that polls airlines cannot answer inside a timeout chosen for
+    // one that answers from an index, and every call was being aborted.
+    const provider = new DuffelFlightProvider({ token: TOKEN });
+
+    expect(provider.metadata.operationOverrides?.search?.timeoutMs).toBe(12_000);
+    expect(provider.metadata.typicalLatencyMs).toBe(9_000);
+  });
 });

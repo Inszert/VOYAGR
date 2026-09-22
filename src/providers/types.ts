@@ -82,6 +82,21 @@ export interface ProviderMetadata {
    */
   readonly rateLimitPerMinute: number | null;
   /**
+   * How long one call to this vendor has been measured to take.
+   *
+   * A rate limit alone cannot say how fast a provider can be driven: a
+   * semaphore bounds calls *in flight*, a quota bounds calls *per minute*,
+   * and only latency joins them (see `concurrencyFor`). Until now that join
+   * used a flat one-second floor, which is wrong in both directions - it
+   * throttles a vendor whose calls take five seconds down to one at a time,
+   * and it lets a millisecond-fast one spend a minute's quota at once.
+   *
+   * `null` means nobody has measured it, and the one-second floor applies.
+   * A number here is a **measurement**, not a target: it is what a real call
+   * took, and it belongs to the adapter that made that call.
+   */
+  readonly typicalLatencyMs?: number | null;
+  /**
    * Per-operation policy this provider needs that differs from the default.
    *
    * Timeouts and attempt counts are vendor facts - one vendor's search budget

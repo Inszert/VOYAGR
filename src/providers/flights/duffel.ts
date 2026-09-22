@@ -4,7 +4,7 @@ import type { FlightLeg, FlightOffer, FlightSegment } from '@/core/trip/types';
 import type { ProviderMode } from '@/core/trip/provenance';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
-import { err, ok } from '@/lib/result';
+import { err } from '@/lib/result';
 import type { FetchLike } from '../http/types';
 import type {
   FlightProvider,
@@ -126,6 +126,8 @@ export interface DuffelOptions {
    * wide search and an expensive one.
    */
   readonly maxRoutes?: number;
+  /** How long Duffel may wait for the airlines. See `supplier_timeout`. */
+  readonly supplierTimeoutMs?: number;
 }
 
 /**
@@ -269,6 +271,7 @@ export class DuffelFlightProvider implements FlightProvider {
   private readonly fetchImpl: FetchLike;
   private readonly maxOffers: number;
   private readonly maxRoutes: number;
+  private readonly supplierTimeoutMs: number;
 
   constructor(options: DuffelOptions) {
     if (!options.token) {
@@ -291,6 +294,11 @@ export class DuffelFlightProvider implements FlightProvider {
      * minute can serve, not a number that wants tuning.
      */
     this.maxRoutes = options.maxRoutes ?? 3;
+    // Duffel accepts 2000-60000; outside that it rejects the request.
+    this.supplierTimeoutMs = Math.min(
+      60_000,
+      Math.max(2_000, Math.floor(options.supplierTimeoutMs ?? 8_000)),
+    );
 
     /*
      * The mode is read from the key, then corrected by the response.
@@ -312,6 +320,37 @@ export class DuffelFlightProvider implements FlightProvider {
       mode: this.observedMode,
       // Measured from `ratelimit-limit` on a real response.
       rateLimitPerMinute: 30,
+      /*
+       * A search must be allowed to take as long as Duffel takes.
+       *
+       * Eight seconds is right for a vendor that answers from an index. It
+       * is wrong for one that polls airlines: every live flight call was
+       * being aborted at eight seconds and a live search came back with
+       * nothing, which looked like an empty market rather than a timeout.
+       *
+       * Twelve, not twenty-five, because it sits just above the supplier
+       * wait above. Duffel usually honours that wait and sometimes does not
+       * - BUD-VIE took twenty seconds having been asked for three - and the
+       * routes that overshoot are dropped rather than held on to. Five
+       * destinations priced in twelve seconds is a better search than six in
+       * twenty, and a route that answered nothing is simply a route with no
+       * trips rather than a number we guessed at.
+       */
+      operationOverrides: { search: { timeoutMs: 12_000 } },
+      /*
+       * The eight-second supplier wait plus a round trip for the page and
+       * Duffel's own overhead. Measured before that wait was asked for, five
+       * cold routes took 11.4s, 6.1s, 20.1s, 20.1s and 5.8s; almost all of
+       * it is the offer request, where Duffel polls the airlines, and the
+       * page fetch that follows is a tenth of a second.
+       *
+       * Declaring it is what lets the search drive this vendor at the four
+       * calls the quota actually allows rather than the one a flat
+       * one-second assumption allowed - thirty a minute times nine seconds a
+       * call is four in flight - so a search's date windows run as one round
+       * instead of four.
+       */
+      typicalLatencyMs: 9_000,
     };
   }
 
@@ -448,6 +487,29 @@ export class DuffelFlightProvider implements FlightProvider {
           type: 'adult' as const,
         })),
         cabin_class: 'economy' as const,
+        /*
+         * How long Duffel waits for the airlines, in milliseconds.
+         *
+         * The single biggest thing wrong with this adapter. A Duffel offer
+         * request polls every supplier and answers when the slowest one has,
+         * which measured at **twenty seconds** for one route - and at twenty
+         * seconds for six routes in parallel, because the wait is Duffel's,
+         * not ours. Against an eight-second client timeout that meant every
+         * call was aborted and a live flight search returned nothing at all.
+         *
+         * `supplier_timeout` is Duffel's own answer: it returns whatever
+         * arrived in time instead of waiting for the last airline. Fewer
+         * offers, in a fraction of the time, and the ones that arrive first
+         * are real offers rather than a subset we invented.
+         *
+         * Eight seconds is a product decision, not a derived one: it is how
+         * long a person waiting on a search page is willing to give the
+         * airlines. Duffel honours it for most routes and overshoots on
+         * some - BUD-VIE still took twenty - which is why the client timeout
+         * above it is a separate, longer number rather than this one plus a
+         * margin.
+         */
+        supplier_timeout: this.supplierTimeoutMs,
       },
     };
 
@@ -483,9 +545,8 @@ export class DuffelFlightProvider implements FlightProvider {
         return { status: created.status };
       }
 
-      const requestId = (
-        (await created.json()) as { data?: { id?: string }; live_mode?: boolean }
-      )?.data?.id;
+      const requestId = ((await created.json()) as { data?: { id?: string }; live_mode?: boolean })
+        ?.data?.id;
 
       if (!requestId) return { status: 502 };
 

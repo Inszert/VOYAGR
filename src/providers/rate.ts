@@ -16,9 +16,17 @@
  * issue about `n x 60 / seconds-per-call` calls a minute, so holding to `R`
  * per minute needs `n <= R x seconds-per-call / 60`.
  *
- * Taking one second as the floor for a real travel API call - a search
+ * One second is the floor when nobody has measured the vendor - a search
  * against a live flight vendor is rarely faster, and assuming faster is the
- * unsafe direction - gives `n = R / 60`. That is the number below.
+ * unsafe direction - which gives `n = R / 60`.
+ *
+ * When an adapter *has* measured itself, `typicalLatencyMs` replaces the
+ * floor, and the same inequality does something better than throttle: Duffel
+ * allows thirty calls a minute and takes about four and a half seconds to
+ * answer, so `30 x 4.5 / 60` is two in flight rather than the one the flat
+ * floor allowed. The quota is still respected - two calls of four and a half
+ * seconds is twenty-six a minute - and the search stops being half as fast as
+ * the vendor permits.
  *
  * **What this does not do:** protect a provider whose calls return in
  * milliseconds. Nothing short of a token bucket can, and building one needs a
@@ -27,7 +35,13 @@
  * few seconds, and stop a vendor that allows sixty calls a minute being hit
  * with six at once.
  */
-export function concurrencyFor(rateLimitPerMinute: number | null, ceiling: number): number {
+export const ASSUMED_CALL_MS = 1_000;
+
+export function concurrencyFor(
+  rateLimitPerMinute: number | null,
+  ceiling: number,
+  typicalLatencyMs: number | null = null,
+): number {
   if (!Number.isSafeInteger(ceiling) || ceiling < 1) {
     throw new RangeError(`concurrencyFor() requires a ceiling of at least 1, received ${ceiling}`);
   }
@@ -47,6 +61,59 @@ export function concurrencyFor(rateLimitPerMinute: number | null, ceiling: numbe
     );
   }
 
+  const seconds = callSeconds(typicalLatencyMs);
+
   // At least one, or the provider could never be called at all.
-  return Math.max(1, Math.min(ceiling, Math.floor(rateLimitPerMinute / 60)));
+  return Math.max(1, Math.min(ceiling, Math.floor((rateLimitPerMinute * seconds) / 60)));
+}
+
+/** A call's duration in seconds: what was measured, or the assumed floor. */
+function callSeconds(typicalLatencyMs: number | null): number {
+  if (typicalLatencyMs === null || typicalLatencyMs === undefined) return ASSUMED_CALL_MS / 1000;
+
+  if (!Number.isFinite(typicalLatencyMs) || typicalLatencyMs <= 0) {
+    throw new RangeError(
+      `concurrencyFor() requires a positive latency or null, received ${typicalLatencyMs}`,
+    );
+  }
+
+  return typicalLatencyMs / 1000;
+}
+
+/**
+ * How many calls a provider can actually serve inside a wall-clock budget.
+ *
+ * The companion to `concurrencyFor`, and the reason the measurement is worth
+ * having twice. A limiter decides how many calls run at once; this decides
+ * how many there should be in the first place, because a fan-out planned for
+ * mocks is a fan-out planned against a provider that costs nothing.
+ *
+ * Eight date windows is eight flight calls. Against an in-process mock that
+ * is instant; against a vendor answering in four and a half seconds, two at
+ * a time, it is eighteen seconds of somebody watching a spinner. This returns
+ * the number of calls that fit instead - and the caller then prices *those*
+ * dates rather than pretending it looked at the rest.
+ *
+ * Never returns zero: a search that can afford no calls is not a faster
+ * search, it is a broken one.
+ */
+export function callsWithin(
+  timeBudgetMs: number,
+  concurrency: number,
+  typicalLatencyMs: number | null,
+): number {
+  if (!Number.isFinite(timeBudgetMs) || timeBudgetMs <= 0) {
+    throw new RangeError(`callsWithin() requires a positive time budget, received ${timeBudgetMs}`);
+  }
+
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new RangeError(
+      `callsWithin() requires a concurrency of at least 1, received ${concurrency}`,
+    );
+  }
+
+  const perCallMs = callSeconds(typicalLatencyMs) * 1000;
+
+  // Rounds of `concurrency` calls, each taking one call's time.
+  return Math.max(1, Math.floor(timeBudgetMs / perCallMs) * concurrency);
 }

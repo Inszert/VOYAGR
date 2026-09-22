@@ -10,7 +10,8 @@ import { summariseDestinations } from './destinations';
 import { AppError, isAppError } from '@/lib/errors';
 import { err, ok } from '@/lib/result';
 import { createLimiterPool, type LimiterPool } from '@/lib/concurrency';
-import { concurrencyFor } from '@/providers/rate';
+import { callsWithin, concurrencyFor } from '@/providers/rate';
+import { resolvePolicy } from '@/providers/policy';
 import { convert, fixedRates, type ConversionFailure, type RateSource } from '@/core/fx';
 import type { CurrencyCode } from '@/core/money';
 import { DEFAULT_FRESHNESS, freshnessOf, weakestFreshness } from '@/core/freshness';
@@ -27,6 +28,7 @@ import type {
   FlightProvider,
   HotelProvider,
   ProviderKind,
+  ProviderMetadata,
   ProviderPage,
   ProviderRequestOptions,
   ProviderResult,
@@ -153,6 +155,25 @@ interface CallContext {
 /** A call context, plus what the provider says it will tolerate. */
 interface CallTarget extends CallContext {
   readonly rateLimitPerMinute: number | null;
+  /** What a call to this vendor was measured to take; null when unmeasured. */
+  readonly typicalLatencyMs: number | null;
+}
+
+/**
+ * The two numbers that decide how hard a provider may be driven.
+ *
+ * Read off the adapter together, because they only mean anything together:
+ * a quota bounds calls per minute, a measured duration says how many of
+ * those can be in flight at once without breaching it.
+ */
+function pacing(metadata: ProviderMetadata): {
+  rateLimitPerMinute: number | null;
+  typicalLatencyMs: number | null;
+} {
+  return {
+    rateLimitPerMinute: metadata.rateLimitPerMinute,
+    typicalLatencyMs: metadata.typicalLatencyMs ?? null,
+  };
 }
 
 /**
@@ -169,7 +190,7 @@ async function callProvider<T>(
   budget: CallBudget,
   run: () => Promise<ProviderResult<T>>,
 ): Promise<T | null> {
-  const { rateLimitPerMinute, ...context } = target;
+  const { rateLimitPerMinute, typicalLatencyMs, ...context } = target;
 
   /*
    * The ceiling, checked before the call rather than after it.
@@ -206,7 +227,7 @@ async function callProvider<T>(
      */
     const limiter = budget.pool.for(
       context.providerId,
-      concurrencyFor(rateLimitPerMinute, budget.concurrency),
+      concurrencyFor(rateLimitPerMinute, budget.concurrency, typicalLatencyMs),
     );
 
     const result = await limiter.run(run);
@@ -284,13 +305,31 @@ function screenList<T>(
   return accepted;
 }
 
-function requestOptions(plan: SearchPlan, requestId: string | undefined): ProviderRequestOptions {
+/**
+ * The per-call options one provider gets.
+ *
+ * The timeout is the vendor's when the vendor declared one, and the product's
+ * otherwise. `resolvePolicy` has encoded that rule since the live-provider
+ * research and nothing read it, which is how a flight vendor that polls
+ * airlines for twelve seconds came to be held to the eight a mock needs:
+ * every live call was aborted, and an aborted search looks exactly like a
+ * market with no flights in it.
+ */
+function requestOptions(
+  plan: SearchPlan,
+  requestId: string | undefined,
+  metadata?: ProviderMetadata,
+): ProviderRequestOptions {
+  const timeoutMs = metadata?.operationOverrides?.search
+    ? resolvePolicy('search', metadata).timeoutMs
+    : plan.limits.providerTimeoutMs;
+
   return {
     ...(requestId ? { requestId } : {}),
-    timeoutMs: plan.limits.providerTimeoutMs,
+    timeoutMs,
     // A live adapter that honours the signal stops work the moment the budget
     // is spent. A mock ignores it, which is why `timeoutMs` is sent as well.
-    signal: AbortSignal.timeout(plan.limits.providerTimeoutMs),
+    signal: AbortSignal.timeout(timeoutMs),
   };
 }
 
@@ -327,7 +366,7 @@ async function fetchDestinationContexts(
           {
             kind: 'weather',
             providerId: deps.weather.metadata.id,
-            rateLimitPerMinute: deps.weather.metadata.rateLimitPerMinute,
+            ...pacing(deps.weather.metadata),
             scope: `weather:${destination}`,
           },
           issues,
@@ -342,7 +381,7 @@ async function fetchDestinationContexts(
           {
             kind: 'transfers',
             providerId: deps.transfers.metadata.id,
-            rateLimitPerMinute: deps.transfers.metadata.rateLimitPerMinute,
+            ...pacing(deps.transfers.metadata),
             scope: `transfers:${destination}`,
           },
           issues,
@@ -404,7 +443,7 @@ async function fetchFlightsForWindow(
   const context = {
     kind: 'flights' as const,
     providerId: deps.flights.metadata.id,
-    rateLimitPerMinute: deps.flights.metadata.rateLimitPerMinute,
+    ...pacing(deps.flights.metadata),
     scope: `flights:${window.departureDate}..${window.returnDate}`,
   };
 
@@ -425,7 +464,7 @@ async function fetchFlightsForWindow(
             maxResults: plan.limits.maxFlightOffersPerRoute * plan.destinations.length,
             ...(cursor ? { cursor } : {}),
           },
-          requestOptions(plan, request.requestId),
+          requestOptions(plan, request.requestId, deps.flights.metadata),
         ),
       );
 
@@ -456,7 +495,7 @@ async function fetchHotels(
   const context = {
     kind: 'hotels' as const,
     providerId: deps.hotels.metadata.id,
-    rateLimitPerMinute: deps.hotels.metadata.rateLimitPerMinute,
+    ...pacing(deps.hotels.metadata),
     scope: `hotels:${destination}:${window.departureDate}..${window.returnDate}`,
   };
 
@@ -482,7 +521,7 @@ async function fetchHotels(
             // those filters to this budget before we see anything.
             maxResults: plan.limits.maxHotelOffersPerDestination * 3,
           },
-          requestOptions(plan, request.requestId),
+          requestOptions(plan, request.requestId, deps.hotels.metadata),
         ),
       );
 
@@ -727,6 +766,58 @@ function groupByArrival(offers: readonly FlightOffer[]): Map<AirportCode, Flight
 }
 
 /**
+ * Narrow the plan to the number of date windows the flight vendor can serve.
+ *
+ * Each date window is one flight call. How many of those fit inside the
+ * search's time budget is not a property of the request - it is a property of
+ * whoever is answering: an in-process mock serves eight instantly, and Duffel,
+ * which allows thirty calls a minute and takes about four and a half seconds
+ * to answer one, serves four. Planning eight against Duffel does not find more
+ * trips, it just makes somebody wait twice as long for the same ones.
+ *
+ * The narrowing is a **plan** change, not a result filter, and that is the
+ * point. `buildDateBreakdown` reports on `plan.dateWindows`, so a window that
+ * was dropped here is a window it never claims to have priced. Dropping the
+ * work but keeping the window would print "nothing found on those dates" for
+ * dates nobody asked about.
+ *
+ * Sampling keeps the first and last window, so the dates that are priced still
+ * span the whole travel window and `plan.earliestDate`/`latestDate` - which is
+ * what the weather and transfer calls are cut to - stay true.
+ */
+function narrowToTimeBudget(
+  plan: SearchPlan,
+  flights: FlightProvider,
+  request: SearchRequest,
+): SearchPlan {
+  const { rateLimitPerMinute, typicalLatencyMs } = flights.metadata;
+
+  const affordable = callsWithin(
+    plan.limits.searchTimeBudgetMs,
+    concurrencyFor(rateLimitPerMinute, plan.limits.providerConcurrency, typicalLatencyMs ?? null),
+    typicalLatencyMs ?? null,
+  );
+
+  if (affordable >= plan.dateWindows.length) return plan;
+
+  log.info(
+    {
+      provider: flights.metadata.id,
+      planned: plan.dateWindows.length,
+      affordable,
+      rateLimitPerMinute,
+      typicalLatencyMs,
+    },
+    'date windows narrowed to what the flight provider can serve in the time budget',
+  );
+
+  return buildSearchPlan({
+    ...request,
+    limits: { ...request.limits, maxDateWindows: affordable },
+  });
+}
+
+/**
  * Run a complete search.
  *
  * @throws AppError VALIDATION_ERROR when the request cannot describe any trip.
@@ -739,11 +830,17 @@ export async function runSearch(
 ): Promise<SearchOutcome> {
   // The plan is built before the providers are resolved, so an invalid request
   // fails on its own terms rather than on a configuration error.
-  const plan = buildSearchPlan(request);
+  const planned = buildSearchPlan(request);
 
   const deps: SearchDependencies = { ...defaultDependencies(), ...dependencies };
   const now = deps.now ?? Date.now;
   const startedAt = now();
+
+  // ...and then rebuilt once the flight vendor is known, because how many
+  // date windows are worth planning is a fact about that vendor. Rebuilt
+  // rather than edited: a plan whose `dateWindows` no longer agree with its
+  // own `limits` is a plan nobody can reason about afterwards.
+  const plan = narrowToTimeBudget(planned, deps.flights, request);
 
   const issues: ProviderIssue[] = [];
   /*

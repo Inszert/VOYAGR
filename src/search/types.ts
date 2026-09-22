@@ -79,6 +79,23 @@ export interface SearchLimits {
    */
   readonly maxProviderCalls: number;
   readonly providerTimeoutMs: number;
+  /**
+   * Wall-clock the provider fan-out is planned to fit inside.
+   *
+   * Not a timeout - nothing is cancelled when it passes. It is an input to
+   * *how much is asked for*: a date window costs one flight call, and how
+   * many calls fit in twelve seconds depends entirely on the vendor serving
+   * them. Against a mock, all eight windows fit and nothing changes. Against
+   * Duffel at thirty calls a minute and four and a half seconds a call, four
+   * fit, so four are planned and four are priced.
+   *
+   * The distinction matters: the plan is narrowed, so the date breakdown
+   * reports on exactly the windows that were actually priced. A window that
+   * was never asked about must never appear as a window that came back
+   * empty - that is the difference between "nothing on those dates" and "we
+   * did not look".
+   */
+  readonly searchTimeBudgetMs: number;
 }
 
 /**
@@ -106,6 +123,7 @@ export const DEFAULT_SEARCH_LIMITS: SearchLimits = {
   providerConcurrency: 6,
   maxProviderCalls: 120,
   providerTimeoutMs: 8_000,
+  searchTimeBudgetMs: 12_000,
 };
 
 export interface SearchRequest {

@@ -541,6 +541,60 @@ describe('runSearch diagnostics and bounds', () => {
   it('rejects a request that cannot describe a trip before calling a provider', async () => {
     await expect(search({ destinations: [] })).rejects.toThrow(AppError);
   });
+
+  it('plans only the date windows a slow vendor can serve in the time budget', async () => {
+    const slow = createMockFlightProvider();
+    const request: Partial<SearchRequest> = {
+      profile: buildProfile({
+        earliestDeparture: '2026-06-01',
+        latestReturn: '2026-08-31',
+        minNights: 4,
+        maxNights: 10,
+      }),
+      destinations: ['AYT'],
+    };
+
+    const fast = await search(request);
+    expect(fast.diagnostics.plan.dateWindows).toHaveLength(DEFAULT_SEARCH_LIMITS.maxDateWindows);
+
+    // Thirty calls a minute, four and a half seconds a call: two in flight,
+    // two rounds inside twelve seconds. Eight windows against this vendor is
+    // eighteen seconds of waiting for the same trips.
+    const throttled = await search(request, {
+      flights: {
+        // Delegating rather than spreading: the mock is a class, and a spread
+        // of one answers nothing.
+        metadata: { ...slow.metadata, rateLimitPerMinute: 30, typicalLatencyMs: 4_500 },
+        checkHealth: (options) => slow.checkHealth(options),
+        searchFlights: (query, options) => slow.searchFlights(query, options),
+      },
+    });
+
+    expect(throttled.diagnostics.plan.dateWindows).toHaveLength(4);
+
+    // The narrowing is a plan change, not a result filter: the breakdown
+    // reports on exactly what was priced, so no window can appear as "nothing
+    // found" when nobody asked about it.
+    expect(throttled.diagnostics.plan.limits.maxDateWindows).toBe(4);
+    expect(throttled.diagnostics.plan.dateWindowsAvailable).toBeGreaterThan(50);
+
+    // And the priced dates still span the whole travel window rather than
+    // being the first four - which is what the weather and transfer calls are
+    // cut to.
+    expect(throttled.diagnostics.plan.earliestDate).toBe(fast.diagnostics.plan.earliestDate);
+    expect(throttled.diagnostics.plan.latestDate).toBe(fast.diagnostics.plan.latestDate);
+    expect(throttled.results.length).toBeGreaterThan(0);
+  });
+
+  it('leaves the plan alone for a provider that can serve all of it', async () => {
+    // Every mock declares no rate limit and no measured latency, so nothing
+    // about the existing fan-out changes.
+    const outcome = await search({ destinations: ['AYT'] });
+
+    expect(outcome.diagnostics.plan.dateWindows.length).toBe(
+      Math.min(DEFAULT_SEARCH_LIMITS.maxDateWindows, outcome.diagnostics.plan.dateWindowsAvailable),
+    );
+  });
 });
 
 /**
