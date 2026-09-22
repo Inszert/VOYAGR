@@ -96,7 +96,7 @@ export const DateField = React.forwardRef<HTMLInputElement, DateFieldProps>(func
         {required ? (
           <>
             {' '}
-            <span aria-hidden="true" className="text-critical-500">
+            <span aria-hidden="true" className="text-critical-ink">
               *
             </span>
             <span className="sr-only">(required)</span>
@@ -221,7 +221,7 @@ export const DateField = React.forwardRef<HTMLInputElement, DateFieldProps>(func
         id={errorId}
         role="alert"
         aria-live="polite"
-        className="text-critical-500 text-sm empty:hidden"
+        className="text-critical-ink text-sm empty:hidden"
       >
         {error}
       </p>

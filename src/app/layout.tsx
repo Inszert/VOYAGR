@@ -3,6 +3,8 @@ import { Inter, Playfair_Display } from 'next/font/google';
 import { SkipLink } from '@/components/ui';
 import { AccountNav } from '@/components/auth/account-nav';
 import { SiteHeader } from '@/components/shell/site-header';
+import { DataSourceSwitch } from '@/components/dev/data-source-switch';
+import { getActiveDataSource } from '@/providers/request-source';
 import { SeasonalAmbience } from '@/components/discovery/seasonal-ambience';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
 import './globals.css';
@@ -45,7 +47,7 @@ export const viewport: Viewport = {
   themeColor: '#05070e',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <meta
@@ -62,6 +64,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <div className="flex min-h-dvh flex-col">
           <SiteHeader>
+            {/*
+              Developer infrastructure, rendered on the server so the client
+              never learns which vendor is configured. It removes itself in
+              production unless DATA_SOURCE_SWITCH says otherwise.
+            */}
+            <DataSourceSwitch source={await getActiveDataSource()} />
             <AccountNav />
           </SiteHeader>
 

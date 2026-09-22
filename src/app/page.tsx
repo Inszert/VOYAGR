@@ -238,7 +238,11 @@ export default async function DiscoverPage({
         </section>
       ) : null}
 
-      <TrustStrip provenance={page.provenance} noticeShown={page.outcome !== null} />
+      <TrustStrip
+        provenance={page.provenance}
+        sources={page.sources}
+        noticeShown={page.outcome !== null}
+      />
     </div>
   );
 }

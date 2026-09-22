@@ -130,7 +130,12 @@ export function SiteHeader({ children }: SiteHeaderProps) {
           })}
         </nav>
 
-        <div className="stage-scope">{children}</div>
+        {/*
+          The account navigation and, in development, the data-source switch.
+          Both are rendered on the server and handed in, because nothing in
+          this header may read the session or the environment.
+        */}
+        <div className="stage-scope flex items-center gap-3">{children}</div>
       </div>
     </header>
   );

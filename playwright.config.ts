@@ -102,6 +102,14 @@ export default defineConfig({
        * blanked as well, so the registry cannot be talked into a live
        * adapter by a variable that survived.
        */
+      /*
+       * The data-source switch is on, so the suite can assert on it.
+       *
+       * `next start` runs in production mode, where the switch hides itself.
+       * Turning it on here is what the flag is for - and it is also the
+       * shape a deployment would use to expose it deliberately.
+       */
+      DATA_SOURCE_SWITCH: 'true',
       FLIGHT_PROVIDER: 'mock',
       HOTEL_PROVIDER: 'mock',
       WEATHER_PROVIDER: 'mock',

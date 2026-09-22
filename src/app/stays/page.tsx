@@ -10,6 +10,7 @@ import { getStayProviders } from '@/providers/stays/registry';
 import { provenanceForMode, type SourceAttribution } from '@/core/trip/provenance';
 import { loadStaySearch, stayHref, type StayParams } from '@/search/stays/load-stays';
 import type { IsoDate } from '@/core/trip/types';
+import { getActiveDataSource } from '@/providers/request-source';
 
 /**
  * The stay search, as one flow.
@@ -49,7 +50,10 @@ export default async function StaysPage({
    * into a `Date` for arithmetic.
    */
   const today = new Date().toISOString().slice(0, 10) as IsoDate;
-  const view = await loadStaySearch(params, today);
+  // Read once and passed down, like every other page: the vendors that
+  // answered and the vendors named on the page have to be the same ones.
+  const dataSource = await getActiveDataSource();
+  const view = await loadStaySearch(params, today, dataSource.effective);
 
   /*
    * Who answered, named on the page.
@@ -58,14 +62,16 @@ export default async function StaysPage({
    * shown whether or not anything was found: a page of demo hotels that does
    * not say so is the one outcome this product will not ship.
    */
-  const sources: SourceAttribution[] = getStayProviders().map((provider) => ({
-    part: 'stays',
-    providerId: provider.metadata.id,
-    displayName: provider.metadata.displayName,
-    provenance: provenanceForMode(
-      provider.metadata.mode ?? (provider.metadata.isMock ? 'mock' : 'live'),
-    ),
-  }));
+  const sources: SourceAttribution[] = getStayProviders(undefined, dataSource.effective).map(
+    (provider) => ({
+      part: 'stays',
+      providerId: provider.metadata.id,
+      displayName: provider.metadata.displayName,
+      provenance: provenanceForMode(
+        provider.metadata.mode ?? (provider.metadata.isMock ? 'mock' : 'live'),
+      ),
+    }),
+  );
 
   /*
    * Flights and a stay, on one page, with two independent sets of dates.
@@ -224,12 +230,21 @@ export default async function StaysPage({
                 Nothing came back for these dates. Try changing them above.
               </p>
             ) : (
-              <ul className="flex flex-col gap-3">
-                {view.stays.map((stay) => (
-                  <li key={stay.key}>
+              /*
+                As many across as fit, and never a half-empty row.
+
+                The same grid the destination rail uses, for the same reason:
+                a search that comes back with three hotels should be three
+                wide cards, not three cards packed left against a gap that
+                reads as a loading state.
+              */
+              <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(250px,100%),1fr))] gap-5">
+                {view.stays.map((stay, index) => (
+                  <li key={stay.key} className="flex">
                     <StayCard
                       stay={stay}
                       nights={view.nights}
+                      priority={index < 3}
                       href={stayHref(params, { property: stay.key, reference: undefined })}
                     />
                   </li>

@@ -1,5 +1,5 @@
 import { Container, DemoDataNotice, Icon, type IconName } from '@/components/ui';
-import type { DataProvenance } from '@/core/trip/provenance';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 
 /**
  * Three sentences that earn the globe.
@@ -13,6 +13,8 @@ import type { DataProvenance } from '@/core/trip/provenance';
 
 export interface TrustStripProps {
   provenance: DataProvenance;
+  /** Named in the notice, so it can say which parts are demo data. */
+  sources?: readonly SourceAttribution[];
   /** True when the results list already carries the notice, so it is not shown twice. */
   noticeShown?: boolean;
 }
@@ -35,14 +37,16 @@ const ITEMS: readonly { icon: IconName; title: string; body: string }[] = [
   },
 ];
 
-export function TrustStrip({ provenance, noticeShown = false }: TrustStripProps) {
+export function TrustStrip({ provenance, sources = [], noticeShown = false }: TrustStripProps) {
   return (
     <Container size="wide" as="section" aria-labelledby="trust-heading" className="pb-16">
       <h2 id="trust-heading" className="sr-only">
         How Voyagr works
       </h2>
 
-      {provenance === 'mock' && !noticeShown ? <DemoDataNotice className="mb-8" /> : null}
+      {provenance === 'mock' && !noticeShown ? (
+        <DemoDataNotice sources={sources} className="mb-8" />
+      ) : null}
 
       <ul className="grid gap-6 sm:grid-cols-3">
         {ITEMS.map((item) => (

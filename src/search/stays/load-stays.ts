@@ -5,6 +5,7 @@ import { nightsIn, type StayQuery, type StayRate } from '@/core/stay/types';
 import type { IsoDate } from '@/core/trip/types';
 import { createLimiter } from '@/lib/concurrency';
 import { getStayProviders } from '@/providers/stays/registry';
+import type { DataSource } from '@/providers/data-source';
 import { searchAllStays, type StayFanoutFailure } from '@/providers/stays/fanout';
 import { exploreStayDates, type StayDatePrice } from './calendar';
 
@@ -115,9 +116,15 @@ export function parseStayParams(
   };
 }
 
-export async function loadStaySearch(params: StayParams, today: IsoDate): Promise<StayViewModel> {
+export async function loadStaySearch(
+  params: StayParams,
+  today: IsoDate,
+  source: DataSource = 'api',
+): Promise<StayViewModel> {
   const { query, errors } = parseStayParams(params, today);
-  const providers = getStayProviders();
+  // Which vendors answer, chosen by the runtime data-source switch. `mock`
+  // is the fixture list whatever is configured; `api` is the configuration.
+  const providers = getStayProviders(undefined, source);
 
   const step: StayStep = params.property
     ? 'property'

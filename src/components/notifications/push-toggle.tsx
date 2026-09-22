@@ -170,7 +170,7 @@ export function PushToggle({ vapidPublicKey }: PushToggleProps) {
 
       <p className="text-ink-muted mt-1 text-sm">{describe(state)}</p>
 
-      <p role="alert" aria-live="polite" className="text-critical-500 mt-2 text-sm empty:hidden">
+      <p role="alert" aria-live="polite" className="text-critical-ink mt-2 text-sm empty:hidden">
         {error}
       </p>
 

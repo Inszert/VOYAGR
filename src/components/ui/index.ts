@@ -11,7 +11,13 @@
 
 export { AmountSlider, roomFor, type AmountSliderProps } from './amount-slider';
 export { Badge, type BadgeProps, type BadgeTone } from './badge';
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
+export {
+  Button,
+  type ButtonProps,
+  type ButtonShape,
+  type ButtonSize,
+  type ButtonVariant,
+} from './button';
 export {
   Card,
   CardDescription,
@@ -37,7 +43,10 @@ export {
   PopoverTrigger,
   type PopoverPanelProps,
 } from './popover';
+export { FactGrid, type Fact, type FactGridProps } from './fact-grid';
 export { Icon, type IconName, type IconProps } from './icon';
+export { Media, washFor, type MediaImage, type MediaProps, type MediaScrim } from './media';
+export { Price, type PriceProps, type PriceSize } from './price';
 export {
   RadioChip,
   Tag,

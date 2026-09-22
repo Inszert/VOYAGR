@@ -67,8 +67,16 @@ interface Entry {
  * is included - profile, destinations, limits - and `Money` serialises as its
  * minor units and currency, never as a formatted string.
  */
-export function searchCacheKey(request: SearchRequest): string {
-  return stableStringify(request);
+export function searchCacheKey(request: SearchRequest, scope = ''): string {
+  /*
+   * `scope` is everything outside the request that changes the answer.
+   *
+   * Today that is which data source served it. Two identical requests, one
+   * against the API and one against fixtures, are different results, and a
+   * cache that cannot tell them apart hands back yesterday's API prices the
+   * moment somebody flips the switch to MOCK - under a MOCK label.
+   */
+  return scope ? `${scope}\u0000${stableStringify(request)}` : stableStringify(request);
 }
 
 function stableStringify(value: unknown): string {
@@ -108,9 +116,16 @@ export class SearchCache {
    *
    * A rejected run is never cached: the entry is dropped so the next attempt
    * tries again rather than replaying a failure for the rest of the TTL.
+   *
+   * `scope` separates results that the request alone cannot distinguish -
+   * see `searchCacheKey`.
    */
-  async run(request: SearchRequest, run: () => Promise<SearchOutcome>): Promise<CachedSearch> {
-    const key = searchCacheKey(request);
+  async run(
+    request: SearchRequest,
+    run: () => Promise<SearchOutcome>,
+    scope = '',
+  ): Promise<CachedSearch> {
+    const key = searchCacheKey(request, scope);
     const existing = this.entries.get(key);
     const startedAt = this.now();
 

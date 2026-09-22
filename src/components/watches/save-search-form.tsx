@@ -59,16 +59,30 @@ export function SaveSearchForm({ query, suggestedName, signedIn, action }: SaveS
   }
 
   return (
-    <Card as="section" aria-labelledby="save-search-heading">
-      <h2 id="save-search-heading" className="text-ink text-lg font-semibold">
-        Keep looking for this trip
-      </h2>
-      <p className="text-ink-muted mt-1 text-sm">
-        We will re-run this search in the background and tell you if a materially better trip turns
-        up.
-      </p>
+    /*
+      Side by side once there is room for it.
 
-      <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3">
+      Stacked, this was a heading, a paragraph, a field and a button running
+      down the page - four rows of vertical height for one small decision,
+      sitting under a page that is already long. The two halves are the same
+      markup in either layout; only the axis changes.
+    */
+    <Card
+      as="section"
+      aria-labelledby="save-search-heading"
+      className="lg:flex lg:items-end lg:justify-between lg:gap-8"
+    >
+      <div className="lg:max-w-md">
+        <h2 id="save-search-heading" className="text-ink text-lg font-semibold">
+          Keep looking for this trip
+        </h2>
+        <p className="text-ink-muted mt-1 text-sm">
+          We will re-run this search in the background and tell you if a materially better trip
+          turns up.
+        </p>
+      </div>
+
+      <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 lg:mt-0">
         <input type="hidden" name="query" value={query} />
 
         <div className="min-w-64 flex-1">
@@ -84,11 +98,20 @@ export function SaveSearchForm({ query, suggestedName, signedIn, action }: SaveS
         <Button type="submit" loading={pending}>
           {pending ? 'Saving…' : 'Watch this trip'}
         </Button>
-      </form>
 
-      <p role="alert" aria-live="polite" className="text-critical-500 mt-2 text-sm empty:hidden">
-        {state.error}
-      </p>
+        {/*
+          `--color-critical-500` is the ramp value, which is dark enough to
+          drop under 4.5:1 on a dark surface. The `-ink` token is the one
+          meant for this side of the palette.
+        */}
+        <p
+          role="alert"
+          aria-live="polite"
+          className="text-critical-ink w-full text-sm empty:hidden"
+        >
+          {state.error}
+        </p>
+      </form>
     </Card>
   );
 }

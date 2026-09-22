@@ -6,6 +6,7 @@ import {
   PROVENANCE_EXPLANATION,
   PROVENANCE_LABEL,
   type DataProvenance,
+  type SourceAttribution,
 } from '@/core/trip/provenance';
 
 /**
@@ -63,13 +64,34 @@ export function ProvenanceBadge({
 }
 
 /**
- * A standing notice that nothing on the page is real.
+ * A standing notice that what is below cannot be bought.
  *
- * Shown whenever the active providers are fixtures. Deliberately not
- * dismissible and deliberately not subtle: a demo that looks like a product is
- * how someone ends up believing a price they cannot buy.
+ * Deliberately not dismissible and deliberately not subtle: a demo that looks
+ * like a product is how someone ends up believing a price they cannot buy.
+ *
+ * **It says which parts.** The combined provenance takes the weakest claim,
+ * so one fixture hotel makes a whole trip "demo data" - which is the right
+ * verdict for the total and the wrong sentence to print underneath it once a
+ * real flight provider is connected. "No travel provider is connected yet"
+ * was true when it was written and became false the day Duffel was wired in,
+ * while the flights on the page were coming back from an actual API.
+ *
+ * So the wording is derived from the sources rather than fixed. Nothing here
+ * is a claim this component made up: every part it names came from an adapter
+ * that reported how it ran.
  */
-export function DemoDataNotice({ className }: { className?: string }) {
+export function DemoDataNotice({
+  sources = [],
+  className,
+}: {
+  /** Who supplied each part. Empty means nothing is known, so say the most. */
+  sources?: readonly SourceAttribution[];
+  className?: string;
+}) {
+  const demo = [...new Set(sources.filter((s) => s.provenance === 'mock').map((s) => s.part))];
+  const real = [...new Set(sources.filter((s) => s.provenance !== 'mock').map((s) => s.part))];
+  const everything = sources.length === 0 || real.length === 0;
+
   return (
     <div
       role="note"
@@ -79,12 +101,37 @@ export function DemoDataNotice({ className }: { className?: string }) {
       )}
     >
       <p className="text-critical-ink text-sm font-semibold">
-        Demo data — these trips are not real
+        {everything ? 'Demo data — these trips are not real' : 'Part of this is demo data'}
       </p>
       <p className="text-ink mt-1 text-sm">
-        No travel provider is connected yet, so every flight, hotel and price below is generated
-        sample data. Nothing here can be booked.
+        {everything ? (
+          <>
+            No travel provider is connected yet, so every flight, hotel and price below is generated
+            sample data. Nothing here can be booked.
+          </>
+        ) : (
+          <>
+            The {list(demo)} {demo.length === 1 ? 'is' : 'are'} generated sample data, so no total
+            on this page can be booked. The {list(real)} came from a provider — each price says
+            which one.
+          </>
+        )}
       </p>
     </div>
   );
 }
+
+/** `flights, hotels and transfers`. Oxford-free, because the rest of the copy is. */
+function list(parts: readonly SourceAttribution['part'][]): string {
+  const words = parts.map((part) => PART_NOUN[part]);
+
+  if (words.length <= 1) return words[0] ?? 'data';
+  return `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
+}
+
+const PART_NOUN: Record<SourceAttribution['part'], string> = {
+  flights: 'flights',
+  hotels: 'hotels',
+  stays: 'stays',
+  transfers: 'transfers',
+};

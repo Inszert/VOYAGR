@@ -5,6 +5,8 @@ import { getLogger } from '@/lib/logger';
 import { SearchCache } from '@/search/cache';
 import { listPlaceableDestinations, resolveDestinationNames } from '@/search/destination-names';
 import { runSearch } from '@/search/orchestrator';
+import { dependenciesFor } from '@/search/dependencies';
+import type { DataSource } from '@/providers/data-source';
 import { parseSearchForm } from '@/search/schema';
 import type { SearchOutcome, SearchRequest } from '@/search/types';
 
@@ -95,6 +97,14 @@ export interface DiscoveryInput {
   readonly today: IsoDate;
   /** The visitor's saved preferences as form values, if any. */
   readonly defaults?: Readonly<Record<string, string>>;
+  /**
+   * Which adapters to price it with.
+   *
+   * The snapshot is cached, so this also has to reach the cache key: the
+   * same globe priced from fixtures and from the API is two globes, and one
+   * of them must not be served under the other's label.
+   */
+  readonly source?: DataSource;
 }
 
 /** What the prices were made under, for the rail to state in words. */
@@ -177,24 +187,26 @@ export function describeAssumptions(request: SearchRequest): DiscoveryAssumption
 
 export interface SearchDiscoverySourceOptions {
   readonly cache?: SearchCache;
-  readonly run?: (request: SearchRequest) => Promise<SearchOutcome>;
+  readonly run?: (request: SearchRequest, source: DataSource) => Promise<SearchOutcome>;
 }
 
 export class SearchDiscoverySource implements DiscoverySource {
   private readonly cache: SearchCache;
-  private readonly run: (request: SearchRequest) => Promise<SearchOutcome>;
+  private readonly run: (request: SearchRequest, source: DataSource) => Promise<SearchOutcome>;
 
   constructor(options: SearchDiscoverySourceOptions = {}) {
     this.cache = options.cache ?? new SearchCache({ ttlMs: DISCOVERY_TTL_MS, maxEntries: 50 });
-    this.run = options.run ?? ((request) => runSearch(request));
+    this.run = options.run ?? ((request, source) => runSearch(request, dependenciesFor(source)));
   }
 
   async load(input: DiscoveryInput): Promise<DiscoverySnapshot | null> {
     const request = buildDiscoveryRequest(input);
     if (!request) return null;
 
+    const source = input.source ?? 'api';
+
     try {
-      const cached = await this.cache.run(request, () => this.run(request));
+      const cached = await this.cache.run(request, () => this.run(request, source), source);
 
       return {
         request,

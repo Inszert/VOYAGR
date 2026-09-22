@@ -356,7 +356,7 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
       </p>
 
       {errors.form ? (
-        <p role="alert" className="text-critical-500 mt-3 text-sm">
+        <p role="alert" className="text-critical-ink mt-3 text-sm">
           {errors.form}
         </p>
       ) : null}

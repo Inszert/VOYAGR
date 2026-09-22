@@ -59,7 +59,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
         {required ? (
           <>
             {' '}
-            <span aria-hidden="true" className="text-critical-500">
+            <span aria-hidden="true" className="text-critical-ink">
               *
             </span>
             <span className="sr-only">(required)</span>
@@ -105,7 +105,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
         id={errorId}
         role="alert"
         aria-live="polite"
-        className="text-critical-500 text-sm empty:hidden"
+        className="text-critical-ink text-sm empty:hidden"
       >
         {error}
       </p>

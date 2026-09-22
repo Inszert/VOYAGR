@@ -11,7 +11,10 @@ import {
   DateField,
   DateRangeField,
   EmptyState,
+  FactGrid,
   Field,
+  Media,
+  Price,
   Skeleton,
   SkipLink,
   ToggleChip,
@@ -436,5 +439,95 @@ describe('DateRangeField', () => {
 
     expect(screen.getByLabelText('Leaving')).toHaveValue('2026-10-05');
     expect(screen.getByLabelText('Back')).toHaveValue('');
+  });
+});
+
+/**
+ * The image container.
+ *
+ * What is asserted here is what it promises: a picture whose absence is not a
+ * broken page, and an alternative text that a caller decides rather than one
+ * the component writes.
+ */
+describe('Media', () => {
+  it('renders the photograph with the alternative text it was given', () => {
+    render(<Media seed="AYT" image={{ url: '/api/imagery/AYT', alt: 'The bay at Antalya' }} />);
+
+    expect(screen.getByRole('img', { name: 'The bay at Antalya' })).toBeInTheDocument();
+  });
+
+  it('shows no image at all when the provider returned nothing', () => {
+    // The imagery provider is allowed to return nothing, and that is an
+    // expected condition rather than a failure: the wash stands in for it and
+    // no broken-image icon is ever rendered.
+    const { container } = render(<Media seed="AYT" />);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('[style*="linear-gradient"]')).not.toBeNull();
+  });
+
+  it('keeps a decorative photograph out of the accessible tree', () => {
+    // The card beside it already names the place. A second announcement of
+    // the same name is noise.
+    render(<Media seed="AYT" image={{ url: '/api/imagery/AYT' }} />);
+
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('gives the same place the same colour every time', () => {
+    const first = render(<Media seed="AYT" />).container.innerHTML;
+    const second = render(<Media seed="AYT" />).container.innerHTML;
+    const other = render(<Media seed="BCN" />).container.innerHTML;
+
+    expect(first).toBe(second);
+    expect(first).not.toBe(other);
+  });
+});
+
+describe('Price', () => {
+  it('shows the amount it was given and nothing it worked out', () => {
+    render(<Price amount="€487.00" caption="total · 5 nights" />);
+
+    expect(screen.getByText('€487.00')).toBeInTheDocument();
+    expect(screen.getByText('total · 5 nights')).toBeInTheDocument();
+  });
+
+  it('puts a badge beside the figure rather than in a footnote', () => {
+    render(<Price amount="€487.00" badge={<Badge tone="critical">Demo data</Badge>} />);
+
+    // Same element, so they are read together.
+    expect(screen.getByText('€487.00').textContent).toContain('Demo data');
+  });
+});
+
+describe('FactGrid', () => {
+  it('is a description list of terms and their values', () => {
+    render(
+      <FactGrid
+        facts={[
+          { key: 'flights', label: 'Flights', value: '€338.23' },
+          { key: 'hotel', label: 'Hotel', value: '€509.92' },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Flights')).toBeInTheDocument();
+    expect(screen.getByText('€338.23')).toBeInTheDocument();
+    expect(screen.getByText('Hotel')).toBeInTheDocument();
+  });
+
+  it('renders the detail a fact carries, inside its own value', () => {
+    // A `dl` may only hold `dt` and `dd`, so anything extra belongs inside
+    // the `dd` rather than beside it. axe is right to refuse the alternative.
+    const { container } = render(
+      <FactGrid
+        facts={[
+          { key: 'flights', label: 'Flights', value: '€338.23', detail: <span>DUFFEL</span> },
+        ]}
+      />,
+    );
+
+    const value = container.querySelector('dd');
+    expect(value?.textContent).toContain('DUFFEL');
   });
 });

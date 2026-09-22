@@ -47,7 +47,7 @@ export function CredentialsForm({
           Always mounted, not conditionally rendered: a live region that appears
           at the same moment as its content is often missed by screen readers.
         */}
-        <p role="alert" aria-live="polite" className="text-critical-500 text-sm empty:hidden">
+        <p role="alert" aria-live="polite" className="text-critical-ink text-sm empty:hidden">
           {state.error}
         </p>
 

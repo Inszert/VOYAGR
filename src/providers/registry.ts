@@ -1,5 +1,6 @@
 import { AppError } from '@/lib/errors';
 import { getEnv, type Env } from '@/lib/env';
+import type { DataSource } from './data-source';
 import { getLogger } from '@/lib/logger';
 import { createAviasalesFlightProvider } from './flights/aviasales';
 import { createDuffelFlightProvider } from './flights/duffel';
@@ -201,29 +202,57 @@ function resolvePlacesProvider(env: Env): PlacesProvider {
     : liveProviderNotImplemented('places');
 }
 
-let registry: ProviderRegistry | undefined;
+const registries = new Map<DataSource, ProviderRegistry>();
 
-/** The process-wide registry, built on first use. */
-export function getProviderRegistry(): ProviderRegistry {
-  if (!registry) {
-    registry = new ProviderRegistry(getEnv());
-    log.info(
-      {
-        flights: registry.flights.metadata.id,
-        hotels: registry.hotels.metadata.id,
-        weather: registry.weather.metadata.id,
-        transfers: registry.transfers.metadata.id,
-        places: registry.places.metadata.id,
-        fullyMocked: registry.isFullyMocked(),
-      },
-      'provider registry initialised',
-    );
-  }
+/**
+ * The registry a request is served from.
+ *
+ * Two of them at most, both built once and reused: the configured one, and
+ * the all-fixtures one. Adapters are stateless and hold no per-request
+ * state, so sharing them across requests is what the process-wide registry
+ * already did - this only adds a second entry beside it.
+ *
+ * `mock` is built by overriding the provider names rather than by
+ * constructing fixtures directly, so it goes through exactly the same
+ * resolution the configured registry does and cannot drift from it.
+ */
+export function getProviderRegistry(source: DataSource = 'api'): ProviderRegistry {
+  const existing = registries.get(source);
+  if (existing) return existing;
 
-  return registry;
+  const env = getEnv();
+  const built = new ProviderRegistry(
+    source === 'mock'
+      ? {
+          ...env,
+          FLIGHT_PROVIDER: 'mock',
+          HOTEL_PROVIDER: 'mock',
+          WEATHER_PROVIDER: 'mock',
+          TRANSFER_PROVIDER: 'mock',
+          PLACES_PROVIDER: 'mock',
+        }
+      : env,
+  );
+
+  registries.set(source, built);
+
+  log.info(
+    {
+      source,
+      flights: built.flights.metadata.id,
+      hotels: built.hotels.metadata.id,
+      weather: built.weather.metadata.id,
+      transfers: built.transfers.metadata.id,
+      places: built.places.metadata.id,
+      fullyMocked: built.isFullyMocked(),
+    },
+    'provider registry initialised',
+  );
+
+  return built;
 }
 
-/** Test helper - drops the cached registry so a test can vary configuration. */
+/** Test helper - drops the cached registries so a test can vary configuration. */
 export function resetProviderRegistry(): void {
-  registry = undefined;
+  registries.clear();
 }

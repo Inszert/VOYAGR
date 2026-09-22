@@ -2,7 +2,7 @@ import { format } from '@/core/money';
 import { bestRateFor, ratesOf } from '@/core/stay/comparison';
 import type { CanonicalStay } from '@/core/stay/identity';
 import type { BoardType, StayRate } from '@/core/stay/types';
-import { Icon, SourceTag } from '@/components/ui';
+import { Icon, Media, Price, SourceTag } from '@/components/ui';
 
 /**
  * One property, however many providers are offering it.
@@ -15,6 +15,13 @@ import { Icon, SourceTag } from '@/components/ui';
  * **Everything a provider did not say is said as unavailable.** A missing
  * cancellation policy is the single most expensive thing to guess at, so it
  * reads "not stated" rather than defaulting either way.
+ *
+ * Built like a destination card rather than like a table row: a photograph
+ * with its own band, the name under it, the price anchoring the bottom. A
+ * hotel is a place, and a list of places with a thumbnail beside each one is
+ * a spreadsheet with pictures in it. The whole card is the link - one target,
+ * through the heading's anchor stretched over it, so there is still exactly
+ * one thing in the tab order per card.
  */
 
 export const BOARD_LABEL: Record<BoardType, string> = {
@@ -37,96 +44,110 @@ export interface StayCardProps {
   readonly nights: number;
   /** Link to this property's detail and comparison view. */
   readonly href: string;
+  /** Load the photograph immediately. For the first row only. */
+  readonly priority?: boolean;
 }
 
-export function StayCard({ stay, nights, href }: StayCardProps) {
+export function StayCard({ stay, nights, href, priority = false }: StayCardProps) {
   const best = bestRateFor(stay);
   const rates = ratesOf(stay);
   const providers = new Set(rates.map((rate) => rate.source.providerId));
   const photo = stay.property.photos[0];
 
+  const place = [stay.property.address.city, stay.property.address.countryCode]
+    .filter(Boolean)
+    .join(', ');
+
   return (
-    <article className="border-border bg-surface-raised flex flex-col gap-3 rounded-[--radius-surface] border p-4 sm:flex-row">
-      {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element -- provider URL, not a local asset
-        <img
-          src={photo.url}
-          alt={photo.caption ?? ''}
-          className="h-32 w-full rounded-[--radius-control] object-cover sm:w-44"
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="bg-surface-sunken h-32 w-full rounded-[--radius-control] sm:w-44"
-        />
-      )}
+    <article className="border-border bg-panel ease-standard duration-settled group relative flex h-full w-full flex-col overflow-hidden rounded-[--radius-card] border transition-[border-color,transform] hover:-translate-y-1 hover:border-[--color-accent-ink] motion-reduce:hover:translate-y-0">
+      <Media
+        // Keyed to the property rather than to its name, so the same hotel
+        // keeps its colour when a provider spells it differently.
+        seed={stay.key}
+        image={photo ? { url: photo.url, alt: photo.caption ?? '' } : null}
+        priority={priority}
+        zoomOnHover
+        className="h-[180px] w-full shrink-0"
+      >
+        {stay.property.starRating ? (
+          <span className="border-hairline bg-field/85 text-text absolute top-3 left-3 rounded-[--radius-pill] border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
+            {stay.property.starRating}-star {stay.property.propertyType ?? 'property'}
+          </span>
+        ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-ink text-base font-medium">
-            <a
-              href={href}
-              className="focus-visible:outline-accent-to rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-            >
-              {stay.property.name}
-            </a>
-          </h3>
+        {providers.size > 1 ? (
+          <span className="border-hairline bg-field/85 text-text absolute top-3 right-3 rounded-[--radius-pill] border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
+            {providers.size} providers
+          </span>
+        ) : null}
+      </Media>
 
-          {stay.property.starRating ? (
-            <p className="text-ink-muted text-sm">
-              {stay.property.starRating}-star {stay.property.propertyType ?? 'property'}
-            </p>
-          ) : null}
-        </div>
+      <div className="flex flex-1 flex-col px-4 pt-3.5 pb-4">
+        <h3 className="text-text text-[19px] leading-tight">
+          <a
+            href={href}
+            // Stretched over the card: the picture, the name and the price
+            // are one target, and there is still one stop in the tab order.
+            className="focus-visible:outline-accent-ink after:absolute after:inset-0 after:content-['']"
+          >
+            {stay.property.name}
+          </a>
+        </h3>
 
-        <p className="text-ink-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          {stay.property.address.city ? (
+        <p className="text-muted mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+          {place ? (
             <span className="flex items-center gap-1">
               <Icon name="pin" size={0.9} />
-              {stay.property.address.city}
+              {place}
             </span>
           ) : null}
 
           {stay.property.guestRating ? (
-            <span>
+            <span className="tabular-nums">
               {stay.property.guestRating.outOfTen.toFixed(1)}/10
               {stay.property.guestRating.reviewCount
                 ? ` · ${stay.property.guestRating.reviewCount} reviews`
                 : ''}
             </span>
           ) : (
+            // Not a zero and not four blank stars: a rating nobody supplied.
             <span>No guest rating</span>
           )}
         </p>
 
         {best ? (
-          <div className="mt-auto flex flex-wrap items-end justify-between gap-2">
-            <div className="flex flex-col gap-1">
-              <p className="text-ink-muted text-sm">
-                {best.roomName ?? 'Room'} ·{' '}
-                {best.board ? BOARD_LABEL[best.board] : 'Board not stated'}
-              </p>
-              <p className="text-ink-muted text-sm">{cancellationLabel(best)}</p>
-              <SourceTag source={best.source} className="w-fit" />
-            </div>
+          <>
+            <p className="text-muted mt-3 text-[13px]">
+              {best.roomName ?? 'Room'} ·{' '}
+              {best.board ? BOARD_LABEL[best.board] : 'Board not stated'}
+            </p>
+            <p className="text-muted text-[13px]">{cancellationLabel(best)}</p>
 
-            <div className="text-right">
-              <p className="text-ink text-xl font-semibold tabular-nums">{format(best.total)}</p>
-              <p className="text-ink-muted text-sm tabular-nums">
-                {format(best.perNight)} a night · {nights} nights
-              </p>
-              {providers.size > 1 ? (
-                <a
-                  href={href}
-                  className="text-accent-ink focus-visible:outline-accent-to mt-1 inline-block rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  Compare {providers.size} providers
-                </a>
-              ) : null}
+            {/*
+              The price anchors the bottom of every card in the row, whatever
+              length the name above it ran to. A column of prices that does
+              not line up is a column nobody can compare.
+            */}
+            {/*
+              The source above, the price below, each across the full width.
+
+              Side by side they shared about 250px, which wrapped the
+              caption and left the figure two lines from what it meant. This
+              also lines every price in the row hard against the same right
+              edge, which is what makes a row of them comparable.
+            */}
+            <div className="border-hairline mt-auto flex flex-col gap-2 border-t pt-3.5">
+              <SourceTag source={best.source} className="w-fit" />
+              <Price
+                amount={format(best.total)}
+                caption={`total · ${nights} nights · ${format(best.perNight)} a night`}
+                size="md"
+                align="end"
+              />
             </div>
-          </div>
+          </>
         ) : (
-          <p className="text-caution-ink text-sm">No rates were returned for these dates.</p>
+          <p className="text-caution-ink mt-3 text-sm">No rates were returned for these dates.</p>
         )}
       </div>
     </article>

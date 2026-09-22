@@ -1,4 +1,5 @@
 import { getEnv, type Env } from '@/lib/env';
+import type { DataSource } from '../data-source';
 import { getLogger } from '@/lib/logger';
 import { createMockStayProvider } from './mock';
 import type { StayProvider } from './types';
@@ -29,12 +30,18 @@ const ADAPTERS: Record<string, (env: Env) => StayProvider> = {
   mock: () => createMockStayProvider(),
 };
 
-let cached: StayProvider[] | null = null;
+const cached = new Map<DataSource, StayProvider[]>();
 
-export function getStayProviders(env: Env = getEnv()): StayProvider[] {
-  if (cached) return cached;
+/**
+ * @param source `mock` forces the fixture list, whatever is configured, for
+ *   the runtime data-source switch. It is the same resolution path, with the
+ *   provider list replaced - never a second way of building providers.
+ */
+export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'): StayProvider[] {
+  const existing = cached.get(source);
+  if (existing) return existing;
 
-  const names = (env.STAY_PROVIDERS ?? 'mock')
+  const names = (source === 'mock' ? 'mock' : (env.STAY_PROVIDERS ?? 'mock'))
     .split(',')
     .map((name) => name.trim().toLowerCase())
     .filter(Boolean);
@@ -60,12 +67,13 @@ export function getStayProviders(env: Env = getEnv()): StayProvider[] {
 
   // Never an empty list: a search with no providers is an empty page with no
   // explanation, and the mock is always available.
-  cached = providers.length > 0 ? providers : [createMockStayProvider()];
+  const resolved = providers.length > 0 ? providers : [createMockStayProvider()];
+  cached.set(source, resolved);
 
-  return cached;
+  return resolved;
 }
 
 /** Testing seam. */
 export function resetStayProviders(): void {
-  cached = null;
+  cached.clear();
 }

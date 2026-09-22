@@ -27,6 +27,15 @@ describe('searchCacheKey', () => {
     expect(searchCacheKey(a)).toBe(searchCacheKey(b));
   });
 
+  it('separates the same search run against different data sources', () => {
+    // The runtime switch changes who answers without changing the request.
+    // A cache that cannot tell them apart hands back API prices under a
+    // MOCK label the moment somebody flips it.
+    expect(searchCacheKey(request, 'mock')).not.toBe(searchCacheKey(request, 'api'));
+    expect(searchCacheKey(request, 'api')).not.toBe(searchCacheKey(request));
+    expect(searchCacheKey(request, 'mock')).toBe(searchCacheKey(request, 'mock'));
+  });
+
   it('changes when anything that changes the result changes', () => {
     const base = searchCacheKey(request);
 
@@ -133,5 +142,26 @@ describe('SearchCache', () => {
     }
 
     expect(cache.size).toBe(2);
+  });
+});
+
+describe('SearchCache scoping', () => {
+  it('never serves one data source a result produced by the other', async () => {
+    const cache = new SearchCache();
+
+    const fromApi = await cache.run(request, async () => outcome('api'), 'api');
+    const fromMock = await cache.run(request, async () => outcome('mock'), 'mock');
+
+    const label = (value: { outcome: SearchOutcome }) =>
+      (value.outcome.diagnostics as unknown as { label: string }).label;
+
+    expect(label(fromApi)).toBe('api');
+    expect(fromMock.hit).toBe(false);
+    expect(label(fromMock)).toBe('mock');
+
+    // And switching back still finds the first one rather than re-running it.
+    const again = await cache.run(request, async () => outcome('unused'), 'api');
+    expect(again.hit).toBe(true);
+    expect(label(again)).toBe('api');
   });
 });

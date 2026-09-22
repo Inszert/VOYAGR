@@ -99,7 +99,7 @@ export function AmountSlider({
           {required ? (
             <>
               {' '}
-              <span aria-hidden="true" className="text-critical-500">
+              <span aria-hidden="true" className="text-critical-ink">
                 *
               </span>
               <span className="sr-only">(required)</span>
@@ -169,7 +169,7 @@ export function AmountSlider({
         id={errorId}
         role="alert"
         aria-live="polite"
-        className="text-critical-500 text-sm empty:hidden"
+        className="text-critical-ink text-sm empty:hidden"
       >
         {error}
       </p>

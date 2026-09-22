@@ -1,9 +1,10 @@
 import { format } from '@/core/money';
-import { Container, Icon, ProvenanceBadge } from '@/components/ui';
+import { Button, Container, Icon, Media, ProvenanceBadge } from '@/components/ui';
 import type { DataProvenance } from '@/core/trip/provenance';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import type { RankedTrip } from '@/search/types';
+import { shortDate } from '@/lib/display-date';
 
 /**
  * What to do next, as three panels.
@@ -18,17 +19,6 @@ import type { RankedTrip } from '@/search/types';
  * The photographs name what they show, because a picture used as decoration
  * that a reader takes for the destination is a claim nobody meant to make.
  */
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/**
- * e.g. "6 Jun". Read off the ISO string rather than through `Date`, which is
- * how a trip that leaves on the sixth starts showing the fifth west of
- * Greenwich.
- */
-function shortDate(iso: string): string {
-  return `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
-}
 
 export interface BandPicture {
   readonly code: string;
@@ -51,34 +41,25 @@ export interface NextTripBandProps {
   provenance: DataProvenance;
 }
 
-/** A photograph with its wash underneath, or just the wash. */
+/**
+ * A photograph with its wash underneath, or just the wash.
+ *
+ * Through `Media`, so a place is the same colour here as it is on the rail
+ * and on its result card. It had its own copy of the derivation, and a
+ * fractionally different gradient, which is how one destination ended up
+ * with two identities on one page.
+ */
 function Picture({ picture, className = '' }: { picture: BandPicture | null; className?: string }) {
   if (!picture) return null;
 
-  const hue =
-    [...picture.code].reduce((total, character) => total + character.charCodeAt(0), 0) % 360;
-
   return (
-    <div aria-hidden="true" className={`absolute inset-0 -z-10 ${className}`}>
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `linear-gradient(150deg, oklch(0.5 0.13 ${hue}) 0%, oklch(0.25 0.08 ${(hue + 40) % 360}) 70%)`,
-        }}
-      />
-      {picture.image ? (
-        <img
-          src={imageryUrlFor(picture.code)}
-          alt=""
-          width={picture.image.width}
-          height={picture.image.height}
-          loading="lazy"
-          decoding="async"
-          className="absolute inset-0 size-full object-cover"
-        />
-      ) : null}
-      <div className="from-stage via-stage/70 absolute inset-0 bg-gradient-to-t to-transparent" />
-    </div>
+    <Media
+      aria-hidden="true"
+      seed={picture.code}
+      image={picture.image ? { url: imageryUrlFor(picture.code), alt: '' } : null}
+      scrim="stage"
+      className={`absolute inset-0 -z-10 ${className}`}
+    />
   );
 }
 
@@ -117,24 +98,34 @@ export function NextTripBand({
           <article className="border-stage-glass-border relative isolate flex min-h-[19rem] flex-col justify-end overflow-hidden rounded-[--radius-shell] border p-7">
             <Picture picture={wide} />
 
-            <p className="text-stage-ink-muted text-xs font-semibold tracking-[0.2em] uppercase">
+            {/*
+              White, not `--muted`, because this line sits on a photograph
+              and a photograph can be a bright sky. The muted token is right
+              against a surface whose colour we chose and wrong against one
+              we did not.
+            */}
+            <p className="text-xs font-semibold tracking-[0.2em] text-white/75 uppercase">
               The next adventure awaits
             </p>
             <h3 className="font-display text-display-sm mt-2 max-w-[14ch] text-balance">
               Explore the world your way
             </h3>
-            <p className="text-stage-ink-muted mt-2 max-w-sm text-sm">
+            <p className="mt-2 max-w-sm text-sm text-white/80">
               Turn the globe, open a country, and see what a whole trip there actually costs -
               flights, a hotel and the ride from the airport, together.
             </p>
 
-            <a
-              href={exploreHref}
-              className="voyagr-cta ease-standard duration-quick focus-visible:outline-stage-accent mt-5 inline-flex w-fit items-center gap-2 rounded-[--radius-pill] px-5 py-2.5 text-sm font-semibold transition-[filter,transform] hover:brightness-110 motion-safe:hover:-translate-y-0.5"
+            <Button
+              asChild
+              variant="cta"
+              shape="pill"
+              className="ease-standard duration-quick mt-5 w-fit transition-[filter,transform] hover:brightness-110 motion-safe:hover:-translate-y-0.5"
             >
-              Start exploring
-              <Icon name="arrow-right" size={0.95} />
-            </a>
+              <a href={exploreHref}>
+                Start exploring
+                <Icon name="arrow-right" size={0.95} />
+              </a>
+            </Button>
 
             <Caption picture={wide} />
           </article>
@@ -220,7 +211,8 @@ export function NextTripBand({
             <h3 className="font-display text-2xl leading-tight text-balance">
               More adventures near you
             </h3>
-            <p className="text-stage-ink-muted mt-2 text-sm">
+            {/* On a photograph, like the panel on the left. */}
+            <p className="mt-2 text-sm text-white/80">
               Every place the catalogue can price, on one globe, with what the trip costs on it.
             </p>
 

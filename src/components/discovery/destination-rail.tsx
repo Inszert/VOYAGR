@@ -6,6 +6,7 @@ import { MAP_MODE_LABELS, type DestinationPoint, type MapMode } from '@/discover
 import type { DiscoveryAssumptions } from '@/discovery/snapshot';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
+import { shortDate } from '@/lib/display-date';
 
 /**
  * The destinations, as cards.
@@ -57,17 +58,6 @@ export interface DestinationRailProps {
   controls?: React.ReactNode;
   /** Where "see them all" goes, when this is a trimmed view. */
   viewAllHref?: string;
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/**
- * e.g. "27 Sep". A fixed table rather than the locale, because the ICU data
- * on one machine writes "Sept" and on another "Sep", and a sentence about
- * dates should not depend on which server rendered it.
- */
-function shortDate(iso: string): string {
-  return `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
 }
 
 function describe(assumptions: DiscoveryAssumptions): string {

@@ -1,7 +1,7 @@
 import { ANYWHERE } from '@/search/schema';
 import { addDays, daysBetween } from '@/core/dates';
 import { resolveEntitlements } from '@/core/entitlements';
-import type { DataProvenance } from '@/core/trip/provenance';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { IsoDate, SearchProfile } from '@/core/trip/types';
 import { getCurrentUser } from '@/auth/current-user';
 import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
@@ -29,6 +29,8 @@ import {
   type DiscoveryAssumptions,
 } from './snapshot';
 import { buildStageData, withQuery, type StageData } from './stage-data';
+import { dependenciesFor } from '@/search/dependencies';
+import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-source';
 
 /**
  * Loading a stage page.
@@ -85,6 +87,13 @@ export interface StagePage {
     readonly description: string;
   };
   readonly provenance: DataProvenance;
+  /**
+   * Who supplied each part, so a notice can name what is demo data rather
+   * than declaring the whole page fictional because one fixture is in it.
+   */
+  readonly sources: readonly SourceAttribution[];
+  /** Which adapters answered, and what the switch is set to. */
+  readonly dataSource: ActiveDataSource;
   /** The snapshot was attempted and could not be produced. */
   readonly unpriced: boolean;
   readonly stage: StageData;
@@ -136,6 +145,16 @@ export async function loadStagePage(
   // day it is.
   const today = new Date().toISOString().slice(0, 10);
 
+  /*
+   * Which adapters answer this page.
+   *
+   * Read once, here, and passed down - never looked up again further in.
+   * A second read could disagree with the first if the cookie changed
+   * mid-render, and a page whose globe and whose results came from
+   * different sources is the one thing the switch must never produce.
+   */
+  const dataSource = await getActiveDataSource();
+
   const user = await getCurrentUser();
   const stored = user ? await getRepositories().preferences.find(user.id) : null;
   const defaults = preferencesToFormDefaults(readExplicitPreferences(stored));
@@ -173,7 +192,11 @@ export async function loadStagePage(
       try {
         // Cached at the page, never inside `runSearch`: a Travel Watch
         // refresh exists to find out whether the price moved.
-        const cached = await getSearchCache().run(request, () => runSearch(request));
+        const cached = await getSearchCache().run(
+          request,
+          () => runSearch(request, dependenciesFor(dataSource.effective)),
+          dataSource.effective,
+        );
         outcome = cached.outcome;
         resultAgeMs = cached.ageMs;
       } catch (error) {
@@ -192,9 +215,12 @@ export async function loadStagePage(
   // The stage shows the search when there is one, and the discovery snapshot
   // when there is not. Never both: two answers to "where can I go?" on one
   // page would be two different searches pretending to be one.
-  const snapshot = outcome ? null : await getDiscoverySource().load({ today, defaults });
+  const snapshot = outcome
+    ? null
+    : await getDiscoverySource().load({ today, defaults, source: dataSource.effective });
   const stageOutcome = outcome ?? snapshot?.outcome ?? null;
   const provenance = stageOutcome?.diagnostics.provenance ?? 'unavailable';
+  const sources = stageOutcome?.diagnostics.sources ?? [];
 
   const filters = outcome && profile ? parseFilters(values, profile.targetBudget.currency) : null;
 
@@ -315,6 +341,8 @@ export async function loadStagePage(
       description: describeSeason(model),
     },
     provenance,
+    sources,
+    dataSource,
     unpriced: !outcome && snapshot === null,
     stage,
     carry,

@@ -36,7 +36,16 @@ export function StageControls({
   selected,
 }: StageControlsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+    /*
+      `min-w-0`, because this is a flex item and a flex item does not shrink
+      below its own content by default.
+
+      The ranking row inside scrolls, so it is allowed to be narrow - but the
+      permission has to reach it. Without this the whole group held itself at
+      its widest content and pushed the page 23px wider than a 375px phone,
+      which is a horizontal scrollbar on every mobile view of the front page.
+    */
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
       <nav aria-label="Rank by" className="flex min-w-0 items-center gap-2">
         <span
           aria-hidden="true"

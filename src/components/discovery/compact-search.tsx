@@ -219,7 +219,13 @@ export function CompactSearch({
                   />
                 </Cell>
 
-                <Cell>
+                {/*
+                  Extra left padding, because the swap control is centred on
+                  the rule to this cell's left and reaches fifteen pixels into
+                  it. Without this the circle sits over the first letter of
+                  whatever has been typed.
+                */}
+                <Cell className="sm:pl-6">
                   <AirportInput
                     label="To"
                     name="destinations"

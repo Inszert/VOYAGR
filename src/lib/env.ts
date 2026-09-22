@@ -46,6 +46,14 @@ const envSchema = z.object({
    * failing on the first search.
    */
   FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales', 'duffel']).default('mock'),
+  /**
+   * Offer the runtime API/MOCK switch.
+   *
+   * Deliberately optional rather than defaulted: unset means "on outside
+   * production", which is what `dataSourceSwitchEnabled` reads. A default
+   * here would make the flag look like a setting somebody has to manage.
+   */
+  DATA_SOURCE_SWITCH: booleanish.optional(),
   HOTEL_PROVIDER: providerName,
   WEATHER_PROVIDER: providerName,
   TRANSFER_PROVIDER: providerName,

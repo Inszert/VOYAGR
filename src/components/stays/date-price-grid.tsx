@@ -1,6 +1,8 @@
 import { format } from '@/core/money';
 import type { StayDatePrice } from '@/search/stays/calendar';
 import { cn } from '@/lib/cn';
+import { shortDateRange } from '@/lib/display-date';
+import { Price } from '@/components/ui';
 
 /**
  * What the same stay costs on neighbouring dates.
@@ -26,16 +28,15 @@ export interface DatePriceGridProps {
   readonly hrefFor: (price: StayDatePrice) => string;
 }
 
-/** `10–14 Jun`, in the locale the rest of the product uses. */
+/**
+ * `10 – 14 Jun`.
+ *
+ * Through the shared formatter rather than `toLocaleDateString`: the ICU data
+ * on one machine writes "Sept" and on another "Sep", and the same dates
+ * appear on the cards below this grid.
+ */
 function windowLabel(price: StayDatePrice): string {
-  const day = (iso: string) =>
-    new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'UTC',
-    });
-
-  return `${day(price.checkIn)} – ${day(price.checkOut)}`;
+  return shortDateRange(price.checkIn, price.checkOut);
 }
 
 function differenceLabel(price: StayDatePrice): string | null {
@@ -91,14 +92,12 @@ export function DatePriceGrid({ prices, hrefFor }: DatePriceGridProps) {
                 </span>
 
                 {price.total ? (
-                  <>
-                    <span className="text-ink mt-1 block text-lg font-semibold tabular-nums">
-                      {format(price.total)}
-                    </span>
-                    <span className="text-ink-muted block text-xs tabular-nums">
-                      {price.perNight ? `${format(price.perNight)} a night` : null}
-                    </span>
-                  </>
+                  <Price
+                    className="mt-1"
+                    amount={format(price.total)}
+                    size="md"
+                    caption={price.perNight ? `${format(price.perNight)} a night` : null}
+                  />
                 ) : (
                   /*
                    * Said in words, not left blank. A blank cell reads as a

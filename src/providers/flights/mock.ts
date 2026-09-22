@@ -77,6 +77,21 @@ function buildLeg(
   const isBudgetCarrier = carrier.code === 'W6' || carrier.code === 'FR';
   const direct = directOnly || random.chance(0.6);
 
+  /*
+   * Sometimes the vendor simply did not say.
+   *
+   * `FlightLeg.checkedBaggageIncluded` is `boolean | null` because that is
+   * what real feeds are like, and the whole unknown branch hangs off it: a
+   * hard requirement goes unproven rather than unmet, the No-Surprise check
+   * raises `needs_verification` rather than a confirmed warning, scoring
+   * takes half the penalty, and data confidence drops. None of that had a
+   * fixture behind it, so none of it was ever seen on a page.
+   *
+   * One leg in six, deterministically, so a fixture search still produces a
+   * mixture rather than a page where every offer is uncertain.
+   */
+  const baggageUnstated = random.chance(1 / 6);
+
   const departHour = random.int(6, 19);
   const departMinute = random.pick([0, 5, 15, 20, 30, 40, 45, 55]);
   const baseDuration = profile.typicalFlightMinutes;
@@ -97,7 +112,7 @@ function buildLeg(
       ],
       durationMinutes: baseDuration,
       cabinBaggageIncluded: true,
-      checkedBaggageIncluded: !isBudgetCarrier,
+      checkedBaggageIncluded: baggageUnstated ? null : !isBudgetCarrier,
       selfTransfer: false,
     };
   }
@@ -135,7 +150,7 @@ function buildLeg(
     ],
     durationMinutes: totalMinutes,
     cabinBaggageIncluded: true,
-    checkedBaggageIncluded: !isBudgetCarrier,
+    checkedBaggageIncluded: baggageUnstated ? null : !isBudgetCarrier,
     // Separate-ticket connections are the expensive surprise in section 31.5.
     selfTransfer: isBudgetCarrier && random.chance(0.5),
   };
@@ -221,7 +236,9 @@ export class MockFlightProvider implements FlightProvider {
           // missing baggage make an offer cheaper, exactly as in reality.
           const variation = random.float(0.78, 1.34);
           const connectionDiscount = outbound.segments.length > 1 ? 0.88 : 1;
-          const baggageDiscount = outbound.checkedBaggageIncluded ? 1 : 0.82;
+          // Unknown is not a discount. A price is only lower because a bag
+          // is definitely excluded, never because nobody said either way.
+          const baggageDiscount = outbound.checkedBaggageIncluded === false ? 0.82 : 1;
 
           const perPassenger = Math.round(
             profile.baselineFlightCents * variation * connectionDiscount * baggageDiscount,

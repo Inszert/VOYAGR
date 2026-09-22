@@ -1,4 +1,4 @@
-import { Badge, Card, DemoDataNotice, Disclosure } from '@/components/ui';
+import { Badge, Button, DemoDataNotice, Disclosure } from '@/components/ui';
 import { flightAlternatives, hotelAlternatives } from '@/search/alternatives';
 import { explainTrip } from '@/search/explain';
 import { applyFilters, hasActiveFilters, type ResultFilters } from '@/search/filters';
@@ -90,7 +90,7 @@ export function SearchResults({
         Before the results, not after them. A notice that everything below is
         fictional is worthless underneath the fiction.
       */}
-      {diagnostics.provenance === 'mock' ? <DemoDataNotice /> : null}
+      {diagnostics.provenance === 'mock' ? <DemoDataNotice sources={diagnostics.sources} /> : null}
 
       {diagnostics.degraded ? (
         <div
@@ -143,17 +143,18 @@ export function SearchResults({
           title="Your filters hid every trip"
           description={`The search found ${diagnostics.eligibleCount}, and the filters above removed all of them. Loosen one to see them again.`}
           action={
-            <a
-              href={`/?${new URLSearchParams(
-                Object.entries(searchValues).filter(
-                  (entry): entry is [string, string] =>
-                    typeof entry[1] === 'string' && !entry[0].startsWith('f'),
-                ),
-              ).toString()}`}
-              className="text-brand-ink text-sm underline underline-offset-4"
-            >
-              Clear the filters
-            </a>
+            <Button asChild variant="secondary" size="md">
+              <a
+                href={`/?${new URLSearchParams(
+                  Object.entries(searchValues).filter(
+                    (entry): entry is [string, string] =>
+                      typeof entry[1] === 'string' && !entry[0].startsWith('f'),
+                  ),
+                ).toString()}`}
+              >
+                Clear the filters
+              </a>
+            </Button>
           }
         />
       ) : null}
@@ -185,14 +186,34 @@ export function SearchResults({
           ))}
         </ol>
       ) : (
-        <Card>
-          <p className="text-ink text-sm">
-            Nothing came in under your limits.{' '}
-            {nearMisses.length > 0
-              ? 'These were the closest, with what ruled each one out.'
-              : 'Try widening the dates, the budget or the destinations.'}
-          </p>
-        </Card>
+        /*
+          An empty result set is a state, not a sentence in a box.
+
+          It says what happened, and it offers the one thing worth doing
+          next. Widening the dates is that thing: a budget is usually what
+          somebody meant, and the calendar is usually what they can move.
+        */
+        <EmptyState
+          title="Nothing came in under your limits"
+          description={
+            nearMisses.length > 0
+              ? 'These were the closest, and each one says below what ruled it out.'
+              : 'Nothing was found within the dates, the budget and the destinations you set.'
+          }
+          action={
+            <Button asChild variant="secondary" size="md">
+              <a
+                href={`/?${new URLSearchParams(
+                  Object.entries({ ...searchValues, flexibility: 'flexible' }).filter(
+                    (entry): entry is [string, string] => typeof entry[1] === 'string',
+                  ),
+                ).toString()}`}
+              >
+                Try more flexible dates
+              </a>
+            </Button>
+          }
+        />
       )}
 
       {nearMisses.length > 0 ? (

@@ -19,6 +19,16 @@ import { cn } from '@/lib/cn';
 export type ButtonVariant = 'primary' | 'cta' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
+/**
+ * The outline of the control.
+ *
+ * `control` everywhere on the page; `pill` for the few actions that sit on
+ * the stage, beside the globe, where every other control is already a pill.
+ * Two shapes, both named - which is the point. Three call sites had each
+ * hand-rolled the same gradient anchor to get the second one.
+ */
+export type ButtonShape = 'control' | 'pill';
+
 /*
  * There is one filled button in this product and it is the accent gradient.
  *
@@ -46,6 +56,7 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  shape?: ButtonShape;
   /** Render the child element instead of a `<button>`, keeping the styling. */
   asChild?: boolean;
   /** Shows a busy state. The button stays focusable and keeps its label. */
@@ -57,6 +68,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
     className,
     variant = 'primary',
     size = 'md',
+    shape = 'control',
     asChild = false,
     loading = false,
     children,
@@ -75,7 +87,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       aria-busy={loading || undefined}
       disabled={disabled ?? (loading && !asChild)}
       className={cn(
-        'inline-flex items-center justify-center rounded-[--radius-control] font-medium',
+        'inline-flex items-center justify-center font-medium',
+        shape === 'pill' ? 'rounded-[--radius-pill]' : 'rounded-[--radius-control]',
         'transition-colors duration-150',
         'disabled:cursor-not-allowed disabled:opacity-70',
         VARIANT_CLASSES[variant],

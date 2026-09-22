@@ -109,17 +109,34 @@ re-checking its pairing.
 
 In `src/components/ui/`, exported through `index.ts` so the approved set is visible in one place.
 
-| Component   | Notes                                                                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Button`    | Variants and sizes; `asChild` renders a link as an anchor; `loading` sets `aria-busy` and keeps the accessible name                              |
-| `Field`     | Label, hint and error wired through `htmlFor` and `aria-describedby`; error in a live region                                                     |
-| `Card`      | Neutral container; `CardTitle` takes an explicit heading `level`                                                                                 |
-| `Badge`     | Status tones; `srPrefix` adds context colour alone cannot carry                                                                                  |
-| `SkipLink`  | First focusable element on the page                                                                                                              |
-| `Container` | The reading column. `<main>` no longer constrains width, because the stage bleeds; a column page says so, or lives in the `(column)` route group |
+| Component   | Notes                                                                                                                                                          |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`    | Variants and sizes; `asChild` renders a link as an anchor; `loading` sets `aria-busy` and keeps the accessible name                                            |
+| `Field`     | Label, hint and error wired through `htmlFor` and `aria-describedby`; error in a live region                                                                   |
+| `Card`      | Neutral container; `CardTitle` takes an explicit heading `level`                                                                                               |
+| `Badge`     | Status tones; `srPrefix` adds context colour alone cannot carry                                                                                                |
+| `SkipLink`  | First focusable element on the page                                                                                                                            |
+| `Container` | The reading column. `<main>` no longer constrains width, because the stage bleeds; a column page says so, or lives in the `(column)` route group               |
+| `Media`     | A photograph and what stands in for one. Paints a wash derived from a stable seed first, grades the picture over it, and clips a hover scale to its own radius |
+| `Price`     | A formatted amount with its caption. Takes strings, never numbers, and never does arithmetic                                                                   |
+| `FactGrid`  | A short run of labelled facts as one bordered panel with hairlines between the cells                                                                           |
 
 `CardTitle` takes a level rather than assuming one because a card in a results grid and a card that
 is a page's only content sit at different points in the document outline.
+
+`Media`, `Price` and `FactGrid` were each extracted from three call sites that had solved the same
+problem slightly differently, which is how one destination ended up with two colours on one page and
+how a result card ended up looking like a page of cards. Three rules follow from them:
+
+- **A missing photograph is a state, not a failure.** The imagery provider is allowed to return
+  nothing. `Media` paints the wash first and the picture over it, so a card without a photograph is
+  that place's card in that place's colour - never a broken-image icon and never a grey rectangle.
+- **A price is a string by the time it reaches a component.** `format()` produces it from a `Money`
+  in the deterministic core. `Price` decides how large it is and what sits under it, and cannot add
+  two of them together even by accident.
+- **Not everything that groups is a card.** Four bordered, filled tiles inside a bordered card are
+  four boxes, not a hierarchy. `FactGrid` is one panel with rules between its cells, which is the
+  same treatment as the disclosure panel below it on the same card.
 
 ---
 

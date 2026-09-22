@@ -192,8 +192,17 @@ export const searchFormSchema = z.object({
     .number({ error: 'Enter a maximum budget.' })
     .positive('A maximum budget is more than zero.'),
   reserveBudget: optionalNumber('Enter the reserve as a number.'),
-  travelStyle: z.enum(TRAVEL_STYLES),
-  optimisationMode: z.enum(OPTIMISATION_MODES),
+  /*
+   * Named, because an unnamed `z.enum` prints its own alternatives.
+   *
+   * A visitor whose link is missing one of these was shown `Invalid option:
+   * expected one of "balanced"|"full_chill"|"chill"|...` under the field -
+   * a developer's sentence, on a page, in production.
+   */
+  travelStyle: z.enum(TRAVEL_STYLES, { error: 'Choose one of the listed travel styles.' }),
+  optimisationMode: z.enum(OPTIMISATION_MODES, {
+    error: 'Choose one of the listed ways to rank trips.',
+  }),
   requireDirectFlights: checkbox,
   requireCheckedBaggage: checkbox,
   requireFreeCancellation: checkbox,

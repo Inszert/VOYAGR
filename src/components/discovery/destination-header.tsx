@@ -15,6 +15,7 @@ import {
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import { GlobeStage } from './globe-stage';
+import { shortDate } from '@/lib/display-date';
 
 /**
  * The top of a destination's own page.
@@ -45,12 +46,6 @@ export interface DestinationHeaderProps {
    * top of it have to stay readable whatever the photograph happens to be.
    */
   image?: DestinationImage | null;
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function shortDate(iso: string): string {
-  return `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
 }
 
 export function DestinationHeader({

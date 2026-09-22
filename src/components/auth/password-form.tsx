@@ -30,7 +30,7 @@ export function PasswordForm({ action }: PasswordFormProps) {
       </p>
 
       <form action={formAction} className="mt-5 flex max-w-md flex-col gap-4">
-        <p role="alert" aria-live="polite" className="text-critical-500 text-sm empty:hidden">
+        <p role="alert" aria-live="polite" className="text-critical-ink text-sm empty:hidden">
           {state.error}
         </p>
 

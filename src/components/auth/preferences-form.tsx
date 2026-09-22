@@ -60,7 +60,7 @@ export function PreferencesForm({ preferences, action }: PreferencesFormProps) {
       </p>
 
       <form action={formAction} className="mt-5 flex flex-col gap-5">
-        <p role="alert" aria-live="polite" className="text-critical-500 text-sm empty:hidden">
+        <p role="alert" aria-live="polite" className="text-critical-ink text-sm empty:hidden">
           {state.error}
         </p>
         <p role="status" aria-live="polite" className="text-positive-ink text-sm empty:hidden">

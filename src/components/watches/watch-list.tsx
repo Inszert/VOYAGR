@@ -69,7 +69,7 @@ function WatchAction({
       <Button type="submit" size="sm" variant={variant} loading={pending}>
         {label}
       </Button>
-      <span role="alert" className="text-critical-500 block text-sm empty:hidden">
+      <span role="alert" className="text-critical-ink block text-sm empty:hidden">
         {state.error}
       </span>
     </form>
