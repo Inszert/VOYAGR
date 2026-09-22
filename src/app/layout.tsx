@@ -7,32 +7,6 @@ import { SeasonalAmbience } from '@/components/discovery/seasonal-ambience';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
 import './globals.css';
 
-/**
- * Root layout.
- *
- * Establishes the document landmarks every page inherits: a skip link, a banner
- * header, one `<main>` with a stable id, and a contentinfo footer. Pages supply
- * content, never their own landmarks.
- *
- * `<main>` no longer constrains width. The discovery stage bleeds to the
- * viewport edge; every page that reads as a column says so with `Container`,
- * or lives in the `(column)` route group whose layout does it for them.
- */
-
-/*
- * Two faces, self-hosted.
- *
- * `next/font/google` fetches these at build time and serves them from our own
- * origin, so `font-src` stays `'self'`, no reader's browser contacts Google,
- * and there is no layout shift while a stylesheet is fetched from a third
- * party. Both are variable fonts, so every weight in the design comes from one
- * file per face rather than one file per weight.
- *
- * They are exposed as custom properties rather than classes, because the type
- * scale is already expressed as `--font-sans` and `--font-display` tokens that
- * every component reads through `font-sans` and `font-display`. Swapping a
- * face is a change to two lines in `globals.css`, not to a component.
- */
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
@@ -67,47 +41,26 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  // Deliberately not locking zoom: pinch-zoom is an accessibility requirement.
   maximumScale: 5,
-  /*
-   * One colour, because there is one scheme. The browser paints its own
-   * chrome with this on a phone, and a pale bar over a night page is the
-   * first thing anybody sees on the way in.
-   */
   themeColor: '#05070e',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-      {/*
-        Ownership proof for an affiliate network, written by hand.
-
-        Next's Metadata API only ever emits `content=`, and this network's
-        crawler looks for `value=`, so the tag is rendered directly and React
-        hoists it into `<head>`. It proves we control the domain and carries
-        no user data of any kind.
-      */}
       <meta
         {...({
           name: 'impact-site-verification',
-          // Both spellings: the published snippet uses `value`, while every
-          // generic verifier reads `content`. The cast is because `value` is
-          // not a standard `<meta>` attribute and React's types say so.
           value: 'feca6996-7b98-4739-b366-3f224f7e335e',
-          content: 'feca6996-7b98-4739-b366-3f224f7e335e',
-        } as React.MetaHTMLAttributes<HTMLMetaElement>)}
+        } as React.MetaHTMLAttributes<HTMLMetaElement> & {
+          value: string;
+        })}
       />
+
       <body className="bg-surface text-ink min-h-dvh antialiased">
         <SkipLink targetId="main-content" />
 
         <div className="flex min-h-dvh flex-col">
-          {/*
-            The account navigation is a server component that reads the
-            session; the header around it is a client component that reads the
-            scroll position. Passing one into the other keeps identity on the
-            server and the chrome on the client.
-          */}
           <SiteHeader>
             <AccountNav />
           </SiteHeader>
