@@ -195,13 +195,13 @@ pane, and turns round near the edge of the view so it still fits. See
 
 ## Known constraints
 
-| Item                      | Detail                                                                                                                                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ESLint pinned to 9.x      | `eslint-config-next@16` bundles an `eslint-plugin-react` incompatible with ESLint 10. Dev-only dependency. Revisit when Next ships support.                                                                 |
-| Playwright browser binary | Could not be downloaded in this environment. The suite was verified against locally installed Chrome via `PLAYWRIGHT_CHANNEL=chrome`. CI installs bundled Chromium normally.                                |
-| CSP `'unsafe-inline'`     | Required by Next.js streaming injection. Worth replacing with a nonce-based CSP before handling payments.                                                                                                   |
-| MapLibre worker is copied | `scripts/copy-map-worker.mjs` copies it out of `node_modules` on every build, because MapLibre resolves it relative to `import.meta.url` and a bundled chunk is the wrong place. See `docs/map-options.md`. |
-| No git remote             | CI cannot run until one is configured.                                                                                                                                                                      |
+| Item                      | Detail                                                                                                                                                                                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ESLint pinned to 9.x      | `eslint-config-next@16` bundles an `eslint-plugin-react` incompatible with ESLint 10. Dev-only dependency. Revisit when Next ships support.                                                                                                                                                             |
+| Playwright browser binary | Could not be downloaded in this environment. The suite was verified against locally installed Chrome via `PLAYWRIGHT_CHANNEL=chrome`. CI installs bundled Chromium normally.                                                                                                                            |
+| CSP `'unsafe-inline'`     | Required by Next.js streaming injection. Worth replacing with a nonce-based CSP before handling payments.                                                                                                                                                                                               |
+| MapLibre worker is copied | `scripts/copy-map-worker.mjs` copies it out of `node_modules` on every build, because MapLibre resolves it relative to `import.meta.url` and a bundled chunk is the wrong place. See `docs/map-options.md`.                                                                                             |
+| Node 24.15 or newer       | `engine-strict=true` in `.npmrc` makes an engine mismatch a hard failure, deliberately. `jsdom@30` needs Node 22.22.2+, and Railpack picks the **floor** of the `engines` range - so `>=20.9.0` selected an EOL Node 20 and the install refused. `engines.node`, `.node-version` and CI now all say 24. |
 
 ---
 

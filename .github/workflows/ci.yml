@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
   # The foundation is fully self-contained: no database, no Redis, no provider
   # credentials, no AI key. If CI ever needs a secret to pass, that is a signal
   # something has stopped being mockable, not a reason to add one here.
