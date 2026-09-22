@@ -1,12 +1,20 @@
 import { format } from '@/core/money';
-import { Badge, Card, Disclosure, Icon, ProvenanceBadge } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  Disclosure,
+  Icon,
+  ProvenanceBadge,
+  SourceStrip,
+  SourceTag,
+} from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/booking/handoff';
 import type { RankedTrip } from '@/search/types';
 import type { Alternative } from '@/search/alternatives';
-import type { DataProvenance } from '@/core/trip/provenance';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import { summariseReasons, type TripReason } from '@/search/explain';
 import { RouteLine } from './route-line';
 import { CostBreakdown } from './cost-breakdown';
@@ -94,8 +102,10 @@ export interface TripCardProps {
   trip: RankedTrip;
   /** Zero-based position in the results list. */
   rank: number;
-  /** Where this trip's prices came from. */
+  /** Where this trip's prices came from, as a combined verdict. */
   provenance?: DataProvenance;
+  /** Which provider supplied each part, named on the card itself. */
+  sources?: readonly SourceAttribution[];
   /** Why this trip is being shown, in human terms. */
   reasons?: readonly TripReason[];
   /**
@@ -133,11 +143,21 @@ export function TripCard({
   trip,
   rank,
   provenance = 'unavailable',
+  sources = [],
   reasons = [],
   flightAlternatives = [],
   hotelAlternatives = [],
   image = null,
 }: TripCardProps) {
+  /*
+   * Which provider supplied one part of this trip.
+   *
+   * Looked up rather than positional: a search can mix a live flight
+   * provider with a fixture hotel one, and the tile has to name its own.
+   */
+  const sourceFor = (part: SourceAttribution['part']) =>
+    sources.find((source) => source.part === part);
+
   const { candidate, cost, score, warnings, usableTime, eligibility } = trip;
   const headingId = `trip-${candidate.id}-heading`;
   const warningsId = `trip-${candidate.id}-warnings`;
@@ -235,6 +255,11 @@ export function TripCard({
               {format(cost.total)}
               <ProvenanceBadge provenance={provenance} explain={false} />
             </p>
+            {/*
+              Named beside the price, because that is where the question
+              "is this real?" is actually asked.
+            */}
+            <SourceStrip sources={sources} className="mt-1 justify-end" />
             <p className="mt-0.5 text-sm text-white/75 tabular-nums">
               {format(cost.perPerson)} each · {format(cost.perNight)} a night
             </p>
@@ -281,6 +306,13 @@ export function TripCard({
           <dd className="text-ink mt-1 text-sm tabular-nums">
             {format(candidate.flight.price)}
             <span className="text-ink-muted"> · {stopsLabel(candidate)}</span>
+            {/*
+              Inside the `dd`, not beside it: a `dl`'s wrapper may only hold
+              `dt` and `dd`, and axe is right to refuse anything else.
+            */}
+            {sourceFor('flights') ? (
+              <SourceTag source={sourceFor('flights')!} className="mt-2 flex w-fit" />
+            ) : null}
           </dd>
         </div>
         <div className="border-border bg-surface-sunken rounded-[--radius-control] border p-3">
@@ -291,6 +323,13 @@ export function TripCard({
           <dd className="text-ink mt-1 text-sm tabular-nums">
             {format(candidate.hotel.totalPrice)}
             <span className="text-ink-muted"> · {candidate.dates.nights} nights</span>
+            {/*
+              Inside the `dd`, not beside it: a `dl`'s wrapper may only hold
+              `dt` and `dd`, and axe is right to refuse anything else.
+            */}
+            {sourceFor('hotels') ? (
+              <SourceTag source={sourceFor('hotels')!} className="mt-2 flex w-fit" />
+            ) : null}
           </dd>
         </div>
         <div className="border-border bg-surface-sunken rounded-[--radius-control] border p-3">

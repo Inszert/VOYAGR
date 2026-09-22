@@ -25,6 +25,17 @@ export type DataProvenance =
   | 'historical'
   /** A seasonal norm, not a forecast or a quote. */
   | 'typical'
+  /**
+   * A real provider API in test mode. Real shapes, real carriers, no inventory.
+   *
+   * Its own case, and emphatically not `live`. A sandbox answers with genuine
+   * itineraries at genuine-looking prices and none of it can be bought - so
+   * labelling it "Live price" would be the exact misrepresentation the whole
+   * of this module exists to prevent. It is not `mock` either: the request
+   * really was made and the mapping really was exercised, which is worth
+   * being able to see while an integration is being brought up.
+   */
+  | 'test'
   /** A deterministic fixture. Not a real offer, and must never look like one. */
   | 'mock'
   /** Written by a language model from facts computed elsewhere. */
@@ -39,6 +50,7 @@ export const PROVENANCE_LABEL: Record<DataProvenance, string> = {
   estimated: 'Estimated',
   historical: 'Past price',
   typical: 'Typical',
+  test: 'Test data',
   mock: 'Demo data',
   'ai-generated': 'Written by AI',
   unavailable: 'Unavailable',
@@ -51,6 +63,7 @@ export const PROVENANCE_EXPLANATION: Record<DataProvenance, string> = {
   estimated: 'Worked out by us from what we do know. Nobody has quoted this.',
   historical: 'A price we recorded earlier, shown for comparison.',
   typical: 'What this usually costs at this time of year. Not a quote or a forecast.',
+  test: 'From the provider’s sandbox. The itinerary and price are realistic but the seat does not exist and cannot be booked.',
   mock: 'Sample data for development. This is not a real offer and cannot be booked.',
   'ai-generated': 'Wording produced by a language model from figures calculated elsewhere.',
   unavailable: 'We could not get this from the provider.',
@@ -71,6 +84,7 @@ export const PROVENANCE_EMPHASIS: Record<DataProvenance, ProvenanceEmphasis> = {
   estimated: 'notable',
   historical: 'quiet',
   typical: 'notable',
+  test: 'intrusive',
   mock: 'intrusive',
   'ai-generated': 'notable',
   unavailable: 'notable',
@@ -90,6 +104,9 @@ export function isRealOffer(provenance: DataProvenance): boolean {
  */
 const WEAKNESS_ORDER: DataProvenance[] = [
   'mock',
+  // Above mock, below everything real: a sandbox offer is more than a fixture
+  // and still not something anybody can take.
+  'test',
   'unavailable',
   'typical',
   'ai-generated',
@@ -109,7 +126,49 @@ export function combineProvenance(parts: readonly DataProvenance[]): DataProvena
   return 'unavailable';
 }
 
+/**
+ * How a provider runs, which is what decides the provenance of its answers.
+ *
+ * Three states rather than two. `isMock` alone cannot tell a live account
+ * from a sandbox one, and a sandbox answer that inherits "Live price" is a
+ * lie told by a boolean.
+ */
+export type ProviderMode = 'mock' | 'test' | 'live';
+
+const MODE_PROVENANCE: Record<ProviderMode, DataProvenance> = {
+  mock: 'mock',
+  test: 'test',
+  live: 'live',
+};
+
+export function provenanceForMode(mode: ProviderMode): DataProvenance {
+  return MODE_PROVENANCE[mode];
+}
+
 /** A provider's provenance, from whether its adapter serves fixtures. */
 export function provenanceForProvider(isMock: boolean): DataProvenance {
   return isMock ? 'mock' : 'live';
+}
+
+/**
+ * Which provider answered, and what its answer is worth.
+ *
+ * Carried on the result rather than only in the diagnostics, because the
+ * question "is this real?" is asked while looking at a price, not while
+ * reading a log.
+ */
+export interface SourceAttribution {
+  /**
+   * Which part of the trip this provider supplied.
+   *
+   * Carried so a badge can sit on the line it describes. A card-level strip
+   * says a Duffel was involved somewhere; the question being asked while
+   * looking at "Hotel EUR 472.22" is whether *that* number is real.
+   */
+  readonly part: 'flights' | 'hotels' | 'stays' | 'transfers';
+  /** Stable id, e.g. `duffel`. */
+  readonly providerId: string;
+  /** What a person should see, e.g. `Duffel`. */
+  readonly displayName: string;
+  readonly provenance: DataProvenance;
 }

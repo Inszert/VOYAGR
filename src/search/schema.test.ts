@@ -307,3 +307,49 @@ describe('flexibility presets in the form', () => {
     expect(profileFrom({ departureDays: 'monday, 9, -1' }).departureDaysOfWeek).toBeNull();
   });
 });
+
+describe('anywhere as a destination', () => {
+  const EVERYWHERE = ['AYT', 'CHQ', 'LIS'];
+
+  const form = (destinations: string) => ({
+    origins: 'VIE',
+    destinations,
+    earliestDeparture: '2026-06-01',
+    latestReturn: '2026-06-30',
+    minNights: '4',
+    maxNights: '7',
+    passengers: '2',
+    currency: 'EUR',
+    targetBudget: '650',
+    maxBudget: '850',
+    travelStyle: 'balanced',
+    optimisationMode: 'best_value',
+  });
+
+  it('expands to everywhere we can actually price', () => {
+    // A promise we can keep, not a wildcard.
+    const parsed = parseSearchForm(form('anywhere'), EVERYWHERE);
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.request.destinations).toEqual(EVERYWHERE);
+  });
+
+  it('accepts it however it was typed', () => {
+    for (const typed of ['Anywhere', 'ANYWHERE', '  anywhere  ']) {
+      const parsed = parseSearchForm(form(typed), EVERYWHERE);
+      expect(parsed.ok).toBe(true);
+    }
+  });
+
+  it('still refuses it when there is nowhere to expand to', () => {
+    // Better an error than a search that silently looks nowhere.
+    expect(parseSearchForm(form('anywhere'), []).ok).toBe(false);
+  });
+
+  it('leaves ordinary codes alone', () => {
+    const parsed = parseSearchForm(form('AYT, CHQ'), EVERYWHERE);
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.request.destinations).toEqual(['AYT', 'CHQ']);
+  });
+});

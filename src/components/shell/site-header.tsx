@@ -32,6 +32,9 @@ const STAGE_ROUTES = new Set(['/', '/explore']);
 const PRIMARY = [
   { href: '/', label: 'Discover' },
   { href: '/explore', label: 'Explore' },
+  // Stays is a first-class search, not a thing to be discovered: a travel
+  // site that only offers flights until you find a link is a flight site.
+  { href: '/stays', label: 'Stays' },
   { href: '/watches', label: 'Watches' },
 ] as const;
 

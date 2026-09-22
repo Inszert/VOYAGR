@@ -1,6 +1,8 @@
 import { AppError } from '@/lib/errors';
 import { getEnv, type Env } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
+import { createAviasalesFlightProvider } from './flights/aviasales';
+import { createDuffelFlightProvider } from './flights/duffel';
 import { createMockFlightProvider } from './flights/mock';
 import { createMockHotelProvider } from './hotels/mock';
 import { createMockPlacesProvider } from './places/mock';
@@ -62,6 +64,20 @@ export class ProviderRegistry {
         return this.transfers;
       case 'places':
         return this.places;
+      case 'stays':
+        /*
+         * Not in this registry yet.
+         *
+         * The stay providers fan out - several at once, merged into one
+         * result set - so they are resolved by `src/providers/stays/registry.ts`
+         * rather than held as the single adapter this class models. Named
+         * here so the switch stays exhaustive and adding the kind cannot be
+         * forgotten.
+         */
+        throw new AppError(
+          'CONFIGURATION_ERROR',
+          'Stay providers are resolved by the stays registry, not this one.',
+        );
     }
   }
 
@@ -123,6 +139,39 @@ function liveProviderNotImplemented(kind: ProviderKind): never {
 }
 
 function resolveFlightProvider(env: Env): FlightProvider {
+  if (env.FLIGHT_PROVIDER === 'duffel') {
+    if (!env.DUFFEL) {
+      throw new AppError(
+        'CONFIGURATION_ERROR',
+        'FLIGHT_PROVIDER is "duffel" but DUFFEL is not set.',
+      );
+    }
+
+    return createDuffelFlightProvider({ token: env.DUFFEL });
+  }
+
+  if (env.FLIGHT_PROVIDER === 'aviasales') {
+    /*
+     * Refused at startup rather than at the first search.
+     *
+     * A registry that builds a credential-less adapter turns a configuration
+     * mistake into an intermittent search failure hours later. Asking for
+     * this provider without a token is a deployment error, and it says so
+     * the moment the registry is built.
+     */
+    if (!env.AVIASALES_API_TOKEN) {
+      throw new AppError(
+        'CONFIGURATION_ERROR',
+        'FLIGHT_PROVIDER is "aviasales" but AVIASALES_API_TOKEN is not set.',
+      );
+    }
+
+    return createAviasalesFlightProvider({
+      token: env.AVIASALES_API_TOKEN,
+      ...(env.AVIASALES_PARTNER_ID ? { partnerId: env.AVIASALES_PARTNER_ID } : {}),
+    });
+  }
+
   return env.FLIGHT_PROVIDER === 'mock'
     ? createMockFlightProvider()
     : liveProviderNotImplemented('flights');

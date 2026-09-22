@@ -283,6 +283,9 @@ describe('SearchResults counts', () => {
           destinationSummaries: summariseDestinations([trip]),
           diagnostics: {
             provenance: 'live',
+            sources: [
+              { part: 'flights', providerId: 'x', displayName: 'X Air', provenance: 'live' },
+            ],
             quoteFreshness: { fresh: 1, stale: 0, unknown: 0 },
             plan: {
               origins: ['VIE'],

@@ -11,6 +11,7 @@ import {
   setSessionCookie,
 } from '@/auth/current-user';
 import { UNKNOWN_CLIENT } from '@/auth/service';
+import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 
@@ -140,4 +141,56 @@ export async function changePasswordAction(
 
   await clearSessionCookie();
   redirect('/sign-in?passwordChanged=1');
+}
+
+export interface DeleteAccountState {
+  readonly error?: string;
+}
+
+/**
+ * Erase the signed-in account and everything personally attached to it.
+ *
+ * Deliberately hard to do by accident: the form requires the account's own
+ * email address to be typed back, which a stray click cannot produce. The
+ * check is on the server, because a confirmation enforced only in the
+ * browser is not a confirmation.
+ *
+ * The user id comes from the verified session and never from the form. An
+ * id in a request body would make this the most consequential IDOR in the
+ * product.
+ */
+export async function deleteAccountAction(
+  _previous: DeleteAccountState,
+  formData: FormData,
+): Promise<DeleteAccountState> {
+  const user = await getCurrentUser();
+
+  // Not "no such account": an unauthenticated caller learns nothing here.
+  if (!user) return { error: 'Sign in again to delete your account.' };
+
+  const typed = String(formData.get('confirmEmail') ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (typed !== user.email.toLowerCase()) {
+    return { error: 'Type your email address exactly to confirm.' };
+  }
+
+  const repositories = await getRepositories();
+  const summary = await repositories.users.erase(user.id);
+
+  /*
+   * Counts, never contents, and no email address.
+   *
+   * There is a real tension here: an erasure worth auditing is an erasure
+   * that leaves a record, and a record of who was erased is the personal
+   * data we just promised to remove. Counts settle it - enough to prove the
+   * cascade ran, nothing that identifies anybody.
+   */
+  getLogger('account').info({ ...summary, userId: undefined }, 'account erased');
+
+  // Every session died with the row; the cookie is cleared so this browser
+  // does not keep presenting a token that no longer resolves.
+  await clearSessionCookie();
+  redirect('/?deleted=1');
 }

@@ -24,6 +24,18 @@ const KEEPABLE_HEADERS = new Set([
   'x-ratelimit-limit',
   'x-ratelimit-remaining',
   'x-ratelimit-reset',
+  /*
+   * Travelpayouts hyphenates it differently, and the allow-list hid it.
+   *
+   * Worth spelling out because this is the allow-list working correctly and
+   * still costing an afternoon: a quota header is behaviour, not a secret,
+   * but `x-rate-limit` is not `x-ratelimit-limit`, so it was redacted out of
+   * the one recording made to discover the rate limit. Add a vendor's
+   * spelling here rather than loosening the rule to a pattern.
+   */
+  'x-rate-limit',
+  'x-rate-limit-remaining',
+  'x-rate-limit-reset',
   'link',
   'etag',
   'cache-control',

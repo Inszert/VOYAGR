@@ -1,5 +1,6 @@
 import type { OperationPolicy, ProviderOperation } from './policy';
 import type { Result } from '@/lib/result';
+import type { ProviderMode } from '@/core/trip/provenance';
 import type { AppError } from '@/lib/errors';
 import type {
   AirportCode,
@@ -22,7 +23,16 @@ import type {
  * degrade a search, not abort it.
  */
 
-export type ProviderKind = 'flights' | 'hotels' | 'weather' | 'transfers' | 'places';
+/**
+ * `stays` is separate from `hotels` on purpose.
+ *
+ * `hotels` is the original trip-search adapter, which answers with the one
+ * cheapest room per property so a whole trip can be costed. `stays` is the
+ * provider-neutral accommodation search: properties, rooms and rates, several
+ * per property, comparable across providers. They answer different questions
+ * and collapsing them would force one to pretend to be the other.
+ */
+export type ProviderKind = 'flights' | 'hotels' | 'stays' | 'weather' | 'transfers' | 'places';
 
 /**
  * A provider's own pagination cursor.
@@ -56,6 +66,16 @@ export interface ProviderMetadata {
   readonly displayName: string;
   /** True when the adapter serves fixtures rather than calling a live API. */
   readonly isMock: boolean;
+  /**
+   * How this adapter is running, which decides what its answers are worth.
+   *
+   * `isMock` is a boolean and cannot tell a live account from a sandbox one.
+   * A provider in test mode returns real shapes and real carrier names for
+   * seats that do not exist, and inheriting "Live price" from `isMock: false`
+   * is a lie told by a boolean. Optional so existing adapters are unchanged:
+   * absent means `isMock ? 'mock' : 'live'`.
+   */
+  readonly mode?: ProviderMode;
   /**
    * Provider-declared rate limit, used by the scheduler to pace background
    * Travel Watch refreshes. `null` when the adapter has no meaningful limit.

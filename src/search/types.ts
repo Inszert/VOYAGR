@@ -12,7 +12,7 @@ import type {
   TripCandidate,
 } from '@/core/trip/types';
 import type { ProviderKind } from '@/providers/types';
-import type { DataProvenance } from '@/core/trip/provenance';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { DestinationSummary } from './destinations';
 
 /**
@@ -184,6 +184,16 @@ export interface SearchDiagnostics {
    * trip cannot be half-bookable.
    */
   readonly provenance: DataProvenance;
+  /**
+   * Which provider answered for each part, and what its answer is worth.
+   *
+   * `provenance` above is the combined verdict and it is deliberately the
+   * weakest claim - one demo component makes a total demo data, because a
+   * trip cannot be half-bookable. That is right for the headline and useless
+   * for the question actually being asked while looking at a result: *which*
+   * part is real? So both travel together.
+   */
+  readonly sources: readonly SourceAttribution[];
   readonly providerCalls: number;
   /**
    * Highest number of provider calls that were in flight at once.

@@ -1,8 +1,9 @@
 import { money, type Money } from '@/core/money';
 import { AppError } from '@/lib/errors';
-import { query } from './client';
+import { query, withTransaction } from './client';
 import type { SearchProfile } from '@/core/trip/types';
 import type {
+  ErasureSummary,
   NotificationRecord,
   NotificationRepository,
   PriceHistoryRepository,
@@ -139,6 +140,48 @@ class PostgresUserRepository implements UserRepository {
     );
 
     return toUser(requireRow(rows[0], 'user', id));
+  }
+  /**
+   * Erase the account, and let the schema erase the rest.
+   *
+   * Every user-owned table declares `ON DELETE CASCADE` against `users`, so
+   * one delete removes sessions, saved searches, watches, observations,
+   * notifications, subscriptions and preferences with it. Doing it in the
+   * database rather than in eight application deletes is what makes it
+   * atomic: there is no window in which the user is gone and their watches
+   * are still running.
+   *
+   * The counts are read first, inside the same transaction, so the summary
+   * describes what this erasure actually removed rather than whatever the
+   * table happened to hold a moment later.
+   */
+  async erase(id: string): Promise<ErasureSummary> {
+    return withTransaction(async (client) => {
+      const countOf = async (sql: string): Promise<number> => {
+        const result = await client.query<{ count: string }>(sql, [id]);
+        return Number(result.rows[0]?.count ?? 0);
+      };
+
+      const summary = {
+        sessions: await countOf('SELECT count(*) FROM sessions WHERE user_id = $1'),
+        savedSearches: await countOf('SELECT count(*) FROM trip_searches WHERE user_id = $1'),
+        travelWatches: await countOf('SELECT count(*) FROM travel_watches WHERE user_id = $1'),
+        priceObservations: await countOf(
+          'SELECT count(*) FROM price_observations o' +
+            ' JOIN travel_watches w ON w.id = o.watch_id WHERE w.user_id = $1',
+        ),
+        notifications: await countOf('SELECT count(*) FROM notifications WHERE user_id = $1'),
+        pushSubscriptions: await countOf(
+          'SELECT count(*) FROM push_subscriptions WHERE user_id = $1',
+        ),
+        preferences: await countOf('SELECT count(*) FROM user_preferences WHERE user_id = $1'),
+        credentials: await countOf('SELECT count(*) FROM user_credentials WHERE user_id = $1'),
+      };
+
+      const deleted = await client.query('DELETE FROM users WHERE id = $1', [id]);
+
+      return { userExisted: (deleted.rowCount ?? 0) > 0, ...summary };
+    });
   }
 }
 

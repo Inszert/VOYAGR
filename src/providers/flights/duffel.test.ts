@@ -1,0 +1,353 @@
+import { describe, expect, it } from 'vitest';
+import { flightOfferSchema, validateOffers } from '../schema';
+import { DuffelFlightProvider, durationMinutes, mapDuffelOffer } from './duffel';
+
+/**
+ * The Duffel adapter, offline.
+ *
+ * Shapes here are taken from a real recorded response: a round trip VIE-BCN
+ * for two adults, which returned 742 offers of which 47 in every 60 carried
+ * a connection.
+ */
+
+const TOKEN = 'duffel_test_not-a-real-credential';
+
+const segment = (
+  origin: string,
+  destination: string,
+  departing: string,
+  arriving: string,
+  carrier: string,
+  number: string,
+  bags = [
+    { type: 'checked', quantity: 1 },
+    { type: 'carry_on', quantity: 1 },
+  ],
+) => ({
+  origin: { iata_code: origin },
+  destination: { iata_code: destination },
+  departing_at: departing,
+  arriving_at: arriving,
+  duration: 'PT2H30M',
+  marketing_carrier: { iata_code: carrier },
+  marketing_carrier_flight_number: number,
+  passengers: [{ baggages: bags }],
+});
+
+const offer = {
+  id: 'off_123',
+  live_mode: false,
+  total_amount: '117.96',
+  total_currency: 'EUR',
+  created_at: '2026-09-22T14:42:57.268382Z',
+  expires_at: '2026-09-22T14:57:57.236180Z',
+  owner: { name: 'Vueling' },
+  slices: [
+    {
+      duration: 'PT2H30M',
+      segments: [segment('VIE', 'BCN', '2026-10-22T11:15:00', '2026-10-22T13:45:00', 'VY', '8715')],
+    },
+    {
+      duration: 'PT4H10M',
+      segments: [
+        segment('BCN', 'ZRH', '2026-10-29T14:55:00', '2026-10-29T16:40:00', 'LX', '1955'),
+        segment('ZRH', 'VIE', '2026-10-29T17:45:00', '2026-10-29T19:05:00', 'LX', '3536'),
+      ],
+    },
+  ],
+};
+
+const map = (raw: unknown) => mapDuffelOffer(raw, 'duffel');
+
+describe('durationMinutes', () => {
+  it('reads an ISO 8601 duration', () => {
+    expect(durationMinutes('PT2H30M')).toBe(150);
+    expect(durationMinutes('PT45M')).toBe(45);
+    expect(durationMinutes('PT13H')).toBe(780);
+    expect(durationMinutes('P1DT2H')).toBe(1560);
+  });
+
+  it('has no answer for anything else', () => {
+    expect(durationMinutes('two hours')).toBeNull();
+    expect(durationMinutes(null)).toBeNull();
+  });
+});
+
+describe('mapDuffelOffer', () => {
+  it('maps an offer the domain boundary accepts', () => {
+    const result = map(offer);
+
+    expect('offer' in result).toBe(true);
+    if (!('offer' in result)) return;
+
+    expect(validateOffers(flightOfferSchema, [result.offer]).rejected).toEqual([]);
+  });
+
+  it('keeps every segment of a connecting leg', () => {
+    const result = map(offer);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    // The whole reason this provider is worth having: a connection is
+    // described rather than refused.
+    expect(result.offer.inbound.segments).toHaveLength(2);
+    expect(result.offer.inbound.segments.map((s) => `${s.origin}-${s.destination}`)).toEqual([
+      'BCN-ZRH',
+      'ZRH-VIE',
+    ]);
+    expect(result.offer.inbound.segments[1]?.flightNumber).toBe('LX3536');
+  });
+
+  it('takes the leg duration from the slice, so layovers are counted', () => {
+    const result = map(offer);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    // Summing the segments would give 300 and lose the hour on the ground at
+    // Zurich - which is the part a traveller actually feels.
+    expect(result.offer.inbound.durationMinutes).toBe(250);
+  });
+
+  it('keeps Duffel local times as wall clocks', () => {
+    const result = map(offer);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    expect(result.offer.outbound.segments[0]?.departsAt).toBe('2026-10-22T11:15');
+  });
+
+  it('converts a string amount through fromMajor', () => {
+    const result = map(offer);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    expect(result.offer.price).toEqual({ amount: 11_796, currency: 'EUR' });
+  });
+
+  it('dates the offer when Duffel created it', () => {
+    const result = map(offer);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    expect(result.offer.observedAt).toBe('2026-09-22T14:42:57.268382Z');
+  });
+
+  it('reports a stated baggage allowance', () => {
+    const result = map(offer);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    expect(result.offer.outbound.checkedBaggageIncluded).toBe(true);
+    expect(result.offer.outbound.cabinBaggageIncluded).toBe(true);
+  });
+
+  it('reports silence about baggage as null, never as false', () => {
+    const silent = {
+      ...offer,
+      slices: [
+        {
+          duration: 'PT2H',
+          segments: [
+            segment('VIE', 'BCN', '2026-10-22T11:15:00', '2026-10-22T13:45:00', 'VY', '1', []),
+          ],
+        },
+        {
+          duration: 'PT2H',
+          segments: [
+            segment('BCN', 'VIE', '2026-10-29T11:15:00', '2026-10-29T13:45:00', 'VY', '2', []),
+          ],
+        },
+      ],
+    };
+
+    const result = map(silent);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    // `false` would be a claim the carrier never made, in the field the
+    // No-Surprise check reads.
+    expect(result.offer.outbound.checkedBaggageIncluded).toBeNull();
+  });
+
+  it('requires the allowance on every segment of a leg', () => {
+    const half = {
+      ...offer,
+      slices: [
+        offer.slices[0],
+        {
+          duration: 'PT4H10M',
+          segments: [
+            segment('BCN', 'ZRH', '2026-10-29T14:55:00', '2026-10-29T16:40:00', 'LX', '1955'),
+            segment('ZRH', 'VIE', '2026-10-29T17:45:00', '2026-10-29T19:05:00', 'LX', '3536', [
+              { type: 'carry_on', quantity: 1 },
+            ]),
+          ],
+        },
+      ],
+    };
+
+    const result = map(half);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    // A bag that has to be rechecked on the second flight is not an
+    // allowance for the journey.
+    expect(result.offer.inbound.checkedBaggageIncluded).toBe(false);
+  });
+
+  it('reports whether the offer was live inventory', () => {
+    expect(map(offer)).toMatchObject({ liveMode: false });
+    expect(map({ ...offer, live_mode: true })).toMatchObject({ liveMode: true });
+  });
+
+  it('refuses a one-way offer rather than bending it into a round trip', () => {
+    expect(map({ ...offer, slices: [offer.slices[0]] })).toEqual({ skipped: 'one_way' });
+  });
+
+  it('refuses a segment missing an airport or a carrier', () => {
+    const broken = {
+      ...offer,
+      slices: [
+        {
+          duration: 'PT2H',
+          segments: [
+            {
+              ...segment('VIE', 'BCN', '2026-10-22T11:15:00', '2026-10-22T13:45:00', 'VY', '1'),
+              marketing_carrier: null,
+            },
+          ],
+        },
+        offer.slices[1],
+      ],
+    };
+
+    expect(map(broken)).toEqual({ skipped: 'incomplete_segment' });
+  });
+
+  it('refuses nonsense', () => {
+    expect(map(null)).toEqual({ skipped: 'malformed' });
+    expect(map({ ...offer, total_amount: 'free' })).toEqual({ skipped: 'malformed' });
+  });
+});
+
+describe('DuffelFlightProvider', () => {
+  const respond = (body: unknown, status = 200) =>
+    Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+  /**
+   * The adapter makes two calls: create the request, then fetch a sorted
+   * page of offers. This answers both, so a test says what the *vendor*
+   * returns rather than how many times it was asked.
+   */
+  const twoStep = (offers: readonly unknown[], status = 200) => {
+    let call = 0;
+
+    return () => {
+      call += 1;
+      if (status !== 200) return respond({}, status);
+
+      return call === 1 ? respond({ data: { id: 'orq_1' } }) : respond({ data: offers });
+    };
+  };
+
+  it('labels a test key as test, never as live', () => {
+    const provider = new DuffelFlightProvider({ token: TOKEN });
+
+    expect(provider.metadata.mode).toBe('test');
+    expect(provider.metadata.isMock).toBe(false);
+  });
+
+  it('labels a live key as live', () => {
+    expect(new DuffelFlightProvider({ token: 'duffel_live_abc' }).metadata.mode).toBe('live');
+  });
+
+  it('downgrades to test when the response says so, whatever the key looked like', async () => {
+    // The response is the fact; the key prefix is only a hint.
+    const provider = new DuffelFlightProvider({
+      token: 'duffel_live_abc',
+      fetchImpl: twoStep([offer]),
+    });
+
+    await provider.searchFlights({
+      origins: ['VIE'],
+      destinations: ['BCN'],
+      departureDate: '2026-10-22',
+      returnDate: '2026-10-29',
+      passengers: 2,
+      currency: 'EUR',
+    });
+
+    expect(provider.metadata.mode).toBe('test');
+  });
+
+  it('sends a two-slice round trip with one passenger entry each', async () => {
+    let sent: string | undefined;
+
+    const provider = new DuffelFlightProvider({
+      token: TOKEN,
+      fetchImpl: (_url, init) => {
+        sent ??= init?.body as string;
+        return respond({ data: { id: 'orq_1' } });
+      },
+    });
+
+    await provider.searchFlights({
+      origins: ['VIE'],
+      destinations: ['BCN'],
+      departureDate: '2026-10-22',
+      returnDate: '2026-10-29',
+      passengers: 2,
+      currency: 'EUR',
+    });
+
+    const body = JSON.parse(sent!);
+    expect(body.data.slices).toHaveLength(2);
+    expect(body.data.slices[1]).toMatchObject({ origin: 'BCN', destination: 'VIE' });
+    expect(body.data.passengers).toHaveLength(2);
+  });
+
+  it('caps how many offers it keeps', async () => {
+    const provider = new DuffelFlightProvider({
+      token: TOKEN,
+      maxOffers: 2,
+      fetchImpl: twoStep([offer, offer, offer, offer]),
+    });
+
+    const result = await provider.searchFlights({
+      origins: ['VIE'],
+      destinations: ['BCN'],
+      departureDate: '2026-10-22',
+      returnDate: '2026-10-29',
+      passengers: 1,
+      currency: 'EUR',
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.items).toHaveLength(2);
+  });
+
+  it('turns a rate limit into unavailable and a failure into an error', async () => {
+    for (const [status, code] of [
+      [429, 'PROVIDER_UNAVAILABLE'],
+      [500, 'PROVIDER_ERROR'],
+    ] as const) {
+      const provider = new DuffelFlightProvider({
+        token: TOKEN,
+        fetchImpl: () => respond({}, status),
+      });
+
+      const result = await provider.searchFlights({
+        origins: ['VIE'],
+        destinations: ['BCN'],
+        departureDate: '2026-10-22',
+        returnDate: '2026-10-29',
+        passengers: 1,
+        currency: 'EUR',
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe(code);
+    }
+  });
+
+  it('refuses to be built without a key', () => {
+    expect(() => new DuffelFlightProvider({ token: '' })).toThrow(/DUFFEL/);
+  });
+});

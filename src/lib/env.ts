@@ -38,16 +38,65 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
 
   // Travel provider adapters.
-  FLIGHT_PROVIDER: providerName,
+  /**
+   * Which flight adapter is active.
+   *
+   * `aviasales` is the Travelpayouts Data API. It needs `AVIASALES_API_TOKEN`;
+   * without one the registry refuses to build it rather than starting up and
+   * failing on the first search.
+   */
+  FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales', 'duffel']).default('mock'),
   HOTEL_PROVIDER: providerName,
   WEATHER_PROVIDER: providerName,
   TRANSFER_PROVIDER: providerName,
   PLACES_PROVIDER: providerName,
+  /**
+   * Which accommodation providers to fan out across, in preference order.
+   *
+   * A list, not one name: stays merge across vendors, so the configuration
+   * has to be able to say "all of these". Adding a provider later is a
+   * deployment change. Defaults to the mock, which is the only adapter that
+   * exists while Duffel Stays is not enabled on the account.
+   */
+  STAY_PROVIDERS: z.string().min(1).default('mock'),
+  /**
+   * The origin this deployment is reachable at, e.g. `https://voyagr.app`.
+   *
+   * Needed for absolute URLs a crawler can use - a sitemap of relative paths
+   * is invalid. Optional, and when it is absent the sitemap is empty and
+   * `robots.txt` simply does not point at one, which is better than pointing
+   * at a wrong address.
+   */
+  PUBLIC_BASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .transform((value) => value?.replace(/\/$/, '')),
   FLIGHT_PROVIDER_API_KEY: z.string().min(1).optional(),
   HOTEL_PROVIDER_API_KEY: z.string().min(1).optional(),
   WEATHER_PROVIDER_API_KEY: z.string().min(1).optional(),
   TRANSFER_PROVIDER_API_KEY: z.string().min(1).optional(),
   PLACES_PROVIDER_API_KEY: z.string().min(1).optional(),
+
+  /*
+   * Travelpayouts / Aviasales.
+   *
+   * Two values with different natures, and they are not both secrets. The
+   * token authenticates us and must never leave the server. The partner
+   * marker is an affiliate identifier that appears in the outbound links a
+   * traveller clicks - it is public by design, so redacting it would be
+   * theatre, and it is left out of `SECRET_ENV_KEYS` deliberately.
+   */
+  /**
+   * Duffel. One key, and its prefix says whether it is a sandbox.
+   *
+   * `duffel_test_...` returns real carriers and real itineraries for seats
+   * that do not exist, and the adapter labels those results `test` rather
+   * than `live` on the strength of `live_mode` in the response.
+   */
+  DUFFEL: z.string().min(1).optional(),
+  AVIASALES_API_TOKEN: z.string().min(1).optional(),
+  AVIASALES_PARTNER_ID: z.string().min(1).optional(),
 
   /*
    * Destination photographs. `none` is a supported state, not a degraded one:
@@ -74,6 +123,9 @@ export const SECRET_ENV_KEYS = [
   'WEATHER_PROVIDER_API_KEY',
   'TRANSFER_PROVIDER_API_KEY',
   'PLACES_PROVIDER_API_KEY',
+  'DUFFEL',
+  // The token, not the marker: see the note beside them above.
+  'AVIASALES_API_TOKEN',
   'VAPID_PRIVATE_KEY',
 ] as const satisfies readonly (keyof Env)[];
 

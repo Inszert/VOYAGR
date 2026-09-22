@@ -171,6 +171,7 @@ export function SearchResults({
                 trip={trip}
                 rank={index}
                 provenance={diagnostics.provenance}
+                sources={diagnostics.sources}
                 reasons={explainTrip(trip, profile)}
                 image={images?.get(trip.candidate.destination) ?? null}
                 {...(index === 0
@@ -207,6 +208,7 @@ export function SearchResults({
                   trip={trip}
                   rank={-1}
                   provenance={diagnostics.provenance}
+                  sources={diagnostics.sources}
                   image={images?.get(trip.candidate.destination) ?? null}
                 />
               </li>

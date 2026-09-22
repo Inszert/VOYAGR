@@ -92,6 +92,23 @@ export default defineConfig({
       TEST_DATABASE_URL: '',
       REDIS_URL: '',
       QUEUE_DRIVER: 'memory',
+      /*
+       * The providers too, and for the same reason.
+       *
+       * A developer with `FLIGHT_PROVIDER=duffel` in their `.env` would
+       * otherwise have this suite make live vendor calls: slow, rate
+       * limited, chargeable, and different on every run - against
+       * assertions written for deterministic fixtures. The credentials are
+       * blanked as well, so the registry cannot be talked into a live
+       * adapter by a variable that survived.
+       */
+      FLIGHT_PROVIDER: 'mock',
+      HOTEL_PROVIDER: 'mock',
+      WEATHER_PROVIDER: 'mock',
+      TRANSFER_PROVIDER: 'mock',
+      PLACES_PROVIDER: 'mock',
+      DUFFEL: '',
+      AVIASALES_API_TOKEN: '',
       // Blanked too, so the suite behaves the same whether or not the person
       // running it has generated keys. Subscribing for real would reach a push
       // service, which is neither fast nor hermetic; the configured control is

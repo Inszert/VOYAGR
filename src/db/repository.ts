@@ -159,6 +159,34 @@ export interface UserRepository {
   findByEmail(email: string): Promise<UserRecord | null>;
   create(input: Omit<UserRecord, 'createdAt'>): Promise<UserRecord>;
   update(id: string, patch: Partial<Pick<UserRecord, 'plan'>>): Promise<UserRecord>;
+  /**
+   * Erase one account and everything personally attached to it.
+   *
+   * One method rather than a sequence the caller assembles, because an
+   * erasure that half-succeeds is worse than one that fails: a user told
+   * their account is gone, whose Travel Watches are still running and still
+   * emailing them, has been lied to. The implementation is responsible for
+   * doing it atomically - a transaction in Postgres, a single synchronous
+   * pass in memory.
+   *
+   * Returns what was removed, so the caller can report it and a test can
+   * assert it. Erasing an account that does not exist is not an error: it is
+   * the state the caller asked for.
+   */
+  erase(id: string): Promise<ErasureSummary>;
+}
+
+/** What an erasure actually removed. Counts, never contents. */
+export interface ErasureSummary {
+  readonly userExisted: boolean;
+  readonly sessions: number;
+  readonly savedSearches: number;
+  readonly travelWatches: number;
+  readonly priceObservations: number;
+  readonly notifications: number;
+  readonly pushSubscriptions: number;
+  readonly preferences: number;
+  readonly credentials: number;
 }
 
 export interface UserCredentialRepository {

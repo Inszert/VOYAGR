@@ -13,6 +13,8 @@ import { categoryQuery } from '@/discovery/preset';
 import type { AirportSuggestion } from '@/search/destination-names';
 import { FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS } from '@/search/flexibility';
 import { LensSlider } from './lens-slider';
+import { SearchKindTabs } from '@/components/search/search-kind-tabs';
+import { AnywhereButton } from '@/components/search/anywhere-button';
 import { SwapEndpoints } from './swap-endpoints';
 
 /**
@@ -154,6 +156,22 @@ export function CompactSearch({
           </p>
         ) : null}
 
+        {/*
+          The first question, asked before any field.
+
+          Hotels must not be something to find later. These are links rather
+          than a control, so the choice is part of the address and survives a
+          reload, a bookmark and the back button - and works with no
+          JavaScript, like every other search control here.
+        */}
+        <SearchKindTabs
+          active="flights"
+          hrefFor={(kind) =>
+            kind === 'stays' ? '/stays' : kind === 'both' ? '/stays?with=flights' : '/'
+          }
+          className="px-2.5 pt-2.5"
+        />
+
         <form method="get" action={action} className="flex flex-col gap-2.5">
           {Object.entries(carry).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
@@ -212,6 +230,18 @@ export function CompactSearch({
                     bare
                     required
                   />
+                  {/*
+                    "Anywhere" is a real answer to "where to?".
+                    
+                    A search that only accepts three-letter codes serves
+                    people who already know where they are going, which is
+                    the opposite of what this product is for. The word
+                    expands to every destination we can actually price, so
+                    it is a promise we can keep rather than a wildcard.
+                  */}
+                  <p className="mt-1">
+                    <AnywhereButton targetName="destinations" />
+                  </p>
                 </Cell>
 
                 <Cell>

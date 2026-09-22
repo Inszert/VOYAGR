@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/auth/current-user';
+import { listPlaceableDestinations } from '@/search/destination-names';
 import { parseSearchForm } from '@/search/schema';
 import { WatchService } from '@/watches/service';
 import { getRepositories } from '@/db';
@@ -55,7 +56,8 @@ export async function saveSearchAction(
   const values: Record<string, string> = {};
   for (const [key, value] of new URLSearchParams(query)) values[key] = value;
 
-  const parsed = parseSearchForm(values);
+  // A saved watch may equally have been "anywhere".
+  const parsed = parseSearchForm(values, listPlaceableDestinations());
   if (!parsed.ok) {
     return { error: 'That search is no longer valid, so it was not saved.' };
   }

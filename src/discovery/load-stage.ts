@@ -1,3 +1,4 @@
+import { ANYWHERE } from '@/search/schema';
 import { addDays, daysBetween } from '@/core/dates';
 import { resolveEntitlements } from '@/core/entitlements';
 import type { DataProvenance } from '@/core/trip/provenance';
@@ -147,7 +148,8 @@ export async function loadStagePage(
   let errors: SearchFormErrors = {};
 
   if (wasSubmitted(values)) {
-    const parsed = parseSearchForm(values);
+    // `anywhere` in the destination expands to everything we can price.
+    const parsed = parseSearchForm(values, listPlaceableDestinations());
 
     if (parsed.ok) {
       // Anonymous visitors get the default plan's allowance, so the limit is
@@ -244,16 +246,24 @@ export async function loadStagePage(
   if (stage.country) carry.country = stage.country.adm0;
   if (values.mapMode) carry.mapMode = values.mapMode;
 
+  /*
+   * "Anywhere" unless the globe has been used to narrow it.
+   *
+   * The field used to arrive pre-filled with every destination code we can
+   * price, which is accurate and unreadable - a wall of three-letter codes
+   * reads as a setting somebody else chose rather than as an open question.
+   * The word means the same thing to the parser and the opposite thing to a
+   * reader. Picking a country on the globe is a deliberate narrowing, so
+   * that still wins.
+   */
   const destinationsDefault =
-    stage.countryDestinations.length > 0
-      ? stage.countryDestinations.join(', ')
-      : listPlaceableDestinations().join(', ');
+    stage.countryDestinations.length > 0 ? stage.countryDestinations.join(', ') : ANYWHERE;
 
   const destinationsHint = stage.country
     ? stage.countryDestinations.length > 0
       ? `${stage.country.name}'s airports, or any codes.`
       : `Nothing in ${stage.country.name} yet, so everywhere we can price.`
-    : 'Everywhere we can price, or airport codes.';
+    : 'Anywhere we can price, or type airport codes.';
 
   // Dates a stranger's first search should not have to fix: two weeks out,
   // a week long, three days either side. The lenses keep the window form.

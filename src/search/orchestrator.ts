@@ -36,7 +36,11 @@ import type {
 import { collectPages } from '@/providers/paging';
 import { assembleRouteCandidates, interleave } from './assemble';
 import { evaluateTrip } from './evaluate';
-import { combineProvenance, provenanceForProvider } from '@/core/trip/provenance';
+import {
+  combineProvenance,
+  provenanceForMode,
+  type SourceAttribution,
+} from '@/core/trip/provenance';
 import { buildSearchPlan } from './plan';
 import type {
   DateWindow,
@@ -816,6 +820,30 @@ export async function runSearch(
     return true;
   });
 
+  /*
+   * Who answered, and what their answers are worth.
+   *
+   * Read off the adapters that actually served this search rather than from
+   * configuration, because a registry can be part live and part mock. `mode`
+   * is what decides it: `isMock` is a boolean and cannot tell a live account
+   * from a sandbox, so a Duffel test key would otherwise inherit "Live
+   * price" for seats that do not exist.
+   */
+  const sources: SourceAttribution[] = (
+    [
+      ['flights', deps.flights],
+      ['hotels', deps.hotels],
+      ['transfers', deps.transfers],
+    ] as const
+  ).map(([part, provider]) => ({
+    part,
+    providerId: provider.metadata.id,
+    displayName: provider.metadata.displayName,
+    provenance: provenanceForMode(
+      provider.metadata.mode ?? (provider.metadata.isMock ? 'mock' : 'live'),
+    ),
+  }));
+
   const ranked: RankedTrip[] = [];
   const rates = deps.rates ?? fixedRates([]);
 
@@ -849,11 +877,8 @@ export async function runSearch(
     plan,
     // Asked of the adapters that actually answered, rather than assumed from
     // configuration: a registry can be part live and part mock.
-    provenance: combineProvenance([
-      provenanceForProvider(deps.flights.metadata.isMock),
-      provenanceForProvider(deps.hotels.metadata.isMock),
-      provenanceForProvider(deps.transfers.metadata.isMock),
-    ]),
+    provenance: combineProvenance(sources.map((source) => source.provenance)),
+    sources,
     providerCalls: budget.calls,
     /*
      * The worst any single provider was pushed to.

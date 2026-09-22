@@ -280,8 +280,17 @@ test.describe('running a search', () => {
     await expect(page.getByRole('note')).toContainText('these trips are not real');
     await expect(page.getByRole('note')).toContainText('Nothing here can be booked');
 
-    // And beside the price itself, not only at the top of the page.
-    await expect(page.getByRole('article').first().getByText('Demo data')).toBeVisible();
+    // And beside the price itself, not only at the top of the page. There is
+    // more than one of these now - a combined verdict plus a tag per provider
+    // - which is the point: `.first()` proves one is on screen, and the count
+    // proves the per-provider strip is there too.
+    const card = page.getByRole('article').first();
+    await expect(card.getByText('Demo data').first()).toBeVisible();
+    expect(await card.getByText('Demo data').count()).toBeGreaterThan(1);
+
+    // The provider is named, so demo data can never be mistaken for a real
+    // vendor's answer while an integration is being brought up.
+    await expect(card.getByText('DEMO', { exact: false }).first()).toBeVisible();
   });
 
   test('narrows results without searching again', async ({ page }) => {

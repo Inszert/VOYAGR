@@ -1,22 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  ErasureSummary,
   NotificationRecord,
-  SessionRecord,
-  SessionRepository,
-  UserCredentialRecord,
-  UserCredentialRepository,
-  UserPreferencesRecord,
-  UserPreferencesRepository,
   NotificationRepository,
   PriceHistoryRepository,
   PriceObservationRecord,
   PushSubscriptionRecord,
   PushSubscriptionRepository,
   Repositories,
+  SessionRecord,
+  SessionRepository,
   TravelWatchRecord,
   TravelWatchRepository,
   TripSearchRecord,
   TripSearchRepository,
+  UserCredentialRecord,
+  UserCredentialRepository,
+  UserPreferencesRecord,
+  UserPreferencesRepository,
   UserRecord,
   UserRepository,
 } from './repository';
@@ -75,6 +76,31 @@ class MemoryUserRepository implements UserRepository {
     this.byId.set(id, updated);
     return updated;
   }
+  /**
+   * What else to remove, supplied by the factory.
+   *
+   * The user store cannot reach its siblings, and an erasure that only
+   * removes the user row leaves working sessions and running watches behind
+   * - so the factory wires this, and `erase` is the only entry point.
+   */
+  cascade: ((userId: string) => Omit<ErasureSummary, 'userExisted'>) | null = null;
+
+  async erase(id: string): Promise<ErasureSummary> {
+    const userExisted = this.byId.delete(id);
+
+    const removed = this.cascade?.(id) ?? {
+      sessions: 0,
+      savedSearches: 0,
+      travelWatches: 0,
+      priceObservations: 0,
+      notifications: 0,
+      pushSubscriptions: 0,
+      preferences: 0,
+      credentials: 0,
+    };
+
+    return { userExisted, ...removed };
+  }
 }
 
 class MemoryUserCredentialRepository implements UserCredentialRepository {
@@ -88,6 +114,9 @@ class MemoryUserCredentialRepository implements UserCredentialRepository {
     const record: UserCredentialRecord = { userId, passwordHash, updatedAt: now() };
     this.byUserId.set(userId, record);
     return record;
+  }
+  eraseUser(userId: string): number {
+    return this.byUserId.delete(userId) ? 1 : 0;
   }
 }
 
@@ -127,6 +156,16 @@ class MemorySessionRepository implements SessionRepository {
     }
     return removed;
   }
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, record] of this.byId) {
+      if (record.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
 }
 
 class MemoryUserPreferencesRepository implements UserPreferencesRepository {
@@ -153,6 +192,9 @@ class MemoryUserPreferencesRepository implements UserPreferencesRepository {
 
     this.byUserId.set(userId, record);
     return record;
+  }
+  eraseUser(userId: string): number {
+    return this.byUserId.delete(userId) ? 1 : 0;
   }
 }
 
@@ -190,6 +232,16 @@ class MemoryTripSearchRepository implements TripSearchRepository {
     const updated: TripSearchRecord = { ...existing, ...patch, updatedAt: now() };
     this.byId.set(id, updated);
     return updated;
+  }
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, record] of this.byId) {
+      if (record.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
   }
 }
 
@@ -231,6 +283,18 @@ class MemoryTravelWatchRepository implements TravelWatchRepository {
     const updated: TravelWatchRecord = { ...existing, ...patch };
     this.byId.set(id, updated);
     return updated;
+  }
+  eraseUser(userId: string): string[] {
+    const removed: string[] = [];
+
+    for (const [id, record] of this.byId) {
+      if (record.userId === userId) {
+        this.byId.delete(id);
+        removed.push(id);
+      }
+    }
+
+    return removed;
   }
 }
 
@@ -300,6 +364,16 @@ class MemoryPriceHistoryRepository implements PriceHistoryRepository {
 
     return removed;
   }
+  eraseWatches(watchIds: readonly string[]): number {
+    let removed = 0;
+
+    for (const id of watchIds) {
+      removed += this.byWatch.get(id)?.length ?? 0;
+      this.byWatch.delete(id);
+    }
+
+    return removed;
+  }
 }
 
 class MemoryNotificationRepository implements NotificationRepository {
@@ -333,6 +407,16 @@ class MemoryNotificationRepository implements NotificationRepository {
     if (!existing) return;
     this.byId.set(id, { ...existing, deliveredAt });
   }
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, record] of this.byId) {
+      if (record.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
 }
 
 class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
@@ -360,20 +444,63 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
       if (record.endpoint === endpoint) this.byId.delete(id);
     }
   }
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, record] of this.byId) {
+      if (record.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
 }
 
 /** Build a complete, isolated set of in-memory repositories. */
 export function createMemoryRepositories(): Repositories {
+  const users = new MemoryUserRepository();
+  const credentials = new MemoryUserCredentialRepository();
+  const sessions = new MemorySessionRepository();
+  const preferences = new MemoryUserPreferencesRepository();
+  const tripSearches = new MemoryTripSearchRepository();
+  const travelWatches = new MemoryTravelWatchRepository();
+  const priceHistory = new MemoryPriceHistoryRepository();
+  const notifications = new MemoryNotificationRepository();
+  const pushSubscriptions = new MemoryPushSubscriptionRepository();
+
+  /*
+   * The cascade, in dependence order.
+   *
+   * Watches are collected before they are dropped, because the observations
+   * hang off watch ids and there is no way back to them once the watches are
+   * gone. Synchronous on purpose: nothing here awaits, so nothing can
+   * interleave and leave the erasure half-done.
+   */
+  users.cascade = (userId) => {
+    const watchIds = travelWatches.eraseUser(userId);
+
+    return {
+      priceObservations: priceHistory.eraseWatches(watchIds),
+      travelWatches: watchIds.length,
+      sessions: sessions.eraseUser(userId),
+      savedSearches: tripSearches.eraseUser(userId),
+      notifications: notifications.eraseUser(userId),
+      pushSubscriptions: pushSubscriptions.eraseUser(userId),
+      preferences: preferences.eraseUser(userId),
+      credentials: credentials.eraseUser(userId),
+    };
+  };
+
   return {
-    users: new MemoryUserRepository(),
-    credentials: new MemoryUserCredentialRepository(),
-    sessions: new MemorySessionRepository(),
-    preferences: new MemoryUserPreferencesRepository(),
-    tripSearches: new MemoryTripSearchRepository(),
-    travelWatches: new MemoryTravelWatchRepository(),
-    priceHistory: new MemoryPriceHistoryRepository(),
-    notifications: new MemoryNotificationRepository(),
-    pushSubscriptions: new MemoryPushSubscriptionRepository(),
+    users,
+    credentials,
+    sessions,
+    preferences,
+    tripSearches,
+    travelWatches,
+    priceHistory,
+    notifications,
+    pushSubscriptions,
     backend: 'memory',
   };
 }

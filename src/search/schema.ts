@@ -71,6 +71,21 @@ export const OPTIMISATION_MODE_LABELS: Record<OptimisationMode, string> = {
   maximise_exploration: 'Most to explore',
 };
 
+/**
+ * The word somebody types when they do not care where they go.
+ *
+ * "Anywhere" is a real answer to "where to?", and a search that refuses it
+ * and demands three-letter codes is a search that only serves people who
+ * already know where they are going - which is the opposite of what this
+ * product is for. It expands to every destination we can actually price, so
+ * it is a promise we can keep rather than a wildcard.
+ */
+export const ANYWHERE = 'anywhere';
+
+export function isAnywhere(value: string | undefined): boolean {
+  return (value ?? '').trim().toLowerCase() === ANYWHERE;
+}
+
 /** Airport codes as typed: `VIE, BTS` or `vie bts`. */
 const airportList = (label: string) =>
   z
@@ -153,6 +168,10 @@ export const searchFormSchema = z.object({
   departureDays: daysOfWeek,
   returnDays: daysOfWeek,
   origins: airportList('departure airport'),
+  /*
+   * `anywhere` is substituted before validation reaches here, in
+   * `expandAnywhere` - by this point it is a list of codes like any other.
+   */
   destinations: airportList('destination'),
   earliestDeparture: isoDate('the earliest departure'),
   latestReturn: isoDate('the latest return'),
@@ -313,8 +332,28 @@ export function toSearchProfile(values: SearchFormValues): SearchProfile {
  */
 export function parseSearchForm(
   input: Readonly<Record<string, string | undefined>>,
+  /**
+   * Every destination we can actually price, for `anywhere`.
+   *
+   * Passed in rather than imported so this module stays free of the
+   * destination catalogue - the schema's job is to say what a valid request
+   * looks like, not to know where the product currently flies.
+   */
+  anywhere: readonly string[] = [],
 ): Result<{ request: SearchRequest; values: SearchFormValues }, SearchFormErrors> {
-  const parsed = searchFormSchema.safeParse(input);
+  /*
+   * `anywhere` becomes a list before validation, not after.
+   *
+   * Substituting here means everything downstream - the schema, the plan,
+   * the fan-out bounds, the diagnostics - deals in codes and has no idea the
+   * word was ever typed. The alternative is a special case in each of them.
+   */
+  const expanded =
+    isAnywhere(input.destinations) && anywhere.length > 0
+      ? { ...input, destinations: anywhere.join(', ') }
+      : input;
+
+  const parsed = searchFormSchema.safeParse(expanded);
 
   if (!parsed.success) {
     const errors: SearchFormErrors = {};

@@ -80,6 +80,24 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      {/*
+        Ownership proof for an affiliate network, written by hand.
+
+        Next's Metadata API only ever emits `content=`, and this network's
+        crawler looks for `value=`, so the tag is rendered directly and React
+        hoists it into `<head>`. It proves we control the domain and carries
+        no user data of any kind.
+      */}
+      <meta
+        {...({
+          name: 'impact-site-verification',
+          // Both spellings: the published snippet uses `value`, while every
+          // generic verifier reads `content`. The cast is because `value` is
+          // not a standard `<meta>` attribute and React's types say so.
+          value: 'feca6996-7b98-4739-b366-3f224f7e335e',
+          content: 'feca6996-7b98-4739-b366-3f224f7e335e',
+        } as React.MetaHTMLAttributes<HTMLMetaElement>)}
+      />
       <body className="bg-surface text-ink min-h-dvh antialiased">
         <SkipLink targetId="main-content" />
 
