@@ -50,7 +50,7 @@ describe('parseEnv', () => {
 });
 
 describe('getCapabilities', () => {
-  it('reports everything off for a bare environment', () => {
+  it('reports every credentialled capability off for a bare environment', () => {
     const capabilities = getCapabilities(parseEnv({}));
 
     expect(capabilities).toEqual({
@@ -59,7 +59,14 @@ describe('getCapabilities', () => {
       bullmq: false,
       webPush: false,
       liveAi: false,
+      // Imagery needs no key, so it is the one capability a bare environment
+      // still has. Turning it off is a deliberate setting, not a missing one.
+      imagery: true,
     });
+  });
+
+  it('lets imagery be switched off without anything else changing', () => {
+    expect(getCapabilities(parseEnv({ IMAGERY_PROVIDER: 'none' })).imagery).toBe(false);
   });
 
   it('requires both a Redis URL and the bullmq driver', () => {

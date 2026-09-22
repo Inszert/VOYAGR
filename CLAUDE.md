@@ -42,6 +42,8 @@ src/
     money.ts    Integer money arithmetic.
     trip/       Cost, constraints, usable time, scoring, domain types.
   search/       Search orchestration: plan the fan-out, assemble candidates, rank them.
+  discovery/    The globe's model: countries, great-circle routes, the discovery snapshot, stage
+                data. Pure where it can be; the page loader is the only part that does I/O.
   providers/    Travel data adapters behind interfaces. All mock today.
   ai/           AI abstraction + guardrails. Never import a vendor SDK elsewhere.
   db/           Repository interfaces + in-memory implementation + SQL migrations.
@@ -64,6 +66,15 @@ tests/e2e/      Playwright.
   goes through `toProblemDetails()`, which strips context, causes and stack traces.
 - **Expected failures:** provider adapters return `Result`, not exceptions. One provider failing
   must degrade a search, not abort it.
+- **Provider input is untrusted.** Everything a provider returns is schema-checked at the boundary
+  by `src/providers/schema.ts` before it reaches `src/core/`. An adapter's TypeScript signature is
+  a promise about our code, not about the JSON on the wire. A malformed offer is dropped and
+  reported, never fatal. A fact the vendor did not state must arrive as an explicit `null`; a
+  field that is simply missing is an adapter bug and fails validation.
+- **Currency:** converting is `src/core/fx.ts` and nothing else. **A rate is data, never a guess**
+  — there is no default rate, no reciprocal derived from the opposite pair, and no identity between
+  two different currencies. A conversion with no rate fails and says which pair was missing; the
+  caller degrades. `RateSource` is the seam a real feed will sit behind.
 - **SQL:** always parameterised. String interpolation into SQL is never acceptable.
 - **Mocks:** deterministic. Derive variation from a hash of the query, never `Math.random()` or
   `new Date()` — see `src/providers/fixtures/deterministic.ts`.
@@ -74,15 +85,35 @@ tests/e2e/      Playwright.
   clock face where the event happens (a flight's `departsAt`) and carries no zone. Read one with
   `minutesIntoLocalDay`/`localHour`, never through `Date`, and never subtract two of them to get a
   duration — that is what `FlightLeg.durationMinutes` is for.
+- **Freshness:** every offer carries `observedAt`, and `src/core/freshness.ts` reads it. Three
+  states, not two: `unknown` is its own case and never collapses into `stale`, and an observation
+  dated well into the future is not believed rather than being the freshest thing on the page.
 - **Unknowns:** a fact a provider did not state is `null`, never a default. `false` where the
   provider said nothing is a claim we cannot support, and it lands in the fields the No-Surprise
   check reads. Unknown gets its own branch: unproven for a hard requirement, a
   `needs_verification` warning, half a scoring penalty, and lower data confidence.
-- **Fan-out:** every provider call in one operation goes through a single shared `Limiter` from
-  `src/lib/concurrency.ts`. One impatient user must not become a rate-limit outage. Wrap the leaf
-  call, never the fan-out around it — a task holding a slot while waiting for another deadlocks —
-  and never bound a nested fan-out by passing the same number to both levels, which permits its
-  square.
+- **Geo data:** `public/geo/*` and `src/discovery/countries.generated.json` are written by
+  `scripts/build-geo.mjs` from Natural Earth. Never hand-edit them; change the script and rerun it.
+  The globe reaches no origin but ours, and a test asserts it.
+- **One scheme, and it is night.** The whole product is dark, in every colour scheme. `surface`,
+  `ink` and `border` are night values; there is no light block in `globals.css` and adding one
+  would split the site in two again. `stage-*` still names the parts of that night the planet
+  itself owns — the ocean, the land, the atmosphere, a price chip — and only the globe and the
+  surfaces around it use those directly.
+- **The stage:** the canvas is decoration — every fact on the globe is also a link or a card in
+  the DOM. What is drawn _around_ the sphere (the atmosphere, the flight arcs) is decoration too,
+  and lives outside the canvas because it is about the silhouette on screen, not about the
+  ground: see `globe-arcs.ts` and the `voyagr-orb` rules.
+- **Fan-out:** every provider call in one operation goes through a shared `Limiter` from
+  `src/lib/concurrency.ts` — **one per provider**, handed out by a `LimiterPool` keyed on the
+  provider id, sized from that vendor's declared `rateLimitPerMinute` (see `src/providers/rate.ts`).
+  One impatient user must not become a rate-limit outage, and a rate limit belongs to a vendor
+  rather than to a search. Within a provider there is still exactly one limiter for the whole
+  operation: wrap the leaf call, never the fan-out around it — a task holding a slot while waiting
+  for another deadlocks — and never bound a nested fan-out by passing the same number to both
+  levels, which permits its square. A search also has a ceiling on how many calls it may make at
+  all (`maxProviderCalls`); reaching it degrades the search and says so, exactly as a failed call
+  does.
 
 ## Testing
 
@@ -104,8 +135,12 @@ hand-roll an interactive control that Radix already provides, and do not add a o
 outside `src/components/ui/` without a reason.
 
 Every surface must keep: a visible focus indicator, a real label associated with every input,
-colour never as the sole signal, and 4.5:1 contrast in both light and dark schemes. The Playwright
-suite runs axe against the app and fails on any violation.
+colour never as the sole signal, and 4.5:1 contrast. The Playwright suite runs axe against the app
+in both a desktop and a mobile viewport and fails on any violation.
+
+The one place contrast cannot be read off a token pair is a price chip on the globe, because what
+is behind it depends on which way the world is facing. That one carries its own halo, the way a
+map label always has.
 
 ## What not to do yet
 

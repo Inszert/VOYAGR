@@ -4,6 +4,8 @@ import { buildProfile } from '@/core/trip/test-support';
 import type { FlightOffer } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
 import { err, ok } from '@/lib/result';
+import { fixedRates } from '@/core/fx';
+import { MOCK_OBSERVED_AT } from '@/providers/fixtures/deterministic';
 import { createMockFlightProvider } from '@/providers/flights/mock';
 import { createMockHotelProvider } from '@/providers/hotels/mock';
 import { createMockTransferProvider } from '@/providers/transfers/mock';
@@ -12,11 +14,13 @@ import type {
   FlightProvider,
   HotelProvider,
   ProviderHealth,
+  ProviderPage,
+  ProviderResult,
   TransferProvider,
   WeatherProvider,
 } from '@/providers/types';
 import { runSearch, type SearchDependencies } from './orchestrator';
-import type { SearchRequest } from './types';
+import { DEFAULT_SEARCH_LIMITS, type SearchRequest } from './types';
 
 /**
  * Search orchestration tests.
@@ -462,6 +466,59 @@ describe('runSearch diagnostics and bounds', () => {
     expect(outcome.results.length).toBeGreaterThan(0);
   });
 
+  it('holds each provider to its own declared rate, not to a shared one', async () => {
+    /*
+     * A vendor that allows sixty calls a minute gets one slot; the flight
+     * provider beside it, which declares nothing, keeps the search's bound.
+     * Before this the two shared a single limiter and the tighter vendor
+     * either throttled the other or was ignored entirely.
+     */
+    const throttled: HotelProvider = {
+      metadata: { ...createMockHotelProvider().metadata, rateLimitPerMinute: 60 },
+      checkHealth: async () => healthy,
+      searchHotels: async (query, options) => {
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        return createMockHotelProvider().searchHotels(query, options);
+      },
+    };
+
+    const outcome = await search(
+      { destinations: ['AYT', 'CHQ'], limits: { providerConcurrency: 4 } },
+      { hotels: throttled },
+    );
+
+    // One at a time for the throttled vendor, and the search still answers.
+    expect(outcome.diagnostics.peakProviderConcurrency).toBeLessThanOrEqual(4);
+    expect(outcome.results.length).toBeGreaterThan(0);
+  });
+
+  it('stops calling once the search has spent its call ceiling, and says so', async () => {
+    const outcome = await search({
+      destinations: ['AYT', 'CHQ', 'SPU'],
+      limits: { maxDateWindows: 4, maxProviderCalls: 3 },
+    });
+
+    // Spent, not overspent: the ceiling is checked before a call, not after.
+    expect(outcome.diagnostics.providerCalls).toBeLessThanOrEqual(3);
+
+    const reported = outcome.diagnostics.issues.filter((issue) =>
+      issue.message.includes('provider-call limit'),
+    );
+
+    // Reported once. Forty copies would bury the real failures underneath.
+    expect(reported).toHaveLength(1);
+    expect(outcome.diagnostics.degraded).toBe(true);
+  });
+
+  it('spends nothing extra when the ceiling is generous', async () => {
+    const outcome = await search({ destinations: ['AYT'] });
+
+    expect(outcome.diagnostics.providerCalls).toBeLessThan(DEFAULT_SEARCH_LIMITS.maxProviderCalls);
+    expect(
+      outcome.diagnostics.issues.some((issue) => issue.message.includes('provider-call limit')),
+    ).toBe(false);
+  });
+
   it('paces a wide search without dropping any of its calls', async () => {
     const wide = await search({
       destinations: ['AYT', 'CHQ', 'SPU'],
@@ -483,5 +540,211 @@ describe('runSearch diagnostics and bounds', () => {
 
   it('rejects a request that cannot describe a trip before calling a provider', async () => {
     await expect(search({ destinations: [] })).rejects.toThrow(AppError);
+  });
+});
+
+/**
+ * A page carrying whatever is given, cast past the compiler.
+ *
+ * The cast is the point: a live vendor's JSON has never been through
+ * TypeScript, and the whole reason the boundary validates is that a
+ * signature cannot stop any of this. These tests have to be able to hand the
+ * orchestrator the shapes a real provider actually sends.
+ */
+const pageOfFlights = (items: readonly unknown[]): ProviderResult<ProviderPage<FlightOffer>> =>
+  ok({ items, nextCursor: null } as unknown as ProviderPage<FlightOffer>);
+
+/**
+ * The live-provider readiness work, exercised end to end.
+ *
+ * Each of these is a shape a deterministic mock never produces and a real
+ * vendor does, which is exactly why they were invisible until now.
+ */
+describe('a provider that answers badly', () => {
+  it('drops a malformed offer, keeps the rest, and says so', async () => {
+    const real = createMockFlightProvider();
+
+    const halfBroken: FlightProvider = {
+      metadata: real.metadata,
+      checkHealth: async () => healthy,
+      async searchFlights(query, options) {
+        const page = await real.searchFlights(query, options);
+        if (!page.ok) return page;
+
+        // One offer with a null price, which typing alone cannot stop.
+        const [first, ...rest] = page.value.items;
+
+        return pageOfFlights([{ ...first, id: 'broken', price: null }, ...rest]);
+      },
+    };
+
+    const outcome = await search({}, { flights: halfBroken });
+
+    expect(outcome.results.length).toBeGreaterThan(0);
+    expect(outcome.results.every((trip) => trip.candidate.id !== 'broken')).toBe(true);
+    expect(outcome.diagnostics.issues.some((issue) => issue.message.includes('malformed'))).toBe(
+      true,
+    );
+  });
+
+  it('degrades rather than aborting when every offer is malformed', async () => {
+    const allBroken: FlightProvider = {
+      metadata: createMockFlightProvider().metadata,
+      checkHealth: async () => healthy,
+      searchFlights: async () => pageOfFlights([{ nonsense: true }]),
+    };
+
+    const outcome = await search({}, { flights: allBroken });
+
+    expect(outcome.results).toEqual([]);
+    expect(outcome.diagnostics.degraded).toBe(true);
+    // An empty answer that says why, rather than one that looks like
+    // "no trips found".
+    expect(outcome.diagnostics.issues.some((issue) => issue.message.includes('malformed'))).toBe(
+      true,
+    );
+  });
+});
+
+describe('quote freshness', () => {
+  /*
+   * A real clock, unlike the rest of this suite.
+   *
+   * The shared `mockDeps` freezes time at the epoch to keep `durationMs` out
+   * of deep-equality checks, which makes every 2026 observation sit decades
+   * in the future - correctly reported as `unknown`, and useless for telling
+   * fresh from stale. These tests set the clock where the observations are.
+   */
+  const observed = Date.parse(MOCK_OBSERVED_AT);
+  const at = (instant: number) => ({ now: () => instant });
+
+  it('calls a quote taken moments ago fresh', async () => {
+    const outcome = await search({}, at(observed + 60_000));
+
+    expect(outcome.diagnostics.quoteFreshness.fresh).toBeGreaterThan(0);
+    expect(outcome.diagnostics.quoteFreshness.stale).toBe(0);
+  });
+
+  it('calls the same quote stale once it has aged past the limit', async () => {
+    // Reported, not acted on: what to do about a stale quote needs a
+    // vendor's own validity window, which is what 1.11 goes and finds out.
+    const outcome = await search({}, at(observed + 8 * 60 * 60_000));
+
+    expect(outcome.diagnostics.quoteFreshness.stale).toBeGreaterThan(0);
+    expect(outcome.diagnostics.quoteFreshness.fresh).toBe(0);
+    expect(outcome.results.length).toBeGreaterThan(0);
+  });
+
+  it('calls a quote from the future unknown rather than the freshest thing on the page', async () => {
+    // The epoch clock the rest of this suite uses puts every mock observation
+    // decades ahead, which is a timezone bug or a broken vendor clock - not
+    // the most current data in the result set.
+    const outcome = await search();
+
+    expect(outcome.diagnostics.quoteFreshness.unknown).toBeGreaterThan(0);
+    expect(outcome.diagnostics.quoteFreshness.fresh).toBe(0);
+  });
+
+  it('accounts for every trip it ranked', async () => {
+    const outcome = await search({}, at(observed + 60_000));
+    const { fresh, stale, unknown } = outcome.diagnostics.quoteFreshness;
+
+    expect(fresh + stale + unknown).toBe(outcome.diagnostics.candidatesEvaluated);
+  });
+});
+
+describe('a provider quoting in another currency', () => {
+  /** The mock hotels, re-quoted in USD without touching anything else. */
+  const usdHotels = (): HotelProvider => {
+    const real = createMockHotelProvider();
+
+    return {
+      metadata: real.metadata,
+      checkHealth: async () => healthy,
+      async searchHotels(query, options) {
+        const page = await real.searchHotels(query, options);
+        if (!page.ok) return page;
+
+        return ok({
+          ...page.value,
+          items: page.value.items.map((offer) => ({
+            ...offer,
+            totalPrice: { ...offer.totalPrice, currency: 'USD' },
+          })),
+        });
+      },
+    };
+  };
+
+  it('leaves the trip out when it has no rate, and says which pair was missing', async () => {
+    /*
+     * The honest default. Before this the message was "quoted in an
+     * unexpected currency", which told nobody anything; an empty result set
+     * read to a user as "no trips found" when the real answer was "we could
+     * not price these".
+     */
+    const outcome = await search({}, { hotels: usdHotels() });
+
+    expect(outcome.results).toEqual([]);
+    expect(
+      outcome.diagnostics.issues.some((issue) =>
+        issue.message.includes('USD to EUR exchange rate'),
+      ),
+    ).toBe(true);
+  });
+
+  it('prices the trip when a rate is available', async () => {
+    const outcome = await search(
+      {},
+      {
+        hotels: usdHotels(),
+        rates: fixedRates([{ from: 'USD', to: 'EUR', rate: 0.9, observedAt: MOCK_OBSERVED_AT }]),
+      },
+    );
+
+    expect(outcome.results.length).toBeGreaterThan(0);
+
+    // Every figure the user sees is in the currency they asked for.
+    for (const trip of outcome.results) {
+      expect(trip.cost.total.currency).toBe('EUR');
+
+      for (const line of trip.cost.lines) {
+        expect(line.amount.currency).toBe('EUR');
+      }
+    }
+  });
+
+  it('converts by the rate rather than by anything convenient', async () => {
+    const priceIn = async (rate: number) => {
+      const outcome = await search(
+        {},
+        {
+          hotels: usdHotels(),
+          rates: fixedRates([{ from: 'USD', to: 'EUR', rate, observedAt: MOCK_OBSERVED_AT }]),
+        },
+      );
+
+      return outcome.results[0]?.cost.total.amount ?? 0;
+    };
+
+    const [cheap, dear] = await Promise.all([priceIn(0.5), priceIn(1.5)]);
+
+    // A rate three times larger makes the hotel three times dearer, so the
+    // total has to rise. A conversion that ignored the rate would not.
+    expect(dear).toBeGreaterThan(cheap);
+  });
+
+  it('never invents a reciprocal for a pair it was not given', async () => {
+    // EUR->USD is not USD->EUR. Deriving one from the other is a rate nobody
+    // published, and a price nobody quoted.
+    const outcome = await search(
+      {},
+      {
+        hotels: usdHotels(),
+        rates: fixedRates([{ from: 'EUR', to: 'USD', rate: 1.1, observedAt: MOCK_OBSERVED_AT }]),
+      },
+    );
+
+    expect(outcome.results).toEqual([]);
   });
 });

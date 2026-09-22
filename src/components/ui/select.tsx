@@ -29,10 +29,12 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
   hint?: string;
   error?: string;
   hideLabel?: boolean;
+  /** Drop the control's own border, for a segmented bar. */
+  bare?: boolean;
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, options, hint, error, hideLabel = false, className, required, ...props },
+  { label, options, hint, error, hideLabel = false, bare = false, className, required, ...props },
   ref,
 ) {
   const id = React.useId();
@@ -43,8 +45,16 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
     [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className={cn('text-ink text-sm font-medium', hideLabel && 'sr-only')}>
+    <div className={cn('flex flex-col', bare ? 'gap-0.5' : 'gap-1.5')}>
+      <label
+        htmlFor={id}
+        className={cn(
+          hideLabel && 'sr-only',
+          bare
+            ? 'text-dim truncate text-[11px] font-medium tracking-[0.06em] whitespace-nowrap uppercase'
+            : 'text-ink text-sm font-medium',
+        )}
+      >
         {label}
         {required ? (
           <>
@@ -64,9 +74,16 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
         className={cn(
-          'bg-surface-raised text-ink h-11 rounded-[--radius-control] border px-3 text-base',
+          // `w-full min-w-0`: a select's intrinsic width is its longest option,
+          // and left to itself it widens its grid column past the viewport.
+          'text-text w-full min-w-0 text-[16px] sm:text-[14px]',
           'disabled:cursor-not-allowed disabled:opacity-70',
-          error ? 'border-critical-500' : 'border-border-strong',
+          bare
+            ? 'h-7 border-0 bg-transparent p-0 focus:outline-none'
+            : cn(
+                'bg-surface-raised h-11 rounded-[--radius-control] border px-3',
+                error ? 'border-critical-500' : 'border-border-strong',
+              ),
           className,
         )}
         {...props}
@@ -79,7 +96,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
       </select>
 
       {hint ? (
-        <p id={hintId} className="text-ink-muted text-sm">
+        <p id={hintId} className={cn(bare ? 'sr-only' : 'text-ink-muted text-sm')}>
           {hint}
         </p>
       ) : null}

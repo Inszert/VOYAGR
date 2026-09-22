@@ -13,3 +13,5 @@ public/maplibre/
 public/geo/
 docs/PRODUCT-SPECIFICATION.md
 SETUP-CHECKLIST.md
+# Written by scripts/build-geo.mjs; formatted by that script, not by us.
+src/discovery/*.generated.json

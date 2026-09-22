@@ -2,6 +2,7 @@ import type { Money } from '@/core/money';
 import type { AirportCode } from '@/core/trip/types';
 import type { DateWeather } from '@/search/date-options';
 import type { SearchOutcome } from '@/search/types';
+import { greatCirclePath, type LngLat } from './geo';
 
 /**
  * What the map shows, and why (1.10.1 sections 11-14).
@@ -69,6 +70,8 @@ export interface DestinationPoint {
   readonly destination: AirportCode;
   readonly name: string;
   readonly country: string;
+  /** Natural Earth key of the country, or null when we cannot say which. */
+  readonly adm0: string | null;
   /** `[longitude, latitude]`, GeoJSON order. */
   readonly position: readonly [number, number];
   readonly tier: PlaceTier;
@@ -149,6 +152,8 @@ function explainPoint(point: Omit<DestinationPoint, 'reason'>, mode: MapMode): s
 export interface DestinationGeo {
   readonly name: string;
   readonly country: string;
+  /** Natural Earth `ADM0_A3`, so a place can be put inside a border. */
+  readonly adm0: string | null;
   readonly position: readonly [number, number];
   readonly tier: PlaceTier;
 }
@@ -188,6 +193,7 @@ export function buildMapPoints({ outcome, mode, geo }: BuildMapPointsOptions): D
       destination: summary.destination,
       name: place.name,
       country: place.country,
+      adm0: place.adm0,
       position: place.position,
       tier: place.tier,
       cheapestTotal: summary.cheapestTotal,
@@ -234,6 +240,7 @@ export function toGeoJson(points: readonly DestinationPoint[], mode: MapMode) {
         destination: point.destination,
         name: point.name,
         country: point.country,
+        adm0: point.adm0,
         reason: point.reason,
         rank: index,
         minzoom: TIER_MIN_ZOOM[point.tier],
@@ -254,4 +261,114 @@ export function toGeoJson(points: readonly DestinationPoint[], mode: MapMode) {
  */
 export function parseMapMode(raw: string | undefined): MapMode {
   return MAP_MODES.includes(raw as MapMode) ? (raw as MapMode) : 'best-value';
+}
+
+/** A departure airport, placed. The other end of every route. */
+export interface OriginPoint {
+  readonly code: AirportCode;
+  readonly name: string;
+  readonly adm0: string | null;
+  readonly position: LngLat;
+}
+
+/**
+ * A route the search priced, from an origin to a destination.
+ *
+ * The path is the great circle, in segments because a route may cross the
+ * antimeridian. `rank` is the destination's position in the chosen mode, so
+ * the renderer can draw the best route strongest without knowing what "best"
+ * meant.
+ */
+export interface Route {
+  readonly origin: AirportCode;
+  readonly destination: AirportCode;
+  readonly rank: number;
+  readonly path: readonly (readonly LngLat[])[];
+}
+
+/**
+ * One route per origin and priced destination.
+ *
+ * Only destinations with at least one trip get a route: a line to a place
+ * nothing was found for would claim a connection the search did not make.
+ */
+export function buildRoutes(
+  points: readonly DestinationPoint[],
+  origins: readonly OriginPoint[],
+): Route[] {
+  const routes: Route[] = [];
+
+  points.forEach((point, rank) => {
+    if (point.tripCount === 0) return;
+
+    for (const origin of origins) {
+      routes.push({
+        origin: origin.code,
+        destination: point.destination,
+        rank,
+        path: greatCirclePath(origin.position, point.position),
+      });
+    }
+  });
+
+  return routes;
+}
+
+/** The routes as GeoJSON, with the selected destination's routes flagged. */
+export function routesToGeoJson(routes: readonly Route[], selected: AirportCode | null = null) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: routes.map((route) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'MultiLineString' as const,
+        coordinates: route.path.map((segment) => segment.map((point) => [...point])),
+      },
+      properties: {
+        origin: route.origin,
+        destination: route.destination,
+        rank: route.rank,
+        selected: route.destination === selected,
+      },
+    })),
+  };
+}
+
+export function originsToGeoJson(origins: readonly OriginPoint[]) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: origins.map((origin) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [...origin.position] },
+      properties: { code: origin.code, name: origin.name },
+    })),
+  };
+}
+
+/** The destinations inside one country, in the order the mode ranked them. */
+export interface CountryGroup {
+  readonly adm0: string;
+  readonly country: string;
+  readonly points: readonly DestinationPoint[];
+}
+
+/**
+ * Points grouped by country, first country by best point.
+ *
+ * A point whose country is unknown is left out of every group rather than put
+ * in an "unknown" one: on a globe a country is a shape, and a shape we cannot
+ * name is a shape we should not select.
+ */
+export function groupByCountry(points: readonly DestinationPoint[]): CountryGroup[] {
+  const groups = new Map<string, { country: string; points: DestinationPoint[] }>();
+
+  for (const point of points) {
+    if (point.adm0 === null) continue;
+
+    const existing = groups.get(point.adm0);
+    if (existing) existing.points.push(point);
+    else groups.set(point.adm0, { country: point.country, points: [point] });
+  }
+
+  return [...groups].map(([adm0, group]) => ({ adm0, ...group }));
 }

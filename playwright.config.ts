@@ -98,6 +98,20 @@ export default defineConfig({
       // covered by a component test instead.
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: '',
       VAPID_PRIVATE_KEY: '',
+      /*
+       * No photographs during the suite.
+       *
+       * Every page render would otherwise resolve sixteen destination images
+       * from Wikimedia and every page load would fetch them through our proxy,
+       * which makes the run depend on a third party being up and fast, and
+       * makes `networkidle` a lottery. `docs/imagery-options.md` is explicit
+       * that the tests must not need the network.
+       *
+       * What this leaves untested is only whether a photograph appears. That
+       * the page is correct *without* one is the property that matters here,
+       * and switching imagery off is how the suite asserts it on every page.
+       */
+      IMAGERY_PROVIDER: 'none',
     },
   },
 });

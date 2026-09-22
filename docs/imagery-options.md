@@ -60,6 +60,55 @@ and sends a request to a third party for every destination a user browses past.
 cached by the service worker, and shown offline. The rate limit applies to _lookups_, not to
 serving, which suits a small, slow-changing destination catalogue.
 
+### Wikimedia Commons, via the MediaWiki API
+
+|             |                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cost        | Free. No account, no key, no approval step                                                                                                                    |
+| Attribution | Per file, per its own licence: author and licence name, both returned by the API in `extmetadata`                                                             |
+| Caching     | **Encouraged.** The User-Agent policy asks for a descriptive agent and for clients not to re-request what they already have                                   |
+| Rate limits | No published per-client quota for `api.php` reads at this volume; the policy is about behaviour rather than a number                                          |
+| Coverage    | Whatever has an article. Excellent for cities, thin for hotels and for anything that is not a place                                                           |
+| Correctness | **The strongest of the three.** A city's lead image is the picture an encyclopaedia chose to illustrate that city with, not a keyword match against a library |
+
+**The advantage:** no key to hold, caching permitted, and an image that is _about_ the place rather
+than merely tagged with its name.
+
+**The cost:** the metadata is uneven. Authors arrive as HTML fragments, some files state no author
+at all, and a few articles have no lead image. All three are normal answers and the code treats
+them as such - a missing author is printed as "photographer not stated", never as a guess.
+
+---
+
+## The decision
+
+**Wikimedia, proxied, with the association curated.** Implemented in `src/providers/imagery/`.
+
+Four properties make it fit a product whose whole argument is that it does not assert what it does
+not know:
+
+1. **The association is hand-written; only the picture is live.** `catalogue.ts` maps each
+   destination to one named article. Nothing searches an image API for "Bali", which is how a
+   product ends up showing the wrong beach. A destination with no entry gets no photograph, and its
+   card keeps the gradient it was designed around.
+2. **The bytes are served from our own origin.** `/api/imagery/[code]` fetches upstream and streams
+   it back, so `img-src` stays `'self'`, a reader's browser never talks to Wikimedia, and the
+   service worker can cache a destination photo like any other asset. The route holds the bytes in
+   a bounded in-process cache, because proxying without caching is slower than hotlinking _and_
+   ruder to the source.
+3. **Decoration never blocks a price.** The lookup is bounded by a clock and by a shared limiter,
+   caches its misses as well as its hits, and returns whatever it has. A cold cache renders
+   gradients; the next reader gets the pictures.
+4. **Attribution ships with the first image**, per photographer, on the same page as the
+   photographs, under "Photograph credits".
+
+Switch it off with `IMAGERY_PROVIDER=none`. The cards are designed to read without a picture, which
+is what the argument below was right about.
+
+---
+
+## Recommendation, not yet a decision
+
 ### A curated, self-hosted set
 
 Licensing a small number of photographs, or commissioning them, and serving them ourselves.
@@ -94,13 +143,16 @@ Whichever is chosen:
 
 ---
 
-## Recommendation, not yet a decision
+## What was argued before imagery existed
+
+Kept because the reasoning still holds, and because the constraint it imposed is why the cards
+survive a photograph not arriving.
 
 **Pexels** is the better fit of the two APIs, for one reason that outweighs the rest: it permits
 caching. Unsplash's mandatory hotlinking is incompatible with a product whose service worker is
 meant to work offline and whose privacy posture is one origin.
 
-**But the honest answer for now is neither.** The destination catalogue is eight fixture entries.
+**The honest answer at the time was neither.** The destination catalogue is eight fixture entries.
 Wiring an imagery API to illustrate demo destinations adds a third-party dependency, an attribution
 obligation and a rate limit in order to decorate data that is itself not real.
 

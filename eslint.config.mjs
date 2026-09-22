@@ -50,6 +50,27 @@ const config = [
   },
 
   {
+    /*
+     * Destination photographs are served by our own route, which is already a
+     * cache in front of the source and hands back bytes the source's own
+     * thumbnailer sized. Putting `next/image` in front of that adds a second
+     * optimiser that re-fetches from us and cannot improve on what it gets,
+     * and every one of these images is rendered with its intrinsic width and
+     * height, so none of them shifts the layout the rule exists to protect.
+     */
+    files: [
+      'src/components/discovery/destination-rail.tsx',
+      'src/components/discovery/discovery-stage.tsx',
+      'src/components/discovery/next-trip-band.tsx',
+      'src/components/search/trip-card.tsx',
+      'src/components/discovery/destination-header.tsx',
+    ],
+    rules: {
+      '@next/next/no-img-element': 'off',
+    },
+  },
+
+  {
     files: ['**/*.test.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
     rules: {
       'no-console': 'off',

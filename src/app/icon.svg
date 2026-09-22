@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    The wordmark's own glyph, on the page's own background.
+
+    A four-pointed star is what a compass rose and a distant sun have in
+    common, which is the whole of the product in one shape. Drawn at the size
+    a tab renders it: the points are fattened and the waist pulled in compared
+    to the header's version, because a sixteen-pixel star with the header's
+    proportions is four hairlines and a dot.
+  -->
+  <rect width="32" height="32" rx="7" fill="#05070E" />
+  <path
+    d="M16 3 18.1 12.4a4.2 4.2 0 0 0 2.5 2.5L30 17l-9.4 2.1a4.2 4.2 0 0 0-2.5 2.5L16 31l-2.1-9.4a4.2 4.2 0 0 0-2.5-2.5L2 17l9.4-2.1a4.2 4.2 0 0 0 2.5-2.5Z"
+    fill="#A9A5F5"
+  />
+</svg>

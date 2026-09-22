@@ -1,7 +1,8 @@
 # Progress
 
 **Last updated:** 2026-09-20
-**Stage:** Phase 1 complete except live providers. Phase 1.10.1 (the frontend build-out) complete.
+**Stage:** Phase 1 complete except live providers. Phase 1.10.1 (the frontend) rebuilt around the
+globe: all three phases of `docs/homepage-redesign.md` are done.
 **Next:** the live-provider readiness gate, then 1.11.
 
 ---
@@ -81,12 +82,64 @@ worker-detected deal produced a real push notification. Dead subscriptions are d
   fails one.
 - **Flexible dates.** Presets in the open, and a price comparison across every date window the
   search priced, with the saving stated and the sampling admitted.
-- **Discovery globe.** MapLibre with a Natural Earth basemap committed here: no tile server, no API
-  key, no third party in the render path, asserted by a test. The globe is decoration and the list
-  beside it is the content.
-- **Destination pages.** Built from the same adapters, naming what they cannot tell you.
+- **The stage (second pass).** The homepage opens on the planet: a dark stage with the globe
+  filling its box, great-circle routes from the traveller's origin to every priced destination,
+  and a price on each as a real link wearing its provenance. Countries are hoverable and
+  selectable, on the canvas and from a native select; a selection is a URL (`?country=ESP`), the
+  rail narrows to it and the search's destination field follows. Chips that would overlap are
+  hidden by rank and reappear on zoom. Idle rotation until touched, off under reduced motion.
+  Still no tile server, no API key, no glyph server and no third party in the render path,
+  asserted by a test. `/explore` is the same globe on its own page.
+- **The discovery snapshot.** Prices on the front page come from one system-limited,
+  hour-cached search of the whole catalogue, with its assumptions stated above the rail.
+  `DiscoverySource` is the seam for feeding it from price history once providers are live.
+- **The compact search.** Seven controls in the open and the rest behind a native disclosure,
+  one GET form, sharing its fieldsets with the full form so the two cannot drift.
+- **The rail.** The globe in words: every destination, in the same order, with the same figure
+  and the same reason. A country with nothing priced says so.
+- **Inside a country.** Opening one fetches its states and provinces and draws them, adds finer
+  coastlines once the zoom warrants them, and writes country and region names on the globe. The
+  labels are rasterised from a font the machine already has, so there is still no glyph server and
+  no font file here. The rail says what is actually known about an open country: where it is, how
+  many regions the globe can outline, and how many of its airports we can price. The outlines are
+  only outlines, and it says so.
+- **Geo data.** Natural Earth countries keyed on `ADM0_A3` with precomputed bounds, plus finer
+  coastlines, a label point per country and 4,138 regions in a file per country — 5.7MB in all, of
+  which a first visit downloads 210KB. Written by `scripts/build-geo.mjs`, which reduces geometry
+  with its own Douglas-Peucker, adapts precision so a small place is never rounded away, and fails
+  rather than dropping a feature. Departure airports placed in `airports.ts`; eight far
+  destinations added to the fixtures so the routes cross the planet rather than a corner of it.
+- **Result cards that lead with the journey.** Each flight is a line with the clock times at either
+  end, the airports, the duration and where it stops — the globe's arc, flattened. The price sits
+  opposite at display size with its provenance and what it is worth against the traveller's
+  ceiling. "Why this trip?" is a panel rather than a row. The duration shown is always the
+  provider's, never the gap between two local clock times, which would overstate every eastbound
+  flight; there is a test for that.
+- **Destination pages.** Built from the same adapters, naming what they cannot tell you, and
+  opening on the globe framed on the country the place is in — with no price on the marker,
+  because the page knows where a place is and not what a trip there costs.
 - **Data provenance.** Every surface that shows money says where it came from, and mock data never
   visually masquerades as a real price.
+- **Destination photography.** `src/providers/imagery/` fetches each destination's picture from
+  Wikimedia and serves it from `/api/imagery/[code]` on our own origin, so `img-src` stays `'self'`
+  and no reader's browser contacts a third party. The association between a place and an article is
+  hand-written and never searched for, because a photograph of the wrong beach is the same class of
+  error as a wrong price. The lookup is bounded by a clock and a limiter and caches its misses as
+  well as its hits, so a cold cache or an outage renders the gradient the cards were designed
+  around. Attribution is per photographer, on the page. `IMAGERY_PROVIDER=none` turns it off.
+- **One night, one accent.** The globe's biome still tints the page's accent as the planet turns,
+  but no longer its background: a site that went brown over the Sahara was a theme changing under
+  the reader. Controls keep the brand's purple throughout for the same reason.
+- **A planet, not a diagram of one.** The globe has a night side computed from the date and the
+  clock, a blurred warm terminator where the sun is setting, the lights of six hundred cities that
+  come on only where it is dark, a continental shelf glowing along every shore, and snow, sand and
+  land drawn as generated textures rather than as flat tint. Three things move slowly - the snow
+  glitters, the sand drifts, dashes walk along each route - and all three stop under
+  `prefers-reduced-motion`. See `docs/map-options.md`.
+- **A page that ends.** Below the rail: the invitation to the explorer, the best trip in the
+  snapshot already on the page, and the way back to the globe. The recommendation is not a second
+  search — it is `loadStagePage`'s `recommended`, the top result of the snapshot the globe's own
+  figures came from, and it disappears the moment a real search runs.
 
 ### Provider readiness — `src/providers/`
 
@@ -125,6 +178,19 @@ the list it was opened from.
 Also absent and noted in `docs/security.md`: rate limiting beyond sign-in, CSRF protection, audit
 logging, a nonce-based CSP, and a data retention policy beyond session and price-history sweeps.
 
+### 1.10.2 — the reference image, all the way down
+
+The product is one night from the hero to the footer: the stage's palette became the semantic
+palette, there is no light colour scheme left, and the account, watches, sign-in and status pages
+sit in the same sky as the globe. The globe itself gained the two things a map style cannot draw,
+because both are about the sphere's silhouette rather than about the ground - an atmosphere (limb
+darkening, the sun's sheen on the ocean, the rim, the halo beyond it) and flight arcs that leave
+the surface, bow over the limb and come back down, with a light travelling each one. A `Globe /
+Map` toggle switches the projection. The search became one pane of glass with a swap control
+between its endpoints; a price on the globe became a light and some words rather than a bordered
+pane, and turns round near the edge of the view so it still fits. See
+`docs/homepage-redesign.md` section 11 and `docs/map-options.md` under "the fourth pass".
+
 ---
 
 ## Known constraints
@@ -141,5 +207,30 @@ logging, a nonce-based CSP, and a data retention policy beyond session and price
 
 ## Next step
 
-The live-provider readiness gate — specifically the background-polling question. Every other
-finding is recorded and encoded; no vendor should be selected while that one is open.
+The live-provider readiness gate, and what is left of it is now **vendor questions only**.
+
+The vendor-independent half is built and tested (990 unit tests):
+
+- **Provider responses are schema-checked** at the boundary (`src/providers/schema.ts`). A
+  malformed offer is dropped and reported; the search degrades rather than aborting. An unstated
+  fact must arrive as an explicit `null` — an absent field is an adapter bug and fails.
+- **Quotes have an age** (`src/core/freshness.ts`). `fresh` / `stale` / `unknown`, with `unknown`
+  its own case and a future-dated observation not believed. Tallied in
+  `SearchDiagnostics.quoteFreshness`. Reported, not acted on: the policy needs a vendor's validity
+  window.
+- **Currencies convert** (`src/core/fx.ts`), in integer minor units, half-even, honouring the
+  minor-unit exponent difference. `RateSource` is the interface a real feed will sit behind. It
+  never invents a rate — no reciprocal, no identity across currencies, no default — so with no
+  feed configured a foreign quote is still dropped, but the diagnostic names the missing pair.
+- **Rate limits do something.** One limiter per provider sized from `rateLimitPerMinute`, plus a
+  per-search call ceiling (`maxProviderCalls`).
+
+What is still open, and all of it needs a human:
+
+1. **Background polling** for Travel Watch — whether a vendor's terms permit it. No vendor should
+   be selected while that is open.
+2. A flight vendor and a hotel vendor chosen, with licensing, quotas and attribution recorded.
+3. **A rate source** for FX, and its licensing.
+4. Sandbox credentials, so the remaining behaviours (pagination stability, real rate limits,
+   `Retry-After`, timeout figures, price validity windows) can be confirmed against something
+   real rather than assumed.

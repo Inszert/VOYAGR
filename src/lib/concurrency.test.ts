@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLimiter } from './concurrency';
+import { createLimiter, createLimiterPool } from './concurrency';
 
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -101,5 +101,65 @@ describe('createLimiter', () => {
   it('rejects a nonsensical limit', () => {
     expect(() => createLimiter(0)).toThrow(RangeError);
     expect(() => createLimiter(1.5)).toThrow(RangeError);
+  });
+});
+
+describe('createLimiterPool', () => {
+  it('gives each key its own bound, so one provider cannot throttle another', async () => {
+    const pool = createLimiterPool(4);
+
+    const slow = pool.for('slow', 1);
+    const fast = pool.for('fast', 3);
+
+    let slowRunning = 0;
+    let fastPeak = 0;
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    // One task occupies the slow provider's only slot.
+    const blocked = slow.run(async () => {
+      slowRunning += 1;
+      await held;
+      slowRunning -= 1;
+    });
+
+    // The fast provider runs regardless, which is the whole point.
+    await Promise.all(
+      Array.from({ length: 3 }, () =>
+        fast.run(async () => {
+          fastPeak = Math.max(fastPeak, fast.inFlight);
+        }),
+      ),
+    );
+
+    expect(fastPeak).toBe(3);
+    expect(slowRunning).toBe(1);
+
+    release();
+    await blocked;
+  });
+
+  it('hands back the same limiter for a key, so a bound cannot be raised later', () => {
+    const pool = createLimiterPool(4);
+
+    const first = pool.for('flights', 2);
+    const second = pool.for('flights', 99);
+
+    expect(second).toBe(first);
+    expect(second.limit).toBe(2);
+  });
+
+  it('uses the fallback for a key that names no limit of its own', () => {
+    expect(createLimiterPool(5).for('hotels').limit).toBe(5);
+  });
+
+  it('reports every limiter it handed out, so the bounds can be proven', () => {
+    const pool = createLimiterPool(4);
+    pool.for('flights', 2);
+    pool.for('hotels', 3);
+
+    expect([...pool.limiters.keys()].sort()).toEqual(['flights', 'hotels']);
   });
 });

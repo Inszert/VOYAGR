@@ -39,19 +39,20 @@ rewrite. No runtime CSS-in-JS cost, and it composes cleanly with server componen
 
 Defined in `src/app/globals.css`. Components reference **semantic** names, never raw colours.
 
-| Group     | Tokens                                                                                        |
-| --------- | --------------------------------------------------------------------------------------------- |
-| Surface   | `surface`, `surface-raised`, `surface-sunken`, `surface-overlay`                              |
-| Elevation | `shadow-raised`, `shadow-floating`, `shadow-lifted`                                           |
-| Motion    | `duration-quick`, `duration-settled`, `duration-deliberate`, `ease-standard`, `ease-emphasis` |
-| Display   | `font-display`, `text-display-sm`, `text-display-md`, `text-display-lg`                       |
-| Ink       | `ink`, `ink-muted`, `ink-inverse`                                                             |
-| Border    | `border`, `border-strong`                                                                     |
-| Brand     | `brand-50` … `brand-900`                                                                      |
-| Accent    | `accent-300`, `accent-500`, `accent-700`                                                      |
-| Status    | `positive-*`, `caution-*`, `critical-*`                                                       |
-| Tint ink  | `brand-ink`, `positive-ink`, `caution-ink`, `critical-ink`                                    |
-| Radius    | `radius-card`, `radius-control`                                                               |
+| Group     | Tokens                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surface   | `surface`, `surface-raised`, `surface-sunken`, `surface-overlay`                                                                                                                                                                                                                                                                                                                                                                                  |
+| Elevation | `shadow-raised`, `shadow-floating`, `shadow-lifted`                                                                                                                                                                                                                                                                                                                                                                                               |
+| Motion    | `duration-quick`, `duration-settled`, `duration-deliberate`, `ease-standard`, `ease-emphasis`                                                                                                                                                                                                                                                                                                                                                     |
+| Display   | `font-display`, `text-display-sm`, `text-display-md`, `text-display-lg`                                                                                                                                                                                                                                                                                                                                                                           |
+| Ink       | `ink`, `ink-muted`, `ink-inverse`                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Border    | `border`, `border-strong`                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Brand     | `brand-50` … `brand-900`                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Accent    | `accent-300`, `accent-500`, `accent-700`                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Status    | `positive-*`, `caution-*`, `critical-*`                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Tint ink  | `brand-ink`, `positive-ink`, `caution-ink`, `critical-ink`                                                                                                                                                                                                                                                                                                                                                                                        |
+| Stage     | `stage`, `stage-deep`, `stage-sea`, `stage-sea-deep`, `stage-atmosphere`, `stage-atmosphere-outer`, `stage-land`, `stage-land-lit`, `stage-border`, `stage-shelf`, `stage-night`, `stage-twilight`, `stage-city-light`, `stage-ink`, `stage-ink-muted`, `stage-glass`, `stage-glass-border`, `stage-accent`, `stage-accent-strong`, `stage-accent-deep`, `stage-route`, `stage-origin`, `stage-chip`, `stage-chip-ink` — the planet's own palette |
+| Radius    | `radius-card`, `radius-control`, `radius-surface`, `radius-pill`                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Colours are authored in **OKLCH**, which keeps perceived lightness consistent across hues — a
 caution amber and a positive green at the same lightness actually look equally prominent.
@@ -108,13 +109,14 @@ re-checking its pairing.
 
 In `src/components/ui/`, exported through `index.ts` so the approved set is visible in one place.
 
-| Component  | Notes                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| `Button`   | Variants and sizes; `asChild` renders a link as an anchor; `loading` sets `aria-busy` and keeps the accessible name |
-| `Field`    | Label, hint and error wired through `htmlFor` and `aria-describedby`; error in a live region                        |
-| `Card`     | Neutral container; `CardTitle` takes an explicit heading `level`                                                    |
-| `Badge`    | Status tones; `srPrefix` adds context colour alone cannot carry                                                     |
-| `SkipLink` | First focusable element on the page                                                                                 |
+| Component   | Notes                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Button`    | Variants and sizes; `asChild` renders a link as an anchor; `loading` sets `aria-busy` and keeps the accessible name                              |
+| `Field`     | Label, hint and error wired through `htmlFor` and `aria-describedby`; error in a live region                                                     |
+| `Card`      | Neutral container; `CardTitle` takes an explicit heading `level`                                                                                 |
+| `Badge`     | Status tones; `srPrefix` adds context colour alone cannot carry                                                                                  |
+| `SkipLink`  | First focusable element on the page                                                                                                              |
+| `Container` | The reading column. `<main>` no longer constrains width, because the stage bleeds; a column page says so, or lives in the `(column)` route group |
 
 `CardTitle` takes a level rather than assuming one because a card in a results grid and a card that
 is a page's only content sit at different points in the document outline.
@@ -146,9 +148,46 @@ Non-negotiable, and checked by both the component tests and axe:
 Restrained and content-first. This is a tool people spend money through, so it should feel precise
 rather than playful.
 
-**Deliberately avoided:** the generic "AI dashboard" look — gradient hero panels, glowing borders,
-dark-glass cards, sparkle iconography, a purple-to-blue gradient on everything. None of it helps
-someone decide whether a EUR 742 trip is good value.
+**One scheme, and it is night.** Voyagr is a planet seen from orbit with an interface laid over
+it, and a planet does not repaint itself when the reader's operating system changes its mind. The
+stage used to be the only dark surface and the product turned to parchment below it, which was two
+websites stacked on one scroll. The stage's palette is now the product's: `surface`, `ink`,
+`border` and `surface-raised` are the night values, there is no `prefers-color-scheme` block left
+in `globals.css`, and `color-scheme: dark` is declared on the root so the platform's own furniture
+agrees.
+
+**`stage-*` names the planet, not the theme.** The tokens survive because they describe a world
+rather than an interface: `stage-sea` is the ocean, `stage-land` is vegetation, `stage-atmosphere`
+is what air scatters at the limb, `stage-chip` is a price on the globe. Only the globe and the
+surfaces immediately around it read them. `.stage-scope` no longer repaints an island of the
+product; what is left in it is the difference between an interface panel and a pane of glass laid
+over a photograph — glass surfaces, a hairline border, and a red that survives being printed on
+one.
+
+**The flight paths follow the globe; nothing else does.** As the planet turns, `--color-stage-route`
+moves towards the biome in the middle of the view — warm over the deserts, cool over ice, jade over
+the tropics — at low chroma, so the arcs stay near-white with a hint of the ground under them. The
+transition animates because the property is registered with `@property`. Two earlier versions went
+further and both were wrong: one moved the page background, which turned the entire site brown over
+the Sahara; the next moved the accent, which turned the headline, the icons and the eyebrow amber
+with it. A brand that changes under the reader is not a personality. Ink, surfaces, glass and the
+one violet every control is built from are fixed, so every contrast pairing below holds whichever
+way the world is facing.
+
+**Ambient light, never an outline.** The glow around the globe is part of the stage's background
+paint, not a ring drawn on the sphere. Anything that wraps an object in a shape with a definite
+edge — a halo, a rim, a glowing border — reads as an outline rather than as light, and the whole
+planet goes with it. What sits on the globe itself is one soft haze that fades out long before it
+could look like a boundary.
+
+**The gradient is one control, not a style.** `.voyagr-cta` — a violet-to-indigo gradient with a
+glow in its own hue — dresses the primary action and nothing else. Both of its stops are
+deliberately no lighter than oklch 0.55, because white type on the brighter violet the reference
+uses fails 4.5:1, and a button nobody can read is not a closer match to anything.
+
+**Deliberately avoided:** the generic "AI dashboard" look — a gradient on every surface, glowing
+borders everywhere, sparkle iconography as decoration, glass for its own sake. The glass here is
+load-bearing: it is what lets a control sit over a planet and still be read.
 
 **What the product actually demands:**
 

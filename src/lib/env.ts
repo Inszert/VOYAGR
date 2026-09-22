@@ -49,6 +49,13 @@ const envSchema = z.object({
   TRANSFER_PROVIDER_API_KEY: z.string().min(1).optional(),
   PLACES_PROVIDER_API_KEY: z.string().min(1).optional(),
 
+  /*
+   * Destination photographs. `none` is a supported state, not a degraded one:
+   * the cards are designed to read without a picture. See
+   * `docs/imagery-options.md` for why this source and no API key.
+   */
+  IMAGERY_PROVIDER: z.enum(['none', 'wikimedia']).default('wikimedia'),
+
   // Web Push.
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
   VAPID_PRIVATE_KEY: z.string().min(1).optional(),
@@ -128,6 +135,8 @@ export interface EnvCapabilities {
   bullmq: boolean;
   webPush: boolean;
   liveAi: boolean;
+  /** Destination photographs are fetched, rather than the cards going bare. */
+  imagery: boolean;
 }
 
 /** Which capabilities the current configuration actually enables. */
@@ -138,6 +147,7 @@ export function getCapabilities(env: Env = getEnv()): EnvCapabilities {
     bullmq: env.QUEUE_DRIVER === 'bullmq' && Boolean(env.REDIS_URL),
     webPush: Boolean(env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
     liveAi: env.AI_PROVIDER !== 'mock' && Boolean(env.ANTHROPIC_API_KEY),
+    imagery: env.IMAGERY_PROVIDER !== 'none',
   };
 }
 

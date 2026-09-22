@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addMonths,
+  daysInMonth,
+  startOfMonth,
   addDays,
   clampDate,
   DateRangeError,
@@ -140,5 +143,34 @@ describe('local wall-clock times', () => {
     expect(() => minutesIntoLocalDay('2026-06-10T23:40:00Z')).toThrow(DateRangeError);
     expect(() => localHour('not a time')).toThrow(DateRangeError);
     expect(() => localDate('2026-06-10')).toThrow(DateRangeError);
+  });
+});
+
+describe('month arithmetic', () => {
+  it('finds the first of the month', () => {
+    expect(startOfMonth('2026-09-22')).toBe('2026-09-01');
+    expect(startOfMonth('2026-01-01')).toBe('2026-01-01');
+  });
+
+  it('counts the days in a month, including leap Februaries', () => {
+    expect(daysInMonth('2026-01-15')).toBe(31);
+    expect(daysInMonth('2026-02-15')).toBe(28);
+    expect(daysInMonth('2028-02-15')).toBe(29);
+    expect(daysInMonth('2026-04-15')).toBe(30);
+  });
+
+  it('steps whole months and rolls the year over', () => {
+    expect(addMonths('2026-09-22', 1)).toBe('2026-10-22');
+    expect(addMonths('2026-12-10', 1)).toBe('2027-01-10');
+    expect(addMonths('2026-01-10', -1)).toBe('2025-12-10');
+    expect(addMonths('2026-09-22', 12)).toBe('2027-09-22');
+  });
+
+  it('clamps to the end of a shorter month rather than rolling over', () => {
+    // setMonth would make this the 3rd of March, which is how a date picker
+    // skips February entirely.
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
+    expect(addMonths('2028-01-31', 1)).toBe('2028-02-29');
+    expect(addMonths('2026-03-31', -1)).toBe('2026-02-28');
   });
 });

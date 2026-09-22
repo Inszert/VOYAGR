@@ -47,13 +47,11 @@ export function DestinationDetailView({ detail }: DestinationDetailViewProps) {
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <h1 className="text-ink font-display text-display-lg">{detail.place.name}</h1>
-        <p className="text-ink-muted">
-          {detail.place.country} · airport {detail.destination}
-        </p>
-      </header>
-
+      {/*
+        The place is named by the stage header above this, which is where the
+        page's one `h1` lives. Repeating it here would be two answers to
+        "where am I?" on one page, and a second `h1` in the outline.
+      */}
       {detail.unavailable.length > 0 ? (
         <div
           role="status"

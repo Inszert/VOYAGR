@@ -65,6 +65,20 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
+        /*
+         * The globe's geography, cached for a year.
+         *
+         * Every one of these filenames carries the version the build wrote it
+         * at - `countries-110m.v1.json` - so a change to the data is a change
+         * to the URL and there is nothing to revalidate. Without this the
+         * browser asks again for half a megabyte of coastline on every
+         * navigation, which is a request per page for a file that cannot have
+         * changed.
+         */
+        source: '/geo/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
         // The service worker must never be cached aggressively, or clients get
         // stuck on a stale shell.
         source: '/sw.js',

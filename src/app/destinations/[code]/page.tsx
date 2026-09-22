@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { format } from '@/core/money';
-import { Card, CardTitle, DemoDataNotice, Tag } from '@/components/ui';
+import { Card, CardTitle, Container, DemoDataNotice, Tag } from '@/components/ui';
 import { loadDestinationDetail } from '@/discovery/destination-detail';
 import { DestinationDetailView } from '@/components/discovery/destination-detail-view';
+import { DestinationHeader } from '@/components/discovery/destination-header';
+import { findCountry } from '@/discovery/countries';
 import { resolveDestinationGeo } from '@/search/destination-names';
+import { resolveImagery } from '@/providers/imagery';
 
 /**
  * A destination (1.10.1 section 18).
@@ -13,6 +16,9 @@ import { resolveDestinationGeo } from '@/search/destination-names';
  * second opinion about a place: the transfer prices are the transfer
  * provider's, the outlook is the weather provider's, and the money is
  * formatted from `Money` rather than assembled from numbers on the way out.
+ *
+ * The page opens on the globe framed on this place's country, so arriving
+ * here reads as zooming further in rather than as leaving the map.
  *
  * Section 18 asks for a good deal this cannot answer yet - imagery, events,
  * national holidays, travel warnings, hidden places. Those are sections 20 to
@@ -52,8 +58,11 @@ export default async function DestinationPage({ params, searchParams }: PageProp
   const passengers = Number(single(query.passengers) ?? 2);
   const currency = (single(query.currency) ?? 'EUR').toUpperCase();
 
+  const destination = code.toUpperCase();
+  const place = resolveDestinationGeo(destination);
+
   const detail = await loadDestinationDetail({
-    destination: code.toUpperCase(),
+    destination,
     currency: /^[A-Z]{3}$/.test(currency) ? currency : 'EUR',
     passengers: Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2,
     // Only trusted when they are actually dates; a malformed one means no
@@ -62,70 +71,86 @@ export default async function DestinationPage({ params, searchParams }: PageProp
     ...(endDate && ISO_DATE.test(endDate) ? { endDate } : {}),
   });
 
-  if (!detail) notFound();
+  if (!detail || !place) notFound();
+
+  const dates =
+    startDate && endDate && ISO_DATE.test(startDate) && ISO_DATE.test(endDate)
+      ? { startDate, endDate }
+      : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
-      {/*
-        Before the content, as everywhere else. A notice that what follows is
-        fictional is worthless underneath the fiction.
-      */}
-      {detail.provenance === 'mock' ? <DemoDataNotice /> : null}
+    <div className="flex flex-col">
+      <DestinationHeader
+        today={new Date().toISOString().slice(0, 10)}
+        destination={destination}
+        place={place}
+        country={place.adm0 ? findCountry(place.adm0) : null}
+        dates={dates}
+        image={(await resolveImagery([destination])).get(destination.toUpperCase()) ?? null}
+      />
 
-      <DestinationDetailView detail={detail} />
+      <Container className="flex flex-col gap-6 py-10">
+        {/*
+          Before the content, as everywhere else. A notice that what follows is
+          fictional is worthless underneath the fiction.
+        */}
+        {detail.provenance === 'mock' ? <DemoDataNotice /> : null}
 
-      {detail.transfers.length > 0 ? (
-        <Card as="section" aria-labelledby="transfers-heading" elevation="raised">
-          <CardTitle id="transfers-heading" level={2}>
-            Getting in from the airport
+        <DestinationDetailView detail={detail} />
+
+        {detail.transfers.length > 0 ? (
+          <Card as="section" aria-labelledby="transfers-heading" elevation="raised">
+            <CardTitle id="transfers-heading" level={2}>
+              Getting in from the airport
+            </CardTitle>
+            <p className="text-ink-muted mt-1 text-sm">
+              Priced each way, for the whole party. A trip total in a search counts both directions
+              - this is the half of it you would pay on arrival.
+            </p>
+            <ul className="mt-4 flex flex-col gap-2">
+              {detail.transfers.map((transfer) => (
+                <li
+                  key={transfer.id}
+                  className="border-border flex flex-wrap items-baseline justify-between gap-2 rounded-[--radius-card] border p-3"
+                >
+                  <span className="text-ink text-sm font-medium capitalize">{transfer.mode}</span>
+                  <span className="text-ink-muted text-sm">
+                    about {transfer.durationMinutes} minutes
+                  </span>
+                  <span className="text-ink text-sm font-semibold tabular-nums">
+                    {format(transfer.pricePerDirection)} each way
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
+
+        <Card as="section" aria-labelledby="gaps-heading" surface="sunken">
+          <CardTitle id="gaps-heading" level={2}>
+            What this page cannot tell you yet
           </CardTitle>
-          <p className="text-ink-muted mt-1 text-sm">
-            Priced each way, for the whole party. A trip total in a search counts both directions -
-            this is the half of it you would pay on arrival.
+          <p className="text-ink-muted mt-2 text-sm">
+            Section 18 of the specification asks for more than this. These are missing because no
+            data source behind the product carries them, not because there is nothing to report -
+            and for a travel warning those are very different things.
           </p>
-          <ul className="mt-4 flex flex-col gap-2">
-            {detail.transfers.map((transfer) => (
-              <li
-                key={transfer.id}
-                className="border-border flex flex-wrap items-baseline justify-between gap-2 rounded-[--radius-card] border p-3"
-              >
-                <span className="text-ink text-sm font-medium capitalize">{transfer.mode}</span>
-                <span className="text-ink-muted text-sm">
-                  about {transfer.durationMinutes} minutes
-                </span>
-                <span className="text-ink text-sm font-semibold tabular-nums">
-                  {format(transfer.pricePerDirection)} each way
-                </span>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {[
+              'Photographs',
+              'Events',
+              'National holidays',
+              'Travel warnings',
+              'Hidden places',
+              'Recommended trip lengths',
+            ].map((missing) => (
+              <li key={missing}>
+                <Tag>{missing}</Tag>
               </li>
             ))}
           </ul>
         </Card>
-      ) : null}
-
-      <Card as="section" aria-labelledby="gaps-heading" surface="sunken">
-        <CardTitle id="gaps-heading" level={2}>
-          What this page cannot tell you yet
-        </CardTitle>
-        <p className="text-ink-muted mt-2 text-sm">
-          Section 18 of the specification asks for more than this. These are missing because no data
-          source behind the product carries them, not because there is nothing to report - and for a
-          travel warning those are very different things.
-        </p>
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {[
-            'Photographs',
-            'Events',
-            'National holidays',
-            'Travel warnings',
-            'Hidden places',
-            'Recommended trip lengths',
-          ].map((missing) => (
-            <li key={missing}>
-              <Tag>{missing}</Tag>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      </Container>
     </div>
   );
 }

@@ -23,9 +23,9 @@ import {
  */
 
 const PLACES: Record<string, DestinationGeo> = {
-  AYT: { name: 'Antalya', country: 'Turkey', position: [30.79, 36.9], tier: 'major' },
-  SPU: { name: 'Split', country: 'Croatia', position: [16.3, 43.54], tier: 'major' },
-  ZZZ: { name: 'Nowhere', country: 'Nowhere', position: [0, 0], tier: 'local' },
+  AYT: { name: 'Antalya', country: 'Turkey', adm0: 'TUR', position: [30.79, 36.9], tier: 'major' },
+  SPU: { name: 'Split', country: 'Croatia', adm0: 'HRV', position: [16.3, 43.54], tier: 'major' },
+  ZZZ: { name: 'Nowhere', country: 'Nowhere', adm0: null, position: [0, 0], tier: 'local' },
 };
 
 const geo = (code: string): DestinationGeo | null => PLACES[code] ?? null;

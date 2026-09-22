@@ -20,20 +20,25 @@ import { dirname, join } from 'node:path';
  * Both files are needed - the worker is an ES module that imports the shared
  * chunk beside it - and they must keep their names, because that import is by
  * filename.
+ *
+ * They land in a directory named after the library version. The service
+ * worker caches `/maplibre/` first, and a worker cached under a URL that did
+ * not change with the library would be served, stale, to a newer bundle - the
+ * same silent blank map by another route.
  */
 
 const FILES = ['maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs'];
-const DESTINATION = 'public/maplibre';
 
 const require = createRequire(import.meta.url);
 const distributionDirectory = dirname(require.resolve('maplibre-gl/dist/maplibre-gl.mjs'));
-
-await mkdir(DESTINATION, { recursive: true });
-
-for (const file of FILES) {
-  await copyFile(join(distributionDirectory, file), join(DESTINATION, file));
-}
-
 const { version } = JSON.parse(await readFile(require.resolve('maplibre-gl/package.json'), 'utf8'));
 
-process.stdout.write(`Copied the MapLibre ${version} worker into ${DESTINATION}/\n`);
+const destination = join('public/maplibre', version);
+
+await mkdir(destination, { recursive: true });
+
+for (const file of FILES) {
+  await copyFile(join(distributionDirectory, file), join(destination, file));
+}
+
+process.stdout.write(`Copied the MapLibre ${version} worker into ${destination}/\n`);

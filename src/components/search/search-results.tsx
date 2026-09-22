@@ -4,12 +4,11 @@ import { explainTrip } from '@/search/explain';
 import { applyFilters, hasActiveFilters, type ResultFilters } from '@/search/filters';
 import { EmptyState } from '@/components/ui';
 import { buildDateBreakdown } from '@/search/date-options';
-import { parseMapMode } from '@/discovery/map-model';
-import { DestinationMap } from '@/components/discovery/destination-map';
 import { DateOptions } from './date-options';
 import { ResultFiltersPanel } from './result-filters';
 import type { SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
+import type { DestinationImage } from '@/providers/imagery/types';
 import { TripCard } from './trip-card';
 
 /**
@@ -35,6 +34,14 @@ export interface SearchResultsProps {
   searchValues: Readonly<Record<string, string | undefined>>;
   /** How long ago these results were computed. Zero for a fresh search. */
   resultAgeMs?: number;
+  /**
+   * A photograph per destination, keyed by airport code.
+   *
+   * Resolved by the page, not here: this component renders what it is handed
+   * and never goes looking for anything. An absent entry is normal and the
+   * cards are built for it.
+   */
+  images?: ReadonlyMap<string, DestinationImage>;
 }
 
 /** Whole minutes, because "3 minutes ago" is the honest resolution here. */
@@ -48,6 +55,7 @@ export function SearchResults({
   filters,
   searchValues,
   resultAgeMs = 0,
+  images,
 }: SearchResultsProps) {
   const { nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
@@ -104,20 +112,6 @@ export function SearchResults({
             ))}
           </ul>
         </div>
-      ) : null}
-
-      {/*
-        Explore, then compare, then choose - sections 11 and 8 before section
-        10. Where you can go is a bigger question than which of these forty,
-        and asking it underneath the answers is asking it too late.
-      */}
-      {diagnostics.eligibleCount > 0 ? (
-        <DestinationMap
-          outcome={outcome}
-          mode={parseMapMode(searchValues.mapMode)}
-          searchValues={searchValues}
-          selected={filters.destination}
-        />
       ) : null}
 
       {/*
@@ -178,6 +172,7 @@ export function SearchResults({
                 rank={index}
                 provenance={diagnostics.provenance}
                 reasons={explainTrip(trip, profile)}
+                image={images?.get(trip.candidate.destination) ?? null}
                 {...(index === 0
                   ? {
                       flightAlternatives: flightAlternatives({ outcome, current: trip, profile }),
@@ -208,7 +203,12 @@ export function SearchResults({
             {nearMisses.map((trip) => (
               <li key={trip.candidate.id}>
                 {/* Rank is deliberately out of range: a near miss is not ranked. */}
-                <TripCard trip={trip} rank={-1} provenance={diagnostics.provenance} />
+                <TripCard
+                  trip={trip}
+                  rank={-1}
+                  provenance={diagnostics.provenance}
+                  image={images?.get(trip.candidate.destination) ?? null}
+                />
               </li>
             ))}
           </ol>

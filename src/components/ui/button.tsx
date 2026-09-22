@@ -16,15 +16,22 @@ import { cn } from '@/lib/cn';
  *    in the app shares one indicator.
  */
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'cta' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
+/*
+ * There is one filled button in this product and it is the accent gradient.
+ *
+ * `primary` and `cta` are the same paint deliberately: a flat violet beside a
+ * gradient one is two primary actions that look like different promises. The
+ * names stay distinct because call sites use both, and because `cta` is the
+ * one that is allowed to carry a glow.
+ */
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary:
-    'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-600/50',
-  secondary:
-    'bg-surface-raised text-ink border border-border-strong hover:bg-surface-sunken active:bg-surface-sunken',
-  ghost: 'bg-transparent text-ink hover:bg-surface-sunken active:bg-surface-sunken',
+  primary: 'voyagr-cta disabled:opacity-60',
+  cta: 'voyagr-cta disabled:opacity-60',
+  secondary: 'bg-panel text-text border-hairline hover:bg-panel-2 active:bg-panel-2 border',
+  ghost: 'text-muted hover:text-text hover:bg-panel bg-transparent',
   danger:
     'bg-critical-700 text-white hover:bg-critical-500 active:bg-critical-700 disabled:bg-critical-700/50',
 };

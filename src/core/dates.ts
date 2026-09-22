@@ -106,6 +106,47 @@ export function dayOfWeek(isoDate: IsoDate): number {
   return new Date(toUtcMillis(isoDate)).getUTCDay();
 }
 
+/** The first day of the month a date falls in. */
+export function startOfMonth(isoDate: IsoDate): IsoDate {
+  return `${isoDate.slice(0, 7)}-01` as IsoDate;
+}
+
+/**
+ * How many days a month has, counting February properly.
+ *
+ * Day zero of the next month is the last day of this one, which is the one
+ * piece of calendar arithmetic worth delegating rather than writing out with
+ * a leap-year rule.
+ */
+export function daysInMonth(isoDate: IsoDate): number {
+  const year = Number(isoDate.slice(0, 4));
+  const month = Number(isoDate.slice(5, 7));
+
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/**
+ * The same day-of-month, `months` later or earlier.
+ *
+ * Clamped to the end of the target month, so a calendar sitting on the 31st
+ * of January steps to the 28th of February rather than rolling over into
+ * March - which is what `setMonth` does and why it is not used here.
+ */
+export function addMonths(isoDate: IsoDate, months: number): IsoDate {
+  const year = Number(isoDate.slice(0, 4));
+  const month = Number(isoDate.slice(5, 7));
+  const day = Number(isoDate.slice(8, 10));
+
+  const zeroBased = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(zeroBased / 12);
+  const targetMonth = zeroBased - targetYear * 12 + 1;
+
+  const first =
+    `${String(targetYear).padStart(4, '0')}-${String(targetMonth).padStart(2, '0')}-01` as IsoDate;
+
+  return `${first.slice(0, 8)}${String(Math.min(day, daysInMonth(first))).padStart(2, '0')}` as IsoDate;
+}
+
 // --- Local wall-clock times -------------------------------------------------
 
 const LOCAL_DATE_TIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;

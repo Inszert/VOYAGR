@@ -18,6 +18,8 @@ export interface SwapPanelProps {
   heading: string;
   alternatives: readonly Alternative[];
   currency: string;
+  /** Passed to the disclosure, so a card can group several into one panel. */
+  className?: string;
 }
 
 function deltaLabel(minorUnits: number, currency: string): string {
@@ -26,11 +28,11 @@ function deltaLabel(minorUnits: number, currency: string): string {
   return minorUnits < 0 ? `${formatted} cheaper` : `${formatted} more`;
 }
 
-export function SwapPanel({ heading, alternatives, currency }: SwapPanelProps) {
+export function SwapPanel({ heading, alternatives, currency, className }: SwapPanelProps) {
   if (alternatives.length <= 1) return null;
 
   return (
-    <Disclosure summary={heading}>
+    <Disclosure summary={heading} className={className}>
       <ul className="flex flex-col gap-3">
         {alternatives.map((alternative) => (
           <li

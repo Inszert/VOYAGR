@@ -137,7 +137,9 @@ test.describe('travel watches', () => {
       .getByRole('link', { name: 'Run this search now' })
       .click();
 
-    // The re-run is the search that was saved, not a looser one.
+    // The re-run is the search that was saved, not a looser one. The hard
+    // requirements sit behind "More options", so it is opened first.
+    await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('checkbox', { name: 'Direct flights only' })).toBeChecked();
     await expect(
       page.getByRole('checkbox', { name: 'Hotel must be free to cancel' }),

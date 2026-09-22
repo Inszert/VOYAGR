@@ -47,7 +47,7 @@ test.describe('accounts', () => {
 
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(
-      page.getByRole('heading', { level: 1, name: /Find a complete trip/ }),
+      page.getByRole('heading', { level: 1, name: /See where you can go/ }),
     ).toBeVisible();
 
     await page.goto('/sign-in');
@@ -185,7 +185,10 @@ test.describe('preferences and the search form', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('textbox', { name: /Departure airports/ })).toHaveValue('BTS');
+    await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('BTS');
+    // Currency and style sit behind "More options"; opening it is what a
+    // person does to check them, and hidden controls are not in the tree.
+    await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('textbox', { name: /^Currency/ })).toHaveValue('GBP');
     await expect(page.getByRole('combobox', { name: 'Travel style' })).toHaveValue('beach');
   });
@@ -199,11 +202,11 @@ test.describe('preferences and the search form', () => {
     await expect(page.getByText('Preferences saved.')).toBeVisible();
 
     await page.goto('/');
-    await page.getByRole('textbox', { name: /Departure airports/ }).fill('VIE');
+    await page.getByRole('combobox', { name: /^From/ }).fill('VIE');
     await page.getByRole('button', { name: 'Search trips' }).click();
 
     // The search that ran is the one in front of the user, not the saved one.
-    await expect(page.getByRole('textbox', { name: /Departure airports/ })).toHaveValue('VIE');
+    await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('VIE');
     await expect(page).toHaveURL(/origins=VIE/);
   });
 

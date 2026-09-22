@@ -65,6 +65,19 @@ export interface SearchLimits {
   readonly maxSwapOptionsPerRoute: number;
   readonly maxPagesPerSearch: number;
   readonly providerConcurrency: number;
+  /**
+   * The most provider calls one search may make, across every provider.
+   *
+   * The other limits bound the shape of the fan-out; this bounds its cost.
+   * Against a mock a call is free and this never bites - the defaults imply
+   * about seventy - but against a metered vendor an unbounded fan-out is a
+   * bill, and a search that quietly spends four times its usual budget
+   * because a request asked for more windows is exactly the surprise the
+   * live-provider readiness gate asks to be closed first.
+   *
+   * Reaching it degrades the search and says so, the same as a failed call.
+   */
+  readonly maxProviderCalls: number;
   readonly providerTimeoutMs: number;
 }
 
@@ -91,6 +104,7 @@ export const DEFAULT_SEARCH_LIMITS: SearchLimits = {
   maxSwapOptionsPerRoute: 8,
   maxPagesPerSearch: 2,
   providerConcurrency: 6,
+  maxProviderCalls: 120,
   providerTimeoutMs: 8_000,
 };
 
@@ -187,6 +201,26 @@ export interface SearchDiagnostics {
   readonly candidatesEvaluated: number;
   readonly eligibleCount: number;
   readonly ineligibleCount: number;
+  /**
+   * How old the quotes behind these results are.
+   *
+   * Every offer has carried `observedAt` since 1.1 and nothing read it, which
+   * the live-provider readiness gate lists as a mock-invisible assumption: a
+   * quote is a perishable fact, and a four-hour-old fare shown as "the price"
+   * is the sort of silent surprise §31.5 exists to prevent.
+   *
+   * Counted per ranked trip, taking the weaker of its flight and hotel, so a
+   * trip is only as current as its stalest half. **Reported, not acted on.**
+   * What to actually do about a stale quote - refuse it, label it, re-check
+   * it - depends on a vendor's own validity window, which is exactly what
+   * 1.11 goes and finds out. This makes the question answerable first.
+   */
+  readonly quoteFreshness: {
+    readonly fresh: number;
+    readonly stale: number;
+    /** Quotes with no usable `observedAt`. Its own case, never folded into stale. */
+    readonly unknown: number;
+  };
   readonly durationMs: number;
 }
 

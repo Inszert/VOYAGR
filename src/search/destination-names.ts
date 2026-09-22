@@ -1,6 +1,7 @@
-import { findDestination } from '@/providers/fixtures/destinations';
+import { findDestination, DESTINATION_FIXTURES } from '@/providers/fixtures/destinations';
+import { AIRPORT_FIXTURES, findAirport } from '@/providers/fixtures/airports';
 import type { AirportCode } from '@/core/trip/types';
-import type { DestinationGeo } from '@/discovery/map-model';
+import type { DestinationGeo, OriginPoint } from '@/discovery/map-model';
 
 /**
  * Airport code to place name, for display only.
@@ -51,9 +52,105 @@ export function resolveDestinationGeo(destination: AirportCode): DestinationGeo 
   return {
     name: fixture.name,
     country: fixture.country,
+    adm0: fixture.adm0,
     position: fixture.position,
     // Everything the product can currently reach is an airport a scheduled
     // airline flies to. Smaller tiers arrive with the places they describe.
     tier: 'major',
   };
+}
+
+/**
+ * Where a departure airport is, for the other end of a route.
+ *
+ * Origins and destinations are both airports, so a destination can be flown
+ * from too. An origin nothing can place draws no route rather than a route
+ * from somewhere plausible.
+ */
+export function resolveOriginGeo(origin: AirportCode): OriginPoint | null {
+  const airport = findAirport(origin);
+  if (airport) {
+    return {
+      code: airport.code,
+      name: airport.city,
+      adm0: airport.adm0,
+      position: airport.position,
+    };
+  }
+
+  const destination = resolveDestinationGeo(origin);
+  if (!destination) return null;
+
+  return {
+    code: origin.toUpperCase(),
+    name: destination.name,
+    adm0: destination.adm0,
+    position: destination.position,
+  };
+}
+
+/**
+ * Every destination the catalogue can put on the globe.
+ *
+ * The discovery snapshot prices all of them, because "where can I go?" is a
+ * question about the whole catalogue rather than about whichever three
+ * airports the form defaults to.
+ */
+export function listPlaceableDestinations(): AirportCode[] {
+  return DESTINATION_FIXTURES.filter(
+    (fixture) => fixture.position[0] !== 0 || fixture.position[1] !== 0,
+  ).map((fixture) => fixture.airport);
+}
+
+/** One airport a person can type, and what to show them while they type it. */
+export interface AirportSuggestion {
+  readonly code: AirportCode;
+  /** The city or place, e.g. "Budapest". */
+  readonly name: string;
+  readonly country: string;
+  /** True when the product can price a trip to it, not merely from it. */
+  readonly priceable: boolean;
+}
+
+/**
+ * Every airport the catalogue knows, for the search's suggestions.
+ *
+ * Origins and destinations together, because a person typing "BU" is asking
+ * the same question in either field. Sorted by code so the list is stable and
+ * a suggestion does not move under the cursor between renders.
+ *
+ * Confined here like the rest of the catalogue: this module is the only place
+ * allowed to read provider fixtures, so the real `destinations` table
+ * replaces one function rather than a hunt through components.
+ */
+export function listAirports(): AirportSuggestion[] {
+  const byCode = new Map<string, AirportSuggestion>();
+
+  for (const airport of AIRPORT_FIXTURES) {
+    byCode.set(airport.code, {
+      code: airport.code,
+      name: airport.city,
+      country: airport.country,
+      priceable: false,
+    });
+  }
+
+  for (const fixture of DESTINATION_FIXTURES) {
+    byCode.set(fixture.airport, {
+      code: fixture.airport,
+      name: fixture.name,
+      country: fixture.country,
+      priceable: true,
+    });
+  }
+
+  return [...byCode.values()].sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/** The catalogue's destinations inside one country, by Natural Earth key. */
+export function listDestinationsInCountry(adm0: string): AirportCode[] {
+  const key = adm0.toUpperCase();
+  return DESTINATION_FIXTURES.filter((fixture) => fixture.adm0 === key).map(
+    (fixture) => fixture.airport,
+  );
 }

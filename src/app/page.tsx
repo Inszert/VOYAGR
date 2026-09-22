@@ -1,200 +1,244 @@
 import type { Metadata } from 'next';
-import { CategoryGrid } from '@/components/discovery/category-grid';
-import { SearchForm } from '@/components/search/search-form';
+import { Container } from '@/components/ui';
+import { DestinationRail } from '@/components/discovery/destination-rail';
+import { DiscoveryStage } from '@/components/discovery/discovery-stage';
+import { NextTripBand, type BandPicture } from '@/components/discovery/next-trip-band';
+import { StageControls } from '@/components/discovery/stage-controls';
+import { TrustStrip } from '@/components/discovery/trust-strip';
 import { SearchResults } from '@/components/search/search-results';
 import { SaveSearchForm } from '@/components/watches/save-search-form';
 import { saveSearchAction } from '@/app/actions/watches';
-import { runSearch } from '@/search/orchestrator';
-import { getSearchCache } from '@/search/cache';
-import { parseSearchForm } from '@/search/schema';
-import { parseFilters } from '@/search/filters';
-import { resolveDestinationNames } from '@/search/destination-names';
-import { getCurrentUser } from '@/auth/current-user';
-import { resolveEntitlements } from '@/core/entitlements';
-import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
-import { getRepositories } from '@/db';
-import { isAppError } from '@/lib/errors';
-import { getLogger } from '@/lib/logger';
-import type { SearchFormErrors } from '@/search/schema';
-import type { SearchOutcome } from '@/search/types';
-import type { SearchProfile } from '@/core/trip/types';
+import { firstValues, loadStagePage } from '@/discovery/load-stage';
+import { resolveImagery } from '@/providers/imagery';
+import {
+  COUNTRIES_DETAIL_URL,
+  COUNTRIES_URL,
+  ICE_URL,
+  LAND_URL,
+  PLACES_URL,
+  PHYSICAL_URL,
+  CITY_LIGHTS_URL,
+  COASTLINE_URL,
+} from '@/discovery/stage-data';
 
 /**
- * Search page.
+ * The front page: the world, priced.
  *
- * The form submits as a GET, so a search is a URL: shareable, bookmarkable,
- * reloadable, and correct with the back button. That also means the page is
- * fully server-rendered and works before any JavaScript arrives.
+ * The stage first - headline, compact search, globe - then the rail that says
+ * in words what the globe shows, then, once a search has run, the results.
+ * The search is a GET, so every state of this page is a URL: a search, a
+ * ranking, a country, a destination filter. Shareable, bookmarkable, and
+ * correct with the back button.
  *
- * The page's job is to turn a query string into a `SearchRequest` and render
- * what came back. It computes nothing: every figure on screen was produced by
- * `src/core/` and carried here by `runSearch`.
+ * The page computes nothing. Every figure on it was produced by `src/core/`
+ * and carried here by the search or the discovery snapshot.
  */
 
-const log = getLogger('app.search-page');
-
 export const metadata: Metadata = {
-  title: 'Find a trip',
+  title: 'Discover',
 };
-
-/** A GET form always submits its text inputs, so `origins` marks a real search. */
-function wasSubmitted(params: Readonly<Record<string, string | undefined>>): boolean {
-  return typeof params.origins === 'string';
-}
 
 /**
  * A starting name for a saved search.
  *
- * Built from what the user actually asked for, so the name means something the
- * moment they see it rather than being "Saved search 3".
+ * Built from what the user actually asked for, so the name means something
+ * the moment they see it rather than being "Saved search 3".
  */
 function suggestedSearchName(values: Record<string, string | undefined>): string {
   const destinations = (values.destinations ?? '').trim();
-  const from = (values.earliestDeparture ?? '').slice(0, 7);
+  const from = (values.earliestDeparture ?? values.departureDate ?? '').slice(0, 7);
 
   if (destinations && from) return `${destinations} in ${from}`;
   return destinations || 'Saved search';
 }
 
-/** Repeated query keys collapse to the first value; the form never sends them. */
-function firstValues(
-  params: Record<string, string | string[] | undefined>,
-): Record<string, string | undefined> {
-  const flat: Record<string, string | undefined> = {};
-
-  for (const [key, value] of Object.entries(params)) {
-    flat[key] = Array.isArray(value) ? value[0] : value;
-  }
-
-  return flat;
-}
-
-export default async function SearchPage({
+export default async function DiscoverPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const values = firstValues(await searchParams);
+  const page = await loadStagePage(values, '/');
+  const { stage } = page;
 
-  // A signed-in user's saved preferences become the form's defaults. They are
-  // defaults and nothing more: they never filter results or override a field
-  // the user has actually filled in.
-  // Read once, on the server, so every seasonal category on the page agrees
-  // about what day it is.
-  const today = new Date().toISOString().slice(0, 10);
+  /*
+   * Photographs, if they arrive in time.
+   *
+   * Decoration is never allowed to hold up a price, so this is bounded by a
+   * clock inside `resolveImagery` and returns whatever it has. A first render
+   * on a cold cache may show gradients; the cards are designed for that, and
+   * the next reader gets the pictures.
+   */
+  const images = await resolveImagery(stage.cards.map((card) => card.point.destination));
+  const railCards = stage.cards.map((card) => ({
+    ...card,
+    image: images.get(card.point.destination) ?? null,
+  }));
 
-  // Identifies this particular search, for the form's remount key.
-  const formKey = new URLSearchParams(
+  const picture = (index: number): BandPicture | null => {
+    const card = railCards[index];
+    if (!card) return null;
+
+    return {
+      code: card.point.destination,
+      name: card.point.name,
+      image: card.image,
+    };
+  };
+
+  const recommended = page.recommended;
+  const recommendedPicture: BandPicture | null = recommended
+    ? {
+        code: recommended.candidate.destination,
+        name: recommended.candidate.destinationName,
+        image: images.get(recommended.candidate.destination) ?? null,
+      }
+    : null;
+
+  const query = new URLSearchParams(
     Object.entries(values).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string',
     ),
   ).toString();
 
-  const user = await getCurrentUser();
-  const stored = user ? await getRepositories().preferences.find(user.id) : null;
-  const defaults = preferencesToFormDefaults(readExplicitPreferences(stored));
-
-  let outcome: SearchOutcome | null = null;
-  let searchProfile: SearchProfile | null = null;
-  let resultAgeMs = 0;
-  let errors: SearchFormErrors = {};
-
-  if (wasSubmitted(values)) {
-    const parsed = parseSearchForm(values);
-
-    if (parsed.ok) {
-      // Anonymous visitors get the default plan's allowance, so the limit is
-      // resolved from a plan in both cases rather than being a constant here.
-      const entitlements = user?.entitlements ?? resolveEntitlements();
-
-      searchProfile = parsed.value.request.profile;
-
-      const request = {
-        ...parsed.value.request,
-        destinationNames: resolveDestinationNames(parsed.value.request.destinations),
-        limits: {
-          // How many results a page shows is a presentation decision, so it is
-          // made here rather than in the engine's defaults. The engine still
-          // ranks everything and the diagnostics still report how many matched.
-          maxResults: 10,
-          // Resolved from the plan, not hard-coded. The account page tells the
-          // user this number; it has to be the one the search actually applies.
-          maxDestinations: entitlements.maxDestinationsPerSearch,
-        },
-      };
-
-      try {
-        // Cached at the page, never inside `runSearch`: a Travel Watch refresh
-        // exists to find out whether the price moved, and serving that from a
-        // cache would be a monitoring loop monitoring its own memory.
-        const cached = await getSearchCache().run(request, () => runSearch(request));
-        outcome = cached.outcome;
-        resultAgeMs = cached.ageMs;
-      } catch (error) {
-        // The planner rejects a profile that can describe no trip at all. Its
-        // public message is written for a user; anything else is not.
-        log.warn({ err: error }, 'search could not be run');
-        errors = {
-          form: isAppError(error)
-            ? error.publicMessage
-            : 'Something went wrong running that search.',
-        };
-      }
-    } else {
-      errors = parsed.error;
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-8">
-      <div className="max-w-3xl">
-        <h1 className="text-ink font-display text-display-md">Find a complete trip</h1>
-        <p className="text-ink-muted mt-4 text-lg">
-          Flights, a hotel and the ride from the airport, priced together and ranked by what the
-          whole trip is worth to you — not by the cheapest headline fare.
-        </p>
-      </div>
+    <div className="flex flex-col">
+      <DiscoveryStage
+        formKey={query}
+        globe={{
+          chips: stage.chips,
+          origins: stage.originPoints.map((origin) => ({
+            code: origin.code,
+            name: origin.name,
+            position: origin.position,
+          })),
+          routes: stage.routes,
+          points: stage.pointsGeoJson,
+          landUrl: LAND_URL,
+          iceUrl: ICE_URL,
+          placesUrl: PLACES_URL,
+          countriesUrl: COUNTRIES_URL,
+          countriesDetailUrl: COUNTRIES_DETAIL_URL,
+          physicalUrl: PHYSICAL_URL,
+          cityLightsUrl: CITY_LIGHTS_URL,
+          coastlineUrl: COASTLINE_URL,
+          seasonDate: page.season.date,
+          regionsUrl: stage.regionsUrl,
+          provenance: page.provenance,
+          countryCounts: stage.countryCounts,
+          selectedCountry: stage.country
+            ? { adm0: stage.country.adm0, name: stage.country.name, bbox: stage.country.bbox }
+            : null,
+          navigation: page.navigation,
+          variant: 'hero',
+        }}
+        today={page.today}
+        values={values}
+        defaults={page.formDefaults}
+        lensDefaults={page.lensDefaults}
+        errors={page.errors}
+        destinationsDefault={page.destinationsDefault}
+        destinationsHint={page.destinationsHint}
+        carry={page.carry}
+        provenance={page.provenance}
+        season={page.season}
+        airports={page.airports}
+        featured={
+          railCards[0]
+            ? {
+                code: railCards[0].point.destination,
+                name: railCards[0].point.name,
+                country: railCards[0].point.country,
+                label: railCards[0].label,
+                reason: railCards[0].point.reason,
+                href: railCards[0].href,
+                actionLabel: railCards[0].actionLabel,
+                hasImage: railCards[0].image !== null,
+              }
+            : null
+        }
+        searched={page.outcome !== null}
+        action="/"
+      />
+
+      <DestinationRail
+        cards={railCards}
+        totalCount={stage.points.length}
+        mode={page.mode}
+        provenance={page.provenance}
+        assumptions={page.assumptions}
+        country={stage.country}
+        regionSummary={stage.regionSummary}
+        clearHref={page.clearCountryHref()}
+        unpriced={page.unpriced}
+        viewAllHref={query ? `/explore?${query}` : '/explore'}
+        controls={
+          <StageControls
+            mode={page.mode}
+            modeHref={page.modeHref}
+            action="/"
+            carry={page.carry}
+            counts={stage.countryCounts}
+            selected={stage.country}
+          />
+        }
+      />
 
       {/*
-        Discovery first, and only for someone who has not searched yet. Once
-        there are results on the page, the categories would be ten ways to
-        throw away the search the user just ran.
+        Something to do next, built from the snapshot that is already on the
+        page. Hidden once a search has run: the results below answer the same
+        question better, and two recommendations on one page are two answers
+        pretending to be one.
       */}
-      {outcome ? null : <CategoryGrid today={today} defaults={defaults} />}
+      {page.outcome ? null : (
+        <NextTripBand
+          trip={recommended}
+          tripHref={
+            recommended
+              ? (stage.cards.find(
+                  (card) => card.point.destination === recommended.candidate.destination,
+                )?.href ?? '/explore')
+              : '/explore'
+          }
+          tripPicture={recommendedPicture}
+          wide={picture(0)}
+          tall={picture(1)}
+          exploreHref={query ? `/explore?${query}` : '/explore'}
+          provenance={page.provenance}
+        />
+      )}
 
-      {/*
-        Keyed on the query, so the inputs remount when the search changes.
-        
-        The fields are uncontrolled and `defaultValue` applies only on mount,
-        so a client-side navigation - from a discovery tile, or from "Run this
-        search now" on the watches page - would otherwise leave the form
-        showing the previous search while the results below it showed the new
-        one. Two answers to "what did I ask for?" on one page.
-      */}
-      <SearchForm key={formKey} values={values} defaults={defaults} errors={errors} />
+      {page.outcome && page.profile && page.filters ? (
+        /*
+         * The results sit in the stage's palette too.
+         *
+         * The hero, the rail and the closing band are all night; a results
+         * list that flipped to parchment in a light colour scheme would be a
+         * different website below the fold. `stage-scope` remaps the semantic
+         * tokens, so every component inside keeps its own contrast pairings.
+         */
+        <section className="stage-scope bg-stage text-stage-ink">
+          <Container size="wide" className="flex flex-col gap-6 pt-2 pb-12">
+            <SaveSearchForm
+              query={query}
+              suggestedName={suggestedSearchName(values)}
+              signedIn={page.signedIn}
+              action={saveSearchAction}
+            />
 
-      {outcome ? (
-        <>
-          <SaveSearchForm
-            query={new URLSearchParams(
-              Object.entries(values).filter(
-                (entry): entry is [string, string] => typeof entry[1] === 'string',
-              ),
-            ).toString()}
-            suggestedName={suggestedSearchName(values)}
-            signedIn={Boolean(user)}
-            action={saveSearchAction}
-          />
-
-          <SearchResults
-            outcome={outcome}
-            profile={searchProfile!}
-            filters={parseFilters(values, searchProfile!.targetBudget.currency)}
-            searchValues={values}
-            resultAgeMs={resultAgeMs}
-          />
-        </>
+            <SearchResults
+              outcome={page.outcome}
+              profile={page.profile}
+              filters={page.filters}
+              searchValues={values}
+              resultAgeMs={page.resultAgeMs}
+              images={images}
+            />
+          </Container>
+        </section>
       ) : null}
+
+      <TrustStrip provenance={page.provenance} noticeShown={page.outcome !== null} />
     </div>
   );
 }

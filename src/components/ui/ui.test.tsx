@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import * as React from 'react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
+  AmountSlider,
   Badge,
   Button,
   Card,
   CardTitle,
+  DateField,
+  DateRangeField,
   EmptyState,
   Field,
   Skeleton,
@@ -280,5 +284,157 @@ describe('EmptyState', () => {
   it('keeps a decorative icon out of the accessible name', () => {
     render(<EmptyState icon="🧭" title="Nothing yet" description="Start a search." />);
     expect(screen.getByRole('heading', { name: 'Nothing yet' })).toBeInTheDocument();
+  });
+});
+
+describe('AmountSlider', () => {
+  it('is a labelled slider carrying the value it was given', () => {
+    render(<AmountSlider label="Target budget" name="targetBudget" defaultValue="650" />);
+
+    const slider = screen.getByRole('slider', { name: /Target budget/ });
+    expect(slider).toHaveAttribute('aria-valuenow', '650');
+  });
+
+  it('writes the number out as text, not only as a position', () => {
+    // A value that can only be read off a pixel offset is not readable at all.
+    render(<AmountSlider label="Target budget" name="targetBudget" defaultValue="1250" />);
+
+    expect(screen.getByText('1,250')).toBeInTheDocument();
+  });
+
+  it('marks itself invalid and announces why', () => {
+    render(
+      <AmountSlider
+        label="Target budget"
+        name="targetBudget"
+        defaultValue="650"
+        error="Must be under the ceiling"
+      />,
+    );
+
+    expect(screen.getByRole('slider', { name: /Target budget/ })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Must be under the ceiling');
+  });
+
+  it('opens its range far enough to hold a value above the usual ceiling', () => {
+    // A track that could not reach the value it was given would submit a
+    // different number than the one that was asked for.
+    render(
+      <AmountSlider label="Target budget" name="targetBudget" defaultValue="15000" max={3000} />,
+    );
+
+    const slider = screen.getByRole('slider', { name: /Target budget/ });
+    expect(slider).toHaveAttribute('aria-valuenow', '15000');
+    expect(Number(slider.getAttribute('aria-valuemax'))).toBeGreaterThanOrEqual(15000);
+  });
+});
+
+describe('DateField', () => {
+  it('keeps a real date input as the control that gets submitted', () => {
+    render(<DateField label="Leaving" name="departureDate" defaultValue="2026-10-06" />);
+
+    const input = screen.getByLabelText('Leaving');
+    expect(input).toHaveAttribute('type', 'date');
+    expect(input).toHaveAttribute('name', 'departureDate');
+    expect(input).toHaveValue('2026-10-06');
+  });
+
+  it('opens a calendar on the month the value is in', async () => {
+    const user = userEvent.setup();
+    render(<DateField label="Leaving" name="departureDate" defaultValue="2026-10-06" />);
+
+    await user.click(screen.getByRole('button', { name: /calendar/i }));
+
+    expect(screen.getByText('October 2026')).toBeInTheDocument();
+  });
+
+  it('writes the chosen day into the input', async () => {
+    const user = userEvent.setup();
+    render(<DateField label="Leaving" name="departureDate" defaultValue="2026-10-06" />);
+
+    await user.click(screen.getByRole('button', { name: /calendar/i }));
+    await user.click(screen.getByRole('gridcell', { name: '14 October 2026' }));
+
+    expect(screen.getByLabelText('Leaving')).toHaveValue('2026-10-14');
+  });
+
+  it('refuses a day outside the allowed range', async () => {
+    const user = userEvent.setup();
+    render(
+      <DateField label="Leaving" name="departureDate" defaultValue="2026-10-06" min="2026-10-05" />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /calendar/i }));
+
+    expect(screen.getByRole('gridcell', { name: '1 October 2026' })).toBeDisabled();
+    expect(screen.getByRole('gridcell', { name: '14 October 2026' })).toBeEnabled();
+  });
+});
+
+describe('DateRangeField', () => {
+  const range = (props: Partial<React.ComponentProps<typeof DateRangeField>> = {}) => (
+    <DateRangeField
+      startLabel="Leaving"
+      startName="departureDate"
+      startValue="2026-10-06"
+      endLabel="Back"
+      endName="returnDate"
+      endValue="2026-10-13"
+      {...props}
+    />
+  );
+
+  it('keeps both native inputs, so the form still submits two dates', () => {
+    render(range());
+
+    expect(screen.getByLabelText('Leaving')).toHaveAttribute('name', 'departureDate');
+    expect(screen.getByLabelText('Back')).toHaveAttribute('name', 'returnDate');
+    expect(screen.getByLabelText('Leaving')).toHaveValue('2026-10-06');
+    expect(screen.getByLabelText('Back')).toHaveValue('2026-10-13');
+  });
+
+  it('opens one calendar for the pair', async () => {
+    const user = userEvent.setup();
+    render(range());
+
+    // One button, not one per field.
+    const buttons = screen.getAllByRole('button', { name: /calendar/i });
+    expect(buttons).toHaveLength(1);
+
+    await user.click(buttons[0]!);
+    expect(screen.getByText('7 nights')).toBeInTheDocument();
+  });
+
+  it('sets the departure on the first click and the return on the second', async () => {
+    const user = userEvent.setup();
+    render(range());
+
+    await user.click(screen.getByRole('button', { name: /calendar/i }));
+
+    const grid = screen.getAllByRole('grid')[0]!;
+    await user.click(within(grid).getByRole('gridcell', { name: /^8 October 2026/ }));
+    expect(screen.getByLabelText('Leaving')).toHaveValue('2026-10-08');
+
+    await user.click(within(grid).getByRole('gridcell', { name: /^20 October 2026/ }));
+    expect(screen.getByLabelText('Back')).toHaveValue('2026-10-20');
+  });
+
+  it('starts a new trip rather than making a backwards one', async () => {
+    const user = userEvent.setup();
+    render(range());
+
+    await user.click(screen.getByRole('button', { name: /calendar/i }));
+
+    const grid = screen.getAllByRole('grid')[0]!;
+    // First click sets the departure.
+    await user.click(within(grid).getByRole('gridcell', { name: /^20 October 2026/ }));
+    // A second click before it cannot be a return, so it restarts.
+    await user.click(within(grid).getByRole('gridcell', { name: /^5 October 2026/ }));
+
+    expect(screen.getByLabelText('Leaving')).toHaveValue('2026-10-05');
+    expect(screen.getByLabelText('Back')).toHaveValue('');
   });
 });

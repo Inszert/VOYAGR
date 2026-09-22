@@ -67,3 +67,7 @@ desktop.ini
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ---- geo build cache ----
+# Natural Earth downloads, re-fetched by scripts/build-geo.mjs when absent.
+.geo-cache/

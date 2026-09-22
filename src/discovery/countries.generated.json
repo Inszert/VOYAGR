@@ -1,0 +1,2480 @@
+[
+  {
+    "adm0": "AFG",
+    "iso2": "AF",
+    "name": "Afghanistan",
+    "shortName": "Afghanistan",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      60.53,
+      29.32,
+      75.16,
+      38.49
+    ]
+  },
+  {
+    "adm0": "ALB",
+    "iso2": "AL",
+    "name": "Albania",
+    "shortName": "Albania",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      19.3,
+      39.62,
+      21.02,
+      42.69
+    ]
+  },
+  {
+    "adm0": "DZA",
+    "iso2": "DZ",
+    "name": "Algeria",
+    "shortName": "Algeria",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      -8.68,
+      19.06,
+      12,
+      37.12
+    ]
+  },
+  {
+    "adm0": "AGO",
+    "iso2": "AO",
+    "name": "Angola",
+    "shortName": "Angola",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      11.64,
+      -17.93,
+      24.08,
+      -4.44
+    ]
+  },
+  {
+    "adm0": "ATA",
+    "iso2": "AQ",
+    "name": "Antarctica",
+    "shortName": "Antarctica",
+    "continent": "Antarctica",
+    "subregion": "Antarctica",
+    "bbox": [
+      0.87,
+      -90,
+      359.77,
+      -63.27
+    ]
+  },
+  {
+    "adm0": "ARG",
+    "iso2": "AR",
+    "name": "Argentina",
+    "shortName": "Argentina",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -73.42,
+      -55.25,
+      -53.63,
+      -21.83
+    ]
+  },
+  {
+    "adm0": "ARM",
+    "iso2": "AM",
+    "name": "Armenia",
+    "shortName": "Armenia",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      43.58,
+      38.74,
+      46.51,
+      41.25
+    ]
+  },
+  {
+    "adm0": "AUS",
+    "iso2": "AU",
+    "name": "Australia",
+    "shortName": "Australia",
+    "continent": "Oceania",
+    "subregion": "Australia and New Zealand",
+    "bbox": [
+      113.34,
+      -43.63,
+      153.57,
+      -10.67
+    ]
+  },
+  {
+    "adm0": "AUT",
+    "iso2": "AT",
+    "name": "Austria",
+    "shortName": "Austria",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      9.48,
+      46.43,
+      16.98,
+      49.04
+    ]
+  },
+  {
+    "adm0": "AZE",
+    "iso2": "AZ",
+    "name": "Azerbaijan",
+    "shortName": "Azerbaijan",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      44.79,
+      38.27,
+      50.39,
+      41.86
+    ]
+  },
+  {
+    "adm0": "BHS",
+    "iso2": "BS",
+    "name": "Bahamas",
+    "shortName": "Bahamas",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -78.98,
+      23.71,
+      -77,
+      27.04
+    ]
+  },
+  {
+    "adm0": "BGD",
+    "iso2": "BD",
+    "name": "Bangladesh",
+    "shortName": "Bangladesh",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      88.08,
+      20.67,
+      92.67,
+      26.45
+    ]
+  },
+  {
+    "adm0": "BLR",
+    "iso2": "BY",
+    "name": "Belarus",
+    "shortName": "Belarus",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      23.2,
+      51.32,
+      32.69,
+      56.17
+    ]
+  },
+  {
+    "adm0": "BEL",
+    "iso2": "BE",
+    "name": "Belgium",
+    "shortName": "Belgium",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      2.51,
+      49.53,
+      6.16,
+      51.48
+    ]
+  },
+  {
+    "adm0": "BLZ",
+    "iso2": "BZ",
+    "name": "Belize",
+    "shortName": "Belize",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -89.23,
+      15.89,
+      -88.11,
+      18.5
+    ]
+  },
+  {
+    "adm0": "BEN",
+    "iso2": "BJ",
+    "name": "Benin",
+    "shortName": "Benin",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      0.77,
+      6.14,
+      3.8,
+      12.24
+    ]
+  },
+  {
+    "adm0": "BTN",
+    "iso2": "BT",
+    "name": "Bhutan",
+    "shortName": "Bhutan",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      88.81,
+      26.72,
+      92.1,
+      28.3
+    ]
+  },
+  {
+    "adm0": "BOL",
+    "iso2": "BO",
+    "name": "Bolivia",
+    "shortName": "Bolivia",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -69.59,
+      -22.87,
+      -57.5,
+      -9.76
+    ]
+  },
+  {
+    "adm0": "BIH",
+    "iso2": "BA",
+    "name": "Bosnia and Herzegovina",
+    "shortName": "Bosnia and Herz.",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      15.75,
+      42.65,
+      19.6,
+      45.23
+    ]
+  },
+  {
+    "adm0": "BWA",
+    "iso2": "BW",
+    "name": "Botswana",
+    "shortName": "Botswana",
+    "continent": "Africa",
+    "subregion": "Southern Africa",
+    "bbox": [
+      19.9,
+      -26.83,
+      29.43,
+      -17.66
+    ]
+  },
+  {
+    "adm0": "BRA",
+    "iso2": "BR",
+    "name": "Brazil",
+    "shortName": "Brazil",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -73.99,
+      -33.77,
+      -34.73,
+      5.24
+    ]
+  },
+  {
+    "adm0": "BRN",
+    "iso2": "BN",
+    "name": "Brunei Darussalam",
+    "shortName": "Brunei",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      114.2,
+      4.01,
+      115.45,
+      5.45
+    ]
+  },
+  {
+    "adm0": "BGR",
+    "iso2": "BG",
+    "name": "Bulgaria",
+    "shortName": "Bulgaria",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      22.38,
+      41.23,
+      28.56,
+      44.23
+    ]
+  },
+  {
+    "adm0": "BFA",
+    "iso2": "BF",
+    "name": "Burkina Faso",
+    "shortName": "Burkina Faso",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -5.47,
+      9.61,
+      2.18,
+      15.12
+    ]
+  },
+  {
+    "adm0": "BDI",
+    "iso2": "BI",
+    "name": "Burundi",
+    "shortName": "Burundi",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      29.02,
+      -4.5,
+      30.75,
+      -2.35
+    ]
+  },
+  {
+    "adm0": "KHM",
+    "iso2": "KH",
+    "name": "Cambodia",
+    "shortName": "Cambodia",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      102.35,
+      10.49,
+      107.61,
+      14.57
+    ]
+  },
+  {
+    "adm0": "CMR",
+    "iso2": "CM",
+    "name": "Cameroon",
+    "shortName": "Cameroon",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      8.49,
+      1.73,
+      16.01,
+      12.86
+    ]
+  },
+  {
+    "adm0": "CAN",
+    "iso2": "CA",
+    "name": "Canada",
+    "shortName": "Canada",
+    "continent": "North America",
+    "subregion": "Northern America",
+    "bbox": [
+      -141,
+      41.68,
+      -52.65,
+      83.23
+    ]
+  },
+  {
+    "adm0": "CAF",
+    "iso2": "CF",
+    "name": "Central African Republic",
+    "shortName": "Central African Rep.",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      14.46,
+      2.27,
+      27.37,
+      11.14
+    ]
+  },
+  {
+    "adm0": "TCD",
+    "iso2": "TD",
+    "name": "Chad",
+    "shortName": "Chad",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      13.54,
+      7.42,
+      23.89,
+      23.41
+    ]
+  },
+  {
+    "adm0": "CHL",
+    "iso2": "CL",
+    "name": "Chile",
+    "shortName": "Chile",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -75.64,
+      -55.61,
+      -66.96,
+      -17.58
+    ]
+  },
+  {
+    "adm0": "CHN",
+    "iso2": "CN",
+    "name": "China",
+    "shortName": "China",
+    "continent": "Asia",
+    "subregion": "Eastern Asia",
+    "bbox": [
+      73.68,
+      18.2,
+      135.03,
+      53.46
+    ]
+  },
+  {
+    "adm0": "COL",
+    "iso2": "CO",
+    "name": "Colombia",
+    "shortName": "Colombia",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -78.99,
+      -4.3,
+      -66.88,
+      12.44
+    ]
+  },
+  {
+    "adm0": "CRI",
+    "iso2": "CR",
+    "name": "Costa Rica",
+    "shortName": "Costa Rica",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -85.94,
+      8.23,
+      -82.55,
+      11.22
+    ]
+  },
+  {
+    "adm0": "CIV",
+    "iso2": "CI",
+    "name": "Côte d'Ivoire",
+    "shortName": "Côte d'Ivoire",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -8.6,
+      4.34,
+      -2.56,
+      10.52
+    ]
+  },
+  {
+    "adm0": "HRV",
+    "iso2": "HR",
+    "name": "Croatia",
+    "shortName": "Croatia",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      13.66,
+      42.48,
+      19.39,
+      46.5
+    ]
+  },
+  {
+    "adm0": "CUB",
+    "iso2": "CU",
+    "name": "Cuba",
+    "shortName": "Cuba",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -84.97,
+      19.86,
+      -74.18,
+      23.19
+    ]
+  },
+  {
+    "adm0": "CYP",
+    "iso2": "CY",
+    "name": "Cyprus",
+    "shortName": "Cyprus",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      32.26,
+      34.57,
+      34,
+      35.17
+    ]
+  },
+  {
+    "adm0": "CZE",
+    "iso2": "CZ",
+    "name": "Czech Republic",
+    "shortName": "Czechia",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      12.24,
+      48.56,
+      18.85,
+      51.12
+    ]
+  },
+  {
+    "adm0": "PRK",
+    "iso2": "KP",
+    "name": "Dem. Rep. Korea",
+    "shortName": "North Korea",
+    "continent": "Asia",
+    "subregion": "Eastern Asia",
+    "bbox": [
+      124.27,
+      37.67,
+      130.780007,
+      42.99
+    ]
+  },
+  {
+    "adm0": "COD",
+    "iso2": "CD",
+    "name": "Democratic Republic of the Congo",
+    "shortName": "Dem. Rep. Congo",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      12.18,
+      -13.26,
+      31.17,
+      5.26
+    ]
+  },
+  {
+    "adm0": "DNK",
+    "iso2": "DK",
+    "name": "Denmark",
+    "shortName": "Denmark",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      8.09,
+      54.8,
+      12.69,
+      57.73
+    ]
+  },
+  {
+    "adm0": "DJI",
+    "iso2": "DJ",
+    "name": "Djibouti",
+    "shortName": "Djibouti",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      41.66,
+      10.93,
+      43.32,
+      12.7
+    ]
+  },
+  {
+    "adm0": "DOM",
+    "iso2": "DO",
+    "name": "Dominican Republic",
+    "shortName": "Dominican Rep.",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -71.95,
+      17.6,
+      -68.32,
+      19.88
+    ]
+  },
+  {
+    "adm0": "ECU",
+    "iso2": "EC",
+    "name": "Ecuador",
+    "shortName": "Ecuador",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -80.97,
+      -4.96,
+      -75.23,
+      1.38
+    ]
+  },
+  {
+    "adm0": "EGY",
+    "iso2": "EG",
+    "name": "Egypt",
+    "shortName": "Egypt",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      24.7,
+      22,
+      36.87,
+      31.59
+    ]
+  },
+  {
+    "adm0": "SLV",
+    "iso2": "SV",
+    "name": "El Salvador",
+    "shortName": "El Salvador",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -90.1,
+      13.15,
+      -87.72,
+      14.42
+    ]
+  },
+  {
+    "adm0": "GNQ",
+    "iso2": "GQ",
+    "name": "Equatorial Guinea",
+    "shortName": "Eq. Guinea",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      9.31,
+      1.01,
+      11.29,
+      2.28
+    ]
+  },
+  {
+    "adm0": "ERI",
+    "iso2": "ER",
+    "name": "Eritrea",
+    "shortName": "Eritrea",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      36.32,
+      12.46,
+      43.08,
+      18
+    ]
+  },
+  {
+    "adm0": "EST",
+    "iso2": "EE",
+    "name": "Estonia",
+    "shortName": "Estonia",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      23.34,
+      57.47,
+      28.13,
+      59.61
+    ]
+  },
+  {
+    "adm0": "ETH",
+    "iso2": "ET",
+    "name": "Ethiopia",
+    "shortName": "Ethiopia",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      32.95,
+      3.42,
+      47.79,
+      14.96
+    ]
+  },
+  {
+    "adm0": "FLK",
+    "iso2": "FK",
+    "name": "Falkland Islands / Malvinas",
+    "shortName": "Falkland Is.",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -61.2,
+      -52.3,
+      -57.75,
+      -51.1
+    ]
+  },
+  {
+    "adm0": "FJI",
+    "iso2": "FJ",
+    "name": "Fiji",
+    "shortName": "Fiji",
+    "continent": "Oceania",
+    "subregion": "Melanesia",
+    "bbox": [
+      177.29,
+      -18.29,
+      180.21,
+      -16.02
+    ]
+  },
+  {
+    "adm0": "FIN",
+    "iso2": "FI",
+    "name": "Finland",
+    "shortName": "Finland",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      20.65,
+      59.85,
+      31.52,
+      70.16
+    ]
+  },
+  {
+    "adm0": "FRA",
+    "iso2": "FR",
+    "name": "France",
+    "shortName": "France",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      -54.52,
+      2.05,
+      9.56,
+      51.15
+    ]
+  },
+  {
+    "adm0": "ATF",
+    "iso2": "TF",
+    "name": "French Southern and Antarctic Lands",
+    "shortName": "Fr. S. Antarctic Lands",
+    "continent": "Seven seas (open ocean)",
+    "subregion": "Seven seas (open ocean)",
+    "bbox": [
+      68.72,
+      -49.77,
+      70.56,
+      -48.62
+    ]
+  },
+  {
+    "adm0": "GAB",
+    "iso2": "GA",
+    "name": "Gabon",
+    "shortName": "Gabon",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      8.8,
+      -3.98,
+      14.43,
+      2.33
+    ]
+  },
+  {
+    "adm0": "GEO",
+    "iso2": "GE",
+    "name": "Georgia",
+    "shortName": "Georgia",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      39.96,
+      41.06,
+      46.64,
+      43.55
+    ]
+  },
+  {
+    "adm0": "DEU",
+    "iso2": "DE",
+    "name": "Germany",
+    "shortName": "Germany",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      5.99,
+      47.3,
+      15.02,
+      54.98
+    ]
+  },
+  {
+    "adm0": "GHA",
+    "iso2": "GH",
+    "name": "Ghana",
+    "shortName": "Ghana",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -3.24,
+      4.71,
+      1.06,
+      11.1
+    ]
+  },
+  {
+    "adm0": "GRC",
+    "iso2": "GR",
+    "name": "Greece",
+    "shortName": "Greece",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      20.15,
+      34.92,
+      26.6,
+      41.83
+    ]
+  },
+  {
+    "adm0": "GRL",
+    "iso2": "GL",
+    "name": "Greenland",
+    "shortName": "Greenland",
+    "continent": "North America",
+    "subregion": "Northern America",
+    "bbox": [
+      -73.3,
+      60.04,
+      -12.21,
+      83.65
+    ]
+  },
+  {
+    "adm0": "GTM",
+    "iso2": "GT",
+    "name": "Guatemala",
+    "shortName": "Guatemala",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -92.23,
+      13.74,
+      -88.23,
+      17.82
+    ]
+  },
+  {
+    "adm0": "GIN",
+    "iso2": "GN",
+    "name": "Guinea",
+    "shortName": "Guinea",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -15.13,
+      7.31,
+      -7.83,
+      12.59
+    ]
+  },
+  {
+    "adm0": "GNB",
+    "iso2": "GW",
+    "name": "Guinea-Bissau",
+    "shortName": "Guinea-Bissau",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -16.68,
+      11.04,
+      -13.7,
+      12.63
+    ]
+  },
+  {
+    "adm0": "GUY",
+    "iso2": "GY",
+    "name": "Guyana",
+    "shortName": "Guyana",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -61.41,
+      1.27,
+      -56.54,
+      8.37
+    ]
+  },
+  {
+    "adm0": "HTI",
+    "iso2": "HT",
+    "name": "Haiti",
+    "shortName": "Haiti",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -74.46,
+      18.03,
+      -71.62,
+      19.92
+    ]
+  },
+  {
+    "adm0": "HND",
+    "iso2": "HN",
+    "name": "Honduras",
+    "shortName": "Honduras",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -89.35,
+      12.98,
+      -83.15,
+      16.01
+    ]
+  },
+  {
+    "adm0": "HUN",
+    "iso2": "HU",
+    "name": "Hungary",
+    "shortName": "Hungary",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      16.2,
+      45.76,
+      22.71,
+      48.62
+    ]
+  },
+  {
+    "adm0": "ISL",
+    "iso2": "IS",
+    "name": "Iceland",
+    "shortName": "Iceland",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      -24.33,
+      63.5,
+      -13.61,
+      66.53
+    ]
+  },
+  {
+    "adm0": "IND",
+    "iso2": "IN",
+    "name": "India",
+    "shortName": "India",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      68.18,
+      7.97,
+      97.4,
+      35.49
+    ]
+  },
+  {
+    "adm0": "IDN",
+    "iso2": "ID",
+    "name": "Indonesia",
+    "shortName": "Indonesia",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      95.29,
+      -10.36,
+      141.03,
+      5.48
+    ]
+  },
+  {
+    "adm0": "IRN",
+    "iso2": "IR",
+    "name": "Iran",
+    "shortName": "Iran",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      44.11,
+      25.08,
+      63.32,
+      39.71
+    ]
+  },
+  {
+    "adm0": "IRQ",
+    "iso2": "IQ",
+    "name": "Iraq",
+    "shortName": "Iraq",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      38.79,
+      29.1,
+      48.57,
+      37.39
+    ]
+  },
+  {
+    "adm0": "IRL",
+    "iso2": "IE",
+    "name": "Ireland",
+    "shortName": "Ireland",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      -9.98,
+      51.67,
+      -6.03,
+      55.13
+    ]
+  },
+  {
+    "adm0": "ISR",
+    "iso2": "IL",
+    "name": "Israel",
+    "shortName": "Israel",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      34.27,
+      29.5,
+      35.84,
+      33.28
+    ]
+  },
+  {
+    "adm0": "ITA",
+    "iso2": "IT",
+    "name": "Italy",
+    "shortName": "Italy",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      6.75,
+      36.62,
+      18.48,
+      47.12
+    ]
+  },
+  {
+    "adm0": "JAM",
+    "iso2": "JM",
+    "name": "Jamaica",
+    "shortName": "Jamaica",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -78.34,
+      17.7,
+      -76.2,
+      18.52
+    ]
+  },
+  {
+    "adm0": "JPN",
+    "iso2": "JP",
+    "name": "Japan",
+    "shortName": "Japan",
+    "continent": "Asia",
+    "subregion": "Eastern Asia",
+    "bbox": [
+      129.41,
+      31.03,
+      145.54,
+      45.55
+    ]
+  },
+  {
+    "adm0": "JOR",
+    "iso2": "JO",
+    "name": "Jordan",
+    "shortName": "Jordan",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      34.92,
+      29.2,
+      39.2,
+      33.38
+    ]
+  },
+  {
+    "adm0": "KAZ",
+    "iso2": "KZ",
+    "name": "Kazakhstan",
+    "shortName": "Kazakhstan",
+    "continent": "Asia",
+    "subregion": "Central Asia",
+    "bbox": [
+      46.47,
+      40.66,
+      87.36,
+      55.39
+    ]
+  },
+  {
+    "adm0": "KEN",
+    "iso2": "KE",
+    "name": "Kenya",
+    "shortName": "Kenya",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      33.89,
+      -4.68,
+      41.86,
+      5.51
+    ]
+  },
+  {
+    "adm0": "SWZ",
+    "iso2": "SZ",
+    "name": "Kingdom of eSwatini",
+    "shortName": "eSwatini",
+    "continent": "Africa",
+    "subregion": "Southern Africa",
+    "bbox": [
+      30.68,
+      -27.29,
+      32.07,
+      -25.66
+    ]
+  },
+  {
+    "adm0": "KOS",
+    "iso2": "XK",
+    "name": "Kosovo",
+    "shortName": "Kosovo",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      20.07,
+      41.85,
+      21.78,
+      43.27
+    ]
+  },
+  {
+    "adm0": "KWT",
+    "iso2": "KW",
+    "name": "Kuwait",
+    "shortName": "Kuwait",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      46.57,
+      28.53,
+      48.42,
+      30.06
+    ]
+  },
+  {
+    "adm0": "KGZ",
+    "iso2": "KG",
+    "name": "Kyrgyzstan",
+    "shortName": "Kyrgyzstan",
+    "continent": "Asia",
+    "subregion": "Central Asia",
+    "bbox": [
+      69.46,
+      39.28,
+      80.26,
+      43.3
+    ]
+  },
+  {
+    "adm0": "LAO",
+    "iso2": "LA",
+    "name": "Lao PDR",
+    "shortName": "Laos",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      100.12,
+      13.88,
+      107.56,
+      22.46
+    ]
+  },
+  {
+    "adm0": "LVA",
+    "iso2": "LV",
+    "name": "Latvia",
+    "shortName": "Latvia",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      21.06,
+      55.62,
+      28.18,
+      57.97
+    ]
+  },
+  {
+    "adm0": "LBN",
+    "iso2": "LB",
+    "name": "Lebanon",
+    "shortName": "Lebanon",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      35.13,
+      33.09,
+      36.61,
+      34.64
+    ]
+  },
+  {
+    "adm0": "LSO",
+    "iso2": "LS",
+    "name": "Lesotho",
+    "shortName": "Lesotho",
+    "continent": "Africa",
+    "subregion": "Southern Africa",
+    "bbox": [
+      27,
+      -30.65,
+      29.33,
+      -28.65
+    ]
+  },
+  {
+    "adm0": "LBR",
+    "iso2": "LR",
+    "name": "Liberia",
+    "shortName": "Liberia",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -11.44,
+      4.36,
+      -7.54,
+      8.54
+    ]
+  },
+  {
+    "adm0": "LBY",
+    "iso2": "LY",
+    "name": "Libya",
+    "shortName": "Libya",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      9.32,
+      19.58,
+      25.16,
+      33.14
+    ]
+  },
+  {
+    "adm0": "LTU",
+    "iso2": "LT",
+    "name": "Lithuania",
+    "shortName": "Lithuania",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      21.06,
+      53.91,
+      26.59,
+      56.37
+    ]
+  },
+  {
+    "adm0": "LUX",
+    "iso2": "LU",
+    "name": "Luxembourg",
+    "shortName": "Luxembourg",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      5.67,
+      49.44,
+      6.24,
+      50.13
+    ]
+  },
+  {
+    "adm0": "MDG",
+    "iso2": "MG",
+    "name": "Madagascar",
+    "shortName": "Madagascar",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      43.25,
+      -25.6,
+      50.48,
+      -12.04
+    ]
+  },
+  {
+    "adm0": "MWI",
+    "iso2": "MW",
+    "name": "Malawi",
+    "shortName": "Malawi",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      32.69,
+      -16.8,
+      35.77,
+      -9.23
+    ]
+  },
+  {
+    "adm0": "MYS",
+    "iso2": "MY",
+    "name": "Malaysia",
+    "shortName": "Malaysia",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      100.09,
+      0.77,
+      119.18,
+      6.93
+    ]
+  },
+  {
+    "adm0": "MLI",
+    "iso2": "ML",
+    "name": "Mali",
+    "shortName": "Mali",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -12.17,
+      10.1,
+      4.27,
+      24.97
+    ]
+  },
+  {
+    "adm0": "MRT",
+    "iso2": "MR",
+    "name": "Mauritania",
+    "shortName": "Mauritania",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -17.06,
+      14.62,
+      -4.92,
+      27.4
+    ]
+  },
+  {
+    "adm0": "MEX",
+    "iso2": "MX",
+    "name": "Mexico",
+    "shortName": "Mexico",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -117.13,
+      14.54,
+      -86.81,
+      32.72
+    ]
+  },
+  {
+    "adm0": "MDA",
+    "iso2": "MD",
+    "name": "Moldova",
+    "shortName": "Moldova",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      26.62,
+      45.49,
+      30.02,
+      48.47
+    ]
+  },
+  {
+    "adm0": "MNG",
+    "iso2": "MN",
+    "name": "Mongolia",
+    "shortName": "Mongolia",
+    "continent": "Asia",
+    "subregion": "Eastern Asia",
+    "bbox": [
+      87.75,
+      41.6,
+      119.77,
+      52.05
+    ]
+  },
+  {
+    "adm0": "MNE",
+    "iso2": "ME",
+    "name": "Montenegro",
+    "shortName": "Montenegro",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      18.45,
+      41.88,
+      20.34,
+      43.52
+    ]
+  },
+  {
+    "adm0": "MAR",
+    "iso2": "MA",
+    "name": "Morocco",
+    "shortName": "Morocco",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      -17.02,
+      21.42,
+      -1.12,
+      35.76
+    ]
+  },
+  {
+    "adm0": "MOZ",
+    "iso2": "MZ",
+    "name": "Mozambique",
+    "shortName": "Mozambique",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      30.18,
+      -26.74,
+      40.78,
+      -10.32
+    ]
+  },
+  {
+    "adm0": "MMR",
+    "iso2": "MM",
+    "name": "Myanmar",
+    "shortName": "Myanmar",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      92.3,
+      9.93,
+      101.18,
+      28.34
+    ]
+  },
+  {
+    "adm0": "NAM",
+    "iso2": "NA",
+    "name": "Namibia",
+    "shortName": "Namibia",
+    "continent": "Africa",
+    "subregion": "Southern Africa",
+    "bbox": [
+      11.73,
+      -29.05,
+      25.08,
+      -16.94
+    ]
+  },
+  {
+    "adm0": "NPL",
+    "iso2": "NP",
+    "name": "Nepal",
+    "shortName": "Nepal",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      80.09,
+      26.4,
+      88.17,
+      30.42
+    ]
+  },
+  {
+    "adm0": "NLD",
+    "iso2": "NL",
+    "name": "Netherlands",
+    "shortName": "Netherlands",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      3.31,
+      50.8,
+      7.09,
+      53.51
+    ]
+  },
+  {
+    "adm0": "NCL",
+    "iso2": "NC",
+    "name": "New Caledonia",
+    "shortName": "New Caledonia",
+    "continent": "Oceania",
+    "subregion": "Melanesia",
+    "bbox": [
+      164.03,
+      -22.4,
+      167.12,
+      -20.11
+    ]
+  },
+  {
+    "adm0": "NZL",
+    "iso2": "NZ",
+    "name": "New Zealand",
+    "shortName": "New Zealand",
+    "continent": "Oceania",
+    "subregion": "Australia and New Zealand",
+    "bbox": [
+      166.51,
+      -46.64,
+      178.52,
+      -34.45
+    ]
+  },
+  {
+    "adm0": "NIC",
+    "iso2": "NI",
+    "name": "Nicaragua",
+    "shortName": "Nicaragua",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -87.67,
+      10.73,
+      -83.15,
+      15.02
+    ]
+  },
+  {
+    "adm0": "NER",
+    "iso2": "NE",
+    "name": "Niger",
+    "shortName": "Niger",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      0.3,
+      11.66,
+      15.9,
+      23.47
+    ]
+  },
+  {
+    "adm0": "NGA",
+    "iso2": "NG",
+    "name": "Nigeria",
+    "shortName": "Nigeria",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      2.69,
+      4.24,
+      14.58,
+      13.87
+    ]
+  },
+  {
+    "adm0": "MKD",
+    "iso2": "MK",
+    "name": "North Macedonia",
+    "shortName": "North Macedonia",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      20.46,
+      40.84,
+      22.95,
+      42.32
+    ]
+  },
+  {
+    "adm0": "CYN",
+    "iso2": "-99",
+    "name": "Northern Cyprus",
+    "shortName": "N. Cyprus",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      32.73,
+      35,
+      34.58,
+      35.67
+    ]
+  },
+  {
+    "adm0": "NOR",
+    "iso2": "NO",
+    "name": "Norway",
+    "shortName": "Norway",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      4.99,
+      58.08,
+      31.29,
+      80.66
+    ]
+  },
+  {
+    "adm0": "OMN",
+    "iso2": "OM",
+    "name": "Oman",
+    "shortName": "Oman",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      52,
+      16.65,
+      59.81,
+      26.4
+    ]
+  },
+  {
+    "adm0": "PAK",
+    "iso2": "PK",
+    "name": "Pakistan",
+    "shortName": "Pakistan",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      60.87,
+      23.69,
+      77.84,
+      37.13
+    ]
+  },
+  {
+    "adm0": "PSX",
+    "iso2": "PS",
+    "name": "Palestine",
+    "shortName": "Palestine",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      34.93,
+      31.35,
+      35.55,
+      32.53
+    ]
+  },
+  {
+    "adm0": "PAN",
+    "iso2": "PA",
+    "name": "Panama",
+    "shortName": "Panama",
+    "continent": "North America",
+    "subregion": "Central America",
+    "bbox": [
+      -82.97,
+      7.22,
+      -77.24,
+      9.61
+    ]
+  },
+  {
+    "adm0": "PNG",
+    "iso2": "PG",
+    "name": "Papua New Guinea",
+    "shortName": "Papua New Guinea",
+    "continent": "Oceania",
+    "subregion": "Melanesia",
+    "bbox": [
+      141,
+      -10.65,
+      156.02,
+      -2.5
+    ]
+  },
+  {
+    "adm0": "PRY",
+    "iso2": "PY",
+    "name": "Paraguay",
+    "shortName": "Paraguay",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -62.69,
+      -27.55,
+      -54.29,
+      -19.34
+    ]
+  },
+  {
+    "adm0": "PER",
+    "iso2": "PE",
+    "name": "Peru",
+    "shortName": "Peru",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -81.41,
+      -18.35,
+      -68.67,
+      -0.06
+    ]
+  },
+  {
+    "adm0": "PHL",
+    "iso2": "PH",
+    "name": "Philippines",
+    "shortName": "Philippines",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      117.17,
+      5.58,
+      126.54,
+      18.51
+    ]
+  },
+  {
+    "adm0": "POL",
+    "iso2": "PL",
+    "name": "Poland",
+    "shortName": "Poland",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      14.07,
+      49.03,
+      24.03,
+      54.85
+    ]
+  },
+  {
+    "adm0": "PRT",
+    "iso2": "PT",
+    "name": "Portugal",
+    "shortName": "Portugal",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      -9.53,
+      36.84,
+      -6.39,
+      42.28
+    ]
+  },
+  {
+    "adm0": "PRI",
+    "iso2": "PR",
+    "name": "Puerto Rico",
+    "shortName": "Puerto Rico",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -67.24,
+      17.95,
+      -65.59,
+      18.52
+    ]
+  },
+  {
+    "adm0": "QAT",
+    "iso2": "QA",
+    "name": "Qatar",
+    "shortName": "Qatar",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      50.74,
+      24.56,
+      51.61,
+      26.11
+    ]
+  },
+  {
+    "adm0": "KOR",
+    "iso2": "KR",
+    "name": "Republic of Korea",
+    "shortName": "South Korea",
+    "continent": "Asia",
+    "subregion": "Eastern Asia",
+    "bbox": [
+      126.12,
+      34.39,
+      129.47,
+      38.61
+    ]
+  },
+  {
+    "adm0": "COG",
+    "iso2": "CG",
+    "name": "Republic of the Congo",
+    "shortName": "Congo",
+    "continent": "Africa",
+    "subregion": "Middle Africa",
+    "bbox": [
+      11.09,
+      -5.04,
+      18.45,
+      3.73
+    ]
+  },
+  {
+    "adm0": "ROU",
+    "iso2": "RO",
+    "name": "Romania",
+    "shortName": "Romania",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      20.22,
+      43.69,
+      29.63,
+      48.22
+    ]
+  },
+  {
+    "adm0": "RUS",
+    "iso2": "RU",
+    "name": "Russian Federation",
+    "shortName": "Russia",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      19.66,
+      41.15,
+      190.1,
+      81.25
+    ]
+  },
+  {
+    "adm0": "RWA",
+    "iso2": "RW",
+    "name": "Rwanda",
+    "shortName": "Rwanda",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      29.02,
+      -2.92,
+      30.82,
+      -1.13
+    ]
+  },
+  {
+    "adm0": "SAU",
+    "iso2": "SA",
+    "name": "Saudi Arabia",
+    "shortName": "Saudi Arabia",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      34.63,
+      16.35,
+      55.67,
+      32.16
+    ]
+  },
+  {
+    "adm0": "SEN",
+    "iso2": "SN",
+    "name": "Senegal",
+    "shortName": "Senegal",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -17.63,
+      12.33,
+      -11.47,
+      16.6
+    ]
+  },
+  {
+    "adm0": "SRB",
+    "iso2": "RS",
+    "name": "Serbia",
+    "shortName": "Serbia",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      18.83,
+      42.25,
+      22.99,
+      46.17
+    ]
+  },
+  {
+    "adm0": "SLE",
+    "iso2": "SL",
+    "name": "Sierra Leone",
+    "shortName": "Sierra Leone",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -13.25,
+      6.79,
+      -10.23,
+      10.05
+    ]
+  },
+  {
+    "adm0": "SVK",
+    "iso2": "SK",
+    "name": "Slovakia",
+    "shortName": "Slovakia",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      16.88,
+      47.76,
+      22.56,
+      49.57
+    ]
+  },
+  {
+    "adm0": "SVN",
+    "iso2": "SI",
+    "name": "Slovenia",
+    "shortName": "Slovenia",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      13.7,
+      45.45,
+      16.56,
+      46.85
+    ]
+  },
+  {
+    "adm0": "SLB",
+    "iso2": "SB",
+    "name": "Solomon Islands",
+    "shortName": "Solomon Is.",
+    "continent": "Oceania",
+    "subregion": "Melanesia",
+    "bbox": [
+      156.49,
+      -10.83,
+      162.4,
+      -6.6
+    ]
+  },
+  {
+    "adm0": "SOM",
+    "iso2": "SO",
+    "name": "Somalia",
+    "shortName": "Somalia",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      40.98,
+      -1.68,
+      51.13,
+      12.02
+    ]
+  },
+  {
+    "adm0": "SOL",
+    "iso2": "-99",
+    "name": "Somaliland",
+    "shortName": "Somaliland",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      42.56,
+      8,
+      48.95,
+      11.46
+    ]
+  },
+  {
+    "adm0": "ZAF",
+    "iso2": "ZA",
+    "name": "South Africa",
+    "shortName": "South Africa",
+    "continent": "Africa",
+    "subregion": "Southern Africa",
+    "bbox": [
+      16.34,
+      -34.82,
+      32.83,
+      -22.09
+    ]
+  },
+  {
+    "adm0": "SDS",
+    "iso2": "SS",
+    "name": "South Sudan",
+    "shortName": "S. Sudan",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      23.89,
+      3.51,
+      35.3,
+      12.25
+    ]
+  },
+  {
+    "adm0": "ESP",
+    "iso2": "ES",
+    "name": "Spain",
+    "shortName": "Spain",
+    "continent": "Europe",
+    "subregion": "Southern Europe",
+    "bbox": [
+      -9.39,
+      35.95,
+      3.04,
+      43.75
+    ]
+  },
+  {
+    "adm0": "LKA",
+    "iso2": "LK",
+    "name": "Sri Lanka",
+    "shortName": "Sri Lanka",
+    "continent": "Asia",
+    "subregion": "Southern Asia",
+    "bbox": [
+      79.7,
+      5.97,
+      81.79,
+      9.82
+    ]
+  },
+  {
+    "adm0": "SDN",
+    "iso2": "SD",
+    "name": "Sudan",
+    "shortName": "Sudan",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      21.94,
+      8.23,
+      38.41,
+      22
+    ]
+  },
+  {
+    "adm0": "SUR",
+    "iso2": "SR",
+    "name": "Suriname",
+    "shortName": "Suriname",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -58.04,
+      1.82,
+      -53.96,
+      6.03
+    ]
+  },
+  {
+    "adm0": "SWE",
+    "iso2": "SE",
+    "name": "Sweden",
+    "shortName": "Sweden",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      11.03,
+      55.36,
+      23.9,
+      69.11
+    ]
+  },
+  {
+    "adm0": "CHE",
+    "iso2": "CH",
+    "name": "Switzerland",
+    "shortName": "Switzerland",
+    "continent": "Europe",
+    "subregion": "Western Europe",
+    "bbox": [
+      6.02,
+      45.78,
+      10.44,
+      47.83
+    ]
+  },
+  {
+    "adm0": "SYR",
+    "iso2": "SY",
+    "name": "Syria",
+    "shortName": "Syria",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      35.7,
+      32.31,
+      42.35,
+      37.23
+    ]
+  },
+  {
+    "adm0": "TWN",
+    "iso2": "TW",
+    "name": "Taiwan",
+    "shortName": "Taiwan",
+    "continent": "Asia",
+    "subregion": "Eastern Asia",
+    "bbox": [
+      120.11,
+      21.97,
+      121.95,
+      25.3
+    ]
+  },
+  {
+    "adm0": "TJK",
+    "iso2": "TJ",
+    "name": "Tajikistan",
+    "shortName": "Tajikistan",
+    "continent": "Asia",
+    "subregion": "Central Asia",
+    "bbox": [
+      67.44,
+      36.74,
+      74.98,
+      40.96
+    ]
+  },
+  {
+    "adm0": "TZA",
+    "iso2": "TZ",
+    "name": "Tanzania",
+    "shortName": "Tanzania",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      29.34,
+      -11.72,
+      40.32,
+      -0.95
+    ]
+  },
+  {
+    "adm0": "THA",
+    "iso2": "TH",
+    "name": "Thailand",
+    "shortName": "Thailand",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      97.38,
+      5.69,
+      105.59,
+      20.42
+    ]
+  },
+  {
+    "adm0": "GMB",
+    "iso2": "GM",
+    "name": "The Gambia",
+    "shortName": "Gambia",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -16.84,
+      13.13,
+      -13.84,
+      13.88
+    ]
+  },
+  {
+    "adm0": "TLS",
+    "iso2": "TL",
+    "name": "Timor-Leste",
+    "shortName": "Timor-Leste",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      124.97,
+      -9.39,
+      127.34,
+      -8.27
+    ]
+  },
+  {
+    "adm0": "TGO",
+    "iso2": "TG",
+    "name": "Togo",
+    "shortName": "Togo",
+    "continent": "Africa",
+    "subregion": "Western Africa",
+    "bbox": [
+      -0.05,
+      5.93,
+      1.87,
+      11.02
+    ]
+  },
+  {
+    "adm0": "TTO",
+    "iso2": "TT",
+    "name": "Trinidad and Tobago",
+    "shortName": "Trinidad and Tobago",
+    "continent": "North America",
+    "subregion": "Caribbean",
+    "bbox": [
+      -61.95,
+      10,
+      -60.89,
+      10.89
+    ]
+  },
+  {
+    "adm0": "TUN",
+    "iso2": "TN",
+    "name": "Tunisia",
+    "shortName": "Tunisia",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      7.52,
+      30.31,
+      11.49,
+      37.35
+    ]
+  },
+  {
+    "adm0": "TUR",
+    "iso2": "TR",
+    "name": "Turkey",
+    "shortName": "Turkey",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      26.04,
+      35.82,
+      44.79,
+      42.14
+    ]
+  },
+  {
+    "adm0": "TKM",
+    "iso2": "TM",
+    "name": "Turkmenistan",
+    "shortName": "Turkmenistan",
+    "continent": "Asia",
+    "subregion": "Central Asia",
+    "bbox": [
+      52.5,
+      35.27,
+      66.55,
+      42.75
+    ]
+  },
+  {
+    "adm0": "UGA",
+    "iso2": "UG",
+    "name": "Uganda",
+    "shortName": "Uganda",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      29.58,
+      -1.44,
+      35.04,
+      4.25
+    ]
+  },
+  {
+    "adm0": "UKR",
+    "iso2": "UA",
+    "name": "Ukraine",
+    "shortName": "Ukraine",
+    "continent": "Europe",
+    "subregion": "Eastern Europe",
+    "bbox": [
+      22.09,
+      45.29,
+      40.08,
+      52.34
+    ]
+  },
+  {
+    "adm0": "ARE",
+    "iso2": "AE",
+    "name": "United Arab Emirates",
+    "shortName": "United Arab Emirates",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      51.58,
+      22.5,
+      56.4,
+      26.06
+    ]
+  },
+  {
+    "adm0": "GBR",
+    "iso2": "GB",
+    "name": "United Kingdom",
+    "shortName": "United Kingdom",
+    "continent": "Europe",
+    "subregion": "Northern Europe",
+    "bbox": [
+      -7.57,
+      49.96,
+      1.68,
+      58.64
+    ]
+  },
+  {
+    "adm0": "USA",
+    "iso2": "US",
+    "name": "United States",
+    "shortName": "United States of America",
+    "continent": "North America",
+    "subregion": "Northern America",
+    "bbox": [
+      -171.79,
+      18.92,
+      -66.96,
+      71.36
+    ]
+  },
+  {
+    "adm0": "URY",
+    "iso2": "UY",
+    "name": "Uruguay",
+    "shortName": "Uruguay",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -58.43,
+      -34.95,
+      -53.21,
+      -30.11
+    ]
+  },
+  {
+    "adm0": "UZB",
+    "iso2": "UZ",
+    "name": "Uzbekistan",
+    "shortName": "Uzbekistan",
+    "continent": "Asia",
+    "subregion": "Central Asia",
+    "bbox": [
+      55.93,
+      37.14,
+      73.06,
+      45.59
+    ]
+  },
+  {
+    "adm0": "VUT",
+    "iso2": "VU",
+    "name": "Vanuatu",
+    "shortName": "Vanuatu",
+    "continent": "Oceania",
+    "subregion": "Melanesia",
+    "bbox": [
+      166.63,
+      -16.6,
+      167.84,
+      -14.63
+    ]
+  },
+  {
+    "adm0": "VEN",
+    "iso2": "VE",
+    "name": "Venezuela",
+    "shortName": "Venezuela",
+    "continent": "South America",
+    "subregion": "South America",
+    "bbox": [
+      -73.3,
+      0.72,
+      -59.76,
+      12.16
+    ]
+  },
+  {
+    "adm0": "VNM",
+    "iso2": "VN",
+    "name": "Vietnam",
+    "shortName": "Vietnam",
+    "continent": "Asia",
+    "subregion": "South-Eastern Asia",
+    "bbox": [
+      102.17,
+      8.6,
+      109.34,
+      23.35
+    ]
+  },
+  {
+    "adm0": "SAH",
+    "iso2": "EH",
+    "name": "Western Sahara",
+    "shortName": "W. Sahara",
+    "continent": "Africa",
+    "subregion": "Northern Africa",
+    "bbox": [
+      -17.06,
+      21,
+      -8.67,
+      27.66
+    ]
+  },
+  {
+    "adm0": "YEM",
+    "iso2": "YE",
+    "name": "Yemen",
+    "shortName": "Yemen",
+    "continent": "Asia",
+    "subregion": "Western Asia",
+    "bbox": [
+      42.6,
+      12.59,
+      53.11,
+      19
+    ]
+  },
+  {
+    "adm0": "ZMB",
+    "iso2": "ZM",
+    "name": "Zambia",
+    "shortName": "Zambia",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      21.89,
+      -17.96,
+      33.49,
+      -8.24
+    ]
+  },
+  {
+    "adm0": "ZWE",
+    "iso2": "ZW",
+    "name": "Zimbabwe",
+    "shortName": "Zimbabwe",
+    "continent": "Africa",
+    "subregion": "Eastern Africa",
+    "bbox": [
+      25.26,
+      -22.27,
+      32.85,
+      -15.51
+    ]
+  }
+]

@@ -1,8 +1,8 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1-complete-except-live-providers; phase-1.10.1 frontend complete",
-  "generatedAt": "2026-09-20",
+  "stage": "phase-1-complete-except-live-providers; the vendor-independent half of the 1.11 live-provider readiness gate is built - provider responses schema-checked at the boundary, quote freshness reported, and an FX layer that never invents a rate",
+  "generatedAt": "2026-09-22",
   "overall": "PASS",
   "environment": {
     "os": "Windows 11 Pro 10.0.26200",
@@ -20,7 +20,7 @@
       "status": "PASS",
       "command": "npm run format:check",
       "detail": "Prettier reports all matched files conform.",
-      "notes": "docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are excluded from formatting as user-authored documents. public/geo and public/maplibre are excluded: the first is Natural Earth data shipped as fetched, the second is copied from node_modules on every build."
+      "notes": "docs/PRODUCT-SPECIFICATION.md and SETUP-CHECKLIST.md are excluded from formatting as user-authored documents. public/geo, public/maplibre and src/discovery/countries.generated.json are excluded: the first and third are written by scripts/build-geo.mjs from Natural Earth, the second is copied from node_modules on every build."
     },
     {
       "id": "linting",
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "812 tests across 49 files, all passing.",
+      "detail": "990 tests across 63 files, all passing.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -63,7 +63,15 @@
         "searchSchema": 21,
         "bookingHandoff": 8,
         "searchComponents": 18,
-        "searchCache": 10
+        "searchCache": 10,
+        "discoveryGeo": 9,
+        "discoveryCountries": 10,
+        "discoveryRoutes": 7,
+        "discoverySnapshot": 9,
+        "discoveryMapModel": 14,
+        "stageComponents": 18,
+        "discoveryRegions": 9,
+        "routeLine": 6
       }
     },
     {
@@ -71,31 +79,47 @@
       "name": "Coverage",
       "status": "PASS",
       "command": "npm run test:coverage",
-      "detail": "Lines 77.43%, branches 87.78%, functions 86.88%. All above configured thresholds (60/70/60).",
-      "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly."
+      "detail": "Lines 72.98%, branches 87.53%, functions 86.58%. All above configured thresholds (60/70/60).",
+      "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly, and the globe renderer, which is a canvas and is covered end to end instead."
     },
     {
       "id": "build",
       "name": "Production build",
       "status": "PASS",
       "command": "npm run build",
-      "detail": "Next.js 16 production build succeeds. A prebuild step copies the MapLibre worker into public/maplibre so the globe can reach it."
+      "detail": "Next.js 16 production build succeeds, 14 routes. A prebuild step copies the MapLibre worker into public/maplibre/<version> so the globe can reach it."
+    },
+    {
+      "id": "day-and-night",
+      "name": "The globe's sun model",
+      "status": "PASS",
+      "command": "npm test -- src/discovery/terminator.test.ts",
+      "detail": "10 tests. Asserted against places and hours anybody can check rather than against numbers the module produced: the sun stands over Greenwich at noon UTC and over the antimeridian at midnight, it moves fifteen degrees west an hour, London is in daylight and Auckland in darkness at the same instant, the Antarctic stays dark at every hour of a June day and the Arctic lit, the terminator is exactly where the sun sets for every longitude sampled, the dark cap closes around whichever pole is in polar night, and the paint expression the style lights seven hundred cities with computes the same elevation as the TypeScript it was rebuilt from.",
+      "notes": "The declination comes from the date being looked at and the rotation from the clock, so the world is lit for the month of the search and the hour of the reader. The equation of time is ignored, which moves the terminator by up to four degrees across a year - less than the width of the twilight band drawn over it."
+    },
+    {
+      "id": "imagery",
+      "name": "Destination imagery",
+      "status": "PASS",
+      "command": "npm test -- src/providers/imagery",
+      "detail": "9 tests against a stubbed fetch, so the suite stays offline. Asserted: a photograph is matched back to the destination that asked for it through both of the API's title rewrites, an article with no picture answers null rather than erroring, an unstated author stays null rather than becoming \"Unknown\", markup is stripped out of an author before it can reach a page, sixteen destinations cost two requests rather than thirty-two, and a failed lookup loses the whole page of imagery rather than illustrating half of it.",
+      "notes": "The association between a destination and an article is hand-written in src/providers/imagery/catalogue.ts and is never searched for. Bytes are served from /api/imagery/[code] on our own origin, so img-src stays 'self' and no reader's browser contacts Wikimedia. Verified in a production build: all sixteen catalogue destinations return an image, and IMAGERY_PROVIDER=none renders every card on its gradient instead."
     },
     {
       "id": "e2e",
       "name": "End-to-end smoke tests",
       "status": "PASS",
       "command": "npm run test:e2e",
-      "detail": "148 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, accounts and Travel Watches, and the full discovery and search flow - homepage categories, submitting the form, restoring a search from its URL, the score explanation, the cost breakdown, the No-Surprise warnings, component swapping, result filters, flexible dates including a weekend search returning only weekends, the discovery globe and its destination pages.",
-      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The Playwright web server runs with DATABASE_URL and REDIS_URL blanked, so the suite is hermetic and cannot write test accounts into a developer's real database."
+      "detail": "176 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, accounts and Travel Watches, and the full discovery and search flow - the globe stage with its price chips and routes, country selection from the globe and from a select, the regions and labels drawn inside an open country, the finer coastlines fetched only on zoom, the destination rail, the lenses, the compact search, submitting it, restoring a search from its URL, result cards that draw each flight as a route with real clock times, the score explanation, the cost breakdown, the No-Surprise warnings, component swapping, result filters, flexible dates including a weekend search returning only weekends, the explorer at /explore, and destination pages that open on the globe framed on their country. 176 passed against a production build.",
+      "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The Playwright web server runs with DATABASE_URL and REDIS_URL blanked, so the suite is hermetic and cannot write test accounts into a developer's real database. It also runs with IMAGERY_PROVIDER=none, so no test depends on Wikimedia being up: every assertion about a destination card is made against a card with no photograph, which is the state the cards must survive. Run with --workers=4: every page renders a WebGL globe, and Playwright's default worker count oversubscribes this machine, which flakes unrelated specs. CI pins one worker."
     },
     {
       "id": "accessibility",
       "name": "Accessibility",
       "status": "PASS",
       "command": "npm run test:e2e",
-      "detail": "axe-core reports zero violations against wcag2a, wcag2aa, wcag21a and wcag21aa in both desktop and mobile viewports, on the app shell, the search page with results, the flexible-date comparison, the discovery map panel and a destination page.",
-      "notes": "This check found and led to fixing a real dark-mode contrast failure in status badges (2.04:1 against a 4.5:1 requirement). axe is a floor, not proof of accessibility: it cannot tell whether the cost breakdown reads sensibly in a screen reader, only that its table markup is valid. The search flow is asserted to be keyboard-operable, but no manual screen-reader pass has been done."
+      "detail": "axe-core reports zero violations against wcag2a, wcag2aa, wcag21a and wcag21aa in both desktop and mobile viewports, on the app shell, the globe stage and destination rail, the explorer including an open country, the search page with results, the flexible-date comparison, a destination page, sign-in, the account page and Travel Watches. Re-run after the product moved to a single night scheme, so every one of those pairings is the night palette.",
+      "notes": "The one surface whose contrast cannot be read off a token pair is a price chip on the globe: what is behind it depends on which way the world is facing, so legibility comes from a halo the way a map label's always has, and axe resolves it against the stage behind the canvas. This check has found two real defects: a dark-mode contrast failure in status badges (2.04:1 against a 4.5:1 requirement), and rail cards sampled mid-entrance-animation reading as low contrast, which was both a test that judged an unsettled page and an entrance longer than it needed to be. The axe runs now wait for animations to finish. axe is a floor, not proof of accessibility: it cannot tell whether the cost breakdown reads sensibly in a screen reader, only that its table markup is valid. The canvas is aria-hidden and every fact on it is also a link or a card, which axe cannot verify either - the rail tests assert it. No manual screen-reader pass has been done."
     },
     {
       "id": "security-baseline",
@@ -165,7 +189,7 @@
       "name": "Search orchestration (Phase 1.1)",
       "status": "PASS",
       "command": "npm test",
-      "detail": "75 tests covering date arithmetic, the shared concurrency limiter, search planning, candidate assembly and orchestration. Asserted: a search returns ranked, costed, constrained candidates from mocks; each of the four adapters failing in turn degrades the result set rather than aborting the search; an adapter that throws instead of returning a Result is handled identically; a partially failing hotel provider loses only its own destination; results are deterministic across runs; every limit bounds the fan-out; the concurrency bound is reached but never exceeded across the whole nested fan-out, and tightening it changes the pace but not the answer; a wrong-currency quote is dropped rather than converted.",
+      "detail": "75 tests covering date arithmetic, the shared concurrency limiter, search planning, candidate assembly and orchestration. Asserted: a search returns ranked, costed, constrained candidates from mocks; each of the four adapters failing in turn degrades the result set rather than aborting the search; an adapter that throws instead of returning a Result is handled identically; a partially failing hotel provider loses only its own destination; results are deterministic across runs; every limit bounds the fan-out; the concurrency bound is reached but never exceeded across the whole nested fan-out, and tightening it changes the pace but not the answer; a wrong-currency quote is dropped rather than converted. Provider responses are schema-checked at the boundary; one limiter per provider sized from rateLimitPerMinute, plus a per-search call ceiling; quote freshness tallied in the diagnostics; foreign currencies converted through src/core/fx.ts when a rate exists and dropped with a named pair when not.",
       "notes": "Verified against deterministic mocks only. Real provider latency, rate limiting, pagination and partial-response behaviour are untested, and the per-call timeout is unproven against a live API. Default limits imply up to 8 flight calls and 48 hotel calls per search, paced at 6 concurrent; that budget is a guess until a vendor is chosen. Covered by the live-provider readiness task in docs/implementation-plan.md. Search results are cached for five minutes at the page level and the age is displayed; runSearch itself is uncached, so a background refresh always hits the providers."
     },
     {
@@ -181,7 +205,7 @@
       "name": "Data honesty fixes",
       "status": "PASS",
       "command": "npm test",
-      "detail": "Flight times are a LocalDateTime distinct from an instant: a Z-suffixed or offset-bearing flight time is rejected, the clock face is read through one helper rather than through Date, and a test asserts a candidate carrying a UTC-claiming flight time is refused rather than silently misread. Baggage and self-transfer are boolean | null: an unstated fact does not satisfy a hard requirement, produces a needs_verification warning rather than a false denial, takes half the scoring penalty, and lowers data confidence. Asserted end to end against a provider that prices flights without stating what is included.",
+      "detail": "Flight times are a LocalDateTime distinct from an instant: a Z-suffixed or offset-bearing flight time is rejected, the clock face is read through one helper rather than through Date, and a test asserts a candidate carrying a UTC-claiming flight time is refused rather than silently misread. Baggage and self-transfer are boolean | null: an unstated fact does not satisfy a hard requirement, produces a needs_verification warning rather than a false denial, takes half the scoring penalty, and lowers data confidence. Asserted end to end against a provider that prices flights without stating what is included. A quote now carries an age: fresh, stale or unknown, with unknown its own case and a future-dated observation not believed. An exchange rate is never invented - no default, no reciprocal, no identity across currencies - so a price that cannot be converted is withheld rather than estimated.",
       "notes": "The mock flight provider always states its facts, so the unknown path is exercised by unit tests and by a purpose-built terse provider in the orchestrator suite rather than by the standard fixtures. Whether a real vendor omits a field, sends an empty string or sends a misleading default is a per-vendor mapping question, tracked in the live-provider readiness task."
     },
     {
@@ -207,6 +231,14 @@
       "command": "npm test",
       "detail": "The worker sweeps expired sessions every six hours and prunes price observations older than 90 days daily. Asserted on both backends: a live session is never swept, and the cheapest observation per watch, component and currency survives pruning whatever its age.",
       "notes": "Price-history retention is the policy docs/security.md requires before launch, for that table only. Account deletion and the rest of a user's data still have no answer."
+    },
+    {
+      "id": "geographic-data",
+      "name": "Geographic data",
+      "status": "PASS",
+      "command": "node scripts/build-geo.mjs && npm test",
+      "detail": "Natural Earth admin-0 at 1:110m and 1:50m, a label point per country, 4,138 admin-1 regions split into a file per country, 243 physical regions, 76 named peaks, 1,417 coastline parts for the continental shelf and 599 populated places for the night side. 6.4MB committed, of which a first paint downloads about 210KB and the decoration another 250KB after it. The build reduces geometry with its own Douglas-Peucker, adapts precision so a shape smaller than the grid keeps a finer one, and throws rather than dropping a feature. 19 data tests assert the shipped files against what the globe relies on: unique keys, a bounding box per country, a name and exactly one label point per region, and that small enclaves such as Ceuta survive.",
+      "notes": "Public domain; the attribution the globe shows is a courtesy. The 40MB admin-1 download is cached in .geo-cache/, which is not committed, so a rebuild is reproducible without re-fetching. Nothing here is product data - a region has a name and an ISO 3166-2 code and nothing else, which is why the layer draws outlines and the interface says so."
     }
   ],
   "knownIssues": [

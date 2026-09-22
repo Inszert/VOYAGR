@@ -82,3 +82,49 @@ export function createLimiter(limit: number): Limiter {
     },
   };
 }
+
+/**
+ * One limiter per provider, made on first use.
+ *
+ * A rate limit belongs to a vendor, not to a search. One limiter shared by
+ * every provider meant a slow hotel vendor throttled the flight calls queued
+ * behind it, while two vendors that each allow plenty were held to a budget
+ * sized for neither. Splitting the bound per provider is what the
+ * live-provider readiness gate asks for, and it is the shape a rate limit
+ * actually has.
+ *
+ * **The rule that has not changed:** within one provider there is still
+ * exactly one limiter for the whole search, still acquired around the leaf
+ * call and never around the fan-out. A pool hands out a shared object per
+ * key; it does not hand out a fresh bound per call site, which would be the
+ * multiplying-nested-bounds mistake wearing a new hat.
+ */
+export interface LimiterPool {
+  /**
+   * The limiter for one key, created with `limit` if it does not exist yet.
+   *
+   * The limit is fixed by whoever asks first. A later caller asking for a
+   * different one gets the existing limiter, because a bound that can be
+   * raised by a second caller is not a bound.
+   */
+  for(key: string, limit?: number): Limiter;
+  /** Every limiter handed out so far, for diagnostics and tests. */
+  readonly limiters: ReadonlyMap<string, Limiter>;
+}
+
+export function createLimiterPool(fallbackLimit: number): LimiterPool {
+  const limiters = new Map<string, Limiter>();
+
+  return {
+    limiters,
+    for(key: string, limit = fallbackLimit): Limiter {
+      const existing = limiters.get(key);
+      if (existing) return existing;
+
+      const created = createLimiter(limit);
+      limiters.set(key, created);
+
+      return created;
+    },
+  };
+}

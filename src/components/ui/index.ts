@@ -9,6 +9,7 @@
  * the accessibility rules every component here is expected to hold to.
  */
 
+export { AmountSlider, roomFor, type AmountSliderProps } from './amount-slider';
 export { Badge, type BadgeProps, type BadgeTone } from './badge';
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
 export {
@@ -21,9 +22,22 @@ export {
   type CardSurface,
   type CardTitleProps,
 } from './card';
+export { Container, type ContainerProps } from './container';
+export { CalendarMonth, type CalendarMonthProps } from './calendar-month';
+export { DateField, type DateFieldProps } from './date-field';
+export { DateRangeField, type DateRangeFieldProps } from './date-range-field';
 export { Disclosure, type DisclosureProps } from './disclosure';
 export { EmptyState, Skeleton, type EmptyStateProps, type SkeletonProps } from './feedback';
 export { Field, type FieldProps } from './field';
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverClose,
+  PopoverPanel,
+  PopoverTrigger,
+  type PopoverPanelProps,
+} from './popover';
+export { Icon, type IconName, type IconProps } from './icon';
 export {
   RadioChip,
   Tag,

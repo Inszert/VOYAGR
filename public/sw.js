@@ -19,7 +19,7 @@
  * so there is no extra build plumbing to reason about.
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v4';
 const SHELL_CACHE = `voyagr-shell-${CACHE_VERSION}`;
 const ASSET_CACHE = `voyagr-assets-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline';
@@ -70,11 +70,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-/** Static build output is content-hashed, so it is safe to serve from cache. */
+/**
+ * Static build output is content-hashed, so it is safe to serve from cache.
+ *
+ * The globe's data and worker qualify too: the Natural Earth file carries a
+ * version in its name and is rebuilt under a new one, and MapLibre's worker
+ * is copied into a directory named after the library version. Neither can be
+ * served stale by a cache keyed on its URL.
+ */
 function isStaticAsset(url) {
   return (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
+    url.pathname.startsWith('/geo/') ||
+    url.pathname.startsWith('/maplibre/') ||
     url.pathname === '/manifest.webmanifest'
   );
 }

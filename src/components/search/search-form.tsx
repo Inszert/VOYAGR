@@ -1,4 +1,13 @@
-import { Button, Card, Disclosure, Field, RadioChip, Select } from '@/components/ui';
+import {
+  AmountSlider,
+  Button,
+  Card,
+  DateField,
+  Disclosure,
+  Field,
+  RadioChip,
+  Select,
+} from '@/components/ui';
 import { FLEXIBILITY_HINTS, FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS } from '@/search/flexibility';
 import {
   OPTIMISATION_MODES,
@@ -18,6 +27,11 @@ import {
  *
  * Structured input first: these fields *are* the search profile. The natural
  * language box Phase 2 adds will fill this form in, not bypass it.
+ *
+ * The fieldsets are exported on their own because the homepage's compact
+ * search shows a handful of them in the open and the rest behind "More
+ * options". One set of markup per field, so the two forms cannot drift apart
+ * on a label, a hint or a validation message.
  */
 
 export interface SearchFormProps {
@@ -52,6 +66,38 @@ export const SEARCH_FORM_DEFAULTS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * How a form reads its values.
+ *
+ * What was typed wins, then what was saved, then the system default. Once a
+ * form has been submitted its checkboxes are authoritative, including the ones
+ * left unticked: falling back to a saved preference then would re-tick a box
+ * the user had just deliberately cleared.
+ */
+export interface FormReader {
+  readonly submitted: boolean;
+  value(name: string): string;
+  checked(name: string): boolean;
+}
+
+export function readForm(
+  values: Readonly<Record<string, string | undefined>>,
+  defaults: Readonly<Record<string, string>> = {},
+  systemDefaults: Readonly<Record<string, string>> = SEARCH_FORM_DEFAULTS,
+): FormReader {
+  // A GET form always submits its text inputs, so this marks a real submission.
+  const submitted = typeof values.origins === 'string';
+
+  return {
+    submitted,
+    value: (name) => values[name] ?? defaults[name] ?? systemDefaults[name] ?? '',
+    checked: (name) => {
+      const source = submitted ? values : { ...defaults, ...values };
+      return source[name] === 'on' || source[name] === 'true';
+    },
+  };
+}
+
+/**
  * A checkbox with its label.
  *
  * Local to this form rather than promoted to the design system: it is a native
@@ -81,20 +127,224 @@ function Checkbox({
   );
 }
 
+export interface FieldsetProps {
+  form: FormReader;
+  errors?: SearchFormErrors;
+}
+
+/** Section 8: flexible dates are not an advanced option. */
+export function FlexibilityChips({ form }: FieldsetProps) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-ink text-sm font-medium">How flexible are the dates?</legend>
+      <div className="flex flex-wrap gap-2">
+        {FLEXIBILITY_PRESETS.map((preset) => (
+          <RadioChip
+            key={preset}
+            name="flexibility"
+            value={preset}
+            label={FLEXIBILITY_LABELS[preset]}
+            hint={FLEXIBILITY_HINTS[preset]}
+            defaultChecked={form.value('flexibility') === preset}
+          />
+        ))}
+        <RadioChip
+          name="flexibility"
+          value="custom"
+          label="Exact window"
+          hint="Use the travel window set below."
+          defaultChecked={form.value('flexibility') === 'custom'}
+        />
+      </div>
+    </fieldset>
+  );
+}
+
+/** The four window fields "Exact window" reads. */
+export function ExactWindowFields({ form, errors = {} }: FieldsetProps) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <DateField
+        label="Earliest departure"
+        name="earliestDeparture"
+        defaultValue={form.value('earliestDeparture')}
+        error={errors.earliestDeparture}
+        required
+      />
+      <DateField
+        label="Latest return"
+        name="latestReturn"
+        defaultValue={form.value('latestReturn')}
+        error={errors.latestReturn}
+        required
+      />
+      <Field
+        label="Shortest trip (nights)"
+        name="minNights"
+        type="number"
+        min={1}
+        max={60}
+        defaultValue={form.value('minNights')}
+        error={errors.minNights}
+        required
+      />
+      <Field
+        label="Longest trip (nights)"
+        name="maxNights"
+        type="number"
+        min={1}
+        max={60}
+        defaultValue={form.value('maxNights')}
+        error={errors.maxNights}
+        required
+      />
+    </div>
+  );
+}
+
+/** Currency and the budgets. Travellers and the ceiling are shown elsewhere by the compact form. */
+export function BudgetFields({
+  form,
+  errors = {},
+  include = ['passengers', 'currency', 'targetBudget', 'maxBudget', 'reserveBudget'],
+}: FieldsetProps & { include?: readonly string[] }) {
+  const has = (name: string) => include.includes(name);
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {has('passengers') ? (
+        <Field
+          label="Travellers"
+          name="passengers"
+          type="number"
+          min={1}
+          max={9}
+          defaultValue={form.value('passengers')}
+          error={errors.passengers}
+          required
+        />
+      ) : null}
+      {has('currency') ? (
+        <Field
+          label="Currency"
+          name="currency"
+          defaultValue={form.value('currency')}
+          hint="Three-letter code, such as EUR."
+          error={errors.currency}
+          required
+        />
+      ) : null}
+      {has('targetBudget') ? (
+        <AmountSlider
+          label="Target budget"
+          name="targetBudget"
+          min={100}
+          max={3000}
+          step={10}
+          defaultValue={form.value('targetBudget')}
+          hint="What a good trip should cost, all in."
+          error={errors.targetBudget}
+          required
+        />
+      ) : null}
+      {has('maxBudget') ? (
+        <AmountSlider
+          label="Maximum budget"
+          name="maxBudget"
+          min={100}
+          max={4000}
+          step={10}
+          defaultValue={form.value('maxBudget')}
+          hint="A hard ceiling. Trips above it are never shown as matches."
+          error={errors.maxBudget}
+          required
+        />
+      ) : null}
+      {has('reserveBudget') ? (
+        <AmountSlider
+          label="Hold back for spending (optional)"
+          name="reserveBudget"
+          min={0}
+          max={1000}
+          step={10}
+          defaultValue={form.value('reserveBudget')}
+          hint="Kept aside for food and whatever the day brings."
+          error={errors.reserveBudget}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** Style, optimisation and the hard requirements. */
+export function PreferenceFields({ form, errors = {} }: FieldsetProps) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Select
+          label="Travel style"
+          name="travelStyle"
+          defaultValue={form.value('travelStyle')}
+          error={errors.travelStyle}
+          options={TRAVEL_STYLES.map((style) => ({
+            value: style,
+            label: TRAVEL_STYLE_LABELS[style],
+          }))}
+        />
+        <Select
+          label="Optimise for"
+          name="optimisationMode"
+          defaultValue={form.value('optimisationMode')}
+          error={errors.optimisationMode}
+          options={OPTIMISATION_MODES.map((mode) => ({
+            value: mode,
+            label: OPTIMISATION_MODE_LABELS[mode],
+          }))}
+        />
+        <Field
+          label="Minimum hotel review score (optional)"
+          name="minHotelReviewScore"
+          type="number"
+          min={0}
+          max={10}
+          step="0.1"
+          defaultValue={form.value('minHotelReviewScore')}
+          error={errors.minHotelReviewScore}
+        />
+        <Field
+          label="Maximum distance to the beach in metres (optional)"
+          name="maxBeachDistanceMetres"
+          type="number"
+          min={0}
+          step="50"
+          defaultValue={form.value('maxBeachDistanceMetres')}
+          error={errors.maxBeachDistanceMetres}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <Checkbox
+          name="requireDirectFlights"
+          label="Direct flights only"
+          defaultChecked={form.checked('requireDirectFlights')}
+        />
+        <Checkbox
+          name="requireCheckedBaggage"
+          label="Checked baggage must be included"
+          defaultChecked={form.checked('requireCheckedBaggage')}
+        />
+        <Checkbox
+          name="requireFreeCancellation"
+          label="Hotel must be free to cancel"
+          defaultChecked={form.checked('requireFreeCancellation')}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormProps) {
-  // A GET form always submits its text inputs, so this marks a real submission.
-  const submitted = typeof values.origins === 'string';
-
-  const value = (name: string) =>
-    values[name] ?? defaults[name] ?? SEARCH_FORM_DEFAULTS[name] ?? '';
-
-  // Once a form has been submitted its checkboxes are authoritative, including
-  // the ones left unticked. Falling back to a saved preference then would
-  // re-tick a box the user had just deliberately cleared.
-  const checked = (name: string) => {
-    const source = submitted ? values : { ...defaults, ...values };
-    return source[name] === 'on' || source[name] === 'true';
-  };
+  const form = readForm(values, defaults);
 
   return (
     <Card as="section" aria-labelledby="search-form-heading" elevation="raised">
@@ -119,7 +369,7 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
             <Field
               label="Departure airports"
               name="origins"
-              defaultValue={value('origins')}
+              defaultValue={form.value('origins')}
               hint="Three-letter codes, separated by commas."
               error={errors.origins}
               required
@@ -127,23 +377,21 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
             <Field
               label="Destinations"
               name="destinations"
-              defaultValue={value('destinations')}
+              defaultValue={form.value('destinations')}
               hint="Three-letter codes, separated by commas."
               error={errors.destinations}
               required
             />
-            <Field
+            <DateField
               label="Leaving"
               name="departureDate"
-              type="date"
-              defaultValue={value('departureDate')}
+              defaultValue={form.value('departureDate')}
               error={errors.departureDate}
             />
-            <Field
+            <DateField
               label="Coming back"
               name="returnDate"
-              type="date"
-              defaultValue={value('returnDate')}
+              defaultValue={form.value('returnDate')}
               error={errors.returnDate}
             />
           </div>
@@ -156,28 +404,7 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
             instead. Most people do not care which week; the ones who do can
             still say so, one level down.
           */}
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-ink text-sm font-medium">How flexible are the dates?</legend>
-            <div className="flex flex-wrap gap-2">
-              {FLEXIBILITY_PRESETS.map((preset) => (
-                <RadioChip
-                  key={preset}
-                  name="flexibility"
-                  value={preset}
-                  label={FLEXIBILITY_LABELS[preset]}
-                  hint={FLEXIBILITY_HINTS[preset]}
-                  defaultChecked={value('flexibility') === preset}
-                />
-              ))}
-              <RadioChip
-                name="flexibility"
-                value="custom"
-                label="Exact window"
-                hint="Use the travel window set below."
-                defaultChecked={value('flexibility') === 'custom'}
-              />
-            </div>
-          </fieldset>
+          <FlexibilityChips form={form} />
         </fieldset>
 
         <Disclosure summary="Set an exact travel window">
@@ -185,165 +412,19 @@ export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormPro
             Used when &ldquo;Exact window&rdquo; is chosen above. A window plus a trip length says
             &ldquo;four to seven nights, any time in June&rdquo; - which the presets cannot express.
           </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Earliest departure"
-              name="earliestDeparture"
-              type="date"
-              defaultValue={value('earliestDeparture')}
-              error={errors.earliestDeparture}
-              required
-            />
-            <Field
-              label="Latest return"
-              name="latestReturn"
-              type="date"
-              defaultValue={value('latestReturn')}
-              error={errors.latestReturn}
-              required
-            />
-            <Field
-              label="Shortest trip (nights)"
-              name="minNights"
-              type="number"
-              min={1}
-              max={60}
-              defaultValue={value('minNights')}
-              error={errors.minNights}
-              required
-            />
-            <Field
-              label="Longest trip (nights)"
-              name="maxNights"
-              type="number"
-              min={1}
-              max={60}
-              defaultValue={value('maxNights')}
-              error={errors.maxNights}
-              required
-            />
+          <div className="mt-4">
+            <ExactWindowFields form={form} errors={errors} />
           </div>
         </Disclosure>
 
         <fieldset className="flex flex-col gap-4">
           <legend className="text-ink text-sm font-semibold">Who and how much</legend>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Travellers"
-              name="passengers"
-              type="number"
-              min={1}
-              max={9}
-              defaultValue={value('passengers')}
-              error={errors.passengers}
-              required
-            />
-            <Field
-              label="Currency"
-              name="currency"
-              defaultValue={value('currency')}
-              hint="Three-letter code, such as EUR."
-              error={errors.currency}
-              required
-            />
-            <Field
-              label="Target budget"
-              name="targetBudget"
-              type="number"
-              min={1}
-              step="1"
-              defaultValue={value('targetBudget')}
-              hint="What a good trip should cost, all in."
-              error={errors.targetBudget}
-              required
-            />
-            <Field
-              label="Maximum budget"
-              name="maxBudget"
-              type="number"
-              min={1}
-              step="1"
-              defaultValue={value('maxBudget')}
-              hint="A hard ceiling. Trips above it are never shown as matches."
-              error={errors.maxBudget}
-              required
-            />
-            <Field
-              label="Hold back for spending (optional)"
-              name="reserveBudget"
-              type="number"
-              min={0}
-              step="1"
-              defaultValue={value('reserveBudget')}
-              hint="Kept aside for food and whatever the day brings."
-              error={errors.reserveBudget}
-            />
-          </div>
+          <BudgetFields form={form} errors={errors} />
         </fieldset>
 
         <fieldset className="flex flex-col gap-4">
           <legend className="text-ink text-sm font-semibold">What matters to you</legend>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Select
-              label="Travel style"
-              name="travelStyle"
-              defaultValue={value('travelStyle')}
-              error={errors.travelStyle}
-              options={TRAVEL_STYLES.map((style) => ({
-                value: style,
-                label: TRAVEL_STYLE_LABELS[style],
-              }))}
-            />
-            <Select
-              label="Optimise for"
-              name="optimisationMode"
-              defaultValue={value('optimisationMode')}
-              error={errors.optimisationMode}
-              options={OPTIMISATION_MODES.map((mode) => ({
-                value: mode,
-                label: OPTIMISATION_MODE_LABELS[mode],
-              }))}
-            />
-            <Field
-              label="Minimum hotel review score (optional)"
-              name="minHotelReviewScore"
-              type="number"
-              min={0}
-              max={10}
-              step="0.1"
-              defaultValue={value('minHotelReviewScore')}
-              error={errors.minHotelReviewScore}
-            />
-            <Field
-              label="Maximum distance to the beach in metres (optional)"
-              name="maxBeachDistanceMetres"
-              type="number"
-              min={0}
-              step="50"
-              defaultValue={value('maxBeachDistanceMetres')}
-              error={errors.maxBeachDistanceMetres}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <Checkbox
-              name="requireDirectFlights"
-              label="Direct flights only"
-              defaultChecked={checked('requireDirectFlights')}
-            />
-            <Checkbox
-              name="requireCheckedBaggage"
-              label="Checked baggage must be included"
-              defaultChecked={checked('requireCheckedBaggage')}
-            />
-            <Checkbox
-              name="requireFreeCancellation"
-              label="Hotel must be free to cancel"
-              defaultChecked={checked('requireFreeCancellation')}
-            />
-          </div>
+          <PreferenceFields form={form} errors={errors} />
         </fieldset>
 
         <div>

@@ -3,88 +3,295 @@
 /*
  * Voyagr design tokens.
  *
- * Tailwind v4 reads these as first-class theme values, so `bg-surface` and
- * `text-ink-muted` work like built-in utilities. Components reference semantic
- * names (surface, ink, brand) rather than raw colours, which is what lets dark
- * mode be a token swap instead of a component rewrite.
+ * **One palette, ten values, and everything else points at it.** The block
+ * directly below is the whole source of truth for colour in this product.
+ * Nothing in a component may name a colour that is not derived from it: no
+ * hex, no `oklch(...)` in a class string, no second violet that is nearly the
+ * first one. Every other token here - semantic ones like `surface` and `ink`,
+ * the brand ramp, the planet's own palette - is an alias or a shade of one of
+ * those ten, so changing the product's colour is changing ten lines.
+ *
+ * Tailwind v4 reads these as first-class theme values, so `bg-panel`,
+ * `text-muted` and `border-hairline` work like built-in utilities alongside
+ * the semantic `bg-surface` / `text-ink` names the components already use.
+ *
+ * **There is one scheme, and it is night.** Voyagr is a planet seen from
+ * orbit with an interface laid over it, and a planet does not repaint itself
+ * when the reader's operating system changes its mind.
  *
  * Contrast: every ink/surface pairing below meets WCAG 2.2 AA (4.5:1 for body
- * text, 3:1 for large text and UI boundaries) in both schemes. Changing a value
- * here means re-checking that pairing.
+ * text, 3:1 for large text and UI boundaries), with one stated exception -
+ * see the accent, where the specified gradient is measured and recorded.
  */
 @theme {
-  /* Brand: deep sea-blue, evoking travel without the usual saturated tech blue. */
-  --color-brand-50: oklch(0.97 0.02 220);
-  --color-brand-100: oklch(0.93 0.04 220);
-  --color-brand-200: oklch(0.86 0.07 220);
-  --color-brand-300: oklch(0.76 0.1 220);
-  --color-brand-400: oklch(0.66 0.13 224);
-  --color-brand-500: oklch(0.56 0.15 228);
-  --color-brand-600: oklch(0.47 0.14 232);
-  --color-brand-700: oklch(0.39 0.12 234);
-  --color-brand-800: oklch(0.31 0.09 236);
-  --color-brand-900: oklch(0.24 0.07 238);
+  /* ------------------------------------------------------------------ */
+  /* The palette.                                                        */
+  /* ------------------------------------------------------------------ */
 
-  /* Accent: warm sand, used sparingly for highlights and deal markers. */
-  --color-accent-300: oklch(0.85 0.11 75);
-  --color-accent-500: oklch(0.73 0.15 68);
-  --color-accent-700: oklch(0.55 0.13 60);
+  /** The page. */
+  --color-bg: #05070e;
+  /** The band below the hero. A sibling surface, not an elevation. */
+  --color-bg-alt: #080b13;
+  /** A card, a panel, anything lifted off the page. */
+  --color-panel: #0c101b;
+  /**
+   * An inset: a field group inside a panel, an active tab, a folded section.
+   * Below the panel it sits in, so it reads as cut into it rather than laid
+   * on it - the one direction of depth a night interface has left.
+   */
+  --color-field: #0a0e18;
+  /** One step above that: a chip on a panel, a field inside a card. */
+  --color-panel-2: #10151f;
+  /** Every border in the product. There is only one, and it is this. */
+  --color-hairline: rgba(255, 255, 255, 0.07);
+  --color-text: #ffffff;
+  /** Secondary copy: descriptions, labels, inactive navigation. */
+  --color-muted: #98a0b0;
+  /*
+   * Tertiary: field labels, captions, the small print under a figure.
+   *
+   * Specified as #6b7280 and moved, because that value is not readable. It
+   * measures 3.92:1 on `--panel`, 3.98:1 on `--field` and 4.16:1 on `--bg`,
+   * against the 4.5:1 WCAG asks of text this size, and axe failed the build
+   * on eighty-eight separate nodes - every field label, every card
+   * description, every caption. This is the nearest blue-grey that clears it
+   * on the lightest surface it is used on (4.86:1 on `--panel`), which still
+   * leaves it clearly a step below `--muted`.
+   */
+  --color-dim: #7a8190;
+  /*
+   * The accent, as the two ends of one gradient.
+   *
+   * Every button in the product is `accent-from` to `accent-to`, never a flat
+   * fill. Recorded plainly: white type on these measures 4.1:1 at the light
+   * end and 3.4:1 at the dark end, against the 4.5:1 that WCAG asks for body
+   * text. It clears the 3:1 bar for large text and for UI boundaries. These
+   * are the specified values and they are used as specified; the note is here
+   * so the next person changing them knows which way the trade went.
+   */
+  --color-accent-from: #6a6cf6;
+  --color-accent-to: #8b7bf7;
+  /** The accent as type, where it has to be read rather than pressed. */
+  --color-accent-ink: var(--color-biome-ink);
+  /*
+   * The colour of wherever the globe is looking.
+   *
+   * Lavender until the planet says otherwise, and then whatever the band of
+   * latitude in the middle of the view is: ice blue over the poles, sand over
+   * the deserts, jade through the tropics, open blue over water. It dresses
+   * everything tinted rather than printed - the glow behind the stage, the
+   * wash on the band below, eyebrows, flight paths, the accent word in a
+   * heading, and the weather drifting over the page.
+   *
+   * Set by `:root[data-biome]` in the base layer, from an attribute the globe
+   * writes when the middle of the view changes - by a drag, a zoom or a click
+   * on a country.
+   */
+  --color-biome: #6a6cf6;
+  --color-biome-ink: #a9a5f5;
+
+  /* ------------------------------------------------------------------ */
+  /* Semantic aliases. Components name these; they never name a hex.     */
+  /* ------------------------------------------------------------------ */
+  --color-surface: var(--color-bg);
+  --color-surface-raised: var(--color-panel);
+  --color-surface-sunken: var(--color-panel-2);
+  /** Glass: a panel over the planet, or over a photograph. */
+  --color-surface-overlay: rgba(12, 16, 27, 0.72);
+  --color-border: var(--color-hairline);
+  /** The one place a border has to be seen rather than felt: a focused field. */
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-ink: var(--color-text);
+  --color-ink-muted: var(--color-muted);
+  /** For the rare surface lighter than the page. */
+  --color-ink-inverse: var(--color-bg);
+
+  /*
+   * The brand ramp, kept because components reference it, pointed at the
+   * accent so there is no second violet. 600 and 700 are the gradient's two
+   * ends, which is what `Button` fills with.
+   */
+  --color-brand-50: #ececfe;
+  --color-brand-100: #dcdcfd;
+  --color-brand-200: #c4c3fb;
+  --color-brand-300: var(--color-accent-ink);
+  --color-brand-400: #9a97f8;
+  --color-brand-500: var(--color-accent-to);
+  --color-brand-600: var(--color-accent-from);
+  --color-brand-700: #5a5ce0;
+  --color-brand-800: #4a4cc4;
+  --color-brand-900: #32338a;
+
+  /* Warm sand. One `Tag` tone, and the departure airport on the globe. */
+  --color-accent-300: #f2c46a;
+  --color-accent-500: #d99b42;
+  --color-accent-700: #9a6a24;
 
   /* Status colours for cost confidence and alert severity. */
-  --color-positive-500: oklch(0.6 0.13 155);
-  --color-positive-700: oklch(0.45 0.11 155);
-  --color-caution-500: oklch(0.75 0.14 85);
-  --color-caution-700: oklch(0.52 0.12 75);
-  --color-critical-500: oklch(0.58 0.19 25);
-  --color-critical-700: oklch(0.46 0.17 25);
+  --color-positive-500: #3fa46a;
+  --color-positive-700: #2c7349;
+  --color-caution-500: #d4a03c;
+  --color-caution-700: #8f6a1f;
+  --color-critical-500: #d9534f;
+  --color-critical-700: #9c3a37;
 
   /*
    * Ink for text sitting on a tinted status background (badges, callouts).
    *
    * These are separate tokens rather than the -700 ramp values because a tint
-   * that works on a light surface fails contrast on a dark one. They are
-   * redefined for the dark scheme below; the ramp values are not.
+   * dark enough to read on parchment disappears on a dark surface. With one
+   * night scheme they are simply the light ends of each ramp.
    */
-  --color-brand-ink: oklch(0.31 0.09 236);
-  --color-positive-ink: oklch(0.45 0.11 155);
-  --color-caution-ink: oklch(0.45 0.11 75);
-  --color-critical-ink: oklch(0.46 0.17 25);
-
-  /* Semantic surfaces and ink, light scheme. Overridden for dark below. */
-  --color-surface: oklch(0.99 0.003 240);
-  --color-surface-raised: oklch(1 0 0);
-  --color-surface-sunken: oklch(0.96 0.006 240);
-  --color-border: oklch(0.88 0.008 240);
-  --color-border-strong: oklch(0.74 0.012 240);
-  --color-ink: oklch(0.22 0.015 250);
-  --color-ink-muted: oklch(0.46 0.014 250);
-  --color-ink-inverse: oklch(0.99 0.003 240);
+  /* Fixed: a status badge is not a place, and must not drift with one. */
+  --color-brand-ink: #a9a5f5;
+  --color-positive-ink: #7fd8a6;
+  --color-caution-ink: #ecc06a;
+  --color-critical-ink: #f09a92;
 
   /*
-   * Surfaces that sit above the page: menus, sheets, the globe's controls.
-   * A fourth layer, not a lighter `surface-raised`, because glass over content
-   * needs its own value in each scheme to stay legible.
+   * The stage.
+   *
+   * The globe and the sky it hangs in. These are no longer a carve-out - the
+   * product is this palette now - but they keep their own names because they
+   * describe a planet rather than an interface: `stage-sea` is the ocean,
+   * not a surface, and `stage-land` is vegetation, not a fill.
+   *
+   * Contrast: stage-ink and stage-ink-muted both clear 4.5:1 on stage and on
+   * stage-glass; stage-chip-ink clears it on stage-chip; stage-ink clears it
+   * on stage-accent-strong. Re-check the pairing when changing a value.
    */
-  --color-surface-overlay: oklch(1 0 0 / 0.82);
+  --color-stage: var(--color-bg);
+  --color-stage-deep: #03050a;
+  /*
+   * The ocean.
+   *
+   * Darker and less saturated than it was. An ocean seen from orbit at night
+   * is nearly black; what makes it read as water is the shelf along the
+   * shore, the sheen where the sun strikes it and the atmosphere over the
+   * limb - not the fill. A bright flat blue is the single thing that made
+   * this read as a map of a planet rather than as one.
+   */
+  /*
+   * Deep, and still blue.
+   *
+   * At #0a1420 the day side of the ocean was black: correct for the night
+   * half, and wrong for the half the sun is on, which is most of what anybody
+   * looks at. The night cap over it is what makes it near-black after dark.
+   */
+  --color-stage-sea: #1b3a5c;
+  --color-stage-sea-deep: #060d16;
+  /* The blue the atmosphere scatters at the limb, and in the halo beyond it. */
+  --color-stage-atmosphere: #4a7fd4;
+  --color-stage-atmosphere-outer: #2f4f96;
+  /*
+   * The planet's own palette.
+   *
+   * Vegetated land green, deserts sand, mountains rock, ice white. The globe
+   * is meant to look like somewhere rather than like a diagram, and these are
+   * the colours that do that without a satellite imagery vendor in the render
+   * path. Which of them appears where is decided by real geography from
+   * Natural Earth and by the sunlight model in `src/discovery/seasons.ts` -
+   * see `docs/map-options.md`.
+   */
+  /*
+   * Earth is browner than a map of it.
+   *
+   * The first pass painted continents in the green a cartographer uses for
+   * lowland, which is a legend colour rather than a photograph: from orbit
+   * vegetation is dark and olive, drylands are more of the surface than
+   * anybody expects, and almost nothing is saturated. Pulling the chroma
+   * down and the hue towards olive is most of the difference between a globe
+   * that looks drawn and one that looks photographed.
+   */
+  --color-stage-land: #46583c;
+  --color-stage-land-hover: oklch(0.63 0.1 148);
+  --color-stage-land-lit: oklch(0.72 0.12 150);
+  --color-stage-desert: oklch(0.73 0.045 80);
+  --color-stage-mountain: oklch(0.47 0.028 68);
+  --color-stage-plateau: oklch(0.59 0.03 92);
+  --color-stage-tundra: oklch(0.62 0.012 150);
+  --color-stage-tropical: oklch(0.4 0.085 148);
+  --color-stage-ice: oklch(0.93 0.018 226);
+  --color-stage-snow: oklch(0.86 0.021 230);
+  /*
+   * A border, dark enough to be a line on the ground.
+   *
+   * This used to be a mid slate that sat lighter than the land it crossed,
+   * so the outlines read as something drawn on top of the map rather than as
+   * a seam in it. A political boundary on a satellite image is a shadow, not
+   * a highlight.
+   */
+  --color-stage-border: #17232e;
+  /*
+   * Night, dusk, and the cities that are in it.
+   *
+   * The dark cap is a deep blue rather than black: a planet's night side is
+   * lit by its own atmosphere and by the moon, and pure black reads as a hole
+   * cut in the globe. Dusk is warm and heavily blurred, which is what the
+   * terminator looks like from orbit. The lights are the sodium-orange of a
+   * city seen from above, not white.
+   */
+  /* The shallow water every landmass is ringed with, seen from orbit. */
+  --color-stage-shelf: oklch(0.6 0.11 228);
+  --color-stage-night: #0b1120;
+  --color-stage-twilight: oklch(0.78 0.14 58);
+  /*
+   * Amber, not yellow.
+   *
+   * Sodium light seen through a lot of air is orange-warm and not very
+   * bright; a saturated yellow point reads as a pixel fault on a dark sphere.
+   */
+  /*
+   * Two ends of the lights, interpolated by how bright a point actually was
+   * in the Black Marble composite: deep sodium amber where it is faint, pale
+   * and warm in the cores.
+   */
+  --color-stage-city-light: #ffd9a0;
+  --color-stage-city-light-dim: #c98a3a;
+  --color-stage-ink: var(--color-text);
+  --color-stage-ink-muted: var(--color-muted);
+  --color-stage-glass: rgba(12, 16, 27, 0.72);
+  --color-stage-glass-border: var(--color-hairline);
+  --color-stage-accent: var(--color-accent-ink);
+  --color-stage-accent-strong: var(--color-accent-from);
+  --color-stage-accent-deep: #5a5ce0;
+  /* The lavender a flight path is drawn in. */
+  --color-stage-route: var(--color-accent-ink);
+  --color-stage-origin: #f2c46a;
+  /*
+   * A price chip is a pane of the night, not a sticker on it.
+   *
+   * White chips read as a tooltip layer floating above the picture, which is
+   * the "separate window" look the globe was pulled out of. Dark glass with
+   * light type sits in the same world as the planet behind it, and clears
+   * 4.5:1 over every part of the globe it can be drawn on - the light half
+   * included, because the chip carries its own darkness.
+   */
+  --color-stage-chip: rgba(12, 16, 27, 0.78);
+  --color-stage-chip-ink: var(--color-text);
 
-  --radius-control: 0.5rem;
-  --radius-card: 0.75rem;
-  /* Editorial surfaces: hero panels, destination cards, the globe frame. */
-  --radius-surface: 1.25rem;
+  /* A control inside something else: a zoom button, a small glass chip. */
+  --radius-control: 0.625rem;
+  /* A card, and the field group inside the search panel. Both 14px. */
+  --radius-card: 0.875rem;
+  --radius-surface: 0.875rem;
+  /* The search panel, and the panels on the closing band. 20px. */
+  --radius-shell: 1.25rem;
   --radius-pill: 9999px;
 
   /*
-   * Elevation.
+   * Elevation, on a night page.
    *
-   * Two shadows per step: a tight one for the contact edge and a wide, soft
-   * one for the cast. One shadow at this size reads as a grey smear rather
-   * than as height. Tuned for a light scheme and softened again in dark, where
-   * a black shadow on a dark surface is invisible and the lift has to come
-   * from the surface colour instead.
+   * A black cast on a dark surface is invisible, so height here is mostly the
+   * surface's own value and a hairline that catches the light. What is left
+   * of the shadow is the contact edge and a deep, wide cast that separates a
+   * panel from the sky behind it.
    */
-  --shadow-raised: 0 1px 2px oklch(0.2 0.02 250 / 0.06), 0 1px 3px oklch(0.2 0.02 250 / 0.1);
-  --shadow-floating: 0 2px 4px oklch(0.2 0.02 250 / 0.06), 0 8px 24px oklch(0.2 0.02 250 / 0.12);
-  --shadow-lifted: 0 4px 8px oklch(0.2 0.02 250 / 0.08), 0 16px 48px oklch(0.2 0.02 250 / 0.16);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-lifted: 0 4px 10px rgba(0, 0, 0, 0.36), 0 24px 60px rgba(0, 0, 0, 0.5);
+  /* The glow under the accent gradient, so a button reads as lit. */
+  --shadow-accent: 0 8px 28px -8px rgba(106, 108, 246, 0.75);
 
   --blur-glass: 16px;
 
@@ -102,17 +309,20 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-emphasis: cubic-bezier(0.2, 0, 0, 1.2);
 
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   /*
-   * Display face for editorial headings.
+   * Inter for everything, Playfair Display for headings.
    *
-   * A system serif stack rather than a web font, deliberately: no third-party
-   * request, no layout shift while it loads, and it still works with the
-   * service worker offline. A licensed display face can replace this value
-   * without touching a component.
+   * Both are loaded by `next/font/google` in the root layout, which fetches
+   * them at build time and serves them from our own origin - so `font-src`
+   * stays `'self'` and no reader's browser contacts a third party. The system
+   * stacks stay behind them as the fallback the page renders with for the
+   * first frame and offline.
    */
-  --font-display: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  /* Every heading and every card title. See the base rule below. */
+  --font-display: var(--font-playfair), ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
   /* Tabular figures matter: prices in a comparison table must align. */
   --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
 
@@ -136,46 +346,87 @@
 }
 
 /*
- * Dark scheme.
+ * There is no second scheme.
  *
- * Follows the system preference. Surfaces lift rather than invert, so elevation
- * still reads correctly, and ink stays above 4.5:1 on every surface.
+ * The tokens above are the whole palette. A `prefers-color-scheme: light`
+ * block used to repaint the product in parchment below the hero, and the
+ * result was a website that changed identity halfway down its own front page.
+ * `color-scheme: dark` is declared on the root in the base layer, so the
+ * platform's own furniture - scrollbars, date pickers, form autofill - agrees
+ * with it.
  */
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-surface: oklch(0.19 0.015 250);
-    --color-surface-raised: oklch(0.24 0.016 250);
-    --color-surface-sunken: oklch(0.15 0.014 250);
-    --color-border: oklch(0.32 0.016 250);
-    --color-border-strong: oklch(0.48 0.018 250);
-    --color-ink: oklch(0.96 0.005 250);
-    --color-ink-muted: oklch(0.73 0.012 250);
-    --color-ink-inverse: oklch(0.19 0.015 250);
 
-    /* Glass over a dark page: darker than the raised surface, not lighter. */
-    --color-surface-overlay: oklch(0.24 0.016 250 / 0.82);
+/*
+ * The colours that follow the globe have to be animatable.
+ *
+ * A custom property is a string until it is registered, and a string cannot
+ * be interpolated - a transition on an unregistered property snaps. Declaring
+ * the type here is what lets the whole page ease from sand to ice as the
+ * planet turns rather than cutting between them.
+ *
+ * `inherits: true` because everything on the stage reads these through the
+ * cascade, and an initial value because a registered property needs one.
+ */
+@property --color-stage {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #05070e;
+}
 
-    /*
-     * Shadows carry almost no weight on a dark page - a black cast on a dark
-     * surface is invisible. Elevation there comes from the surface value, and
-     * these are kept only for the contact edge.
-     */
-    --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.3);
-    --shadow-floating: 0 2px 4px oklch(0 0 0 / 0.3), 0 8px 24px oklch(0 0 0 / 0.36);
-    --shadow-lifted: 0 4px 8px oklch(0 0 0 / 0.34), 0 16px 48px oklch(0 0 0 / 0.44);
+@property --color-stage-deep {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #03050a;
+}
 
-    /* Status ink lightens so it clears 4.5:1 against a dark tinted chip. */
-    --color-brand-ink: oklch(0.84 0.08 225);
-    --color-positive-ink: oklch(0.84 0.13 155);
-    --color-caution-ink: oklch(0.87 0.13 85);
-    --color-critical-ink: oklch(0.8 0.13 25);
-  }
+@property --color-stage-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a9a5f5;
+}
+
+@property --color-stage-accent-strong {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6a6cf6;
+}
+
+@property --color-stage-accent-deep {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #5a5ce0;
+}
+
+@property --color-biome {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6a6cf6;
+}
+
+@property --color-biome-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a9a5f5;
+}
+
+@property --color-stage-route {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a9a5f5;
 }
 
 @layer base {
   html {
     /* Respect the user's choice rather than forcing smooth scroll on everyone. */
     scroll-behavior: smooth;
+    /*
+     * One scheme, declared to the platform. Scrollbars, date pickers, form
+     * autofill and the browser's own focus furniture all read this, and a
+     * page that says nothing gets a white scrollbar down the side of a night
+     * sky.
+     */
+    color-scheme: dark;
+    background-color: var(--color-surface);
   }
 
   body {
@@ -183,6 +434,26 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Every heading is the display face, at one weight.
+   *
+   * Said once, here, rather than as a `font-display` class on each heading
+   * that remembers it. A heading is a heading whether it carries a page or
+   * labels a card, and the two faces in this product are divided by that
+   * distinction and by nothing else: Playfair for headings, Inter for the
+   * rest. 500 is the only weight it is ever set in - a heavier display serif
+   * at this size reads as a logo rather than as a sentence.
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 500;
   }
 
   /*
@@ -217,4 +488,1094 @@
       outline: 2px solid CanvasText;
     }
   }
+
+  /*
+   * Inside the stage, the ordinary primitives wear stage colours.
+   *
+   * Tailwind's utilities read the theme through custom properties, so a scope
+   * that redefines them re-skins every `Field`, `Select`, `Button` and chip
+   * placed on the stage without a stage variant of each. The pairings hold
+   * the same 4.5:1 the tokens above promise.
+   */
+  /*
+   * The native date control, on the stage.
+   *
+   * A date input is the platform's, deliberately - it brings a real picker, a
+   * real keyboard model and the phone's own wheel, none of which a hand-rolled
+   * calendar gets right. What it does not bring is a look: Chrome draws a dark
+   * calendar glyph and a hairline field, and both are wrong on glass.
+   *
+   * So the field is dressed rather than replaced. The whole cell is the hit
+   * area, the glyph is inverted to match the type beside it, and the spinner
+   * an unstyled date input grows in some engines is removed.
+   */
+  input[type='date'] {
+    color-scheme: dark;
+    cursor: pointer;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    /* The glyph ships black. Inverting it is the only way to recolour it. */
+    filter: invert(1);
+    opacity: 0.45;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    transition: opacity var(--duration-quick) var(--ease-standard);
+  }
+
+  input[type='date']:hover::-webkit-calendar-picker-indicator,
+  input[type='date']:focus::-webkit-calendar-picker-indicator {
+    opacity: 0.95;
+  }
+
+  /*
+   * An open dropdown is the operating system's, and it does not read the page.
+   *
+   * A native `<select>` renders its list with the platform's own colours, so
+   * on a dark page the closed control is dark and the open list is black on
+   * white - or, on some Windows builds, near-black on near-black, which is how
+   * "The whole world" became unreadable the moment it was opened. Colouring
+   * the options is the one hook the platform gives, and it is enough: the list
+   * now matches the panel it dropped out of.
+   */
+  option {
+    background-color: var(--color-panel);
+    color: var(--color-text);
+  }
+
+  option:checked {
+    background-color: var(--color-panel-2);
+  }
+
+  input[type='date']::-webkit-inner-spin-button,
+  input[type='date']::-webkit-clear-button {
+    display: none;
+  }
+
+  /*
+   * `stage-scope` used to repaint an island of the product in the stage's
+   * colours because the rest of it was parchment. The rest of it is the stage
+   * now, so what is left here is the difference between an interface panel
+   * and a pane of glass laid over the planet: glass surfaces, a hairline
+   * border that catches the light, and a red that survives being printed on
+   * a photograph.
+   */
+  .stage-scope {
+    --color-surface-raised: rgba(12, 16, 27, 0.9);
+    --color-surface-sunken: rgba(255, 255, 255, 0.06);
+    --color-surface-overlay: var(--color-stage-glass);
+    --color-border: var(--color-stage-glass-border);
+    --color-border-strong: rgba(255, 255, 255, 0.16);
+    --color-critical-500: #f0837e;
+  }
+
+  /*
+   * The page takes its colour from the planet.
+   *
+   * As the globe turns, the band of latitude in the middle of the view sets
+   * `data-biome` on the root and everything tinted follows it. The change
+   * eases over nine hundred milliseconds, because both properties are
+   * registered with `@property` and a registered custom property can be
+   * interpolated - so the site moves from sand to ice as the world turns
+   * rather than cutting between them.
+   *
+   * **The controls do not follow.** A button that changes colour as the
+   * planet drifts looks like it means something different each time, so the
+   * one gradient every action is filled with is fixed, and so are ink,
+   * surfaces and the hairline. That is what keeps every contrast pairing in
+   * `docs/design-system.md` true whichever way the world is facing: each
+   * `-ink` below is light enough to clear 4.5:1 on the page and on a panel.
+   */
+  :root {
+    transition:
+      --color-biome 900ms var(--ease-standard),
+      --color-biome-ink 900ms var(--ease-standard),
+      --color-stage-route 900ms var(--ease-standard);
+  }
+
+  :root[data-biome='ice'],
+  :root[data-biome='snow'] {
+    --color-biome: #4aa3e0;
+    --color-biome-ink: #79c8ff;
+    --color-stage-route: #bfe4ff;
+  }
+
+  :root[data-biome='arid'] {
+    --color-biome: #d9a441;
+    --color-biome-ink: #efc272;
+    --color-stage-route: #f5dcae;
+  }
+
+  :root[data-biome='tropical'] {
+    --color-biome: #35a878;
+    --color-biome-ink: #6fdaa6;
+    --color-stage-route: #bdf0d8;
+  }
+
+  :root[data-biome='ocean'] {
+    --color-biome: #3d7fd6;
+    --color-biome-ink: #7ab4ff;
+    --color-stage-route: #c2dcff;
+  }
+
+  :root[data-biome='tundra'] {
+    --color-biome: #5aa39b;
+    --color-biome-ink: #93cec7;
+    --color-stage-route: #cfe9e5;
+  }
+}
+
+/*
+ * Entrance motion for the stage.
+ *
+ * One keyframe, used by the hero copy, the chips and the rail cards, with a
+ * per-element delay so the eye is led from the headline outward. Neutralised
+ * by the reduced-motion rule above like every other animation.
+ */
+@keyframes stage-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * Settled, not deliberate: an entrance is something the eye should register,
+ * not wait for, and a stagger of many items at the longer duration leaves the
+ * last of them still fading while the reader has started reading.
+ */
+@utility stage-rise {
+  animation: stage-rise var(--duration-settled) var(--ease-emphasis) both;
+  animation-delay: var(--stage-delay, 0ms);
+}
+
+@layer components {
+  /*
+   * The sky a section hangs in.
+   *
+   * One declaration, used by the hero, the explorer, a destination page and
+   * the column pages, with the glow's position passed in as `--sky-x` and
+   * `--sky-y` so each page can put it where its subject is. Written here
+   * rather than as an arbitrary value in a class string, because a colour in
+   * a class string is a colour outside the palette.
+   *
+   * The glow is the accent at very low alpha. It is ambient light, never an
+   * outline: nothing in it has an edge.
+   */
+  .voyagr-sky {
+    background-image:
+      radial-gradient(
+        ellipse 46% 54% at var(--sky-x, 50%) var(--sky-y, 45%),
+        color-mix(in oklab, var(--color-biome) 18%, transparent) 0%,
+        color-mix(in oklab, var(--color-biome) 5%, transparent) 40%,
+        transparent 74%
+      ),
+      linear-gradient(to bottom, var(--color-bg-alt) 0%, var(--color-bg) 100%);
+  }
+
+  /*
+   * The instrument grid.
+   *
+   * A faint ruled field behind the stage, the way a navigation display is
+   * ruled. It gives the dark a texture and a sense of being a surface rather
+   * than an absence, which is most of what reads as "futuristic" without
+   * resorting to glow for its own sake. Pure CSS: no image, no request.
+   */
+  .voyagr-grid {
+    background-image:
+      linear-gradient(to right, var(--color-stage-glass-border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--color-stage-glass-border) 1px, transparent 1px);
+    background-size: 4rem 4rem;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 0%, transparent 75%);
+    opacity: 0.22;
+  }
+
+  /*
+   * A hairline that catches the light at one end.
+   *
+   * Used along the top of the panels on the stage. A single-pixel gradient
+   * reads as a machined edge; a plain border reads as a box.
+   */
+  .voyagr-edge {
+    position: relative;
+  }
+
+  .voyagr-edge::before {
+    content: '';
+    position: absolute;
+    inset-inline: 12%;
+    inset-block-start: 0;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-stage-accent) 45%,
+      transparent 85%
+    );
+    opacity: 0.7;
+  }
+}
+
+/*
+ * The planet's atmosphere, drawn over the canvas rather than in it.
+ *
+ * Every one of these is optics, not geography. A vector globe is a disc of
+ * correct shapes until something tells the eye it is a ball: light falling
+ * off towards the limb, light falling off away from the sun, a sheen where
+ * the sun strikes the ocean, and air softening the edge. None of it can be
+ * drawn inside a map style, because all of it is about the sphere's
+ * silhouette on screen - so it is four elements sized from one number the
+ * stage writes on them: `--globe-diameter`, the sphere's projected diameter
+ * in pixels.
+ *
+ * **There is no ring.** An earlier version wrapped the sphere in two tight,
+ * bright shadows, and a hard circle around a planet reads as a drawn outline
+ * rather than as atmosphere - the one thing that gave the whole picture away
+ * as a graphic. The light that was in that ring now lives in the sky behind
+ * the stage, as a wash with no edge at all, and what is left here is a soft
+ * haze that fades out long before anything could look like a boundary.
+ *
+ * `--globe-shown` is 1 while the globe is a globe and 0 once somebody has
+ * zoomed far enough in - or switched to the flat map - for there to be no
+ * silhouette to wrap. `--globe-sun-lit` is 1 while the sub-solar point is on
+ * the near side, and fades the two layers that depend on knowing where the
+ * sun is. Transitioning both means the atmosphere eases rather than
+ * vanishing mid-gesture.
+ */
+@layer components {
+  .voyagr-orb {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--globe-diameter, 0px);
+    height: var(--globe-diameter, 0px);
+    translate: -50% -50%;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: var(--globe-shown, 0);
+    transition: opacity var(--duration-deliberate) var(--ease-standard);
+  }
+
+  /*
+   * The two layers that follow the sun ease with it as well, so a planet
+   * turning into its own night does not snap from lit to unlit.
+   */
+  .voyagr-orb-shade,
+  .voyagr-orb-sheen {
+    transition:
+      opacity var(--duration-deliberate) var(--ease-standard),
+      background-position var(--duration-deliberate) var(--ease-standard);
+  }
+
+  /*
+   * Limb darkening: the ball.
+   *
+   * A sphere is darker at its edge than at its centre because you are looking
+   * through more of it at a glancing angle. This is geometry, not light, so
+   * it is centred on the disc and does not move with the sun.
+   */
+  .voyagr-orb-limb {
+    background: radial-gradient(
+      circle at 50% 50%,
+      rgba(3, 5, 10, 0) 70%,
+      rgba(3, 5, 10, 0.14) 88%,
+      rgba(3, 5, 10, 0.34) 97%,
+      rgba(3, 5, 10, 0.46) 100%
+    );
+  }
+
+  /*
+   * Shading: the light.
+   *
+   * The half of the planet facing you is not uniformly lit. It is brightest
+   * where the sun is overhead and falls away towards the terminator, and
+   * that falloff - rather than the terminator line itself - is what makes a
+   * drawn globe read as an object in sunlight. Centred on the sub-solar
+   * point the stage already computes for the night cap, so the shading and
+   * the terminator under it can never disagree.
+   *
+   * Faded out entirely when the sun is on the far side, where a gradient
+   * anchored off the disc would be a directional ramp across a planet that
+   * is simply in darkness.
+   */
+  .voyagr-orb-shade {
+    background: radial-gradient(
+      circle at var(--globe-sun-x, 50%) var(--globe-sun-y, 40%),
+      rgba(3, 5, 10, 0) 0%,
+      rgba(3, 5, 10, 0.02) 50%,
+      rgba(3, 5, 10, 0.1) 85%,
+      rgba(3, 5, 10, 0.2) 115%
+    );
+    opacity: calc(var(--globe-shown, 0) * var(--globe-sun-lit, 0));
+  }
+
+  /*
+   * The sheen, where the sun is.
+   *
+   * Positioned by the stage from the sub-solar point, so the highlight is on
+   * the part of the ocean the sun is actually over. Screen-blended, because
+   * a highlight adds light.
+   */
+  .voyagr-orb-sheen {
+    /*
+     * Glint, not fog.
+     *
+     * Sunlight off water is a small hard highlight a few degrees across, not
+     * a wash over a third of the planet. The wide, soft version read as
+     * frosted glass laid over the whole disc and took every bit of colour
+     * out of the continents under it.
+     */
+    background: radial-gradient(
+      circle at var(--globe-sun-x, 50%) var(--globe-sun-y, 40%),
+      rgba(241, 250, 255, 0.16) 0%,
+      rgba(186, 222, 247, 0.05) 9%,
+      transparent 22%
+    );
+    mix-blend-mode: screen;
+    opacity: calc(var(--globe-shown, 0) * var(--globe-sun-lit, 0));
+  }
+
+  /*
+   * Air, not a ring.
+   *
+   * This used to be two tight, bright shadows that drew a hard cyan circle
+   * around the sphere - which read as a drawn outline, a lens flare, a
+   * sticker. Air has no edge. What is left is one soft haze just inside the
+   * limb and two very wide, very low bleeds outside it, so the light falls
+   * away into the page instead of stopping. The rest of that glow is now in
+   * the sky itself - a wash behind the stage, which is where ambient light
+   * belongs.
+   */
+  .voyagr-orb-air {
+    /*
+     * Fresnel: air you see more of the further you look from the centre.
+     *
+     * A gradient inside the disc rather than a shadow on its edge. A shadow
+     * has a width and therefore an edge, which is the ring this was told to
+     * stop being; a curve that is nothing at the middle, faint at four
+     * fifths and brightest exactly at the silhouette is what looking through
+     * an atmosphere obliquely actually does. The two shadows left are the
+     * bleed beyond the limb, both far too wide and faint to draw a boundary.
+     */
+    background: radial-gradient(
+      circle at 50% 50%,
+      transparent 0%,
+      transparent 88%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 10%, transparent) 95%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 30%, transparent) 99.5%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 38%, transparent) 100%
+    );
+    /*
+     * The glow outside the limb falls off over about six per cent of the
+     * radius, which is what an atmosphere seen edge-on does, and a much
+     * wider, much fainter bleed carries the last of it into the page. Both
+     * add light - there is nothing dark drawn around this sphere anywhere,
+     * which is what the ring was.
+     */
+    /*
+     * Out over about seven per cent of the radius, and nothing but light.
+     *
+     * Seven per cent of the radius is three and a half of the diameter, which
+     * is the first shadow; the second is a much wider, much fainter bleed
+     * that carries the last of it into the page. Every one of these adds
+     * light - `screen` below guarantees it - so there is no dark band
+     * anywhere between the sphere's edge and the glow. That band was
+     * MapLibre's own atmosphere fading out to a colour darker than the page,
+     * and it is switched off in the style now.
+     */
+    box-shadow:
+      0 0 calc(var(--globe-diameter, 0px) * 0.035) calc(var(--globe-diameter, 0px) * 0.004)
+        color-mix(in oklab, var(--color-stage-atmosphere) 42%, transparent),
+      0 0 calc(var(--globe-diameter, 0px) * 0.12) calc(var(--globe-diameter, 0px) * 0.012)
+        color-mix(in oklab, var(--color-stage-atmosphere) 16%, transparent),
+      0 0 calc(var(--globe-diameter, 0px) * 0.42) calc(var(--globe-diameter, 0px) * 0.04)
+        color-mix(in oklab, var(--color-stage-atmosphere-outer) 9%, transparent);
+    mix-blend-mode: screen;
+  }
+
+  /*
+   * The flight arcs.
+   *
+   * Drawn in SVG over the canvas because they leave the sphere: a route lifts
+   * off the surface, bows above the limb and comes back down, which is the
+   * one thing a map style cannot draw - every layer in a style is painted on
+   * the ground. See `globe-arcs.ts` for the projection.
+   */
+  .voyagr-arcs {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    overflow: visible;
+    opacity: var(--globe-shown, 0);
+    transition: opacity var(--duration-deliberate) var(--ease-standard);
+  }
+
+  /*
+   * The two layers that follow the sun ease with it as well, so a planet
+   * turning into its own night does not snap from lit to unlit.
+   */
+  .voyagr-orb-shade,
+  .voyagr-orb-sheen {
+    transition:
+      opacity var(--duration-deliberate) var(--ease-standard),
+      background-position var(--duration-deliberate) var(--ease-standard);
+  }
+
+  /*
+   * A panel of glass over the night.
+   *
+   * The search, the globe's controls and the cards on the closing band are
+   * all this: a dark translucent pane, a hairline that is brighter at the top
+   * than at the bottom because light falls from above, and a deep cast that
+   * separates it from the sky rather than from a page.
+   */
+  .voyagr-panel {
+    background: var(--color-stage-glass);
+    border: 1px solid var(--color-stage-glass-border);
+    box-shadow:
+      inset 0 1px 0 0 var(--color-hairline),
+      var(--shadow-lifted);
+    backdrop-filter: blur(var(--blur-glass));
+  }
+
+  /*
+   * The primary action.
+   *
+   * A gradient rather than a flat fill, and a glow under it in its own hue,
+   * which is what makes a button on a night page look lit rather than
+   * printed. Both stops stay dark enough for white type to clear 4.5:1 - the
+   * reference's brighter violet does not, and a button nobody can read is
+   * not a closer match to anything.
+   */
+  .voyagr-cta {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-accent-from) 0%,
+      var(--color-accent-to) 100%
+    );
+    color: var(--color-text);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+      var(--shadow-accent);
+  }
+
+  .voyagr-cta:hover {
+    filter: brightness(1.08);
+  }
+
+  /*
+   * A small square tile behind an icon.
+   *
+   * Used for the four promises under the search and for anything else that
+   * needs a glyph to sit in something rather than float beside words.
+   */
+  .voyagr-tile {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--color-stage-glass-border);
+    box-shadow: inset 0 1px 0 0 var(--color-hairline);
+  }
+}
+
+/*
+ * A price on the planet.
+ *
+ * It used to be a bordered pane of dark glass, which was legible and read as
+ * a tooltip layer hovering above the picture rather than as part of it. The
+ * reference does what an atlas does: a light on the place, the words beside
+ * it, and a halo dark enough that the words survive being printed over a
+ * desert at noon.
+ *
+ * The halo is the whole of the contrast argument. There is no background
+ * colour to check against because there is no background - what is behind a
+ * given chip depends on which way the world is facing - so legibility comes
+ * from the same technique the map style uses for its own labels.
+ */
+@layer components {
+  .voyagr-chip {
+    position: relative;
+    isolation: isolate;
+    padding: 0.25rem 0.5rem;
+    line-height: 1.25;
+    text-shadow: 0 1px 2px rgba(3, 5, 10, 0.9);
+  }
+
+  /*
+   * A backing, because a halo alone was not enough.
+   *
+   * A price on the night side, crossed by a flight path, with a provenance
+   * pill beside it, is three things competing in the same twenty pixels. The
+   * words get their own darkness: a blurred pane behind the text only, at
+   * sixty per cent, with no border - it reads as the label being closer to
+   * you than the planet rather than as a box drawn on it.
+   */
+  .voyagr-chip::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 0.75rem;
+    z-index: -1;
+    border-radius: 0.5rem;
+    background: rgba(5, 7, 14, 0.55);
+    backdrop-filter: blur(8px);
+  }
+
+  .voyagr-chip-left::before {
+    inset: 0 0.75rem 0 0;
+  }
+
+  .voyagr-chip-dot {
+    flex: none;
+    margin-inline-end: 0.25rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--color-stage-chip-ink);
+    box-shadow:
+      0 0 0 2px rgba(3, 5, 10, 0.6),
+      0 0 10px 2px color-mix(in oklab, var(--color-stage-accent) 85%, transparent);
+  }
+
+  /* Inside the country that is open. Brighter, and larger than its own ring. */
+  .voyagr-chip-on .voyagr-chip-dot {
+    background: var(--color-stage-accent);
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, var(--color-stage-accent) 30%, transparent),
+      0 0 18px 5px color-mix(in oklab, var(--color-stage-accent) 90%, transparent);
+  }
+}
+
+/*
+ * A chip on the far side of the view.
+ *
+ * The dot stays on its coordinate; the words read back towards the middle of
+ * the globe rather than off the edge of it. Set by the layout pass in
+ * `globe-stage.tsx`, which also moves the marker's offset to match.
+ */
+@layer components {
+  .voyagr-chip-left .voyagr-chip {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+}
+
+/*
+ * "Demo data", on a photograph.
+ *
+ * The badge is `critical` everywhere else in the product and should be: a
+ * price nobody can buy is not a weaker price, it is not a price. Over the
+ * globe and over a photograph, a red pill beside every figure reads as an
+ * error state on the map rather than as a note about the figure - so here,
+ * and only here, it is a muted glass pill. The words do not change, the
+ * screen-reader prefix does not change, and it is still beside the number.
+ */
+@layer utilities {
+  /*
+   * The one panel every dropdown, picker and calendar opens into.
+   *
+   * There was no shared surface before: a native date picker is browser
+   * chrome outside the DOM, and a native select's open list is drawn by the
+   * operating system - so two of the three controls on the search bar could
+   * not be styled at all, and the third did not match either of them.
+   * Everything now opens through `PopoverPanel`, which means this rule.
+   *
+   * Sized in `ch` where it holds text, so it grows with the type rather than
+   * with a number somebody guessed.
+   */
+  .voyagr-popover {
+    z-index: 50;
+    padding: 0.75rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-shell);
+    background-color: var(--color-panel);
+    /* A little light from above, the way a raised surface catches it. */
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-text) 4%, transparent) 0%,
+      transparent 40%
+    );
+    color: var(--color-text);
+    box-shadow:
+      0 1px 0 0 color-mix(in oklab, var(--color-text) 6%, transparent) inset,
+      0 18px 48px -12px rgb(0 0 0 / 0.75),
+      0 2px 8px -2px rgb(0 0 0 / 0.5);
+    transform-origin: var(--radix-popover-content-transform-origin);
+  }
+
+  /*
+   * Grows out of its trigger, never towards it.
+   *
+   * Radix reports which side it actually placed the panel on - which is not
+   * always the side it was asked for, because a panel near the bottom of a
+   * phone flips above - so the motion reads off `data-side` rather than off
+   * what the call site wanted.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .voyagr-popover {
+      animation: voyagr-popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .voyagr-popover[data-state='closed'] {
+      animation: voyagr-popover-out 90ms ease-in;
+    }
+  }
+
+  @keyframes voyagr-popover-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  @keyframes voyagr-popover-out {
+    to {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  /*
+   * A place name on the globe: a country, a capital or an airport.
+   *
+   * The page's own font, because there is no glyph server: MapLibre would
+   * need one to draw text into the canvas, and the globe reaches no origin
+   * but ours. A marker is a DOM element, so it simply inherits the type the
+   * rest of the site is set in.
+   *
+   * The halo is what makes it legible over anything - ocean, desert, the
+   * night side - without a panel behind it. Four offset shadows rather than
+   * a stroke, because a stroke on text this small closes up the counters.
+   */
+  .voyagr-place-name {
+    pointer-events: none;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: color-mix(in oklab, var(--color-text) 88%, transparent);
+    text-shadow:
+      0 0 3px rgb(3 5 10 / 0.95),
+      0 1px 2px rgb(3 5 10 / 0.9),
+      1px 0 2px rgb(3 5 10 / 0.7),
+      -1px 0 2px rgb(3 5 10 / 0.7);
+  }
+
+  /*
+   * Three ranks, told apart without colour doing the work.
+   *
+   * A country is the widest-tracked and the palest; a capital is smaller and
+   * sits in normal case, which is what separates a city from the country
+   * around it at a glance; an airport is its IATA code in the accent, small
+   * and tight, because three letters in a row is already a distinct shape.
+   */
+  .voyagr-place-capital {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: color-mix(in oklab, var(--color-text) 78%, transparent);
+  }
+
+  /*
+   * A name that lost its place to a more important one.
+   *
+   * `visibility`, not `display`: the element keeps its box, so the next pass
+   * can measure it again without a reflow storm, and it is out of the
+   * accessibility tree either way.
+   */
+  .voyagr-place-hidden {
+    visibility: hidden;
+  }
+
+  .voyagr-place-airport {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: color-mix(in oklab, var(--color-stage-accent, #a9a5f5) 92%, white);
+  }
+
+  /* Stepping a calendar a month at a time. */
+  .voyagr-popover-nav {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 8px;
+    color: var(--color-muted);
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .voyagr-popover-nav:hover {
+    background-color: color-mix(in oklab, var(--color-text) 8%, transparent);
+    color: var(--color-text);
+  }
+
+  .voyagr-popover-nav:focus-visible {
+    outline: 2px solid var(--color-accent-to);
+    outline-offset: 2px;
+  }
+
+  /*
+   * One day in the grid.
+   *
+   * Tall enough to be a target on a phone - the whole cell is the button, not
+   * the two characters inside it - and it never signals its state by colour
+   * alone: the chosen day is filled and its number inverts, so it is still
+   * obviously the chosen one in a screenshot with the colour removed.
+   */
+  .voyagr-day {
+    display: grid;
+    place-items: center;
+    height: 2.25rem;
+    border-radius: 9px;
+    color: var(--color-text);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .voyagr-day:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--color-text) 10%, transparent);
+  }
+
+  .voyagr-day:focus-visible {
+    outline: 2px solid var(--color-accent-to);
+    outline-offset: -2px;
+  }
+
+  .voyagr-day:disabled {
+    color: var(--color-dim);
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /*
+   * A day between the two ends of a trip.
+   *
+   * Tinted rather than filled, so the two chosen days stay the only solid
+   * ones and the span between them reads as what it is - the nights, not
+   * more selections.
+   */
+  .voyagr-day-between {
+    background-color: color-mix(in oklab, var(--color-accent-to) 22%, transparent);
+    border-radius: 0;
+  }
+
+  .voyagr-day-on,
+  .voyagr-day-on:hover:not(:disabled) {
+    background-image: linear-gradient(135deg, var(--color-accent-from), var(--color-accent-to));
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  /*
+   * The browser's own calendar button, hidden.
+   *
+   * Chrome puts a picker indicator inside `input[type=date]` that opens the
+   * chrome-drawn calendar - the one thing on the search bar no stylesheet can
+   * reach. The field keeps the native input, and its own button beside it
+   * opens a calendar that looks like the rest of the site. Two buttons that
+   * do almost the same thing is worse than one.
+   *
+   * The input stays fully usable: it can still be typed into, and a phone
+   * still offers its own picker, which is better than anything drawn here.
+   */
+  .voyagr-date::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+
+  .voyagr-date::-webkit-inner-spin-button,
+  .voyagr-date::-webkit-clear-button {
+    display: none;
+  }
+
+  /*
+   * In `utilities`, not `components`, and that is the whole trick: the tone
+   * classes it has to beat are Tailwind utilities, and a components-layer
+   * rule loses to every one of them however specific it is.
+   */
+  .voyagr-demo {
+    /*
+     * Type and shape only.
+     *
+     * Background and colour are left to the call site, because the two places
+     * this appears have opposite needs: over the planet it is a pane of glass,
+     * and over a photograph it needs its own darkness or the words vanish into
+     * whatever the picture happens to be. It set both here, and being in the
+     * utilities layer it beat the classes trying to change them - which is how
+     * a badge shipped as an empty grey rectangle.
+     */
+    border-color: var(--color-hairline);
+    padding: 0.05rem 0.4rem;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    backdrop-filter: blur(6px);
+  }
+}
+
+/*
+ * The search panel, and the row of lenses across its top.
+ */
+@layer components {
+  /*
+   * A pane of glass that does not clip its own action.
+   *
+   * The submit button hangs off the right edge on purpose, which means this
+   * cannot be `overflow: hidden` - and so the radius has to be honoured by
+   * the children that reach the corners rather than by the panel clipping
+   * them. The field group inside carries its own.
+   */
+  .voyagr-search {
+    background: rgba(12, 16, 27, 0.72);
+    border: 1px solid var(--color-hairline);
+    backdrop-filter: blur(20px);
+    box-shadow:
+      inset 0 1px 0 0 var(--color-hairline),
+      var(--shadow-lifted);
+  }
+
+  /*
+   * A scrolling row that fades out rather than ending.
+   *
+   * `mask-image` rather than a gradient overlay, because an overlay would
+   * need the panel's colour and the panel is translucent - it would be a
+   * smudge over the planet. The fade is short and sits at the very end, so
+   * the last pill that fits is fully legible and the next one is visibly
+   * going somewhere.
+   */
+  /*
+   * A row that fades on the side it can still be scrolled towards.
+   *
+   * `mask-image` rather than a gradient overlay, because an overlay needs the
+   * panel's colour and the panel is translucent - it would be a smudge over
+   * the planet. The two data attributes are written by `LensSlider` as the
+   * row moves, so the fade is never on a side with nothing behind it.
+   */
+  .voyagr-lenses {
+    --fade-start: transparent 0, black 1.5rem;
+    --fade-end: black calc(100% - 1.5rem), transparent 100%;
+    mask-image: linear-gradient(to right, var(--fade-start), var(--fade-end));
+  }
+
+  .voyagr-lenses[data-start] {
+    --fade-start: black 0;
+  }
+
+  .voyagr-lenses[data-end] {
+    --fade-end: black 100%;
+  }
+}
+
+/*
+ * The weather of wherever the globe is looking.
+ *
+ * A field of motes over the whole page, coloured by `--color-biome-ink` and
+ * given its character by the biome: snow falls nearly straight and slowly,
+ * dust runs sideways and fast, something greener turns as it goes. See
+ * `SeasonalAmbience` for the markup and why the positions are hashed rather
+ * than random.
+ *
+ * It is invisible until the globe has said where it is looking, which means a
+ * page with no globe never snows, and it is removed entirely - not slowed -
+ * for anybody who has asked their machine to stop animating things.
+ */
+@layer components {
+  .voyagr-ambience {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--duration-deliberate) var(--ease-standard);
+    /* Per-biome character, overridden below. */
+    --mote-spread: 6vw;
+    --mote-alpha: 0.5;
+    --mote-radius: 50%;
+  }
+
+  /*
+   * Only where there is weather to have.
+   *
+   * Temperate land and open ocean get nothing: a mote field over every state
+   * of the globe is not weather, it is a filter left switched on.
+   */
+  :root[data-biome] .voyagr-ambience {
+    opacity: 1;
+  }
+
+  /* Over temperate land and open water, barely there - a drift, not weather. */
+  :root[data-biome='temperate'] .voyagr-ambience,
+  :root[data-biome='ocean'] .voyagr-ambience,
+  :root[data-biome='tundra'] .voyagr-ambience {
+    --mote-alpha: 0.22;
+    --mote-spread: 10vw;
+  }
+
+  :root[data-biome='ice'] .voyagr-ambience,
+  :root[data-biome='snow'] .voyagr-ambience {
+    --mote-spread: 4vw;
+    --mote-alpha: 0.65;
+  }
+
+  /* Dust does not fall, it is carried. */
+  :root[data-biome='arid'] .voyagr-ambience {
+    --mote-spread: 26vw;
+    --mote-alpha: 0.4;
+  }
+
+  /* Something leaf-shaped: wider than it is tall, and turning. */
+  :root[data-biome='tropical'] .voyagr-ambience {
+    --mote-spread: 14vw;
+    --mote-alpha: 0.45;
+    --mote-radius: 60% 10% 60% 10%;
+  }
+
+  .voyagr-mote {
+    position: absolute;
+    top: 0;
+    width: var(--mote-size, 3px);
+    height: var(--mote-size, 3px);
+    border-radius: var(--mote-radius);
+    background: var(--color-biome-ink);
+  }
+
+  /*
+   * Nothing animates until there is a planet to have weather on.
+   *
+   * The motes are in the markup on every page, because the shell renders them
+   * once - but `animation` is declared only under a root that has a biome.
+   * A page with no globe therefore runs no animations at all, and the
+   * homepage runs them only once the globe has said where it is looking.
+   * They were running everywhere, for ever, which on a slow device is a
+   * couple of dozen composited layers being ticked on a page that will never
+   * show them.
+   */
+  :root[data-biome] .voyagr-mote {
+    will-change: transform, opacity;
+    animation: voyagr-drift var(--mote-duration, 16s) linear var(--mote-delay, 0s) infinite;
+  }
+
+  @keyframes voyagr-drift {
+    from {
+      transform: translate3d(0, -8vh, 0) rotate(0deg);
+      opacity: 0;
+    }
+    12% {
+      opacity: var(--mote-alpha);
+    }
+    88% {
+      opacity: calc(var(--mote-alpha) * 0.6);
+    }
+    to {
+      transform: translate3d(calc(var(--mote-sway, 0) * var(--mote-spread)), 108vh, 0)
+        rotate(220deg);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .voyagr-ambience {
+      display: none;
+    }
+  }
+}
+
+/*
+ * MapLibre's own chrome, restyled - and deliberately outside every `@layer`.
+ *
+ * `maplibre-gl.css` is imported as a plain stylesheet, so its rules are
+ * unlayered. **Unlayered CSS beats layered CSS whatever the specificity**, so
+ * these overrides sitting in `@layer base` lost every time: the country
+ * tooltip rendered as MapLibre's default white box with a white tail, over a
+ * dark globe, no matter how specific the selector was.
+ *
+ * Unlayered here too, so the ordinary cascade applies and
+ * `.voyagr-stage .maplibregl-popup-content` simply outranks
+ * `.maplibregl-popup-content`. This is the same trap that hid `.voyagr-demo`
+ * behind Tailwind's utilities: when something refuses to take a style, check
+ * which layer it is in before reaching for `!important`.
+ */
+/*
+ * A price chip on the far side of the planet.
+ *
+ * MapLibre fades a marker whose location the globe occludes and toggles this
+ * class. Fading alone leaves a focusable link floating behind the world;
+ * `visibility: hidden` also takes it out of the tab order and the
+ * accessibility tree, and the rail beside the globe still lists it.
+ */
+.maplibregl-marker-covered,
+.voyagr-chip-collided {
+  visibility: hidden;
+}
+
+/*
+ * The marker element itself must not clip the chip's focus ring - and it
+ * sits above the overlays the globe draws over its own canvas, because a
+ * flight arc crossing a price is a price that cannot be read.
+ */
+.maplibregl-marker {
+  overflow: visible;
+  z-index: 4;
+}
+
+/* The country tooltip, in stage colours rather than MapLibre's white. */
+.voyagr-stage .maplibregl-popup-content {
+  background: var(--color-stage-glass);
+  color: var(--color-stage-ink);
+  border: 1px solid var(--color-stage-glass-border);
+  border-radius: var(--radius-control);
+  padding: 0.5rem 0.75rem;
+  font: 500 0.875rem/1.3 var(--font-sans);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+/*
+ * The tail, coloured per anchor rather than all at once.
+ *
+ * The tip is a zero-size box with four transparent borders; MapLibre colours
+ * whichever one points at the marker, in a rule keyed on the anchor class.
+ * Setting all four here would draw a solid diamond, and setting two of them
+ * in a selector no more specific than MapLibre's left the outcome to source
+ * order - which is how the tail stayed white while the panel above it went
+ * dark. One rule per direction, each one class more specific than the rule
+ * it replaces. The substring match covers the corner anchors, which carry
+ * both a vertical and a horizontal word and want both borders.
+ */
+.voyagr-stage [class*='maplibregl-popup-anchor-top'] .maplibregl-popup-tip {
+  border-bottom-color: var(--color-stage-glass);
+}
+
+.voyagr-stage [class*='maplibregl-popup-anchor-bottom'] .maplibregl-popup-tip {
+  border-top-color: var(--color-stage-glass);
+}
+
+.voyagr-stage [class*='maplibregl-popup-anchor-left'] .maplibregl-popup-tip {
+  border-right-color: var(--color-stage-glass);
+}
+
+.voyagr-stage [class*='maplibregl-popup-anchor-right'] .maplibregl-popup-tip {
+  border-left-color: var(--color-stage-glass);
+}
+
+.voyagr-stage .maplibregl-ctrl-attrib {
+  background: transparent;
+  color: var(--color-stage-ink-muted);
+  font-size: 0.7rem;
+}
+
+.voyagr-stage .maplibregl-ctrl-attrib a {
+  color: var(--color-stage-ink-muted);
 }

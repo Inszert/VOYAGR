@@ -27,10 +27,17 @@ export interface FieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   error?: string;
   /** Visually hide the label while keeping it available to assistive tech. */
   hideLabel?: boolean;
+  /**
+   * Drop the control's own border and background.
+   *
+   * For a segmented bar, where the cell around the field is what a reader
+   * sees as its edge and a second border inside it reads as a box in a box.
+   */
+  bare?: boolean;
 }
 
 export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Field(
-  { label, hint, error, hideLabel = false, className, required, ...props },
+  { label, hint, error, hideLabel = false, bare = false, className, required, ...props },
   ref,
 ) {
   const id = React.useId();
@@ -41,10 +48,15 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Fie
     [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={cn('flex flex-col', bare ? 'gap-0.5' : 'gap-1.5')}>
       <Label.Root
         htmlFor={id}
-        className={cn('text-ink text-sm font-medium', hideLabel && 'sr-only')}
+        className={cn(
+          hideLabel && 'sr-only',
+          bare
+            ? 'text-dim truncate text-[11px] font-medium tracking-[0.06em] whitespace-nowrap uppercase'
+            : 'text-ink text-sm font-medium',
+        )}
       >
         {label}
         {required ? (
@@ -65,17 +77,27 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Fie
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
         className={cn(
-          'bg-surface-raised text-ink h-11 rounded-[--radius-control] border px-3 text-base',
-          'placeholder:text-ink-muted',
+          'text-text w-full min-w-0 text-[16px] sm:text-[14px]',
+          'placeholder:text-dim',
           'disabled:cursor-not-allowed disabled:opacity-70',
-          error ? 'border-critical-500' : 'border-border-strong',
+          bare
+            ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
+            : cn(
+                'bg-surface-raised h-11 rounded-[--radius-control] border px-3',
+                error ? 'border-critical-500' : 'border-border-strong',
+              ),
           className,
         )}
         {...props}
       />
 
-      {hint ? (
+      {hint && !bare ? (
         <p id={hintId} className="text-ink-muted text-sm">
+          {hint}
+        </p>
+      ) : null}
+      {hint && bare ? (
+        <p id={hintId} className="sr-only">
           {hint}
         </p>
       ) : null}

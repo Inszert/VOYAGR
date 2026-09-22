@@ -441,17 +441,17 @@ do not replace them (sequencing rule 3).
 Found by reviewing the Phase 1.1 code against a live-provider contract. Each is a mock-invisible
 assumption, so each needs a deliberate check rather than a passing test.
 
-| Assumption in the code                                 | Why a mock cannot catch it                                                                                                                                                                                                        |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 6 concurrent provider calls is a safe pace             | The bound itself is now enforced by one shared limiter and asserted end to end, but the _number_ was chosen with no vendor in mind, and in-process mocks never make it cost anything                                              |
-| `ProviderMetadata.rateLimitPerMinute` paces the search | Declared on every adapter and read by nothing                                                                                                                                                                                     |
-| ~~One call returns every offer worth having~~          | **Resolved.** Provider methods return `ProviderPage<T>` with an opaque, provider-specific cursor; `collectPages` walks them under both an item and a page bound; the mocks paginate for real, so the path is exercised by default |
-| ~~A failed call is simply a failed call~~              | **Resolved.** `src/providers/policy.ts` is operation-aware: an operation that creates something is never retried, and a provider cannot override that stance. Wiring it into a live adapter is still 1.11                         |
-| The vendor's times arrive as local wall-clock          | Settled in our own types: flight times are `LocalDateTime` and a `Z`-suffixed one is rejected. What a vendor actually sends — local, zoned or UTC — is the adapter's problem to map, and only a real response shows which         |
-| The adapter maps a vendor's silence to `null`          | The domain models an unstated fact as `null` and treats it as its own case. Whether a given vendor omits the field, sends an empty string or sends a misleading default is a per-vendor mapping question                          |
-| A provider response is well-formed                     | Provider output is never schema-checked, although AI output is (`src/ai/guardrails.ts`)                                                                                                                                           |
-| Every quote is current                                 | `observedAt` is recorded on every offer and its staleness is checked nowhere                                                                                                                                                      |
-| Everything is quoted in one currency                   | There is no FX layer; a mixed-currency response yields zero results and one diagnostic, which reads to a user as "no trips found"                                                                                                 |
+| Assumption in the code                                     | Why a mock cannot catch it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 concurrent provider calls is a safe pace                 | **Partly resolved.** The bound is now per provider rather than per search, and a search carries a call ceiling (`maxProviderCalls`) so an unbounded fan-out cannot become a bill. The _number_ is still chosen with no vendor in mind, and in-process mocks still never make it cost anything — that part needs a vendor                                                                                                                                                                                         |
+| ~~`ProviderMetadata.rateLimitPerMinute` paces the search~~ | **Resolved.** `concurrencyFor` in `src/providers/rate.ts` turns a declared allowance into a concurrency bound, and `createLimiterPool` gives each provider its own limiter keyed on its id. A vendor that states nothing keeps the search's bound, which is why every mock behaves exactly as before. A semaphore is not a token bucket and the code says so: pacing a sub-second vendor needs real latency figures, which is 1.11                                                                               |
+| ~~One call returns every offer worth having~~              | **Resolved.** Provider methods return `ProviderPage<T>` with an opaque, provider-specific cursor; `collectPages` walks them under both an item and a page bound; the mocks paginate for real, so the path is exercised by default                                                                                                                                                                                                                                                                                |
+| ~~A failed call is simply a failed call~~                  | **Resolved.** `src/providers/policy.ts` is operation-aware: an operation that creates something is never retried, and a provider cannot override that stance. Wiring it into a live adapter is still 1.11                                                                                                                                                                                                                                                                                                        |
+| The vendor's times arrive as local wall-clock              | Settled in our own types: flight times are `LocalDateTime` and a `Z`-suffixed one is rejected. What a vendor actually sends — local, zoned or UTC — is the adapter's problem to map, and only a real response shows which                                                                                                                                                                                                                                                                                        |
+| The adapter maps a vendor's silence to `null`              | The domain models an unstated fact as `null` and treats it as its own case. Whether a given vendor omits the field, sends an empty string or sends a misleading default is a per-vendor mapping question                                                                                                                                                                                                                                                                                                         |
+| ~~A provider response is well-formed~~                     | **Resolved.** `src/providers/schema.ts` checks every flight, hotel and transfer offer against a Zod schema at the one place a page arrives in the orchestrator. A malformed offer is dropped and reported rather than being fatal, and a compile-time assignment stops the schemas drifting from the domain types. What a schema cannot catch is recorded in its tests: a vendor quoting `249` meaning euros is indistinguishable from 249 cents, and only the adapter knows which                               |
+| ~~Every quote is current~~                                 | **Partly resolved.** `src/core/freshness.ts` gives `fresh` / `stale` / `unknown`, with `unknown` its own case and a future-dated observation not believed; `SearchDiagnostics.quoteFreshness` tallies it per ranked trip, taking the weaker of flight and hotel. **Reported, not acted on** - refusing, labelling or re-checking a stale quote needs a vendor's own validity window, which is 1.11                                                                                                               |
+| ~~Everything is quoted in one currency~~                   | **Partly resolved.** `src/core/fx.ts` converts in integer minor units, half-even, applying the minor-unit exponent difference; `RateSource` is the seam, with `fixedRates`, `firstOf` and an explicit `crossVia` dated by its staler leg. It never invents a rate: no reciprocal, no identity across different currencies, no default. With no rates configured - the current default - a foreign quote is still dropped, but the diagnostic names the missing pair. **Choosing a real rate feed is still open** |
 
 #### Vendor selection and commercial terms
 
@@ -475,13 +475,16 @@ assumption, so each needs a deliberate check rather than a passing test.
   one. The universal 8-second default is gone: `src/providers/policy.ts` sets a timeout per
   operation, and a provider declares its own overrides. What remains is confirming each vendor's
   real figures.
-- **Malformed, partial, empty and stale responses** — a field missing, a null where a number is
-  typed, an empty result set, a success wrapping an error, a cached response past its validity.
-  Each needs a decided outcome: reject the offer, degrade it, or mark it unknown. "Mark it
-  unknown" is now a real option for baggage and connection ticketing; decide which other
-  fields deserve it.
-- **Currency** — which currencies can be requested, whether the response honours the request, where
-  taxes and fees sit, and what happens to a response that mixes them.
+- **Malformed, partial, empty and stale responses** — ~~a field missing, a null where a number is
+  typed, an empty result set, a success wrapping an error~~ **decided and enforced**: every offer
+  is schema-checked at the boundary, a bad one is dropped and reported, and the search degrades
+  rather than aborting. A field the vendor did not state must arrive as an explicit `null`; a
+  field that is simply absent is an adapter bug and fails. What remains is per-vendor: which
+  fields a given vendor omits, and whether its "success" ever wraps an error.
+- **Currency** — ~~what happens to a response that mixes them~~ **decided**: it is converted by
+  `src/core/fx.ts` when a rate exists, and dropped with a specific diagnostic when it does not.
+  Still per-vendor: which currencies can be requested, whether the response honours the request,
+  and where taxes and fees sit. Still open for us: **which rate source to use**, and its licensing.
 - **Timezone** — whether times are local, UTC or zoned, and map them onto `LocalDateTime` in the
   adapter. The domain now states plainly that a flight time is the clock face at its airport and
   refuses anything claiming to be an instant, so this is a mapping question rather than an open
@@ -495,9 +498,11 @@ assumption, so each needs a deliberate check rather than a passing test.
 
 - Re-run the Phase 1.1 bounds against the real thing: the default limits imply up to 8 flight and
   48 hotel calls per search, a figure chosen with no vendor in mind.
-- Split the single global `providerConcurrency` into a per-provider budget derived from
-  `rateLimitPerMinute`, and give each search a call ceiling and a cost ceiling. The shared limiter
-  is the seam: one per provider rather than one per search.
+- ~~Split the single global `providerConcurrency` into a per-provider budget derived from
+  `rateLimitPerMinute`, and give each search a call ceiling.~~ **Done.** `LimiterPool` in
+  `src/lib/concurrency.ts` is the seam, keyed on provider id; `concurrencyFor` sizes each one;
+  `maxProviderCalls` is the search's ceiling and reports once when it bites. A **cost** ceiling
+  still needs a vendor's price list.
 - Decide the per-provider observability required before go-live: call counts, latency percentiles,
   error and timeout rates by code, quota consumed, and cost per search — enough to tell a degraded
   search from a broken one without reading logs.
@@ -544,6 +549,15 @@ filter, and silence about a travel warning reads as "nothing to report".
 **Deferred with a reason, not a gap:** a standalone trip-detail route. The card already carries the
 cost breakdown, the score, the warnings and the swap options; a separate route would have to re-run
 the search and would then show different prices than the list it was opened from.
+
+**Second pass, 2026-09-20.** The first pass was judged too close to the old site. The homepage was
+recomposed around the globe as the primary navigation surface — a dark stage, a compact search, a
+discovery snapshot that prices the whole catalogue before anyone searches, selectable countries,
+great-circle routes, price chips that are real links, a destination rail that mirrors the globe in
+words, and a separate explorer at `/explore`. The design breakdown, the replaced-versus-retained
+table and the phasing are in `docs/homepage-redesign.md`; Phase A of it is built, Phases B (inside a
+country: regions, labels) and C (results and destination pages as a continuation of the stage) are
+not. The §9 and §10 recomposition resumes in Phase C.
 
     ## Purpose
 

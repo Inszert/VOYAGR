@@ -283,6 +283,7 @@ describe('SearchResults counts', () => {
           destinationSummaries: summariseDestinations([trip]),
           diagnostics: {
             provenance: 'live',
+            quoteFreshness: { fresh: 1, stale: 0, unknown: 0 },
             plan: {
               origins: ['VIE'],
               destinations: ['AYT'],
