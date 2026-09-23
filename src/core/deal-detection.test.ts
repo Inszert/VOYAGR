@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { money } from './money';
-import { DEFAULT_DEAL_THRESHOLDS, detectDeal, isAlertWorthy } from './deal-detection';
+import {
+  clearsPersonalThreshold,
+  DEFAULT_DEAL_THRESHOLDS,
+  detectDeal,
+  isAlertWorthy,
+} from './deal-detection';
 
 /**
  * Deal detection.
@@ -144,5 +149,26 @@ describe('isAlertWorthy', () => {
     expect(isAlertWorthy(deal(63000, 68000))).toBe(true);
     expect(isAlertWorthy(deal(72000, 68000))).toBe(false);
     expect(isAlertWorthy(deal(68000, null))).toBe(false);
+  });
+});
+
+describe('clearsPersonalThreshold', () => {
+  const verdictFor = (current: number, previous: number) =>
+    detectDeal({ current: money(current, 'EUR'), previousBest: money(previous, 'EUR') });
+
+  it('lets a drop through that clears the traveller’s bar', () => {
+    expect(clearsPersonalThreshold(verdictFor(50_000, 60_000), money(5_000, 'EUR'))).toBe(true);
+  });
+
+  it('holds back a drop the product would mention but the traveller asked not to hear about', () => {
+    const verdict = verdictFor(57_000, 60_000);
+    expect(verdict.material).toBe(true);
+    expect(clearsPersonalThreshold(verdict, money(5_000, 'EUR'))).toBe(false);
+  });
+
+  it('keeps the product’s verdict when there is no bar, or one in another currency', () => {
+    const verdict = verdictFor(57_000, 60_000);
+    expect(clearsPersonalThreshold(verdict, null)).toBe(true);
+    expect(clearsPersonalThreshold(verdict, money(5_000, 'GBP'))).toBe(true);
   });
 });

@@ -147,6 +147,19 @@ export function detectDeal(input: DealInput): DealVerdict {
   return verdict(true, severityFor(drop, dropShare, thresholds), drop, dropShare, 'material-drop');
 }
 
+/**
+ * Whether a drop clears the traveller's own bar as well as the product's.
+ *
+ * The product decides what is worth mentioning at all; a traveller may only
+ * ask to hear about *less* - a larger saving before they are interrupted -
+ * never about more. No bar, or a bar in another currency, leaves the product's
+ * verdict as it was: an unconvertible threshold is not a reason to stay quiet.
+ */
+export function clearsPersonalThreshold(result: DealVerdict, minimum: Money | null): boolean {
+  if (!minimum || minimum.currency !== result.drop.currency) return true;
+  return result.drop.amount >= minimum.amount;
+}
+
 /** True when a verdict should become an alert. Reads better than `.material`. */
 export function isAlertWorthy(result: DealVerdict): boolean {
   return result.material && !isNegative(result.drop);

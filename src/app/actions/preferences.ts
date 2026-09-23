@@ -46,6 +46,7 @@ export async function savePreferencesAction(
   const airports = optionalText(formData, 'homeAirports');
   const currency = optionalText(formData, 'currency');
   const passengers = optionalText(formData, 'defaultPassengers');
+  const minimumSaving = optionalText(formData, 'alertMinimumSaving');
 
   const parsed = explicitPreferencesSchema.safeParse({
     ...(airports
@@ -58,6 +59,7 @@ export async function savePreferencesAction(
       : {}),
     ...(currency ? { currency: currency.toUpperCase() } : {}),
     ...(passengers ? { defaultPassengers: Number(passengers) } : {}),
+    ...(minimumSaving ? { alertMinimumSaving: Number(minimumSaving) } : {}),
     travelStyle: String(formData.get('travelStyle') ?? 'balanced'),
     optimisationMode: String(formData.get('optimisationMode') ?? 'best_value'),
     requireDirectFlights: checkbox(formData, 'requireDirectFlights'),

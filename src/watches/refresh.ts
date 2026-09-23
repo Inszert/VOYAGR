@@ -1,5 +1,7 @@
 import { lessThan } from '@/core/money';
-import { detectDeal, type DealVerdict } from '@/core/deal-detection';
+import { clearsPersonalThreshold, detectDeal, type DealVerdict } from '@/core/deal-detection';
+import { fromMajor } from '@/core/money';
+import { readExplicitPreferences } from '@/auth/preferences';
 import { observationsFor } from './observations';
 import { buildAlertContent } from './alerts';
 import { searchProfileToQuery } from '@/search/schema';
@@ -264,6 +266,17 @@ async function raiseAlert(
   queue: Pick<QueueDriver, 'enqueue'> | undefined,
 ): Promise<boolean> {
   if (!verdict.material) return false;
+
+  // The traveller's own bar, read fresh each run so a change applies at once.
+  const stored = await repositories.preferences.find(watch.userId);
+  const minimum = readExplicitPreferences(stored).alertMinimumSaving;
+  const currency = verdict.drop.currency;
+  if (
+    !clearsPersonalThreshold(verdict, minimum === undefined ? null : fromMajor(minimum, currency))
+  ) {
+    log.info({ watchId: watch.id }, 'deal below the alert threshold the traveller set');
+    return false;
+  }
 
   const content = buildAlertContent({
     search,

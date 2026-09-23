@@ -8,6 +8,7 @@ import { searchProfileToQuery } from '@/search/schema';
 import type { WatchFormState } from '@/app/actions/watches';
 import type { TravelWatchRecord, TripSearchRecord } from '@/db/repository';
 import type { PriceTrend } from '@/watches/trend';
+import { buySignal, type BuySignalKind } from '@/watches/signal';
 import { shortDate } from '@/lib/display-date';
 
 /**
@@ -91,6 +92,17 @@ function TrendLine({ trend }: { trend: PriceTrend }) {
   );
 }
 
+/** What the checks show, in words - an observation, never a forecast. */
+const SIGNAL_WORDS: Record<BuySignalKind, { label: string; detail: string }> = {
+  lowest: {
+    label: 'Lowest seen',
+    detail: 'The latest check is the cheapest this watch has found.',
+  },
+  falling: { label: 'Falling', detail: 'Each of the last three checks came in lower.' },
+  rising: { label: 'Rising', detail: 'Each of the last three checks came in higher.' },
+  steady: { label: 'Steady', detail: 'No clear direction over the last three checks.' },
+};
+
 function TrendSummary({ trend }: { trend: PriceTrend }) {
   if (trend.points.length === 0) {
     return <p className="text-ink-muted text-sm">The trend appears after the first check.</p>;
@@ -123,7 +135,28 @@ function TrendSummary({ trend }: { trend: PriceTrend }) {
         </span>
         .
       </p>
+      <SignalLine trend={trend} />
     </div>
+  );
+}
+
+function SignalLine({ trend }: { trend: PriceTrend }) {
+  const signal = buySignal(trend);
+  if (!signal) return null;
+
+  const words = SIGNAL_WORDS[signal.kind];
+  return (
+    <p className="flex flex-wrap items-center gap-2 text-sm">
+      <Badge
+        tone={signal.kind === 'lowest' || signal.kind === 'falling' ? 'positive' : 'neutral'}
+        srPrefix="Price signal"
+      >
+        {words.label}
+      </Badge>
+      <span className="text-ink-muted">
+        {words.detail} From {signal.checks} checks - what has happened, not a forecast.
+      </span>
+    </p>
   );
 }
 

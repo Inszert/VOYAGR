@@ -31,6 +31,11 @@ export const explicitPreferencesSchema = z.object({
   requireDirectFlights: z.boolean().optional(),
   requireCheckedBaggage: z.boolean().optional(),
   requireFreeCancellation: z.boolean().optional(),
+  /**
+   * The smallest saving worth an alert, in whole units of a watch's own
+   * currency. Only ever raises the product's bar; see `clearsPersonalThreshold`.
+   */
+  alertMinimumSaving: z.number().int().min(0).max(100_000).optional(),
 });
 
 export type ExplicitPreferences = z.infer<typeof explicitPreferencesSchema>;

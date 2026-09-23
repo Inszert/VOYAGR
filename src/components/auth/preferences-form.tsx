@@ -84,6 +84,15 @@ export function PreferencesForm({ preferences, action }: PreferencesFormProps) {
             hint="Three-letter code, such as EUR."
           />
           <Field
+            label="Only alert me for savings of at least"
+            name="alertMinimumSaving"
+            type="number"
+            min={0}
+            step="1"
+            hint="In the watch's own currency. Leave empty for every saving we would tell you about."
+            defaultValue={preferences.alertMinimumSaving ?? ''}
+          />
+          <Field
             label="Usual number of travellers"
             name="defaultPassengers"
             type="number"
