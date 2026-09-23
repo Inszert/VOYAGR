@@ -1,3 +1,4 @@
+import { distanceKm } from '@/discovery/geo';
 import { findDestination, DESTINATION_FIXTURES } from '@/providers/fixtures/destinations';
 import { AIRPORT_FIXTURES, findAirport } from '@/providers/fixtures/airports';
 import type { AirportCode } from '@/core/trip/types';
@@ -153,4 +154,38 @@ export function listDestinationsInCountry(adm0: string): AirportCode[] {
   return DESTINATION_FIXTURES.filter((fixture) => fixture.adm0 === key).map(
     (fixture) => fixture.airport,
   );
+}
+
+/** One departure airport near the ones searched. */
+export interface NearbyOrigin {
+  readonly code: AirportCode;
+  readonly name: string;
+  /** Great-circle distance from the nearest searched origin, whole kilometres. */
+  readonly km: number;
+}
+
+/**
+ * Departure airports near the ones already searched, nearest first.
+ *
+ * Only airports the catalogue can place, measured along the great circle
+ * from whichever searched origin is closest - a straight-line distance, not
+ * a drive, and said as such where it is shown. Nothing about price is
+ * implied: a nearby airport is a suggestion to search, not a cheaper trip.
+ */
+export function nearbyOrigins(origins: readonly AirportCode[], withinKm = 250): NearbyOrigin[] {
+  const searched = origins.map((code) => code.toUpperCase());
+  const from = searched.flatMap((code) => {
+    const place = resolveOriginGeo(code);
+    return place ? [place.position] : [];
+  });
+  if (from.length === 0) return [];
+
+  return AIRPORT_FIXTURES.filter((airport) => !searched.includes(airport.code))
+    .map((airport) => ({
+      code: airport.code,
+      name: airport.city,
+      km: Math.round(Math.min(...from.map((point) => distanceKm(point, airport.position)))),
+    }))
+    .filter((airport) => airport.km <= withinKm)
+    .sort((a, b) => a.km - b.km);
 }

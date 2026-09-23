@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { money, toMajor } from '@/core/money';
 import { buildRankedTrip } from '@/components/search/test-support';
-import { buildDateBreakdown, dateWindowKey, pickHighlights } from './date-options';
+import { buildDateBreakdown, dateGrid, dateWindowKey, pickHighlights } from './date-options';
 import type { DateWindow, RankedTrip, SearchOutcome } from './types';
 
 /**
@@ -207,5 +207,47 @@ describe('money discipline', () => {
     // The quoted figure is the cost engine's, to the minor unit.
     expect(option.cheapestTotal?.amount).toBe(trip.cost.total.amount);
     expect(toMajor(option.cheapestTotal!)).toBe(toMajor(trip.cost.total));
+  });
+});
+
+describe('dateGrid', () => {
+  it('lays priced windows out by departure and length of stay, leaving gaps empty', () => {
+    const windows: DateWindow[] = [
+      { departureDate: '2026-06-10', returnDate: '2026-06-15', nights: 5 },
+      { departureDate: '2026-06-10', returnDate: '2026-06-17', nights: 7 },
+      { departureDate: '2026-06-12', returnDate: '2026-06-17', nights: 5 },
+    ];
+    const breakdown = buildDateBreakdown(
+      outcomeOf(
+        windows.map((window, index) => tripOn(window, 30_000 + index * 1_000, `trip-${index}`)),
+        windows,
+      ),
+    );
+
+    const grid = dateGrid(breakdown);
+
+    expect(grid.departures).toEqual(['2026-06-10', '2026-06-12']);
+    expect(grid.nights).toEqual([5, 7]);
+    expect(grid.cells[0]!.map((cell) => cell?.window.departureDate ?? null)).toEqual([
+      '2026-06-10',
+      '2026-06-12',
+    ]);
+    // Seven nights from the 12th was never priced: an empty cell, not a guess.
+    expect(grid.cells[1]![1]).toBeNull();
+  });
+});
+
+describe('dateGrid pruning', () => {
+  it('leaves out days and lengths that have no price at all', () => {
+    const windows: DateWindow[] = [
+      { departureDate: '2026-06-10', returnDate: '2026-06-15', nights: 5 },
+      { departureDate: '2026-06-11', returnDate: '2026-06-21', nights: 10 },
+    ];
+    // Only the first window has a trip; the ten-night one on the 11th was priced to nothing.
+    const breakdown = buildDateBreakdown(outcomeOf([tripOn(windows[0]!, 30_000)], windows));
+    const grid = dateGrid(breakdown);
+
+    expect(grid.departures).toEqual(['2026-06-10']);
+    expect(grid.nights).toEqual([5]);
   });
 });

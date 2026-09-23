@@ -1,3 +1,4 @@
+import type { Money } from '@/core/money';
 import type { ErrorCode } from '@/lib/errors';
 import type { TripCost } from '@/core/trip/cost';
 import type { EligibilityResult, TravelWarning } from '@/core/trip/constraints';
@@ -278,6 +279,12 @@ export interface SearchOutcome {
    * what came close and why it did not qualify.
    */
   readonly nearMisses: readonly RankedTrip[];
+  /**
+   * The total of every trip turned away for its price alone - all of them,
+   * not the page of near misses - so "what if I spent more?" can count what
+   * a higher ceiling would admit without re-searching.
+   */
+  readonly overBudgetOnly: readonly Money[];
   /** Components seen per route, for swapping. */
   readonly routeOffers: readonly RouteOffers[];
   /**

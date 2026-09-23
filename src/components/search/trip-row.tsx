@@ -9,6 +9,8 @@ import { tintFor } from '@/lib/tint';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import type { DestinationImage } from '@/providers/imagery/types';
 import type { RankedTrip } from '@/search/types';
+import type { DealAgainstTypical } from '@/search/deal-score';
+import { DealNote } from './deal-note';
 
 /**
  * One trip, as a line in the list.
@@ -35,6 +37,8 @@ export interface TripRowProps {
   readonly image?: DestinationImage | null;
   /** Opens this trip in the builder. */
   readonly buildHref: string;
+  /** How this trip compares with the typical one to the same place. */
+  readonly deal?: DealAgainstTypical | null;
 }
 
 function clock(value: string): string {
@@ -61,6 +65,7 @@ export function TripRow({
   provenance = 'unavailable',
   image = null,
   buildHref,
+  deal = null,
 }: TripRowProps) {
   const { candidate, cost, eligibility, warnings, score } = trip;
   const headingId = `row-${candidate.id}-heading`;
@@ -147,6 +152,7 @@ export function TripRow({
               ? `${format(eligibility.budgetHeadroom)} under your maximum`
               : `${format(abs(eligibility.budgetHeadroom))} over your maximum`}
           </p>
+          <DealNote deal={deal} />
         </div>
         <div className="flex items-center gap-3">
           <ProvenanceBadge provenance={provenance} explain={false} />

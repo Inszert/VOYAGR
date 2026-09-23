@@ -303,6 +303,7 @@ describe('SearchResults counts', () => {
         outcome={{
           results: [trip],
           nearMisses: [],
+          overBudgetOnly: [],
           routeOffers: [],
           destinationSummaries: summariseDestinations([trip]),
           diagnostics: {
@@ -502,6 +503,7 @@ describe('what the dates are worth', () => {
         outcome={{
           results: trips,
           nearMisses: [],
+          overBudgetOnly: [],
           routeOffers: [],
           destinationSummaries: summariseDestinations(trips),
           diagnostics: buildDiagnostics({

@@ -25,6 +25,8 @@ import { RouteLine } from './route-line';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
 import { DateSwapPanel, SwapPanel } from './swap-panel';
+import { DealNote } from './deal-note';
+import type { DealAgainstTypical } from '@/search/deal-score';
 import type { BuiltTrip, DateChoice } from '@/search/trip-builder';
 import { tintFor } from '@/lib/tint';
 import { WarningList } from './warning-list';
@@ -52,6 +54,14 @@ const RANK_LABEL = ['Best match', 'Runner-up', 'Third'] as const;
  * rule between them is three edges where one was wanted.
  */
 const ROW = 'rounded-none border-0';
+
+/**
+ * A row in the builder: its own soft pane on the framed panel, rather than a
+ * rule in a list - three choices, each worth a moment, not three lines of
+ * small print.
+ */
+const BUILD_ROW =
+  'bg-surface/50 border-tint/20 hover:border-tint/45 rounded-(--radius-card) ease-standard duration-quick transition-colors';
 
 /**
  * A source tag inside a fact cell.
@@ -157,6 +167,8 @@ export interface TripCardProps {
   buildHref?: string;
   /** Replaces the rank as the eyebrow, e.g. "Your trip". */
   label?: string;
+  /** How this trip compares with the typical one to the same place. */
+  deal?: DealAgainstTypical | null;
   /**
    * The destination's photograph, when one was found.
    *
@@ -179,6 +191,7 @@ export function TripCard({
   view = 'trip',
   buildHref,
   label,
+  deal = null,
 }: TripCardProps) {
   /*
    * Which provider supplied one part of this trip.
@@ -393,6 +406,7 @@ export function TripCard({
                   Named beside the price, because that is where the question
                   "is this real?" is actually asked.
                 */}
+                <DealNote deal={deal} onImage />
                 <SourceStrip sources={sources} className="justify-end" />
               </div>
             }
@@ -569,60 +583,67 @@ export function TripCard({
       </div>
 
       {/*
-        Everything that can be opened, as one panel rather than five.
+        Build it your way.
 
-        Five separately bordered bars stacked down a card read as leftover
-        admin below the answer. One panel with rules between its rows is the
-        same five disclosures, the same markup and the same behaviour - the
-        browser still supplies all of it - and it looks like part of the card.
-      */}
-      {/*
-        Build it your way: its own group, named, above the details.
-
-        Folded in among the cost breakdown and the score these read as more
-        small print. They are the one thing on the card a person can *do*
-        before booking, so they get a heading and the tint.
+        The one thing on the card a person can *do* before booking, so it is
+        set apart: a framed panel lit from one corner in the place's tint,
+        a serif heading, and each part of the trip as a row with its mark,
+        what is chosen now and how many others there are. With a builder,
+        every option is a link that rebuilds the trip; without one, the rows
+        compare and the card's last line opens this trip in the builder.
       */}
       {builder || flightAlternatives.length > 1 || hotelAlternatives.length > 1 ? (
-        <section aria-labelledby={`${headingId}-build`} className="flex flex-col gap-2">
-          <h4 id={`${headingId}-build`} className="text-tint-ink text-sm font-semibold">
-            Build it your way
-          </h4>
-          <div className="border-tint/35 divide-border divide-y overflow-hidden rounded-(--radius-card) border">
-            {/*
-            Build it your way.
-
-            With a builder, every flight, hotel and set of dates the search saw
-            for this trip is a link that rebuilds it; without one, the panels
-            compare and the last row opens this trip in the builder.
-          */}
+        <section
+          aria-labelledby={`${headingId}-build`}
+          className="border-tint/30 from-tint/[0.14] relative overflow-hidden rounded-(--radius-surface) border bg-gradient-to-br via-transparent to-transparent p-4 sm:p-5"
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h4 id={`${headingId}-build`} className="font-display text-ink text-xl">
+              Build it your way
+            </h4>
+            <p className="text-ink-muted text-xs">
+              Swap any part. Every price is for the whole trip.
+            </p>
+          </div>
+          <div className="mt-4 flex flex-col gap-2">
             <SwapPanel
               heading="Change the flight"
+              icon="plane"
               alternatives={builder ? builder.built.flights : flightAlternatives}
               currency={cost.total.currency}
               {...(builder ? { hrefFor: (option) => builder.flightHref(option.offerId) } : {})}
-              className={ROW}
+              className={BUILD_ROW}
             />
 
             <SwapPanel
               heading="Change the hotel"
+              icon="bed"
               alternatives={builder ? builder.built.hotels : hotelAlternatives}
               currency={cost.total.currency}
               {...(builder ? { hrefFor: (option) => builder.hotelHref(option.offerId) } : {})}
-              className={ROW}
+              className={BUILD_ROW}
             />
 
             {builder ? (
               <DateSwapPanel
                 choices={builder.built.dates}
                 hrefFor={builder.dateHref}
-                className={ROW}
+                now={`${shortDate(candidate.dates.departureDate)} to ${shortDate(candidate.dates.returnDate)}, ${nightsLabel(candidate.dates.nights)}`}
+                className={BUILD_ROW}
               />
             ) : null}
           </div>
         </section>
       ) : null}
 
+      {/*
+        Everything that can be opened, as one panel rather than five.
+
+        Five separately bordered bars stacked down a card read as leftover
+        admin below the answer. One panel with rules between its rows is the
+        same disclosures, the same markup and the same behaviour - the
+        browser still supplies all of it - and it looks like part of the card.
+      */}
       <div className="border-border divide-border divide-y overflow-hidden rounded-(--radius-card) border">
         <Disclosure summary="Full cost breakdown" className={ROW}>
           <CostBreakdown

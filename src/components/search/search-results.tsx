@@ -11,6 +11,11 @@ import type { DestinationImage } from '@/providers/imagery/types';
 import { TripCard } from './trip-card';
 import { TripRow } from './trip-row';
 import { buildTrip } from '@/search/trip-builder';
+import { dealAgainstTypical } from '@/search/deal-score';
+import { budgetWhatIf } from '@/search/what-if';
+import { WhatIfPanel } from './what-if-panel';
+import { NearbyAirportsPanel } from './nearby-airports-panel';
+import { nearbyOrigins } from '@/search/destination-names';
 
 /**
  * The results list.
@@ -242,6 +247,16 @@ export function SearchResults({
               currency={profile.targetBudget.currency}
               basePath={basePath}
             />
+            <WhatIfPanel
+              steps={budgetWhatIf(outcome, profile)}
+              hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
+            />
+            <NearbyAirportsPanel
+              airports={nearbyOrigins(profile.origins).slice(0, 5)}
+              hrefFor={(code) =>
+                linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
+              }
+            />
           </aside>
         ) : null}
 
@@ -280,6 +295,7 @@ export function SearchResults({
             <TripCard
               trip={built.trip}
               rank={results.includes(focus) ? 0 : -1}
+              deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
               label={building ? 'Your trip' : undefined}
               view={view}
               provenance={diagnostics.provenance}
@@ -317,6 +333,7 @@ export function SearchResults({
                   <TripRow
                     trip={trip}
                     rank={index + 1}
+                    deal={dealAgainstTypical(trip, outcome.destinationSummaries)}
                     view={view}
                     provenance={diagnostics.provenance}
                     image={images?.get(trip.candidate.destination) ?? null}

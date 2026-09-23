@@ -1083,6 +1083,13 @@ export async function runSearch(
   return {
     results: eligible.slice(0, plan.limits.maxResults),
     nearMisses: ineligible.slice(0, plan.limits.maxNearMisses),
+    overBudgetOnly: ineligible
+      .filter(
+        (trip) =>
+          trip.eligibility.violations.length > 0 &&
+          trip.eligibility.violations.every((violation) => violation.code === 'OVER_MAX_BUDGET'),
+      )
+      .map((trip) => trip.cost.total),
     routeOffers: collectRouteOffers(unique, plan.limits.maxSwapOptionsPerRoute),
     // From every eligible trip, deliberately - not from the page above it.
     destinationSummaries: summariseDestinations(eligible),

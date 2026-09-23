@@ -248,3 +248,35 @@ export function pickHighlights(breakdown: DateBreakdown): DateHighlights {
 
   return { cheapest: breakdown.cheapest, bestWeather, bestValue };
 }
+
+/**
+ * The priced windows as a grid: departure day across, length of stay down.
+ *
+ * Every cell is one window the search priced, or null where it priced none -
+ * never an estimate between neighbours. Columns and rows are only the days
+ * and lengths with at least one price, in order: a row of nothing but "not
+ * priced" says nothing the list does not, and made the grid a wall of dashes.
+ */
+export interface DateGrid {
+  readonly departures: readonly IsoDate[];
+  readonly nights: readonly number[];
+  /** `cells[row][column]`: row by nights, column by departure. */
+  readonly cells: readonly (readonly (DateOption | null)[])[];
+}
+
+export function dateGrid(breakdown: DateBreakdown): DateGrid {
+  const priced = breakdown.options.filter((option) => option.cheapestTotal !== null);
+  const departures = [...new Set(priced.map((option) => option.window.departureDate))].sort();
+  const nights = [...new Set(priced.map((option) => option.window.nights))].sort((a, b) => a - b);
+
+  const cells = nights.map((stay) =>
+    departures.map(
+      (departure) =>
+        priced.find(
+          (option) => option.window.departureDate === departure && option.window.nights === stay,
+        ) ?? null,
+    ),
+  );
+
+  return { departures, nights, cells };
+}

@@ -31,6 +31,12 @@ export interface DestinationSummary {
   /** The outlook for the cheapest trip's dates, or null when none was fetched. */
   readonly weather: DateWeather | null;
   readonly tripCount: number;
+  /**
+   * The middle total of every eligible trip found here - the lower of the two
+   * middles when the count is even, so it is always a total some real trip
+   * had, never an average of two. What "typical" means on a result.
+   */
+  readonly typicalTotal: Money;
 }
 
 function stopsOf(trip: RankedTrip): number {
@@ -81,6 +87,9 @@ export function summariseDestinations(trips: readonly RankedTrip[]): readonly De
       fewestStops: Math.min(...found.map(stopsOf)),
       weather: weatherOf(cheapest),
       tripCount: found.length,
+      typicalTotal: [...found].sort((a, b) => a.cost.total.amount - b.cost.total.amount)[
+        Math.floor((found.length - 1) / 2)
+      ]!.cost.total,
     };
   });
 }

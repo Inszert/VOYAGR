@@ -1,5 +1,5 @@
 import { format, money, type Money } from '@/core/money';
-import { Badge, Disclosure, Icon } from '@/components/ui';
+import { Badge, Disclosure, Icon, type IconName } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
 import type { Alternative } from '@/search/alternatives';
@@ -27,6 +27,8 @@ export interface SwapPanelProps {
   currency: string;
   /** Where choosing an option goes. Without it the panel only compares. */
   hrefFor?: (alternative: Alternative) => string;
+  /** A mark for what this panel changes. */
+  icon?: IconName;
   /** Passed to the disclosure, so a card can group several into one panel. */
   className?: string;
 }
@@ -58,11 +60,54 @@ function DeltaText({ minorUnits, currency }: { minorUnits: number; currency: str
   );
 }
 
+/**
+ * The summary line of a builder panel: what it changes, what is chosen now,
+ * and how many other options there are. The heading comes first, so the
+ * panel's name is still "Change the flight" to anyone finding it by name.
+ */
+function PanelSummary({
+  heading,
+  icon,
+  now,
+  others,
+}: {
+  heading: string;
+  icon?: IconName | undefined;
+  now: string | null;
+  others: number;
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-3.5">
+      {icon ? (
+        <span
+          aria-hidden="true"
+          className="bg-tint/15 text-tint-ink ring-tint/30 grid size-10 shrink-0 place-items-center rounded-full ring-1"
+        >
+          <Icon name={icon} size={1.1} />
+        </span>
+      ) : null}
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-ink text-[15px] font-medium">{heading}</span>
+        {now ? (
+          <span className="text-ink-muted truncate text-xs font-normal">Now {now}</span>
+        ) : null}
+      </span>
+      <span className="text-tint-ink ml-auto shrink-0 pl-2 text-xs font-medium tabular-nums">
+        {others} other {others === 1 ? 'option' : 'options'}
+      </span>
+    </span>
+  );
+}
+
+/** A row in a builder panel: the current choice lit, the rest quiet. */
+const OPTION_ROW =
+  '-mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-(--radius-card) px-3 py-3';
+
 function ChooseLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
-      className="border-border-strong text-ink hover:border-tint-ink hover:text-tint-ink focus-visible:outline-brand-500 ease-standard duration-quick inline-flex items-center gap-1 rounded-(--radius-pill) border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+      className="bg-tint-ink text-surface hover:bg-ink focus-visible:outline-brand-500 ease-standard duration-quick inline-flex items-center gap-1 rounded-(--radius-pill) px-3.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.97]"
     >
       Choose<span className="sr-only"> {label}</span>
       <Icon name="arrow-right" size={0.85} />
@@ -70,12 +115,31 @@ function ChooseLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-export function SwapPanel({ heading, alternatives, currency, hrefFor, className }: SwapPanelProps) {
+export function SwapPanel({
+  heading,
+  alternatives,
+  currency,
+  hrefFor,
+  icon,
+  className,
+}: SwapPanelProps) {
   if (alternatives.length <= 1) return null;
 
+  const current = alternatives.find((alternative) => alternative.isCurrent);
+
   return (
-    <Disclosure summary={heading} className={className}>
-      <ul className="divide-border flex flex-col divide-y">
+    <Disclosure
+      summary={
+        <PanelSummary
+          heading={heading}
+          icon={icon}
+          now={current ? `${current.label} · ${current.detail}` : null}
+          others={alternatives.length - (current ? 1 : 0)}
+        />
+      }
+      className={className}
+    >
+      <ul className="flex flex-col gap-1">
         {alternatives.map((alternative) => {
           const shift =
             'departureShiftMinutes' in alternative
@@ -85,9 +149,7 @@ export function SwapPanel({ heading, alternatives, currency, hrefFor, className 
           return (
             <li
               key={alternative.offerId}
-              className={cn(
-                'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0',
-              )}
+              className={cn(OPTION_ROW, alternative.isCurrent && 'bg-tint/10 ring-tint/30 ring-1')}
             >
               <div className="min-w-0 flex-1">
                 <p className="text-ink flex flex-wrap items-center gap-2 text-sm font-medium">
@@ -145,6 +207,8 @@ export function SwapPanel({ heading, alternatives, currency, hrefFor, className 
 export interface DateSwapPanelProps {
   choices: readonly DateChoice[];
   hrefFor: (choice: DateChoice) => string;
+  /** The dates the trip has now, in words. */
+  now?: string;
   className?: string;
 }
 
@@ -167,21 +231,28 @@ function moneyDelta(delta: Money | null) {
  * rebuilds the card from it; the flight and hotel choices start again from
  * what that date's best trip was.
  */
-export function DateSwapPanel({ choices, hrefFor, className }: DateSwapPanelProps) {
+export function DateSwapPanel({ choices, hrefFor, now, className }: DateSwapPanelProps) {
   if (choices.length === 0) return null;
 
   return (
-    <Disclosure summary="Change the dates" className={className}>
-      <ul className="divide-border flex flex-col divide-y">
+    <Disclosure
+      summary={
+        <PanelSummary
+          heading="Change the dates"
+          icon="calendar"
+          now={now ?? null}
+          others={choices.length}
+        />
+      }
+      className={className}
+    >
+      <ul className="flex flex-col gap-1">
         {choices.map((choice) => {
           const { dates } = choice.trip.candidate;
           const label = `${weekdayDate(dates.departureDate)} to ${weekdayDate(dates.returnDate)}`;
 
           return (
-            <li
-              key={choice.trip.candidate.id}
-              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0"
-            >
+            <li key={choice.trip.candidate.id} className={OPTION_ROW}>
               <div className="min-w-0 flex-1">
                 <p className="text-ink text-sm font-medium tabular-nums">{label}</p>
                 <p className="text-ink-muted text-sm">
