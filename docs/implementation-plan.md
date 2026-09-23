@@ -1799,17 +1799,138 @@ One flight source and one hotel source behind the existing adapters.
 
 _In plain words: teach the app to guess if a price will go up or down, and to help plan the trip itself._
 
-Buy/Wait, price-history presentation, deal score surfacing, restaurants, activities, AI itinerary,
-what-if simulator, flexible-date heatmap, alternative airports, smarter notification rules.
-
 Predictions are probabilistic and labelled as such. The system never implies a guaranteed price.
+Every figure still comes from deterministic code; a model only ever words or drafts.
+
+### 2.1 Price-history presentation ✅ complete
+
+A watch draws the cheapest trip at each check and states the change from first to latest
+(`src/watches/trend.ts`: one point per check, its own currency only, nothing interpolated).
+
+- **Done when:** a watch with two or more checks shows its trend in figures and as a line.
+
+### 2.2 Buy/Wait signal ✅ complete
+
+A plain-language reading of a watch's own recorded history: at the lowest seen, falling, rising
+or steady - stated as what has been observed, never as a promise about what comes next.
+
+- **Done when:** each watch with enough history shows a signal derived by a pure, tested
+  function from its recorded prices, with the evidence (how many checks) beside it.
+
+### 2.3 Deal score surfacing ✅ complete
+
+How a trip's total compares with the other trips the same search priced for that destination.
+
+- **Done when:** a result says how far below or above the typical total for its destination it
+  is, computed in `src/search/` from the search's own eligible trips.
+
+### 2.4 Restaurants and activities ✅ complete
+
+Destination pages list places to eat, drink, see and do from the places adapter, grouped by kind,
+with ratings, price level and walking distance.
+
+- **Done when:** a destination page shows restaurants and activities from the places provider.
+
+### 2.5 AI itinerary ✅ complete
+
+A day-by-day draft built from the destination's places, through the AI abstraction, validated
+by the guardrails so it can name only places that exist and invent no figure.
+
+- **Done when:** a destination page can show a drafted itinerary for the trip's nights, the mock
+  provider produces one deterministically, and a draft with the wrong number of days or a figure
+  absent from its sources is discarded (`validateItinerary`). The places offered are the page's
+  own, best-rated first; detecting an invented place name in free text is not attempted, so the
+  page presents the draft as a starting point to check.
+
+### 2.6 What-if simulator ✅ complete
+
+"What if I spent a little more?" answered from the search already run: how many near misses
+a higher ceiling would let in, and the best of them.
+
+- **Done when:** results offer a set of higher ceilings, each with the number of extra trips it
+  admits, counted from every trip turned away for its price alone (`SearchOutcome.overBudgetOnly`,
+  not the capped list of near misses), with the best of those shown named.
+
+### 2.7 Flexible-date heatmap ✅ complete
+
+The priced date windows as a grid - departure day against length of stay - coloured by total.
+
+- **Done when:** a search over flexible dates shows every priced window in a grid whose cells
+  link to that window, with the cheapest marked.
+
+### 2.8 Alternative airports ✅ complete
+
+Departure airports near the one searched, by great-circle distance, offered as a one-click
+addition to the search.
+
+- **Done when:** results name nearby airports within a set distance and link to the same search
+  with them added.
+
+### 2.9 Smarter notification rules ✅ complete
+
+A traveller's own threshold for what counts as worth an alert.
+
+- **Done when:** an account can set a minimum saving, and the watch refresh alerts only when a
+  deal clears both the product's threshold and the traveller's.
 
 ## Phase 3 — Discovery and personalisation
 
 _In plain words: help you find places you never thought of, and learn what kind of traveller you are._
 
-Anywhere mode, Surprise Me, Hidden Gems, the transparent travel profile, adaptive monitoring
-frequency, budget allocation, group travel, richer PWA.
+### 3.1 Anywhere mode ✅ complete
+
+"anywhere" as a destination searches every place the catalogue can price, and the globe and the
+rail show all of them.
+
+### 3.2 Surprise Me
+
+One click to a destination you did not pick, chosen from those the snapshot actually priced.
+
+- **Done when:** Discover offers "Surprise me", which opens a priced destination chosen
+  deterministically from a seed in the URL, and can be asked again.
+
+### 3.3 Hidden gems
+
+Well-rated places that few people have reviewed, as a deterministic query over the places data.
+
+- **Done when:** a destination page lists places rated at least 4.5 with fewer reviews than the
+  median for their kind, and says what the rule is.
+
+### 3.4 The transparent travel profile
+
+What the product has worked out about how someone travels, from their saved searches, shown
+beside what they told it directly, with what it was worked out from.
+
+- **Done when:** the account page shows inferred home airports, trip length, budget and style,
+  each with the number of saved searches behind it.
+
+### 3.5 Adaptive monitoring frequency
+
+A watch checks more often as its trip gets closer, never more often than the plan allows.
+
+- **Done when:** the schedule shortens the interval inside set windows before departure, clamped
+  by the plan's minimum, in `src/core/watch-schedule.ts`, and says so on the watch.
+
+### 3.6 Budget allocation
+
+Where the money in a trip goes, as shares of the total by category.
+
+- **Done when:** a trip shows the share of its total spent on flights, the stay and the transfer,
+  from the cost engine's own lines, with excluded costs named rather than hidden.
+
+### 3.7 Group travel
+
+What a trip costs each person in a group, and how many rooms the stay assumed.
+
+- **Done when:** a trip for more than one traveller shows the per-person share beside the total
+  and the room count the hotel was priced for.
+
+### 3.8 Richer PWA
+
+The installed app opens straight into the things people return to.
+
+- **Done when:** the manifest carries shortcuts to Explore, Stays and Watches, with icons, and a
+  test asserts them.
 
 ### Noted, not yet planned — the globe explorer
 
