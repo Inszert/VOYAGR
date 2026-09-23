@@ -1,5 +1,10 @@
 import { Icon, type IconName } from '@/components/ui';
-import { groupPlaces, type DestinationDetail } from '@/discovery/destination-detail';
+import {
+  GEM_MIN_RATING,
+  groupPlaces,
+  hiddenGems,
+  type DestinationDetail,
+} from '@/discovery/destination-detail';
 import { shortDate } from '@/lib/display-date';
 import type { Tint } from '@/lib/tint';
 import {
@@ -93,6 +98,7 @@ function walkingMinutes(metres: number): number {
 
 export function DestinationDetailView({ detail }: DestinationDetailViewProps) {
   const sections = groupPlaces(detail.places);
+  const gems = hiddenGems(detail.places);
 
   const warmest = detail.weather.reduce<number | null>(
     (highest, day) =>
@@ -315,6 +321,50 @@ export function DestinationDetailView({ detail }: DestinationDetailViewProps) {
               </table>
             </div>
           </details>
+        </section>
+      ) : null}
+
+      {gems.length > 0 ? (
+        /*
+          Hidden gems, by a rule stated right under the heading - so "hidden"
+          is something a person can check rather than a word we chose.
+        */
+        <section
+          aria-labelledby="gems-heading"
+          data-tint="sage"
+          className="border-tint/30 from-tint/[0.1] flex flex-col gap-4 rounded-(--radius-surface) border bg-gradient-to-br via-transparent to-transparent p-5"
+        >
+          <div className="flex flex-col gap-1">
+            <h2 id="gems-heading" className="font-display text-display-sm text-ink">
+              Hidden gems
+            </h2>
+            <p className="text-ink-muted text-sm">
+              Rated {GEM_MIN_RATING} or better, and reviewed by fewer people than most places of
+              their kind here.
+            </p>
+          </div>
+          <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            {gems.map((gem) => (
+              <li key={gem.id} className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="bg-tint/20 text-tint-ink mt-0.5 grid size-8 shrink-0 place-items-center rounded-full"
+                >
+                  <Icon name={CATEGORY_ICON[gem.category] ?? 'sparkle'} size={0.95} />
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-ink text-sm font-medium">{gem.name}</span>
+                  <span className="text-ink-muted text-xs tabular-nums">
+                    <span className="text-tint-ink font-semibold">{gem.rating?.toFixed(1)}</span>{' '}
+                    from {gem.ratingCount} reviews
+                    {gem.distanceFromCentreMetres !== null
+                      ? ` · ${walkingMinutes(gem.distanceFromCentreMetres)} min walk`
+                      : ''}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

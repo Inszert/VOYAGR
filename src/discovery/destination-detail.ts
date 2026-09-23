@@ -130,3 +130,42 @@ export function groupPlaces(
     places: places.filter((place) => place.category === section.category),
   })).filter((section) => section.places.length > 0);
 }
+
+/** A place counts as a gem from this rating, out of five. */
+export const GEM_MIN_RATING = 4.5;
+
+/** At most this many gems, so the section stays a short list. */
+const MAX_GEMS = 6;
+
+/**
+ * Hidden gems: well liked, little known.
+ *
+ * A rule, not a vibe. A place is a gem when it is rated at least
+ * `GEM_MIN_RATING` and fewer people have reviewed it than the median for its
+ * own kind of place on this page - a quiet café is compared with cafés, not
+ * with the most-reviewed beach. Best rated first, then least reviewed. The
+ * page states the rule beside the list, so it can be checked.
+ */
+export function hiddenGems(places: readonly Place[]): Place[] {
+  const medianCount = new Map<PlaceCategory, number>();
+
+  for (const category of new Set(places.map((place) => place.category))) {
+    // Rated places only: an unrated one says nothing about how well known
+    // its kind of place usually is.
+    const counts = places
+      .filter((place) => place.category === category && place.rating !== null)
+      .map((place) => place.ratingCount)
+      .sort((a, b) => a - b);
+    if (counts.length > 0) medianCount.set(category, counts[Math.floor((counts.length - 1) / 2)]!);
+  }
+
+  return places
+    .filter(
+      (place) =>
+        place.rating !== null &&
+        place.rating >= GEM_MIN_RATING &&
+        place.ratingCount < (medianCount.get(place.category) ?? 0),
+    )
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || a.ratingCount - b.ratingCount)
+    .slice(0, MAX_GEMS);
+}
