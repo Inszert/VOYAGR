@@ -1,12 +1,14 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import Link from 'next/link';
-import { format } from '@/core/money';
-import { Badge, Button, Card, type BadgeTone } from '@/components/ui';
+import { abs, format } from '@/core/money';
+import { Badge, Button, type BadgeTone } from '@/components/ui';
 import { searchProfileToQuery } from '@/search/schema';
 import type { WatchFormState } from '@/app/actions/watches';
 import type { TravelWatchRecord, TripSearchRecord } from '@/db/repository';
+import type { PriceTrend } from '@/watches/trend';
+import { shortDate } from '@/lib/display-date';
 
 /**
  * The watches list.
@@ -36,6 +38,7 @@ export interface WatchRow {
   /** Cheapest total on record, with the number of observations behind it. */
   readonly lowestRecorded: TravelWatchRecord['bestKnownTotal'];
   readonly observationCount: number;
+  readonly trend: PriceTrend;
 }
 
 export interface WatchListProps {
@@ -43,11 +46,85 @@ export interface WatchListProps {
   pauseAction: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
   resumeAction: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
   archiveAction: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
+  deleteAction: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
+  checkAction: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
 }
 
 /** Rebuild the query string that reproduces a saved search, in full. */
 function searchHref(search: TripSearchRecord): string {
-  return `/?${searchProfileToQuery(search.profile, search.destinations)}`;
+  return `/explore?${searchProfileToQuery(search.profile, search.destinations)}`;
+}
+
+/**
+ * The cheapest trip at each check, as a line.
+ *
+ * A picture of the figures beside it - the first and the latest are written
+ * out, and so is the change - so it is hidden from assistive technology. The
+ * line is scaled to its own range; nothing on it is a number anyone reads.
+ */
+function TrendLine({ trend }: { trend: PriceTrend }) {
+  const amounts = trend.points.map((point) => point.lowest.amount);
+  const low = Math.min(...amounts);
+  const high = Math.max(...amounts);
+  const span = high - low || 1;
+  const step = 100 / Math.max(1, amounts.length - 1);
+  const points = amounts.map(
+    (amount, index) => [index * step, 36 - ((amount - low) / span) * 32 - 2] as const,
+  );
+  const coordinates = points.map(([x, y]) => `${x},${y}`).join(' ');
+
+  return (
+    <svg aria-hidden="true" viewBox="-3 -2 106 40" className="text-tint-ink h-14 w-auto">
+      <polyline
+        points={coordinates}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+        strokeLinejoin="round"
+      />
+      {/* A mark per check, so the line says how many points it is drawn from. */}
+      {points.map(([x, y], index) => (
+        <circle key={index} cx={x} cy={y} r="1.6" fill="currentColor" />
+      ))}
+    </svg>
+  );
+}
+
+function TrendSummary({ trend }: { trend: PriceTrend }) {
+  if (trend.points.length === 0) {
+    return <p className="text-ink-muted text-sm">The trend appears after the first check.</p>;
+  }
+
+  if (trend.points.length === 1 || !trend.change) {
+    return (
+      <p className="text-ink-muted text-sm">
+        One check so far, at {format(trend.points[0]!.lowest)}. A trend needs a second.
+      </p>
+    );
+  }
+
+  const first = trend.points[0]!;
+  const latest = trend.points[trend.points.length - 1]!;
+  const { change } = trend;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <TrendLine trend={trend} />
+      <p className="text-ink-muted text-sm">
+        Cheapest trip {format(first.lowest)} on {shortDate(first.observedAt.slice(0, 10))},{' '}
+        {format(latest.lowest)} at the latest of {trend.points.length} checks:{' '}
+        <span
+          className={change.amount < 0 ? 'text-tint-ink font-semibold' : 'text-ink font-semibold'}
+        >
+          {change.amount === 0
+            ? 'no change'
+            : `${format(abs(change))} ${change.amount < 0 ? 'less' : 'more'}`}
+        </span>
+        .
+      </p>
+    </div>
+  );
 }
 
 function WatchAction({
@@ -59,7 +136,7 @@ function WatchAction({
   action: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
   watchId: string;
   label: string;
-  variant: 'secondary' | 'ghost';
+  variant: 'secondary' | 'ghost' | 'danger';
 }) {
   const [state, formAction, pending] = useActionState<WatchFormState, FormData>(action, {});
 
@@ -76,15 +153,64 @@ function WatchAction({
   );
 }
 
-export function WatchList({ rows, pauseAction, resumeAction, archiveAction }: WatchListProps) {
+/**
+ * Delete, in two steps.
+ *
+ * A watch carries weeks of recorded prices and deleting it cannot be undone,
+ * so the first press asks and only the second deletes. The question is a
+ * real button beside a real cancel, not a browser dialog.
+ */
+function DeleteWatch({
+  action,
+  watchId,
+  name,
+}: {
+  action: (state: WatchFormState, formData: FormData) => Promise<WatchFormState>;
+  watchId: string;
+  name: string;
+}) {
+  const [asking, setAsking] = useState(false);
+
+  if (!asking) {
+    return (
+      <Button type="button" size="sm" variant="ghost" onClick={() => setAsking(true)}>
+        Delete
+      </Button>
+    );
+  }
+
   return (
-    <ul className="flex flex-col gap-4">
-      {rows.map(({ watch, search, nextRunLabel, lowestRecorded, observationCount }) => (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Delete ${name}?`}>
+      <span className="text-ink text-sm">Delete it and its price history?</span>
+      <WatchAction action={action} watchId={watchId} label="Delete for good" variant="danger" />
+      <Button type="button" size="sm" variant="ghost" onClick={() => setAsking(false)}>
+        Keep it
+      </Button>
+    </div>
+  );
+}
+
+export function WatchList({
+  rows,
+  pauseAction,
+  resumeAction,
+  archiveAction,
+  deleteAction,
+  checkAction,
+}: WatchListProps) {
+  return (
+    /*
+      A list with rules between its rows, not a stack of cards. Each watch is
+      one line of what it is and how it is doing, then its figures, then what
+      can be done with it.
+    */
+    <ul className="divide-border border-border flex flex-col divide-y border-y">
+      {rows.map(({ watch, search, nextRunLabel, lowestRecorded, observationCount, trend }) => (
         <li key={watch.id}>
-          <Card as="article" aria-labelledby={`watch-${watch.id}`}>
+          <article aria-labelledby={`watch-${watch.id}`} className="py-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 id={`watch-${watch.id}`} className="text-ink text-lg font-semibold">
+                <h3 id={`watch-${watch.id}`} className="font-display text-ink text-xl">
                   {search.name}
                 </h3>
                 <p className="text-ink-muted text-sm">
@@ -99,7 +225,7 @@ export function WatchList({ rows, pauseAction, resumeAction, archiveAction }: Wa
               </Badge>
             </div>
 
-            <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <div className="flex justify-between gap-4">
                 <dt className="text-ink-muted">Next check</dt>
                 <dd className="text-ink">{nextRunLabel}</dd>
@@ -130,7 +256,20 @@ export function WatchList({ rows, pauseAction, resumeAction, archiveAction }: Wa
               </div>
             </dl>
 
-            <div className="border-border mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
+            <div className="mt-4">
+              <TrendSummary trend={trend} />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {watch.status === 'active' ? (
+                <WatchAction
+                  action={checkAction}
+                  watchId={watch.id}
+                  label="Check now"
+                  variant="secondary"
+                />
+              ) : null}
+
               {watch.status === 'active' ? (
                 <WatchAction
                   action={pauseAction}
@@ -158,12 +297,16 @@ export function WatchList({ rows, pauseAction, resumeAction, archiveAction }: Wa
 
               <Link
                 href={searchHref(search)}
-                className="text-brand-ink text-sm underline underline-offset-4"
+                className="text-tint-ink text-sm underline underline-offset-4"
               >
                 Run this search now
               </Link>
+
+              <span className="ml-auto">
+                <DeleteWatch action={deleteAction} watchId={watch.id} name={search.name} />
+              </span>
             </div>
-          </Card>
+          </article>
         </li>
       ))}
     </ul>

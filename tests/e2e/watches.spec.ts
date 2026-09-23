@@ -137,8 +137,10 @@ test.describe('travel watches', () => {
       .getByRole('link', { name: 'Run this search now' })
       .click();
 
-    // The re-run is the search that was saved, not a looser one. The hard
-    // requirements sit behind "More options", so it is opened first.
+    // The re-run is the search that was saved, not a looser one. Results have
+    // no form of their own; "Change search" opens it filled in with the search
+    // that ran, and the hard requirements sit behind "More options" there.
+    await page.getByRole('link', { name: 'Change search' }).click();
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('checkbox', { name: 'Direct flights only' })).toBeChecked();
     await expect(

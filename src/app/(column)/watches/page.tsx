@@ -3,7 +3,15 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui';
 import { WatchList } from '@/components/watches/watch-list';
-import { archiveWatchAction, pauseWatchAction, resumeWatchAction } from '@/app/actions/watches';
+import {
+  addWatchAction,
+  archiveWatchAction,
+  checkWatchNowAction,
+  deleteWatchAction,
+  pauseWatchAction,
+  resumeWatchAction,
+} from '@/app/actions/watches';
+import { AddWatchForm } from '@/components/watches/add-watch-form';
 import { getCurrentUser } from '@/auth/current-user';
 import { getCapabilities } from '@/lib/env';
 import { getRepositories } from '@/db';
@@ -40,10 +48,18 @@ export default async function WatchesPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-ink text-2xl font-semibold tracking-tight">Your watches</h1>
-        <p className="text-ink-muted mt-2 max-w-2xl">
+        <h1 className="font-display text-display-md text-ink">Your watches</h1>
+        <p className="text-ink-muted mt-3 max-w-2xl">
           {active} of {user.entitlements.maxActiveWatches} watches active on your{' '}
           {user.entitlements.planName} plan. Pause one to make room for another.
+        </p>
+        {/*
+          The two ways a watch begins, and what happens after, in one line.
+        */}
+        <p className="text-ink-muted mt-2 max-w-2xl text-sm">
+          Save any search to watch it automatically, or add one by hand below. A watch checks itself
+          every {user.entitlements.minRefreshIntervalHours} hours at most; use Check now to look
+          straight away.
         </p>
       </div>
 
@@ -60,16 +76,18 @@ export default async function WatchesPage() {
           </h2>
           <p className="text-ink-muted mt-1 text-sm">
             Your watches are saved and scheduled, but this deployment has no shared job queue, so
-            nothing is running them. Use “Run this search now” to check a trip in the meantime.
+            nothing is running them. Use Check now on a watch to look straight away.
           </p>
         </Card>
       )}
+
+      <AddWatchForm action={addWatchAction} today={new Date().toISOString().slice(0, 10)} />
 
       {rows.length === 0 ? (
         <Card>
           <p className="text-ink text-sm">
             No watches yet.{' '}
-            <Link href="/" className="text-brand-ink underline underline-offset-4">
+            <Link href="/explore" className="text-tint-ink underline underline-offset-4">
               Run a search
             </Link>{' '}
             and save it to have us keep looking.
@@ -81,6 +99,8 @@ export default async function WatchesPage() {
           pauseAction={pauseWatchAction}
           resumeAction={resumeWatchAction}
           archiveAction={archiveWatchAction}
+          deleteAction={deleteWatchAction}
+          checkAction={checkWatchNowAction}
         />
       )}
     </div>

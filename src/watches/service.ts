@@ -3,6 +3,7 @@ import { canCreateWatch, type Entitlements } from '@/core/entitlements';
 import { minutesUntilRun, nextRunAt, type WatchPriority } from '@/core/watch-schedule';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
+import { priceTrend, type PriceTrend } from './trend';
 import type { Repositories, TravelWatchRecord, TripSearchRecord } from '@/db/repository';
 import type { SearchProfile } from '@/core/trip/types';
 import type { AuthenticatedUser } from '@/auth/service';
@@ -55,6 +56,8 @@ export interface WatchWithSearch {
    */
   readonly lowestRecorded: TravelWatchRecord['bestKnownTotal'];
   readonly observationCount: number;
+  /** The cheapest trip at each check, and the change from first to latest. */
+  readonly trend: PriceTrend;
 }
 
 export interface WatchDependencies {
@@ -203,6 +206,7 @@ export class WatchService {
           nextRunLabel: describeNextRun(watch, now),
           lowestRecorded: lowest?.amount ?? null,
           observationCount: history.length,
+          trend: priceTrend(history, currency),
         };
       }),
     );
@@ -235,6 +239,17 @@ export class WatchService {
 
     log.info({ userId: user.id, watchId, status }, 'watch status changed');
     return updated;
+  }
+
+  /**
+   * Stop watching a trip and forget it: the saved search, the watch and every
+   * price it recorded. Only the owner can, and a watch that is already gone
+   * is reported as gone rather than as someone else's.
+   */
+  async deleteWatch(user: AuthenticatedUser, watchId: string): Promise<void> {
+    const watch = await this.requireOwnWatch(user, watchId);
+    await this.repositories.tripSearches.delete(watch.tripSearchId);
+    log.info({ userId: user.id, watchId }, 'watch deleted');
   }
 
   async setPriority(
