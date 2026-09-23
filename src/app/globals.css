@@ -60,19 +60,51 @@
    */
   --color-dim: #7a8190;
   /*
-   * The accent, as the two ends of one gradient.
+   * The accent: leather.
    *
-   * Every button in the product is `accent-from` to `accent-to`, never a flat
-   * fill. Recorded plainly: white type on these measures 4.1:1 at the light
-   * end and 3.4:1 at the dark end, against the 4.5:1 that WCAG asks for body
-   * text. It clears the 3:1 bar for large text and for UI boundaries. These
-   * are the specified values and they are used as specified; the note is here
-   * so the next person changing them knows which way the trade went.
+   * A saddle brown into cognac, as the two ends of the one gradient every
+   * button is filled with. Chosen to sit on the night rather than glow on it -
+   * warm, low in chroma, the colour of a travel bag rather than of a screen.
+   * White type measures 6.5:1 on the dark end and 4.8:1 on the light end, so
+   * unlike the violet it replaces it clears 4.5:1 across the whole fill.
    */
-  --color-accent-from: #6a6cf6;
-  --color-accent-to: #8b7bf7;
+  --color-accent-from: #8a5130;
+  --color-accent-to: #a0633a;
   /** The accent as type, where it has to be read rather than pressed. */
-  --color-accent-ink: var(--color-biome-ink);
+  --color-accent-ink: var(--color-tint-ink);
+
+  /*
+   * The tint: the colour of wherever you are looking.
+   *
+   * Five values, all from the same warm-night family, and nothing brighter:
+   *
+   *   leather   the default, and anywhere temperate
+   *   sand      deserts and drylands
+   *   sage      the tropics and anything green
+   *   harbour   the sea, ice and anywhere cold
+   *   clay      the far north's tundra, and a second warm for variety
+   *
+   * The page picks one from what the globe is looking at (`data-biome` on
+   * the root) or, on a page about one place, from that place
+   * (`data-tint` on any element, see `tintFor`). It colours what is tinted
+   * rather than printed - ambient glow, accent type, a place's header, the
+   * rule under a section - and never a control, a status or a price.
+   *
+   * Each `-ink` clears 4.5:1 on the page and on a panel.
+   */
+  --color-tint: #a0633a;
+  --color-tint-ink: #d9a877;
+
+  /*
+   * How warm, as colour: the palette's own tints in order, cold to hot.
+   * Used for temperatures and nothing else, always beside the figure and
+   * the word, never instead of them. Each clears 4.5:1 on the page.
+   */
+  --color-temp-cold: #b9cbdb;
+  --color-temp-cool: #9dbdd0;
+  --color-temp-mild: #9cc3a6;
+  --color-temp-warm: #e3c08d;
+  --color-temp-hot: #dba794;
   /*
    * The colour of wherever the globe is looking.
    *
@@ -111,16 +143,16 @@
    * accent so there is no second violet. 600 and 700 are the gradient's two
    * ends, which is what `Button` fills with.
    */
-  --color-brand-50: #ececfe;
-  --color-brand-100: #dcdcfd;
-  --color-brand-200: #c4c3fb;
-  --color-brand-300: var(--color-accent-ink);
-  --color-brand-400: #9a97f8;
+  --color-brand-50: #f7ede4;
+  --color-brand-100: #eedac8;
+  --color-brand-200: #e2c0a0;
+  --color-brand-300: #d9a877;
+  --color-brand-400: #c08556;
   --color-brand-500: var(--color-accent-to);
   --color-brand-600: var(--color-accent-from);
-  --color-brand-700: #5a5ce0;
-  --color-brand-800: #4a4cc4;
-  --color-brand-900: #32338a;
+  --color-brand-700: #6f4127;
+  --color-brand-800: #54311e;
+  --color-brand-900: #382114;
 
   /* Warm sand. One `Tag` tone, and the departure airport on the globe. */
   --color-accent-300: #f2c46a;
@@ -143,7 +175,7 @@
    * night scheme they are simply the light ends of each ramp.
    */
   /* Fixed: a status badge is not a place, and must not drift with one. */
-  --color-brand-ink: #a9a5f5;
+  --color-brand-ink: #d9a877;
   --color-positive-ink: #7fd8a6;
   --color-caution-ink: #ecc06a;
   --color-critical-ink: #f09a92;
@@ -252,11 +284,16 @@
   --color-stage-ink-muted: var(--color-muted);
   --color-stage-glass: rgba(12, 16, 27, 0.72);
   --color-stage-glass-border: var(--color-hairline);
-  --color-stage-accent: var(--color-accent-ink);
-  --color-stage-accent-strong: var(--color-accent-from);
+  /*
+   * Pinned to the planet's own colour, not to the accent. These are read by
+   * the globe's renderer, and the globe is a finished asset: changing the
+   * interface's palette must not repaint a single pixel of it.
+   */
+  --color-stage-accent: var(--color-biome-ink);
+  --color-stage-accent-strong: #6a6cf6;
   --color-stage-accent-deep: #5a5ce0;
   /* The lavender a flight path is drawn in. */
-  --color-stage-route: var(--color-accent-ink);
+  --color-stage-route: var(--color-biome-ink);
   --color-stage-origin: #f2c46a;
   /*
    * A price chip is a pane of the night, not a sticker on it.
@@ -291,7 +328,7 @@
   --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.4);
   --shadow-lifted: 0 4px 10px rgba(0, 0, 0, 0.36), 0 24px 60px rgba(0, 0, 0, 0.5);
   /* The glow under the accent gradient, so a button reads as lit. */
-  --shadow-accent: 0 8px 28px -8px rgba(106, 108, 246, 0.75);
+  --shadow-accent: 0 8px 28px -10px rgba(160, 99, 58, 0.7);
 
   --blur-glass: 16px;
 
@@ -407,6 +444,18 @@
   syntax: '<color>';
   inherits: true;
   initial-value: #a9a5f5;
+}
+
+@property --color-tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a0633a;
+}
+
+@property --color-tint-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #d9a877;
 }
 
 @property --color-stage-route {
@@ -591,7 +640,65 @@
     transition:
       --color-biome 900ms var(--ease-standard),
       --color-biome-ink 900ms var(--ease-standard),
-      --color-stage-route 900ms var(--ease-standard);
+      --color-stage-route 900ms var(--ease-standard),
+      --color-tint 900ms var(--ease-standard),
+      --color-tint-ink 900ms var(--ease-standard);
+  }
+
+  /*
+   * The tint, by what the globe is looking at. The same five values as
+   * `data-tint` below; the biome only chooses which one.
+   */
+  :root[data-biome='arid'] {
+    --color-tint: #b8904f;
+    --color-tint-ink: #e3c08d;
+  }
+
+  :root[data-biome='tropical'] {
+    --color-tint: #5f8a6c;
+    --color-tint-ink: #9cc3a6;
+  }
+
+  :root[data-biome='ocean'],
+  :root[data-biome='ice'],
+  :root[data-biome='snow'] {
+    --color-tint: #4f7389;
+    --color-tint-ink: #9dbdd0;
+  }
+
+  :root[data-biome='tundra'] {
+    --color-tint: #9a5f4a;
+    --color-tint-ink: #dba794;
+  }
+
+  /*
+   * The tint, by place. Set on the element that is about one place - a
+   * destination page, a stay header - so everything inside it takes that
+   * place's colour and nothing outside it does.
+   */
+  [data-tint='leather'] {
+    --color-tint: #a0633a;
+    --color-tint-ink: #d9a877;
+  }
+
+  [data-tint='sand'] {
+    --color-tint: #b8904f;
+    --color-tint-ink: #e3c08d;
+  }
+
+  [data-tint='sage'] {
+    --color-tint: #5f8a6c;
+    --color-tint-ink: #9cc3a6;
+  }
+
+  [data-tint='harbour'] {
+    --color-tint: #4f7389;
+    --color-tint-ink: #9dbdd0;
+  }
+
+  [data-tint='clay'] {
+    --color-tint: #9a5f4a;
+    --color-tint-ink: #dba794;
   }
 
   :root[data-biome='ice'],
@@ -671,8 +778,8 @@
     background-image:
       radial-gradient(
         ellipse 46% 54% at var(--sky-x, 50%) var(--sky-y, 45%),
-        color-mix(in oklab, var(--color-biome) 18%, transparent) 0%,
-        color-mix(in oklab, var(--color-biome) 5%, transparent) 40%,
+        color-mix(in oklab, var(--color-tint) 16%, transparent) 0%,
+        color-mix(in oklab, var(--color-tint) 5%, transparent) 40%,
         transparent 74%
       ),
       linear-gradient(to bottom, var(--color-bg-alt) 0%, var(--color-bg) 100%);
@@ -1488,7 +1595,7 @@
     width: var(--mote-size, 3px);
     height: var(--mote-size, 3px);
     border-radius: var(--mote-radius);
-    background: var(--color-biome-ink);
+    background: var(--color-tint-ink);
   }
 
   /*

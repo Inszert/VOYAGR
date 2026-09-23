@@ -26,7 +26,7 @@ export function Skeleton({ className, label, ...props }: SkeletonProps) {
     <div
       // `animate-pulse` is already neutralised by the reduced-motion rule in
       // the base layer, so nothing here has to opt out again.
-      className={cn('bg-surface-sunken animate-pulse rounded-[--radius-control]', className)}
+      className={cn('bg-surface-sunken animate-pulse rounded-(--radius-control)', className)}
       aria-hidden={label ? undefined : true}
       {...(label ? { role: 'status', 'aria-label': label } : {})}
       {...props}
@@ -66,7 +66,7 @@ export function EmptyState({
       // just asked for it and is already looking.
       role={tone === 'error' ? 'alert' : undefined}
       className={cn(
-        'flex flex-col items-center gap-3 rounded-[--radius-surface] border px-6 py-12 text-center',
+        'flex flex-col items-center gap-3 rounded-(--radius-surface) border px-6 py-12 text-center',
         tone === 'error'
           ? 'border-critical-500/30 bg-critical-500/5'
           : 'border-border bg-surface-sunken',
@@ -74,13 +74,19 @@ export function EmptyState({
       )}
     >
       {icon ? (
-        <span aria-hidden="true" className="text-ink-muted text-3xl">
+        <span
+          aria-hidden="true"
+          className="border-border-strong text-ink-muted mb-1 grid size-12 place-items-center rounded-full border text-xl"
+        >
           {icon}
         </span>
       ) : null}
 
       <h3
-        className={cn('text-lg font-semibold', tone === 'error' ? 'text-critical-ink' : 'text-ink')}
+        className={cn(
+          'font-display text-2xl text-balance',
+          tone === 'error' ? 'text-critical-ink' : 'text-ink',
+        )}
       >
         {title}
       </h3>

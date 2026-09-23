@@ -15,6 +15,8 @@
  * `src/core/dates.ts`.
  */
 
+import { dayOfWeek } from '@/core/dates';
+
 export const SHORT_MONTHS = [
   'Jan',
   'Feb',
@@ -30,9 +32,22 @@ export const SHORT_MONTHS = [
   'Dec',
 ] as const;
 
+/** Indexed by `dayOfWeek`, which counts from Sunday. */
+export const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
 /** e.g. `6 Jun`. */
 export function shortDate(iso: string): string {
   return `${Number(iso.slice(8, 10))} ${SHORT_MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+}
+
+/**
+ * e.g. `Sat 6 Jun`.
+ *
+ * The weekday comes from `dayOfWeek` in `src/core/dates.ts`, which reads the
+ * calendar date in UTC so no server timezone can move it a day.
+ */
+export function weekdayDate(iso: string): string {
+  return `${SHORT_WEEKDAYS[dayOfWeek(iso)]} ${shortDate(iso)}`;
 }
 
 /**

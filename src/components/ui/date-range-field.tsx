@@ -141,7 +141,10 @@ export function DateRangeField({
   ) => (
     <div
       className={cn(
-        'flex min-w-0 flex-col gap-0.5',
+        // The same gap as `Field`, so a date sits on the same line as the
+        // inputs beside it in a row of fields.
+        'flex min-w-0 flex-col',
+        bare ? 'gap-0.5' : 'gap-1.5',
         bare &&
           rule &&
           'border-hairline border-t pt-2.5 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-2.5',
@@ -183,7 +186,11 @@ export function DateRangeField({
           bare
             ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
             : cn(
-                'bg-surface-raised h-11 rounded-[--radius-control] border px-3',
+                'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
+                // The calendar button sits inside the first input while the
+                // pair is stacked and inside the second once it is side by
+                // side, so both keep their text clear of it.
+                'pr-11',
                 error ? 'border-critical-500' : 'border-border-strong',
               ),
         )}
@@ -208,7 +215,7 @@ export function DateRangeField({
     >
       <PopoverAnchor asChild>
         <div className={cn('relative min-w-0', className)}>
-          <div className="grid min-w-0 gap-2.5 pr-7 sm:grid-cols-2">
+          <div className={cn('grid min-w-0 gap-2.5 sm:grid-cols-2', bare && 'pr-10')}>
             {half(
               startId,
               startLabel,
@@ -231,7 +238,15 @@ export function DateRangeField({
             <button
               type="button"
               className={cn(
-                'text-dim hover:text-text focus-visible:outline-accent-to absolute top-1/2 right-0 grid -translate-y-1/2 place-items-center rounded-[8px]',
+                'text-dim hover:text-text focus-visible:outline-accent-to absolute grid place-items-center rounded-[8px]',
+                /*
+                 * Bare, it stands in its own gutter beside the pair. Boxed, it
+                 * sits inside the right-hand input's edge - the first while
+                 * the pair is stacked, the second once it is side by side:
+                 * 26px is the label's line plus the gap, and 4px more centres
+                 * a 36px button in a 44px input.
+                 */
+                bare ? 'top-1/2 right-0 -translate-y-1/2' : 'top-[1.875rem] right-1',
                 'size-9 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
                 'data-[state=open]:text-text',
               )}
