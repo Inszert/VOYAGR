@@ -63,7 +63,7 @@ export function DatePriceGrid({ prices, hrefFor }: DatePriceGridProps) {
   return (
     <section aria-labelledby="dates-heading" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="dates-heading" className="text-ink text-lg font-medium">
+        <h2 id="dates-heading" className="text-ink font-display text-2xl">
           Which dates are cheaper?
         </h2>
         <p className="text-ink-muted text-sm">
@@ -71,29 +71,45 @@ export function DatePriceGrid({ prices, hrefFor }: DatePriceGridProps) {
         </p>
       </div>
 
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {/*
+        One row, not a grid.
+
+        The windows are a sequence - each starts a day after the last - and a
+        grid wraps that sequence into rows that read like unrelated boxes. As
+        a strip it reads left to right like the calendar it is: all of it at
+        once on a wide screen, and scrolled sideways, snapping to each window,
+        on a phone. The scroll region is a list of links, so the keyboard
+        reaches every window and brings it into view by focusing it.
+      */}
+      <ul className="-mx-1 grid snap-x snap-mandatory auto-cols-[minmax(9rem,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pt-1 pb-3">
         {prices.map((price) => {
           const difference = differenceLabel(price);
+          const cheaper =
+            !price.selected &&
+            price.differenceFromSelected !== null &&
+            price.differenceFromSelected.amount < 0;
 
           return (
-            <li key={`${price.checkIn}:${price.checkOut}`}>
+            <li key={`${price.checkIn}:${price.checkOut}`} className="flex snap-start">
               <a
                 href={hrefFor(price)}
                 aria-current={price.selected ? 'true' : undefined}
                 className={cn(
-                  'border-border bg-surface-raised focus-visible:outline-accent-to block rounded-[--radius-control] border p-3',
-                  'hover:border-border-strong transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-                  price.selected && 'border-accent-to',
+                  'border-border bg-surface-raised focus-visible:outline-accent-to flex w-full flex-col rounded-(--radius-card) border p-3.5',
+                  'ease-standard duration-quick transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                  price.selected
+                    ? 'border-accent-to bg-accent-to/10'
+                    : 'hover:border-border-strong hover:bg-surface-sunken',
                 )}
               >
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-ink text-sm font-medium">{windowLabel(price)}</span>
-                  <span className="text-ink-muted text-xs">{price.nights} nights</span>
+                <span className="text-ink text-sm font-medium tabular-nums">
+                  {windowLabel(price)}
                 </span>
+                <span className="text-ink-muted text-xs">{price.nights} nights</span>
 
                 {price.total ? (
                   <Price
-                    className="mt-1"
+                    className="mt-3"
                     amount={format(price.total)}
                     size="md"
                     caption={price.perNight ? `${format(price.perNight)} a night` : null}
@@ -103,26 +119,38 @@ export function DatePriceGrid({ prices, hrefFor }: DatePriceGridProps) {
                    * Said in words, not left blank. A blank cell reads as a
                    * date nobody can book rather than one nobody quoted.
                    */
-                  <span className="text-caution-ink mt-1 block text-sm">
+                  <span className="text-caution-ink mt-3 block text-sm">
                     No price came back for these dates
                   </span>
                 )}
 
-                <span className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {difference ? (
-                    <span
-                      className={cn(
-                        'rounded-full border px-2 py-0.5 text-[11px]',
-                        price.selected
-                          ? 'border-accent-to text-accent-ink'
-                          : 'border-border text-ink-muted',
-                      )}
-                    >
+                {/*
+                  The comparison as a line, the two states as badges.
+
+                  "€36.00 · 9.9% cheaper" is a fact about this window and
+                  reads as a sentence; boxed, it wrapped into a two-line pill
+                  in a card this narrow. "Your dates" and "Cheapest found" are
+                  states, and states are what badges are for.
+                */}
+                {difference && !price.selected ? (
+                  <span
+                    className={cn(
+                      'mt-2 text-xs tabular-nums',
+                      cheaper ? 'text-ink' : 'text-ink-muted',
+                    )}
+                  >
+                    {difference}
+                  </span>
+                ) : null}
+
+                <span className="mt-auto flex flex-wrap items-center gap-1.5 pt-3 empty:hidden">
+                  {price.selected ? (
+                    <span className="bg-tint-ink text-surface rounded-(--radius-pill) px-2 py-0.5 text-[11px] font-semibold">
                       {difference}
                     </span>
                   ) : null}
                   {price.cheapest && !price.selected ? (
-                    <span className="border-border text-ink rounded-full border px-2 py-0.5 text-[11px] font-medium">
+                    <span className="bg-ink text-surface rounded-(--radius-pill) px-2 py-0.5 text-[11px] font-semibold">
                       Cheapest found
                     </span>
                   ) : null}

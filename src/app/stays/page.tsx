@@ -1,10 +1,15 @@
 import type { Metadata } from 'next';
-import { Button, Container, DateRangeField, Field } from '@/components/ui';
+import { Button, Container, DateRangeField, EmptyState, Field, Icon } from '@/components/ui';
 import { SearchKindTabs } from '@/components/search/search-kind-tabs';
 import { DatePriceGrid } from '@/components/stays/date-price-grid';
 import { RateComparison } from '@/components/stays/rate-comparison';
 import { StayCard } from '@/components/stays/stay-card';
 import { StaySearchForm } from '@/components/stays/stay-search-form';
+import { StayHeader } from '@/components/stays/stay-header';
+import { StayProperty } from '@/components/stays/stay-property';
+import { loadLocator } from '@/discovery/locator-data';
+import { tintFor } from '@/lib/tint';
+import { imageryCodeForPlace, imageryRefFor, resolveImagery } from '@/providers/imagery';
 import { SourceStrip } from '@/components/ui';
 import { getStayProviders } from '@/providers/stays/registry';
 import { provenanceForMode, type SourceAttribution } from '@/core/trip/provenance';
@@ -85,27 +90,54 @@ export default async function StaysPage({
    */
   const withFlights = params.with === 'flights';
 
+  /*
+   * The place's photograph, for the header.
+   *
+   * By the code a trip handed over, or else by the typed name matched
+   * exactly against the curated catalogue - never by searching for it. No
+   * code, no picture, and the header keeps its wash.
+   */
+  const imageCode =
+    view.query.destination.code && imageryRefFor(view.query.destination.code)
+      ? view.query.destination.code
+      : imageryCodeForPlace(view.query.destination.name ?? '');
+  const image = imageCode ? ((await resolveImagery([imageCode])).get(imageCode) ?? null) : null;
+
+  /*
+   * A stay is the only thing searched here. Flights, and a whole trip, are
+   * searched on the explorer - where flights and hotels are priced together
+   * - so those two tabs leave for it rather than bolting a flight form on.
+   */
   const searchKindHref = (kind: 'flights' | 'stays' | 'both') =>
-    kind === 'flights' ? '/' : stayHref(params, { with: kind === 'both' ? 'flights' : undefined });
+    kind === 'stays'
+      ? stayHref(params, { with: undefined })
+      : `/explore?view=${kind === 'flights' ? 'flight' : 'trip'}`;
 
   return (
-    <div className="stage-scope bg-bg text-text min-h-screen">
+    <div
+      className="stage-scope bg-bg text-text min-h-screen"
+      data-tint={tintFor(imageCode ?? view.query.destination.name)}
+    >
       <Container size="wide" className="flex flex-col gap-8 py-10">
         <header className="flex flex-col gap-4">
           <SearchKindTabs active={withFlights ? 'both' : 'stays'} hrefFor={searchKindHref} />
 
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h1 className="text-ink text-3xl font-medium">
-              {view.query.destination.name ?? 'Stays'}
-            </h1>
-            <SourceStrip sources={sources} />
-          </div>
+          <StayHeader
+            name={view.query.destination.name ?? 'Stays'}
+            imageCode={imageCode}
+            image={image}
+            checkIn={view.query.checkIn}
+            checkOut={view.query.checkOut}
+            nights={view.nights}
+            occupancy={view.query.occupancy}
+            sources={<SourceStrip sources={sources} className="justify-end" />}
+          />
         </header>
 
         {withFlights ? (
           <section
             aria-labelledby="flights-heading"
-            className="border-border flex flex-col gap-3 rounded-[--radius-surface] border p-4"
+            className="border-border flex flex-col gap-3 rounded-(--radius-surface) border p-4"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="flights-heading" className="text-ink text-lg font-medium">
@@ -146,7 +178,7 @@ export default async function StaysPage({
           aria-labelledby="stay-search-heading"
           className={
             withFlights
-              ? 'border-border flex flex-col gap-3 rounded-[--radius-surface] border p-4'
+              ? 'border-border flex flex-col gap-3 rounded-(--radius-surface) border p-4'
               : 'contents'
           }
         >
@@ -214,7 +246,7 @@ export default async function StaysPage({
         {view.step === 'results' ? (
           <section aria-labelledby="stays-heading" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="stays-heading" className="text-ink text-lg font-medium">
+              <h2 id="stays-heading" className="text-ink font-display text-2xl">
                 {view.stays.length} places for {view.nights} nights
               </h2>
               <a
@@ -226,9 +258,18 @@ export default async function StaysPage({
             </div>
 
             {view.stays.length === 0 ? (
-              <p className="text-ink-muted text-sm">
-                Nothing came back for these dates. Try changing them above.
-              </p>
+              <EmptyState
+                icon={<Icon name="bed" />}
+                title="No places came back for these dates"
+                description="The providers had nothing for this stay. Other dates, or fewer guests to a room, often do."
+                action={
+                  <Button asChild variant="secondary" size="md">
+                    <a href={stayHref(params, { dates: undefined, property: undefined })}>
+                      Change dates
+                    </a>
+                  </Button>
+                }
+              />
             ) : (
               /*
                 As many across as fit, and never a half-empty row.
@@ -255,43 +296,20 @@ export default async function StaysPage({
         ) : null}
 
         {view.step === 'property' && view.openStay ? (
-          <section aria-labelledby="property-heading" className="flex flex-col gap-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="property-heading" className="text-ink text-xl font-medium">
-                {view.openStay.property.name}
-              </h2>
-              <a
-                href={stayHref(params, { property: undefined, reference: undefined })}
-                className="text-accent-ink focus-visible:outline-accent-to rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Back to all places
-              </a>
-            </div>
-
-            {view.openStay.property.description ? (
-              <p className="text-ink-muted max-w-prose text-sm">
-                {view.openStay.property.description}
-              </p>
-            ) : null}
-
-            {view.openStay.property.amenities.length > 0 ? (
-              <ul className="flex flex-wrap gap-2">
-                {view.openStay.property.amenities.map((amenity) => (
-                  <li
-                    key={amenity}
-                    className="border-border text-ink-muted rounded-full border px-2.5 py-0.5 text-xs"
-                  >
-                    {amenity}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
+          <StayProperty
+            stay={view.openStay}
+            backHref={stayHref(params, { property: undefined, reference: undefined })}
+            locator={
+              view.openStay.property.position
+                ? await loadLocator(view.openStay.property.position, { width: 440, height: 330 })
+                : null
+            }
+          >
             <RateComparison
               comparison={view.comparison}
               hrefFor={(entry) => stayHref(params, { reference: entry.rate.id })}
             />
-          </section>
+          </StayProperty>
         ) : null}
       </Container>
     </div>

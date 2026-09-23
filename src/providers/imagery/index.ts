@@ -6,7 +6,7 @@ import { createWikimediaImagery } from './wikimedia';
 import type { DestinationImage, ImageryProvider, ImageryRef } from './types';
 
 export type { DestinationImage, ImageCredit, ImageryProvider, ImageryRef } from './types';
-export { imageryRefFor, illustratedDestinations } from './catalogue';
+export { imageryCodeForPlace, imageryRefFor, illustratedDestinations } from './catalogue';
 export { createWikimediaImagery } from './wikimedia';
 export { imageryUrlFor } from './url';
 

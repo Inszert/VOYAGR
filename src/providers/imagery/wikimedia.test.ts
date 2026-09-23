@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { imageryRefFor } from './catalogue';
+import { imageryCodeForPlace, imageryRefFor } from './catalogue';
 import { createWikimediaImagery } from './wikimedia';
 
 /**
@@ -173,5 +173,12 @@ describe('the imagery catalogue', () => {
 
   it('has nothing to say about a destination nobody has chosen an article for', () => {
     expect(imageryRefFor('ZZZ')).toBeNull();
+  });
+
+  it('finds a typed place only by exact name, never by a partial one', () => {
+    expect(imageryCodeForPlace(' barcelona ')).toBe('BCN');
+    expect(imageryCodeForPlace('Split')).toBe('SPU');
+    expect(imageryCodeForPlace('Barc')).toBeNull();
+    expect(imageryCodeForPlace('')).toBeNull();
   });
 });

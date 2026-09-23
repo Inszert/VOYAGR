@@ -43,6 +43,20 @@ const ARTICLES: Readonly<Record<string, string>> = {
   // of Denpasar or Kuta would put a picture of one town under the name of the
   // island it sits on.
   DPS: 'Bali',
+
+  // Stay destinations. A hotel search names a city rather than an airport, so
+  // these are keyed by the airport a traveller would land at, and reached by
+  // `imageryCodeForPlace` from the city's name.
+  BCN: 'Barcelona',
+  CDG: 'Paris',
+  FCO: 'Rome',
+  LHR: 'London',
+  AMS: 'Amsterdam',
+  VIE: 'Vienna',
+  ATH: 'Athens',
+  PRG: 'Prague',
+  BUD: 'Budapest',
+  MAD: 'Madrid',
 };
 
 /** The lookup for a destination, or null when nobody has chosen one. */
@@ -51,6 +65,26 @@ export function imageryRefFor(code: string): ImageryRef | null {
   if (!title) return null;
 
   return { code: code.toUpperCase(), title, lang: LANG };
+}
+
+/**
+ * The curated code for a place a person typed, or null.
+ *
+ * **An exact match against this file, not a search.** "barcelona" finds the
+ * Barcelona entry because somebody chose that article for that name; "Barc"
+ * finds nothing, and neither does a Barcelona that is not this one. The
+ * place is compared with the article title up to its first comma, so
+ * "Split" matches "Split, Croatia".
+ */
+export function imageryCodeForPlace(place: string): string | null {
+  const wanted = place.trim().toLowerCase();
+  if (wanted.length === 0) return null;
+
+  for (const [code, title] of Object.entries(ARTICLES)) {
+    if (title.split(',')[0]!.trim().toLowerCase() === wanted) return code;
+  }
+
+  return null;
 }
 
 /** Every destination an image can be found for. */

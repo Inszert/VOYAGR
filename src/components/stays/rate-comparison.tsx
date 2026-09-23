@@ -1,6 +1,6 @@
 import { format } from '@/core/money';
 import { DIFFERENCE_LABEL, type PriceComparison } from '@/core/stay/comparison';
-import { SourceTag } from '@/components/ui';
+import { Icon, SourceTag } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { BOARD_LABEL, cancellationLabel } from './stay-card';
 
@@ -44,40 +44,63 @@ function priceDifference(entry: PriceComparison): string {
 export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
   return (
     <section aria-labelledby="compare-heading" className="flex flex-col gap-3">
-      <h2 id="compare-heading" className="text-ink text-lg font-medium">
+      <h2 id="compare-heading" className="font-display text-ink text-2xl">
         Compare prices
       </h2>
 
-      <ul className="flex flex-col gap-2">
+      {/*
+        Rows under a rule, not a stack of boxes. The rate every other is
+        measured from is lit in the place's tint; the conditions carry an
+        icon each so two rates can be compared down a column.
+      */}
+      <ul className="divide-border border-border flex flex-col divide-y border-y">
         {comparison.map((entry) => (
           <li key={entry.rate.id}>
             <div
               className={cn(
-                'border-border bg-surface-raised rounded-[--radius-control] border p-3',
-                entry.isReference && 'border-accent-to',
+                '-mx-3 rounded-(--radius-card) px-3 py-4',
+                entry.isReference && 'bg-tint/10 ring-tint/50 ring-1',
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                   <SourceTag source={entry.rate.source} className="w-fit" />
 
-                  <p className="text-ink text-sm font-medium">
+                  <p className="text-ink text-base font-medium">
                     {entry.rate.roomName ?? 'Room'}
                     {entry.rate.bedConfiguration ? ` · ${entry.rate.bedConfiguration}` : ''}
                   </p>
 
-                  <p className="text-ink-muted text-sm">
-                    {entry.rate.board ? BOARD_LABEL[entry.rate.board] : 'Board not stated'} ·{' '}
-                    {cancellationLabel(entry.rate)}
-                  </p>
-
-                  <p className="text-ink-muted text-sm">
-                    {entry.rate.occupancy.adults} guests · {entry.rate.occupancy.rooms} room
-                    {entry.rate.occupancy.rooms === 1 ? '' : 's'}
-                    {entry.rate.paymentTiming
-                      ? ` · ${entry.rate.paymentTiming === 'pay_now' ? 'Pay now' : 'Pay later'}`
-                      : ''}
-                  </p>
+                  <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                    <li className="text-ink-muted flex items-center gap-1.5">
+                      <Icon name="coffee" size={0.95} className="text-tint-ink" />
+                      {entry.rate.board ? BOARD_LABEL[entry.rate.board] : 'Board not stated'}
+                    </li>
+                    <li
+                      className={cn(
+                        'flex items-center gap-1.5',
+                        entry.rate.cancellation.refundable === true
+                          ? 'text-positive-ink'
+                          : 'text-ink-muted',
+                      )}
+                    >
+                      <Icon name="shield" size={0.95} />
+                      {cancellationLabel(entry.rate)}
+                    </li>
+                    <li className="text-ink-muted flex items-center gap-1.5">
+                      <Icon name="calendar" size={0.95} className="text-tint-ink" />
+                      {entry.rate.paymentTiming
+                        ? entry.rate.paymentTiming === 'pay_now'
+                          ? 'Pay now'
+                          : 'Pay later'
+                        : 'Payment timing not stated'}
+                    </li>
+                    <li className="text-ink-muted flex items-center gap-1.5">
+                      <Icon name="bed" size={0.95} className="text-tint-ink" />
+                      {entry.rate.occupancy.adults} guests · {entry.rate.occupancy.rooms} room
+                      {entry.rate.occupancy.rooms === 1 ? '' : 's'}
+                    </li>
+                  </ul>
 
                   {entry.rate.benefits.length > 0 ? (
                     <p className="text-ink-muted text-sm">{entry.rate.benefits.join(' · ')}</p>
@@ -85,7 +108,7 @@ export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
                 </div>
 
                 <div className="text-right">
-                  <p className="text-ink text-lg font-semibold tabular-nums">
+                  <p className="text-ink text-2xl font-semibold tabular-nums">
                     {format(entry.rate.total)}
                   </p>
                   <p className="text-ink-muted text-sm tabular-nums">
@@ -102,7 +125,11 @@ export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
                   <p
                     className={cn(
                       'mt-1 text-sm',
-                      entry.isReference ? 'text-accent-ink font-medium' : 'text-ink',
+                      entry.isReference
+                        ? 'text-tint-ink font-semibold'
+                        : entry.cheaper
+                          ? 'text-tint-ink'
+                          : 'text-ink',
                     )}
                   >
                     {priceDifference(entry)}
