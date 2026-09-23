@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { canCreateWatch, type Entitlements } from '@/core/entitlements';
-import { minutesUntilRun, nextRunAt, type WatchPriority } from '@/core/watch-schedule';
+import { canCreateWatch, resolveEntitlements, type Entitlements } from '@/core/entitlements';
+import {
+  minutesUntilRun,
+  nextRunAt,
+  resolveIntervalHours,
+  type WatchPriority,
+} from '@/core/watch-schedule';
+import { daysBetween } from '@/core/dates';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { priceTrend, type PriceTrend } from './trend';
 import type { Repositories, TravelWatchRecord, TripSearchRecord } from '@/db/repository';
-import type { SearchProfile } from '@/core/trip/types';
+import type { IsoDate, SearchProfile } from '@/core/trip/types';
 import type { AuthenticatedUser } from '@/auth/service';
 
 /**
@@ -58,6 +64,8 @@ export interface WatchWithSearch {
   readonly observationCount: number;
   /** The cheapest trip at each check, and the change from first to latest. */
   readonly trend: PriceTrend;
+  /** How often this watch checks now: its priority, its plan and how near the trip is. */
+  readonly intervalHours: number;
 }
 
 export interface WatchDependencies {
@@ -70,6 +78,12 @@ export interface SaveSearchInput {
   readonly name: string;
   readonly profile: SearchProfile;
   readonly destinations: readonly string[];
+}
+
+/** Whole days from now's calendar date to a trip's date, or null when unknown. */
+function daysUntil(date: IsoDate | undefined, now: number): number | null {
+  if (!date) return null;
+  return daysBetween(new Date(now).toISOString().slice(0, 10), date);
 }
 
 export class WatchService {
@@ -180,6 +194,8 @@ export class WatchService {
     ]);
 
     const byId = new Map(searches.map((search) => [search.id, search]));
+    const owner = await this.repositories.users.findById(userId);
+    const entitlements = resolveEntitlements(owner?.plan);
 
     const now = this.now();
 
@@ -207,6 +223,11 @@ export class WatchService {
           lowestRecorded: lowest?.amount ?? null,
           observationCount: history.length,
           trend: priceTrend(history, currency),
+          intervalHours: resolveIntervalHours({
+            priority: watch.priority,
+            entitlements,
+            daysToDeparture: daysUntil(search.profile.earliestDeparture, now),
+          }),
         };
       }),
     );
@@ -275,12 +296,19 @@ export class WatchService {
     watchId: string,
     entitlements: Entitlements,
     priority: WatchPriority,
+    /** The trip's earliest departure, so the next check comes sooner as it nears. */
+    earliestDeparture?: IsoDate,
   ): Promise<TravelWatchRecord> {
     const now = this.now();
 
     return this.repositories.travelWatches.update(watchId, {
       lastRunAt: new Date(now).toISOString(),
-      nextRunAt: nextRunAt({ priority, entitlements, now }),
+      nextRunAt: nextRunAt({
+        priority,
+        entitlements,
+        now,
+        daysToDeparture: daysUntil(earliestDeparture, now),
+      }),
     });
   }
 

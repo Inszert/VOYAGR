@@ -33,6 +33,44 @@ export interface ScheduleInput {
   readonly entitlements: Entitlements;
   /** Now, as epoch milliseconds. Passed in; this module owns no clock. */
   readonly now: number;
+  /**
+   * Whole days until the trip's earliest departure, when known. Prices move
+   * faster as a departure nears, so the watch looks more often; months out,
+   * less. Null or absent keeps the priority's own cadence.
+   */
+  readonly daysToDeparture?: number | null;
+}
+
+/**
+ * How the cadence adapts to the distance from departure.
+ *
+ * Read top to bottom: the first window the trip falls in sets the interval.
+ * Never faster than the plan allows - `resolveIntervalHours` clamps it - so on
+ * a plan with a six-hour floor the near windows change nothing, and the page
+ * says what applies rather than promising what the plan does not give.
+ */
+export const ADAPTIVE_WINDOWS: readonly { readonly withinDays: number; readonly hours: number }[] =
+  [
+    { withinDays: 7, hours: 1 },
+    { withinDays: 14, hours: 3 },
+    { withinDays: 60, hours: 6 },
+  ];
+
+/** Beyond the last window: a trip months away changes slowly. */
+const FAR_AWAY_HOURS = 12;
+
+function adaptiveHours(
+  priority: WatchPriority,
+  daysToDeparture: number | null | undefined,
+): number {
+  const base = BASE_INTERVAL_HOURS[priority];
+  if (daysToDeparture === null || daysToDeparture === undefined || daysToDeparture < 0) return base;
+
+  const window = ADAPTIVE_WINDOWS.find((entry) => daysToDeparture <= entry.withinDays);
+  const hours = window ? window.hours : FAR_AWAY_HOURS;
+
+  // A high-priority watch is never made slower by being far away.
+  return priority === 'high' ? Math.min(base, hours) : hours;
 }
 
 /**
@@ -44,7 +82,10 @@ export interface ScheduleInput {
  * nothing left to sell.
  */
 export function resolveIntervalHours(input: Omit<ScheduleInput, 'now'>): number {
-  return Math.max(BASE_INTERVAL_HOURS[input.priority], input.entitlements.minRefreshIntervalHours);
+  return Math.max(
+    adaptiveHours(input.priority, input.daysToDeparture),
+    input.entitlements.minRefreshIntervalHours,
+  );
 }
 
 /** The ISO timestamp a watch should next be picked up at. */

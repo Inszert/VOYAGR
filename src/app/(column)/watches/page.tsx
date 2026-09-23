@@ -24,9 +24,8 @@ import { WatchService } from '@/watches/service';
  * active watch says when it will next check, because a watch that cannot say
  * that is indistinguishable from one that quietly stopped.
  *
- * Nothing runs the watches yet. The scheduler and the workers are 1.6, so a
- * watch here will sit at "due now" until then, and the page says so rather than
- * implying work is happening that is not.
+ * The worker runs them on an adaptive schedule where a shared queue exists;
+ * where none does, the page says so, and Check now runs one on demand.
  */
 
 export const metadata: Metadata = { title: 'Your watches' };
@@ -58,7 +57,8 @@ export default async function WatchesPage() {
         */}
         <p className="text-ink-muted mt-2 max-w-2xl text-sm">
           Save any search to watch it automatically, or add one by hand below. A watch checks itself
-          every {user.entitlements.minRefreshIntervalHours} hours at most; use Check now to look
+          more often as its trip gets closer, never more than once every{' '}
+          {user.entitlements.minRefreshIntervalHours} hours on your plan; use Check now to look
           straight away.
         </p>
       </div>

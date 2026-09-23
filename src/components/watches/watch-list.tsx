@@ -40,6 +40,7 @@ export interface WatchRow {
   readonly lowestRecorded: TravelWatchRecord['bestKnownTotal'];
   readonly observationCount: number;
   readonly trend: PriceTrend;
+  readonly intervalHours: number;
 }
 
 export interface WatchListProps {
@@ -238,110 +239,130 @@ export function WatchList({
       can be done with it.
     */
     <ul className="divide-border border-border flex flex-col divide-y border-y">
-      {rows.map(({ watch, search, nextRunLabel, lowestRecorded, observationCount, trend }) => (
-        <li key={watch.id}>
-          <article aria-labelledby={`watch-${watch.id}`} className="py-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 id={`watch-${watch.id}`} className="font-display text-ink text-xl">
-                  {search.name}
-                </h3>
-                <p className="text-ink-muted text-sm">
-                  {search.destinations.join(', ')} · {search.profile.earliestDeparture} to{' '}
-                  {search.profile.latestReturn} · {search.profile.minNights}–
-                  {search.profile.maxNights} nights
-                </p>
+      {rows.map(
+        ({
+          watch,
+          search,
+          nextRunLabel,
+          lowestRecorded,
+          observationCount,
+          trend,
+          intervalHours,
+        }) => (
+          <li key={watch.id}>
+            <article aria-labelledby={`watch-${watch.id}`} className="py-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 id={`watch-${watch.id}`} className="font-display text-ink text-xl">
+                    {search.name}
+                  </h3>
+                  <p className="text-ink-muted text-sm">
+                    {search.destinations.join(', ')} · {search.profile.earliestDeparture} to{' '}
+                    {search.profile.latestReturn} · {search.profile.minNights}–
+                    {search.profile.maxNights} nights
+                  </p>
+                </div>
+
+                <Badge tone={STATUS_TONE[watch.status]} srPrefix="Status">
+                  {STATUS_LABEL[watch.status]}
+                </Badge>
               </div>
 
-              <Badge tone={STATUS_TONE[watch.status]} srPrefix="Status">
-                {STATUS_LABEL[watch.status]}
-              </Badge>
-            </div>
-
-            <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-              <div className="flex justify-between gap-4">
-                <dt className="text-ink-muted">Next check</dt>
-                <dd className="text-ink">{nextRunLabel}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-ink-muted">Last checked</dt>
-                <dd className="text-ink">
-                  {watch.lastRunAt ? watch.lastRunAt.slice(0, 16).replace('T', ' ') : 'Not yet'}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-ink-muted">Best seen so far</dt>
-                <dd className="text-ink tabular-nums">
-                  {lowestRecorded ? format(lowestRecorded) : 'Nothing yet'}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-ink-muted">Prices recorded</dt>
-                {/*
+              <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Next check</dt>
+                  <dd className="text-ink">{nextRunLabel}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Checks every</dt>
+                  {/*
+                  Adaptive: sooner as the trip nears, never faster than the
+                  plan allows. The figure is the schedule's own.
+                */}
+                  <dd className="text-ink tabular-nums">
+                    {intervalHours === 1 ? 'hour' : `${intervalHours} hours`}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Last checked</dt>
+                  <dd className="text-ink">
+                    {watch.lastRunAt ? watch.lastRunAt.slice(0, 16).replace('T', ' ') : 'Not yet'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Best seen so far</dt>
+                  <dd className="text-ink tabular-nums">
+                    {lowestRecorded ? format(lowestRecorded) : 'Nothing yet'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Prices recorded</dt>
+                  {/*
                   Shown because "best seen so far" means nothing without knowing
                   how much looking is behind it. One observation is not a trend.
                 */}
-                <dd className="text-ink tabular-nums">{observationCount}</dd>
+                  <dd className="text-ink tabular-nums">{observationCount}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Budget ceiling</dt>
+                  <dd className="text-ink tabular-nums">{format(search.profile.maxBudget)}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-4">
+                <TrendSummary trend={trend} />
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-ink-muted">Budget ceiling</dt>
-                <dd className="text-ink tabular-nums">{format(search.profile.maxBudget)}</dd>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {watch.status === 'active' ? (
+                  <WatchAction
+                    action={checkAction}
+                    watchId={watch.id}
+                    label="Check now"
+                    variant="secondary"
+                  />
+                ) : null}
+
+                {watch.status === 'active' ? (
+                  <WatchAction
+                    action={pauseAction}
+                    watchId={watch.id}
+                    label="Pause"
+                    variant="secondary"
+                  />
+                ) : watch.status === 'paused' ? (
+                  <WatchAction
+                    action={resumeAction}
+                    watchId={watch.id}
+                    label="Resume"
+                    variant="secondary"
+                  />
+                ) : null}
+
+                {watch.status !== 'archived' ? (
+                  <WatchAction
+                    action={archiveAction}
+                    watchId={watch.id}
+                    label="Archive"
+                    variant="ghost"
+                  />
+                ) : null}
+
+                <Link
+                  href={searchHref(search)}
+                  className="text-tint-ink text-sm underline underline-offset-4"
+                >
+                  Run this search now
+                </Link>
+
+                <span className="ml-auto">
+                  <DeleteWatch action={deleteAction} watchId={watch.id} name={search.name} />
+                </span>
               </div>
-            </dl>
-
-            <div className="mt-4">
-              <TrendSummary trend={trend} />
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              {watch.status === 'active' ? (
-                <WatchAction
-                  action={checkAction}
-                  watchId={watch.id}
-                  label="Check now"
-                  variant="secondary"
-                />
-              ) : null}
-
-              {watch.status === 'active' ? (
-                <WatchAction
-                  action={pauseAction}
-                  watchId={watch.id}
-                  label="Pause"
-                  variant="secondary"
-                />
-              ) : watch.status === 'paused' ? (
-                <WatchAction
-                  action={resumeAction}
-                  watchId={watch.id}
-                  label="Resume"
-                  variant="secondary"
-                />
-              ) : null}
-
-              {watch.status !== 'archived' ? (
-                <WatchAction
-                  action={archiveAction}
-                  watchId={watch.id}
-                  label="Archive"
-                  variant="ghost"
-                />
-              ) : null}
-
-              <Link
-                href={searchHref(search)}
-                className="text-tint-ink text-sm underline underline-offset-4"
-              >
-                Run this search now
-              </Link>
-
-              <span className="ml-auto">
-                <DeleteWatch action={deleteAction} watchId={watch.id} name={search.name} />
-              </span>
-            </div>
-          </article>
-        </li>
-      ))}
+            </article>
+          </li>
+        ),
+      )}
     </ul>
   );
 }

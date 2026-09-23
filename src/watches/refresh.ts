@@ -159,7 +159,7 @@ export async function refreshWatch(
       : false;
 
   // Always last, and always reached.
-  await service.recordRun(watchId, entitlements, watch.priority);
+  await service.recordRun(watchId, entitlements, watch.priority, saved.profile.earliestDeparture);
 
   const candidatesFound = outcome?.results.length ?? 0;
 
