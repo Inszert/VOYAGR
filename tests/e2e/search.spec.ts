@@ -116,6 +116,7 @@ test.describe('discovery', () => {
     await expect(page.getByRole('heading', { name: /trips? match|No trip matched/ })).toBeVisible({
       timeout: 20_000,
     });
+    await page.getByRole('link', { name: 'Change search' }).click();
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('combobox', { name: 'Optimise for' })).toHaveValue('cheapest');
   });
@@ -141,6 +142,7 @@ test.describe('discovery', () => {
 
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/travelStyle=explore/);
+    await page.getByRole('link', { name: 'Change search' }).click();
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('combobox', { name: 'Travel style' })).toHaveValue('explore');
   });
@@ -163,6 +165,9 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();
+    // The results carry no form; the one "Change search" opens is filled in
+    // from the URL, so nothing about the search is lost on the way.
+    await page.getByRole('link', { name: 'Change search' }).click();
     await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('VIE');
   });
 

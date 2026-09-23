@@ -96,10 +96,51 @@ describe('RouteLine', () => {
     expect(screen.getByText('12:15')).toBeInTheDocument();
   });
 
-  it('tells a screen reader which leg it is hearing', () => {
+  it('names which leg it is, for everyone and not only a screen reader', () => {
     render(<RouteLine leg={leg()} label="Return" />);
 
-    expect(screen.getByText(/Return:/)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Return' })).toBeInTheDocument();
+    expect(screen.getByText('Return')).toBeVisible();
+    // With the day it flies, read from the provider's own local date.
+    expect(screen.getByText('Sat 6 Jun')).toBeInTheDocument();
+  });
+
+  it('names the airline by the code the provider gave, and the flight number', () => {
+    render(<RouteLine leg={leg()} label="Outbound" />);
+
+    expect(screen.getByText('OS431')).toBeInTheDocument();
+  });
+
+  it('says a bag the provider did not mention is not stated, never not included', () => {
+    render(<RouteLine leg={leg()} label="Outbound" />);
+
+    expect(screen.getByText('Cabin bag included')).toBeInTheDocument();
+    expect(screen.getByText('Checked bag not stated')).toBeInTheDocument();
+    expect(screen.queryByText('No checked bag')).not.toBeInTheDocument();
+  });
+
+  it('marks an arrival on a later calendar day', () => {
+    render(
+      <RouteLine
+        leg={leg({
+          segments: [
+            {
+              origin: 'VIE',
+              destination: 'BKK',
+              departsAt: '2026-06-06T22:30:00',
+              arrivesAt: '2026-06-07T14:10:00',
+              carrier: 'OS',
+              flightNumber: 'OS25',
+            },
+          ],
+          durationMinutes: 640,
+        })}
+        label="Outbound"
+      />,
+    );
+
+    expect(screen.getByText('14:10')).toBeInTheDocument();
+    expect(screen.getByText(/day later/)).toBeInTheDocument();
   });
 
   it('renders nothing rather than a half a line when a leg has no segments', () => {

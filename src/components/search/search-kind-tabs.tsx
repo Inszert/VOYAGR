@@ -57,10 +57,10 @@ export function SearchKindTabs({ active, hrefFor, className }: SearchKindTabsPro
                  */
                 aria-current={current ? 'page' : undefined}
                 className={cn(
-                  'border-hairline focus-visible:outline-accent-to inline-flex items-center gap-2 rounded-[--radius-pill] border px-3.5 py-2 text-sm transition-colors',
+                  'border-hairline focus-visible:outline-accent-to inline-flex items-center gap-2 rounded-(--radius-pill) border px-3.5 py-2 text-sm transition-colors',
                   'focus-visible:outline-2 focus-visible:outline-offset-2',
                   current
-                    ? 'bg-panel-2 text-text border-[--color-accent-to] font-medium'
+                    ? 'bg-panel-2 text-text border-(--color-accent-to) font-medium'
                     : 'text-muted hover:text-text',
                 )}
               >

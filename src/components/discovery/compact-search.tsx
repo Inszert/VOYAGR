@@ -54,6 +54,11 @@ export interface CompactSearchProps extends SearchFormProps {
   today: string;
   /** The traveller's own defaults, which a lens may not override. */
   lensDefaults?: Readonly<Record<string, string>>;
+  /**
+   * The page the form is on, when that is not where it submits to. Choosing
+   * between flights and the whole trip before searching stays here.
+   */
+  here?: '/' | '/explore';
 }
 
 /**
@@ -94,8 +99,11 @@ export function CompactSearch({
   airports,
   today,
   lensDefaults,
+  here = action,
 }: CompactSearchProps) {
   const form = readForm(values, { ...defaults, destinations: destinationsDefault });
+  // The whole trip unless flights alone were asked for: the unit is the trip.
+  const view = values.view === 'flight' ? 'flight' : 'trip';
   const style = form.value('travelStyle');
 
   return (
@@ -128,12 +136,22 @@ export function CompactSearch({
 
                 return (
                   <li key={category.id} className="shrink-0">
+                    {/*
+                      The description describes; it does not name. Folded into
+                      the link's name it made every lens a sentence long, and
+                      "Travel cheaply" answered to "Cheapest" beside the map's
+                      own Cheapest ranking. It is the link's description now.
+                    */}
+                    <span id={`lens-${category.id}-description`} className="sr-only">
+                      {category.description}
+                    </span>
                     <Link
-                      href={`/?${categoryQuery({ category, today, defaults: lensDefaults ?? defaults })}`}
+                      href={`${action}?${categoryQuery({ category, today, defaults: lensDefaults ?? defaults })}`}
                       aria-current={active ? 'true' : undefined}
+                      aria-describedby={`lens-${category.id}-description`}
                       title={category.description}
                       className={[
-                        'ease-standard duration-quick inline-flex items-center rounded-[--radius-pill] px-3.5 py-2 text-[13px] whitespace-nowrap transition-colors',
+                        'ease-standard duration-quick inline-flex items-center rounded-(--radius-pill) px-3.5 py-2 text-[13px] whitespace-nowrap transition-colors',
                         'focus-visible:outline-accent-ink',
                         active
                           ? 'bg-field border-hairline text-text border font-medium'
@@ -141,7 +159,6 @@ export function CompactSearch({
                       ].join(' ')}
                     >
                       {category.title}
-                      <span className="sr-only">. {category.description}</span>
                     </Link>
                   </li>
                 );
@@ -164,15 +181,30 @@ export function CompactSearch({
           reload, a bookmark and the back button - and works with no
           JavaScript, like every other search control here.
         */}
+        {/*
+          Flights, or the whole trip, is a way of *reading* the same search -
+          which price leads each result - so both stay on this page and on the
+          search, carried as `view`. A stay on its own is a different search
+          with a different form, and only that one leaves for `/stays`.
+        */}
         <SearchKindTabs
-          active="flights"
-          hrefFor={(kind) =>
-            kind === 'stays' ? '/stays' : kind === 'both' ? '/stays?with=flights' : '/'
-          }
+          active={view === 'flight' ? 'flights' : 'both'}
+          hrefFor={(kind) => {
+            if (kind === 'stays') return '/stays';
+            const next = new URLSearchParams(
+              Object.entries(values).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[1] === 'string' && entry[0] !== 'view',
+              ),
+            );
+            next.set('view', kind === 'flights' ? 'flight' : 'trip');
+            return `${values.origins ? action : here}?${next.toString()}`;
+          }}
           className="px-2.5 pt-2.5"
         />
 
         <form method="get" action={action} className="flex flex-col gap-2.5">
+          <input type="hidden" name="view" value={view} />
           {Object.entries(carry).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}
@@ -318,7 +350,7 @@ export function CompactSearch({
             <Button
               type="submit"
               variant="cta"
-              className="mt-2.5 h-12 w-full rounded-[--radius-pill] px-5 text-[14px] font-medium sm:absolute sm:top-1/2 sm:right-0 sm:mt-0 sm:w-auto sm:-translate-y-1/2"
+              className="mt-2.5 h-12 w-full rounded-(--radius-pill) px-5 text-[14px] font-medium sm:absolute sm:top-1/2 sm:right-0 sm:mt-0 sm:w-auto sm:-translate-y-1/2"
             >
               Search trips
               <Icon name="arrow-right" size={1} className="size-[16px]" />
@@ -343,7 +375,7 @@ export function CompactSearch({
               ends up looking like a footnote. It is a pill like the lenses
               above it now, and the glyph turns when it is open.
             */}
-            <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex cursor-pointer list-none items-center gap-2 rounded-[--radius-pill] border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
+            <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
               <Icon
                 name="plus"
                 size={1}

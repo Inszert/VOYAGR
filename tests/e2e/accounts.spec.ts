@@ -205,9 +205,11 @@ test.describe('preferences and the search form', () => {
     await page.getByRole('combobox', { name: /^From/ }).fill('VIE');
     await page.getByRole('button', { name: 'Search trips' }).click();
 
-    // The search that ran is the one in front of the user, not the saved one.
-    await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('VIE');
+    // The search that ran is the one in front of the user, not the saved one:
+    // in the address, and in the form "Change search" opens.
     await expect(page).toHaveURL(/origins=VIE/);
+    await page.getByRole('link', { name: 'Change search' }).click();
+    await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('VIE');
   });
 
   test('changing a password signs every session out', async ({ page }) => {

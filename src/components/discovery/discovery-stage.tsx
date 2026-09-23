@@ -207,6 +207,7 @@ export function DiscoveryStage({
                 defaults={defaults}
                 errors={errors}
                 action={action}
+                here="/"
                 destinationsDefault={destinationsDefault}
                 destinationsHint={destinationsHint}
                 carry={carry}
@@ -277,7 +278,7 @@ export function DiscoveryStage({
                 <a
                   href={featured.href}
                   data-globe-overlay
-                  className="voyagr-panel ease-standard duration-settled focus-visible:outline-stage-accent group flex items-center gap-3 overflow-hidden rounded-[12px] p-2.5 transition-[border-color,transform] hover:border-[--color-stage-accent] motion-safe:hover:-translate-y-0.5 lg:absolute lg:bottom-6 lg:left-6 lg:z-10 lg:w-[19.5rem]"
+                  className="voyagr-panel ease-standard duration-settled focus-visible:outline-stage-accent group flex items-center gap-3 overflow-hidden rounded-[12px] p-2.5 transition-[border-color,transform] hover:border-(--color-stage-accent) motion-safe:hover:-translate-y-0.5 lg:absolute lg:bottom-6 lg:left-6 lg:z-10 lg:w-[19.5rem]"
                 >
                   <span
                     aria-hidden="true"
@@ -310,7 +311,7 @@ export function DiscoveryStage({
 
                   <span
                     aria-hidden="true"
-                    className="text-muted ease-standard duration-quick mr-1 shrink-0 transition-colors group-hover:text-[--color-accent-ink]"
+                    className="text-muted ease-standard duration-quick mr-1 shrink-0 transition-colors group-hover:text-(--color-accent-ink)"
                   >
                     <Icon name="arrow-right" size={1} className="size-[16px]" />
                   </span>

@@ -53,6 +53,7 @@ function buildDiagnostics(overrides: Record<string, unknown> = {}) {
     candidatesEvaluated: 212,
     eligibleCount: 192,
     ineligibleCount: 20,
+    quoteFreshness: { fresh: 1, stale: 0, unknown: 0 },
     durationMs: 0,
     ...overrides,
   } as never;
@@ -391,6 +392,35 @@ describe('data provenance', () => {
     );
 
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
+  it('says before the results when some quotes may have moved', async () => {
+    const { SearchResults } = await import('./search-results');
+    const trip = buildRankedTrip();
+
+    render(
+      <SearchResults
+        profile={buildProfile()}
+        filters={NO_FILTERS}
+        searchValues={{}}
+        outcome={
+          {
+            results: [trip],
+            nearMisses: [],
+            routeOffers: [],
+            destinationSummaries: summariseDestinations([trip]),
+            diagnostics: buildDiagnostics({
+              quoteFreshness: { fresh: 0, stale: 1, unknown: 0 },
+            }),
+          } as never
+        }
+      />,
+    );
+
+    expect(screen.getByText('Some prices may have moved')).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 of these trips carries a quote that has expired/),
+    ).toBeInTheDocument();
   });
 
   it('puts the source beside the price, not in a footnote', () => {

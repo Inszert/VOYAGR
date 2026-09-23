@@ -24,7 +24,9 @@ import { summariseReasons, type TripReason } from '@/search/explain';
 import { RouteLine } from './route-line';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
-import { SwapPanel } from './swap-panel';
+import { DateSwapPanel, SwapPanel } from './swap-panel';
+import type { BuiltTrip, DateChoice } from '@/search/trip-builder';
+import { tintFor } from '@/lib/tint';
 import { WarningList } from './warning-list';
 import { shortDate } from '@/lib/display-date';
 
@@ -50,6 +52,17 @@ const RANK_LABEL = ['Best match', 'Runner-up', 'Third'] as const;
  * rule between them is three edges where one was wanted.
  */
 const ROW = 'rounded-none border-0';
+
+/**
+ * A source tag inside a fact cell.
+ *
+ * The tag never wraps anywhere else, but on a phone a cell is half the card
+ * and `DUFFEL FLIGHT TEST DATA` is wider than that, so here it may break onto
+ * a second line rather than run into the next cell. The doubled class is for
+ * specificity: `.voyagr-source` lives in the same layer as these utilities.
+ */
+const FACT_TAG =
+  'mt-2 flex w-fit max-w-full flex-wrap gap-y-0 [&.voyagr-source]:rounded-(--radius-control) [&.voyagr-source]:whitespace-normal';
 
 /**
  * A phrase from `explain.ts`, as its own line.
@@ -119,6 +132,32 @@ export interface TripCardProps {
   flightAlternatives?: readonly Alternative[];
   hotelAlternatives?: readonly Alternative[];
   /**
+   * The trip as the traveller is building it, and where each choice goes.
+   *
+   * When present, the swap panels offer every option as a link that rebuilds
+   * the trip, a third panel moves it to other dates, and the card says what
+   * the changes did to the total. The card itself renders `builder.built.trip`
+   * - the caller passes that as `trip` as well, so there is one source.
+   */
+  builder?: {
+    readonly built: BuiltTrip;
+    readonly flightHref: (offerId: string) => string;
+    readonly hotelHref: (offerId: string) => string;
+    readonly dateHref: (choice: DateChoice) => string;
+    readonly resetHref: string;
+  };
+  /**
+   * Which price leads: the whole trip's, or the flights' alone.
+   *
+   * Reading, not recomputing. Both figures are the engine's - the trip total
+   * and the fare as quoted - and the ranking is the same either way.
+   */
+  view?: 'trip' | 'flight';
+  /** Opens this trip in the builder. For the cards that are not already in it. */
+  buildHref?: string;
+  /** Replaces the rank as the eyebrow, e.g. "Your trip". */
+  label?: string;
+  /**
    * The destination's photograph, when one was found.
    *
    * Optional, and absent everywhere the card is rendered without a page having
@@ -136,6 +175,10 @@ export function TripCard({
   flightAlternatives = [],
   hotelAlternatives = [],
   image = null,
+  builder,
+  view = 'trip',
+  buildHref,
+  label,
 }: TripCardProps) {
   /*
    * Which provider supplied one part of this trip.
@@ -171,7 +214,7 @@ export function TripCard({
         </>
       ),
       detail: sourceFor('flights') ? (
-        <SourceTag source={sourceFor('flights')!} className="mt-2 flex w-fit" />
+        <SourceTag source={sourceFor('flights')!} className={FACT_TAG} />
       ) : null,
     },
     {
@@ -185,7 +228,7 @@ export function TripCard({
         </>
       ),
       detail: sourceFor('hotels') ? (
-        <SourceTag source={sourceFor('hotels')!} className="mt-2 flex w-fit" />
+        <SourceTag source={sourceFor('hotels')!} className={FACT_TAG} />
       ) : null,
     },
     {
@@ -210,7 +253,7 @@ export function TripCard({
 
   const flightLink = buildFlightHandoff(candidate.flight, { candidateId: candidate.id });
   const hotelLink = buildHotelHandoff(candidate.hotel, { candidateId: candidate.id });
-  const rankLabel = RANK_LABEL[rank];
+  const rankLabel = label ?? RANK_LABEL[rank];
 
   /*
    * Three densities, which is what stops the page being one long column of
@@ -239,6 +282,8 @@ export function TripCard({
       // others are the alternatives to it.
       elevation={featured ? 'floating' : compact ? 'flat' : 'raised'}
       feature={featured}
+      // The destination's own colour, for what on this card is tinted.
+      data-tint={tintFor(candidate.destination)}
       className={cn('flex flex-col', compact ? 'gap-3' : 'gap-4')}
     >
       {/*
@@ -262,10 +307,10 @@ export function TripCard({
         className={cn(
           'stage-scope flex flex-col justify-end',
           featured
-            ? '-mx-7 -mt-7 min-h-[17rem] rounded-t-[--radius-surface] p-7'
+            ? '-mx-7 -mt-7 min-h-[17rem] rounded-t-(--radius-surface) p-7'
             : compact
-              ? '-mx-5 -mt-5 min-h-[9rem] rounded-t-[--radius-card] p-5'
-              : '-mx-5 -mt-5 min-h-[13rem] rounded-t-[--radius-card] p-5',
+              ? '-mx-5 -mt-5 min-h-[9rem] rounded-t-(--radius-card) p-5'
+              : '-mx-5 -mt-5 min-h-[13rem] rounded-t-(--radius-card) p-5',
         )}
       >
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
@@ -312,12 +357,16 @@ export function TripCard({
             figure somebody comparing ten of these is actually reading.
           */}
           <Price
-            amount={format(cost.total)}
+            amount={format(view === 'flight' ? candidate.flight.price : cost.total)}
             size={featured ? 'xl' : compact ? 'md' : 'lg'}
             align="end"
             onImage
             badge={<ProvenanceBadge provenance={provenance} explain={false} />}
-            caption={`total · ${format(cost.perPerson)} each · ${format(cost.perNight)} a night`}
+            caption={
+              view === 'flight'
+                ? `flights for ${candidate.passengers} · whole trip ${format(cost.total)}`
+                : `total · ${format(cost.perPerson)} each · ${format(cost.perNight)} a night`
+            }
             note={
               <div className="flex flex-col items-end gap-1.5">
                 <p
@@ -335,6 +384,7 @@ export function TripCard({
                     figure is still the engine's; only the minus sign, which
                     "over" already said, is dropped.
                   */}
+                  {view === 'flight' ? 'Whole trip: ' : ''}
                   {eligibility.budgetHeadroom.amount >= 0
                     ? `${format(eligibility.budgetHeadroom)} under your maximum`
                     : `${format(abs(eligibility.budgetHeadroom))} over your maximum`}
@@ -350,6 +400,41 @@ export function TripCard({
         </div>
       </Media>
 
+      {builder?.built.customised ? (
+        /*
+          What the traveller's choices did, against where they started.
+
+          Both totals are the engine's; the difference is the builder's
+          subtraction of the two. Reset is a link back to the unbuilt trip.
+        */
+        <div className="border-tint/40 bg-tint/10 flex flex-wrap items-center justify-between gap-3 rounded-(--radius-card) border px-4 py-3 text-sm">
+          <p className="text-ink">
+            <span className="text-tint-ink font-semibold">Built by you.</span>{' '}
+            {builder.built.deltaFromOriginal
+              ? builder.built.deltaFromOriginal.amount === 0
+                ? 'Same total as the trip you started from.'
+                : `${format(abs(builder.built.deltaFromOriginal))} ${
+                    builder.built.deltaFromOriginal.amount < 0 ? 'cheaper' : 'more'
+                  } than the trip you started from (${format(builder.built.original.cost.total)}).`
+              : 'The trip you started from was priced in another currency.'}
+          </p>
+          <a
+            href={builder.resetHref}
+            className="text-tint-ink text-sm font-medium underline underline-offset-4"
+          >
+            Back to the original
+          </a>
+        </div>
+      ) : null}
+
+      {view === 'flight' ? (
+        <p className="text-ink-muted -mt-1 text-sm">
+          Showing the flights&rsquo; price. The hotel on this trip,{' '}
+          <span className="text-ink">{candidate.hotel.name}</span>, adds{' '}
+          <span className="text-ink tabular-nums">{format(candidate.hotel.totalPrice)}</span>.
+        </p>
+      ) : null}
+
       {/*
         The journey, drawn the way the globe draws it.
 
@@ -357,10 +442,30 @@ export function TripCard({
         when it leaves, where it stops, when it lands - is the thing somebody
         comparing trips is actually reading, and it is the same shape as the
         arc they clicked to get here.
+
+        Side by side where there is room, so each line is as long as a journey
+        needs to be rather than the width of the card, and the two legs read as
+        a pair; stacked on anything narrower. One rule between them either way,
+        not a box around each.
       */}
-      <div className="border-border flex flex-col gap-2 border-y py-3">
-        <RouteLine leg={candidate.flight.outbound} label="Outbound" />
-        <RouteLine leg={candidate.flight.inbound} label="Return" />
+      <div
+        role="group"
+        aria-label="Flights"
+        className={cn(
+          'border-border divide-border flex flex-col divide-y border-y lg:flex-row lg:divide-x lg:divide-y-0',
+          compact ? 'py-1' : 'py-2',
+        )}
+      >
+        <RouteLine
+          leg={candidate.flight.outbound}
+          label="Outbound"
+          className="py-3 lg:flex-1 lg:py-2 lg:pr-6"
+        />
+        <RouteLine
+          leg={candidate.flight.inbound}
+          label="Return"
+          className="py-3 lg:flex-1 lg:py-2 lg:pl-6"
+        />
       </div>
 
       {/*
@@ -412,7 +517,7 @@ export function TripCard({
               {reasons.map((reason) => (
                 <li
                   key={reason.source}
-                  className="border-border bg-surface-sunken text-ink inline-flex items-center rounded-[--radius-pill] border px-3 py-1 text-sm"
+                  className="border-border bg-surface-sunken text-ink inline-flex items-center rounded-(--radius-pill) border px-3 py-1 text-sm"
                 >
                   {sentenceCase(reason.text)}
                 </li>
@@ -442,7 +547,7 @@ export function TripCard({
       </div>
 
       {eligibility.violations.length > 0 ? (
-        <div className="border-critical-500/30 bg-critical-500/10 rounded-[--radius-control] border p-3">
+        <div className="border-critical-500/30 bg-critical-500/10 rounded-(--radius-control) border p-3">
           <h4 className="text-critical-ink text-sm font-medium">Outside what you asked for</h4>
           <ul className="mt-1 flex flex-col gap-1">
             {eligibility.violations.map((violation) => (
@@ -471,7 +576,54 @@ export function TripCard({
         same five disclosures, the same markup and the same behaviour - the
         browser still supplies all of it - and it looks like part of the card.
       */}
-      <div className="border-border divide-border divide-y overflow-hidden rounded-[--radius-card] border">
+      {/*
+        Build it your way: its own group, named, above the details.
+
+        Folded in among the cost breakdown and the score these read as more
+        small print. They are the one thing on the card a person can *do*
+        before booking, so they get a heading and the tint.
+      */}
+      {builder || flightAlternatives.length > 1 || hotelAlternatives.length > 1 ? (
+        <section aria-labelledby={`${headingId}-build`} className="flex flex-col gap-2">
+          <h4 id={`${headingId}-build`} className="text-tint-ink text-sm font-semibold">
+            Build it your way
+          </h4>
+          <div className="border-tint/35 divide-border divide-y overflow-hidden rounded-(--radius-card) border">
+            {/*
+            Build it your way.
+
+            With a builder, every flight, hotel and set of dates the search saw
+            for this trip is a link that rebuilds it; without one, the panels
+            compare and the last row opens this trip in the builder.
+          */}
+            <SwapPanel
+              heading="Change the flight"
+              alternatives={builder ? builder.built.flights : flightAlternatives}
+              currency={cost.total.currency}
+              {...(builder ? { hrefFor: (option) => builder.flightHref(option.offerId) } : {})}
+              className={ROW}
+            />
+
+            <SwapPanel
+              heading="Change the hotel"
+              alternatives={builder ? builder.built.hotels : hotelAlternatives}
+              currency={cost.total.currency}
+              {...(builder ? { hrefFor: (option) => builder.hotelHref(option.offerId) } : {})}
+              className={ROW}
+            />
+
+            {builder ? (
+              <DateSwapPanel
+                choices={builder.built.dates}
+                hrefFor={builder.dateHref}
+                className={ROW}
+              />
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="border-border divide-border divide-y overflow-hidden rounded-(--radius-card) border">
         <Disclosure summary="Full cost breakdown" className={ROW}>
           <CostBreakdown
             cost={cost}
@@ -483,20 +635,6 @@ export function TripCard({
         <Disclosure summary={`How the score of ${score.score} was calculated`} className={ROW}>
           <ScoreExplanation score={score} headingId={scoreId} />
         </Disclosure>
-
-        <SwapPanel
-          heading="Change the flight"
-          alternatives={flightAlternatives}
-          currency={cost.total.currency}
-          className={ROW}
-        />
-
-        <SwapPanel
-          heading="Change the hotel"
-          alternatives={hotelAlternatives}
-          currency={cost.total.currency}
-          className={ROW}
-        />
 
         <Disclosure summary="Flight and hotel details" className={ROW}>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -538,6 +676,16 @@ export function TripCard({
         pretending the second does not exist - and neither is a claim about
         booking, because both hand off to the provider that quoted the price.
       */}
+      {buildHref ? (
+        <a
+          href={buildHref}
+          className="text-tint-ink -mt-1 inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
+        >
+          Change the flight, hotel or dates of this trip
+          <Icon name="arrow-right" size={0.9} />
+        </a>
+      ) : null}
+
       {flightLink || hotelLink ? (
         <div className="border-border flex flex-wrap items-center gap-3 border-t pt-4">
           {flightLink ? (

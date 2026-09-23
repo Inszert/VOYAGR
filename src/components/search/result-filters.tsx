@@ -29,6 +29,8 @@ export interface ResultFiltersPanelProps {
   /** How many results the current filters removed. */
   hidden: number;
   currency: string;
+  /** The page the results are on. */
+  basePath?: string;
 }
 
 const DEPARTURE_OPTIONS = [
@@ -50,6 +52,7 @@ export function ResultFiltersPanel({
   searchValues,
   hidden,
   currency,
+  basePath = '/explore',
 }: ResultFiltersPanelProps) {
   /*
    * The same search with every filter key dropped.
@@ -57,7 +60,7 @@ export function ResultFiltersPanel({
    * Built from `FILTER_KEYS` rather than from a prefix, so a filter renamed
    * in `src/search/filters.ts` cannot quietly stop being clearable.
    */
-  const clearHref = `/?${new URLSearchParams(
+  const clearHref = `${basePath}?${new URLSearchParams(
     Object.entries(searchValues).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string' && !isFilterKey(entry[0]),
     ),
@@ -73,22 +76,19 @@ export function ResultFiltersPanel({
       big a decision as choosing. Filters are a parameter surface: a hairline,
       a sunken ground and compact controls say so without shouting.
     */
-    <section
-      aria-labelledby="filters-heading"
-      className="border-border bg-surface-sunken rounded-[--radius-card] border px-5 py-4"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="filters-heading" className="text-ink text-base font-semibold">
+    <section aria-labelledby="filters-heading" className="flex flex-col">
+      <div className="flex flex-col gap-1">
+        <h2 id="filters-heading" className="font-display text-ink text-xl">
           Narrow these results
         </h2>
-        <p className="text-ink-muted text-sm">
+        <p className={hidden > 0 ? 'text-tint-ink text-sm' : 'text-ink-muted text-sm'}>
           {hidden > 0
             ? `${hidden} ${hidden === 1 ? 'trip is' : 'trips are'} hidden by your filters`
             : 'Filters narrow what the search already found. They do not search again.'}
         </p>
       </div>
 
-      <form method="get" action="/" className="mt-5 flex flex-col gap-5">
+      <form method="get" action={basePath} className="mt-4 flex flex-col gap-5">
         {/*
           The search itself, carried along. A form submits what it contains,
           and losing the search while narrowing it would be a strange way to
@@ -101,7 +101,9 @@ export function ResultFiltersPanel({
           ))}
 
         <fieldset className="flex flex-col gap-3">
-          <legend className="text-ink text-sm font-semibold">Flights</legend>
+          <legend className="text-dim mb-1 text-[11px] font-semibold tracking-[0.08em] uppercase">
+            Flights
+          </legend>
 
           <div className="flex flex-wrap gap-2">
             <ToggleChip name="fDirect" label="Direct only" defaultChecked={filters.directOnly} />
@@ -117,13 +119,13 @@ export function ResultFiltersPanel({
             result card to say so. A supporting control that is as large as
             the thing it supports is a control competing with it.
           */}
-          <div className="flex flex-wrap gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <Select
               label="Leaves"
               name="fDepartAfter"
               defaultValue={filters.departAfterHour === null ? '' : String(filters.departAfterHour)}
               options={DEPARTURE_OPTIONS}
-              className="w-[10.5rem]"
+              className="w-full"
             />
             <Select
               label="Lands"
@@ -132,13 +134,15 @@ export function ResultFiltersPanel({
                 filters.arriveBeforeHour === null ? '' : String(filters.arriveBeforeHour)
               }
               options={ARRIVAL_OPTIONS}
-              className="w-[10.5rem]"
+              className="w-full"
             />
           </div>
         </fieldset>
 
         <fieldset className="flex flex-col gap-3">
-          <legend className="text-ink text-sm font-semibold">Stay and cost</legend>
+          <legend className="text-dim mb-1 text-[11px] font-semibold tracking-[0.08em] uppercase">
+            Stay and cost
+          </legend>
 
           <div className="flex flex-wrap gap-2">
             <ToggleChip
@@ -153,15 +157,15 @@ export function ResultFiltersPanel({
             />
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col gap-3">
             <Field
               label={`Total no more than (${currency})`}
               name="fMaxTotal"
               type="number"
               min={1}
-              step="10"
+              step="1"
               defaultValue={filters.maxTotal ? String(toMajor(filters.maxTotal)) : ''}
-              className="w-[12rem]"
+              className="w-full"
             />
             <Field
               label="Hotel rated at least"
@@ -172,7 +176,7 @@ export function ResultFiltersPanel({
               step="0.1"
               defaultValue={filters.minReviewScore === null ? '' : String(filters.minReviewScore)}
               hint="Unrated hotels are hidden when this is set."
-              className="w-[14rem]"
+              className="w-full"
             />
           </div>
         </fieldset>
@@ -185,7 +189,7 @@ export function ResultFiltersPanel({
           attached to the least consequential decision on the page.
         */}
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" variant="secondary">
+          <Button type="submit" variant="secondary" className="flex-1">
             Apply filters
           </Button>
 

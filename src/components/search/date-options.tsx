@@ -1,6 +1,6 @@
 import { format, toMajor } from '@/core/money';
-import { Card, CardTitle, Tag } from '@/components/ui';
-import { dayName } from '@/search/flexibility';
+import { cn } from '@/lib/cn';
+import { weekdayDate } from '@/lib/display-date';
 import {
   dateWindowKey,
   pickHighlights,
@@ -20,6 +20,11 @@ import {
  * link sets a filter over trips already priced, so the number on the row is
  * the number on the cards it reveals. Re-searching would show a different set
  * of trips from the one the user just clicked.
+ *
+ * **Rows, not boxes.** It sits in the results' side column now, beside the
+ * trips it narrows, so it reads as an instrument rather than as a second list
+ * of results: a line per window, a bar in the place's tint, and the three
+ * notable windows named in words rather than wrapped in pills.
  */
 
 export interface DateOptionsProps {
@@ -28,39 +33,26 @@ export interface DateOptionsProps {
   searchValues: Readonly<Record<string, string | undefined>>;
   /** The currently selected window, as `2026-06-10..2026-06-15`. */
   selected: string | null;
-}
-
-/** e.g. "Sat 6 Jun". Deliberately not locale-aware: en-GB, like `format`. */
-function shortDate(iso: string): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-
-  return `${dayName(iso).slice(0, 3)} ${date.getUTCDate()} ${date.toLocaleString('en-GB', {
-    month: 'short',
-    timeZone: 'UTC',
-  })}`;
+  /** The page the results are on. */
+  basePath?: string;
 }
 
 function hoursAndMinutes(minutes: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-/**
- * Weather in words.
- *
- * Below half confidence the outlook is climatology rather than a forecast, and
- * says so. Section 13 is explicit that a long-range outlook must not be
- * presented as a forecast, and dates six weeks out are exactly where a
- * flexible-date search spends its time.
- */
+/** The outlook as a range, and said to be climatology when that is what it is. */
 function weatherLabel(option: DateOption): string | null {
   if (!option.weather) return null;
 
   const range = `${Math.round(option.weather.minC)}-${Math.round(option.weather.maxC)}°C`;
 
-  return option.weather.confidence < 0.5 ? `${range}, typical for the season` : range;
+  return option.weather.confidence < 0.5 ? `${range}, typical` : range;
 }
 
+/** The same search, narrowed to one window - or widened back to all of them. */
 function href(
+  basePath: string,
   searchValues: Readonly<Record<string, string | undefined>>,
   window: string | null,
 ): string {
@@ -72,10 +64,15 @@ function href(
 
   if (window) params.set('fDates', window);
 
-  return `/?${params.toString()}`;
+  return `${basePath}?${params.toString()}`;
 }
 
-export function DateOptions({ breakdown, searchValues, selected }: DateOptionsProps) {
+export function DateOptions({
+  breakdown,
+  searchValues,
+  selected,
+  basePath = '/explore',
+}: DateOptionsProps) {
   // One set of dates is not a choice, so there is nothing to show.
   if (breakdown.options.length < 2) return null;
 
@@ -83,26 +80,26 @@ export function DateOptions({ breakdown, searchValues, selected }: DateOptionsPr
   const dearest = breakdown.dearest?.cheapestTotal ?? null;
 
   return (
-    <Card as="section" aria-labelledby="date-options-heading" elevation="raised">
+    <section aria-labelledby="date-options-heading" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <CardTitle id="date-options-heading" level={2}>
+        <h2 id="date-options-heading" className="font-display text-ink text-xl">
           What the dates are worth
-        </CardTitle>
+        </h2>
         {selected ? (
           <a
-            href={href(searchValues, null)}
-            className="text-brand-ink text-sm underline underline-offset-4"
+            href={href(basePath, searchValues, null)}
+            className="text-tint-ink text-sm underline underline-offset-4"
           >
             Show every date
           </a>
         ) : null}
       </div>
 
-      <p className="text-ink-muted mt-1 text-sm">
+      <p className="text-ink-muted text-sm">
         {breakdown.saving && toMajor(breakdown.saving) > 0 ? (
           <>
             Moving to the cheapest dates we priced saves{' '}
-            <strong className="text-ink font-semibold">{format(breakdown.saving)}</strong>.
+            <strong className="text-tint-ink font-semibold">{format(breakdown.saving)}</strong>.
           </>
         ) : (
           'Every set of dates we priced came out about the same.'
@@ -117,7 +114,7 @@ export function DateOptions({ breakdown, searchValues, selected }: DateOptionsPr
           : `Priced every one of the ${breakdown.windowsAllowed} date combinations your dates allow.`}
       </p>
 
-      <ul className="mt-4 flex flex-col gap-2">
+      <ul className="divide-border border-border flex flex-col divide-y border-y">
         {breakdown.options.map((option) => {
           const key = dateWindowKey(option.window);
           const isSelected = selected === key;
@@ -131,27 +128,31 @@ export function DateOptions({ breakdown, searchValues, selected }: DateOptionsPr
               ? Math.max(6, Math.round((toMajor(option.cheapestTotal) / toMajor(dearest)) * 100))
               : null;
 
+          const notable =
+            option === highlights.cheapest
+              ? 'Cheapest'
+              : option === highlights.bestValue
+                ? 'Best value'
+                : option === highlights.bestWeather
+                  ? 'Best weather'
+                  : null;
+
           return (
             <li key={key}>
               <a
-                href={href(searchValues, isSelected ? null : key)}
+                href={href(basePath, searchValues, isSelected ? null : key)}
                 aria-current={isSelected ? 'true' : undefined}
-                className={[
-                  'border-border bg-surface-raised block rounded-[--radius-card] border p-3',
+                className={cn(
+                  '-mx-2 block rounded-(--radius-control) px-2 py-2.5',
                   'ease-standard duration-quick transition-colors',
-                  'hover:bg-surface-sunken',
                   'focus-visible:outline-brand-500 focus-visible:outline-2 focus-visible:outline-offset-2',
-                  isSelected ? 'border-brand-500 bg-brand-500/5' : '',
-                ].join(' ')}
+                  isSelected ? 'bg-tint/15' : 'hover:bg-surface-sunken',
+                )}
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <span className="text-ink text-sm font-medium">
-                    {shortDate(option.window.departureDate)} &ndash;{' '}
-                    {shortDate(option.window.returnDate)}
-                    <span className="text-ink-muted font-normal">
-                      {' '}
-                      · {option.window.nights} {option.window.nights === 1 ? 'night' : 'nights'}
-                    </span>
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="text-ink text-sm font-medium tabular-nums">
+                    {weekdayDate(option.window.departureDate)} &ndash;{' '}
+                    {weekdayDate(option.window.returnDate)}
                   </span>
                   <span className="text-ink text-sm font-semibold tabular-nums">
                     {/*
@@ -161,38 +162,34 @@ export function DateOptions({ breakdown, searchValues, selected }: DateOptionsPr
                     */}
                     {option.cheapestTotal ? format(option.cheapestTotal) : 'Nothing found'}
                   </span>
-                </div>
+                </span>
 
                 {width !== null ? (
-                  <div
-                    className="bg-surface-sunken mt-2 h-1.5 overflow-hidden rounded-[--radius-pill]"
+                  <span
                     aria-hidden="true"
+                    className="bg-surface-sunken mt-1.5 block h-1 overflow-hidden rounded-(--radius-pill)"
                   >
-                    <div
-                      className="bg-brand-500 h-full rounded-[--radius-pill]"
+                    <span
+                      className={cn(
+                        'block h-full rounded-(--radius-pill)',
+                        isSelected || option === highlights.cheapest ? 'bg-tint-ink' : 'bg-tint',
+                      )}
                       style={{ width: `${width}%` }}
                     />
-                  </div>
+                  </span>
                 ) : null}
 
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  {option.destinationName ? (
-                    <span className="text-ink-muted">{option.destinationName}</span>
-                  ) : null}
-                  {weather ? <span className="text-ink-muted">{weather}</span> : null}
+                <span className="text-ink-muted mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
+                  <span>
+                    {option.window.nights} {option.window.nights === 1 ? 'night' : 'nights'}
+                  </span>
+                  {option.destinationName ? <span>{option.destinationName}</span> : null}
+                  {weather ? <span>{weather}</span> : null}
                   {option.travelMinutes !== null ? (
-                    <span className="text-ink-muted">
-                      {hoursAndMinutes(option.travelMinutes)} flying
-                    </span>
+                    <span>{hoursAndMinutes(option.travelMinutes)} flying</span>
                   ) : null}
-                  {option === highlights.cheapest ? <Tag tone="brand">Cheapest</Tag> : null}
-                  {option === highlights.bestValue && option !== highlights.cheapest ? (
-                    <Tag tone="accent">Best value</Tag>
-                  ) : null}
-                  {option === highlights.bestWeather && option !== highlights.cheapest ? (
-                    <Tag>Best weather</Tag>
-                  ) : null}
-                </div>
+                  {notable ? <span className="text-tint-ink font-semibold">{notable}</span> : null}
+                </span>
               </a>
             </li>
           );
@@ -205,10 +202,9 @@ export function DateOptions({ breakdown, searchValues, selected }: DateOptionsPr
         "events" on a date picker and plans around it has been misled by an
         empty feature.
       */}
-      <p className="text-ink-muted mt-4 text-sm">
-        Events, public holidays and live availability are not in this comparison yet - no data
-        source behind it carries them.
+      <p className="text-dim text-xs">
+        Events, public holidays and live availability are not in this comparison yet.
       </p>
-    </Card>
+    </section>
   );
 }

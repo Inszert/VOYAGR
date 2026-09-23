@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
-import { Container } from '@/components/ui';
 import { DestinationRail } from '@/components/discovery/destination-rail';
 import { DiscoveryStage } from '@/components/discovery/discovery-stage';
 import { NextTripBand, type BandPicture } from '@/components/discovery/next-trip-band';
 import { StageControls } from '@/components/discovery/stage-controls';
 import { TrustStrip } from '@/components/discovery/trust-strip';
-import { SearchResults } from '@/components/search/search-results';
-import { SaveSearchForm } from '@/components/watches/save-search-form';
-import { saveSearchAction } from '@/app/actions/watches';
-import { firstValues, loadStagePage } from '@/discovery/load-stage';
+import { redirect } from 'next/navigation';
+import { firstValues, loadStagePage, wasSubmitted } from '@/discovery/load-stage';
+import { parseSearchForm } from '@/search/schema';
+import { listPlaceableDestinations } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
 import {
   COUNTRIES_DETAIL_URL,
@@ -38,26 +37,37 @@ export const metadata: Metadata = {
   title: 'Discover',
 };
 
-/**
- * A starting name for a saved search.
- *
- * Built from what the user actually asked for, so the name means something
- * the moment they see it rather than being "Saved search 3".
- */
-function suggestedSearchName(values: Record<string, string | undefined>): string {
-  const destinations = (values.destinations ?? '').trim();
-  const from = (values.earliestDeparture ?? values.departureDate ?? '').slice(0, 7);
-
-  if (destinations && from) return `${destinations} in ${from}`;
-  return destinations || 'Saved search';
-}
-
 export default async function DiscoverPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const values = firstValues(await searchParams);
+
+  /*
+   * Discover is where a trip starts; Explore is where it is searched.
+   *
+   * A valid submitted search - from this page's form, a lens, an old link or
+   * a bookmark - carries on to the explorer with the same query, so every
+   * search URL there has ever been still lands on its results. The explorer
+   * has no form, so two searches stay here: one that does not parse, which
+   * comes back with its errors beside the fields, and one opened with
+   * `edit=1` from the explorer's "Change search", which comes back filled in.
+   */
+  if (
+    wasSubmitted(values) &&
+    values.edit !== '1' &&
+    parseSearchForm(values, listPlaceableDestinations()).ok
+  ) {
+    redirect(
+      `/explore?${new URLSearchParams(
+        Object.entries(values).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      ).toString()}`,
+    );
+  }
+
   const page = await loadStagePage(values, '/');
   const { stage } = page;
 
@@ -157,8 +167,8 @@ export default async function DiscoverPage({
               }
             : null
         }
-        searched={page.outcome !== null}
-        action="/"
+        searched={false}
+        action="/explore"
       />
 
       <DestinationRail
@@ -186,57 +196,24 @@ export default async function DiscoverPage({
 
       {/*
         Something to do next, built from the snapshot that is already on the
-        page. Hidden once a search has run: the results below answer the same
-        question better, and two recommendations on one page are two answers
-        pretending to be one.
+        page. A search never runs here - it carries on to the explorer - so
+        this is always the page's closing answer.
       */}
-      {page.outcome ? null : (
-        <NextTripBand
-          trip={recommended}
-          tripHref={
-            recommended
-              ? (stage.cards.find(
-                  (card) => card.point.destination === recommended.candidate.destination,
-                )?.href ?? '/explore')
-              : '/explore'
-          }
-          tripPicture={recommendedPicture}
-          wide={picture(0)}
-          tall={picture(1)}
-          exploreHref={query ? `/explore?${query}` : '/explore'}
-          provenance={page.provenance}
-        />
-      )}
-
-      {page.outcome && page.profile && page.filters ? (
-        /*
-         * The results sit in the stage's palette too.
-         *
-         * The hero, the rail and the closing band are all night; a results
-         * list that flipped to parchment in a light colour scheme would be a
-         * different website below the fold. `stage-scope` remaps the semantic
-         * tokens, so every component inside keeps its own contrast pairings.
-         */
-        <section className="stage-scope bg-stage text-stage-ink">
-          <Container size="wide" className="flex flex-col gap-6 pt-2 pb-12">
-            <SaveSearchForm
-              query={query}
-              suggestedName={suggestedSearchName(values)}
-              signedIn={page.signedIn}
-              action={saveSearchAction}
-            />
-
-            <SearchResults
-              outcome={page.outcome}
-              profile={page.profile}
-              filters={page.filters}
-              searchValues={values}
-              resultAgeMs={page.resultAgeMs}
-              images={images}
-            />
-          </Container>
-        </section>
-      ) : null}
+      <NextTripBand
+        trip={recommended}
+        tripHref={
+          recommended
+            ? (stage.cards.find(
+                (card) => card.point.destination === recommended.candidate.destination,
+              )?.href ?? '/explore')
+            : '/explore'
+        }
+        tripPicture={recommendedPicture}
+        wide={picture(0)}
+        tall={picture(1)}
+        exploreHref={query ? `/explore?${query}` : '/explore'}
+        provenance={page.provenance}
+      />
 
       <TrustStrip
         provenance={page.provenance}
