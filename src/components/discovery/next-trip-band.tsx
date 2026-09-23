@@ -95,7 +95,7 @@ export function NextTripBand({
       <Container size="wide" className="pb-16">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)]">
           {/* The invitation. */}
-          <article className="border-stage-glass-border relative isolate flex min-h-[19rem] flex-col justify-end overflow-hidden rounded-[--radius-shell] border p-7">
+          <article className="border-stage-glass-border relative isolate flex min-h-[19rem] flex-col justify-end overflow-hidden rounded-(--radius-shell) border p-7">
             <Picture picture={wide} />
 
             {/*
@@ -131,16 +131,16 @@ export function NextTripBand({
           </article>
 
           {/* The recommendation, out of the snapshot already on this page. */}
-          <article className="voyagr-panel flex min-h-[19rem] flex-col gap-4 overflow-hidden rounded-[--radius-shell] p-6">
+          <article className="voyagr-panel flex min-h-[19rem] flex-col gap-4 overflow-hidden rounded-(--radius-shell) p-6">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Icon name="sparkle" size={0.95} className="text-stage-accent" />
               Your next trip
             </h3>
 
             {trip ? (
-              <div className="border-stage-glass-border bg-stage/60 flex flex-1 flex-col gap-3 rounded-[--radius-card] border p-3">
+              <div className="border-stage-glass-border bg-stage/60 flex flex-1 flex-col gap-3 rounded-(--radius-card) border p-3">
                 <div className="flex gap-3">
-                  <div className="relative size-20 shrink-0 overflow-hidden rounded-[--radius-control]">
+                  <div className="relative size-20 shrink-0 overflow-hidden rounded-(--radius-control)">
                     <Picture picture={tripPicture} className="-z-0" />
                   </div>
 
@@ -205,7 +205,7 @@ export function NextTripBand({
           </article>
 
           {/* The way back to the globe. */}
-          <article className="border-stage-glass-border relative isolate flex min-h-[19rem] flex-col justify-end overflow-hidden rounded-[--radius-shell] border p-6">
+          <article className="border-stage-glass-border relative isolate flex min-h-[19rem] flex-col justify-end overflow-hidden rounded-(--radius-shell) border p-6">
             <Picture picture={tall} />
 
             <h3 className="font-display text-2xl leading-tight text-balance">
@@ -218,7 +218,7 @@ export function NextTripBand({
 
             <a
               href={exploreHref}
-              className="border-stage-glass-border bg-stage-glass text-stage-ink ease-standard duration-quick focus-visible:outline-stage-accent mt-4 grid size-10 place-items-center rounded-full border backdrop-blur-sm transition-colors hover:border-[--color-stage-accent]"
+              className="border-stage-glass-border bg-stage-glass text-stage-ink ease-standard duration-quick focus-visible:outline-stage-accent mt-4 grid size-10 place-items-center rounded-full border backdrop-blur-sm transition-colors hover:border-(--color-stage-accent)"
             >
               <Icon name="arrow-right" size={0.95} />
               <span className="sr-only">Open the explorer</span>

@@ -96,7 +96,7 @@ export function DemoDataNotice({
     <div
       role="note"
       className={cn(
-        'border-critical-500/40 bg-critical-500/10 rounded-[--radius-card] border px-4 py-3',
+        'border-critical-500/40 bg-critical-500/10 rounded-(--radius-card) border px-4 py-3',
         className,
       )}
     >

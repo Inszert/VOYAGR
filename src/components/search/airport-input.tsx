@@ -229,7 +229,7 @@ export function AirportInput({
           bare
             ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
             : cn(
-                'bg-surface-raised h-11 rounded-[--radius-control] border px-3',
+                'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
                 error ? 'border-critical-500' : 'border-border-strong',
               ),
         )}
@@ -262,7 +262,7 @@ export function AirportInput({
         className={cn(
           'border-border-strong bg-surface-raised shadow-floating absolute right-0 left-0 z-30',
           bare ? 'top-[3.4rem]' : 'top-[4.6rem]',
-          'max-h-64 overflow-auto rounded-[--radius-control] border py-1',
+          'max-h-64 overflow-auto rounded-(--radius-control) border py-1',
           open && suggestions.length > 0 ? '' : 'hidden',
         )}
       >

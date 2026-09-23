@@ -82,7 +82,7 @@ export function LensSlider({ children }: { children: React.ReactNode }) {
   };
 
   const button =
-    'border-hairline text-muted hover:text-text disabled:opacity-30 focus-visible:outline-accent-ink ease-standard duration-quick grid size-7 shrink-0 place-items-center rounded-full border transition-colors disabled:hover:text-[--color-muted]';
+    'border-hairline text-muted hover:text-text disabled:opacity-30 focus-visible:outline-accent-ink ease-standard duration-quick grid size-7 shrink-0 place-items-center rounded-full border transition-colors disabled:hover:text-(--color-muted)';
 
   return (
     <div className="flex items-center gap-1.5">

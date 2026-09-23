@@ -50,7 +50,7 @@ export function DataSourceSwitch({ source, className }: DataSourceSwitchProps) {
         Data
       </span>
 
-      <div className="border-hairline bg-field flex items-center rounded-[--radius-pill] border p-0.5">
+      <div className="border-hairline bg-field flex items-center rounded-(--radius-pill) border p-0.5">
         {(['api', 'mock'] as const).map((option) => {
           const active = source.effective === option;
 
@@ -64,7 +64,7 @@ export function DataSourceSwitch({ source, className }: DataSourceSwitchProps) {
               // actually in - not the one the cookie asked for.
               aria-pressed={active}
               className={cn(
-                'ease-standard duration-quick focus-visible:outline-accent-ink flex h-7 items-center rounded-[--radius-pill] px-2.5 text-[11px] font-semibold tracking-wide transition-colors',
+                'ease-standard duration-quick focus-visible:outline-accent-ink flex h-7 items-center rounded-(--radius-pill) px-2.5 text-[11px] font-semibold tracking-wide transition-colors',
                 active
                   ? option === 'mock'
                     ? 'bg-critical-500/20 text-critical-ink'

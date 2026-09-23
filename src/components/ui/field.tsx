@@ -83,7 +83,7 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Fie
           bare
             ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
             : cn(
-                'bg-surface-raised h-11 rounded-[--radius-control] border px-3',
+                'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
                 error ? 'border-critical-500' : 'border-border-strong',
               ),
           className,

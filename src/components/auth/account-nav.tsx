@@ -30,7 +30,7 @@ export async function AccountNav() {
         </Link>
         <Link
           href="/sign-up"
-          className="voyagr-cta ease-standard duration-quick inline-flex h-[38px] items-center rounded-[--radius-pill] px-4 text-[14px] font-medium transition-[filter]"
+          className="voyagr-cta ease-standard duration-quick inline-flex h-[38px] items-center rounded-(--radius-pill) px-4 text-[14px] font-medium transition-[filter]"
         >
           Create account
         </Link>
@@ -42,7 +42,7 @@ export async function AccountNav() {
     <nav aria-label="Account" className="flex items-center gap-2 text-sm">
       <Link
         href="/account"
-        className="voyagr-panel text-text ease-standard duration-quick flex h-[38px] items-center gap-2 rounded-[--radius-pill] pr-4 pl-1.5 text-[14px] transition-colors hover:border-[--color-stage-accent]"
+        className="voyagr-panel text-text ease-standard duration-quick flex h-[38px] items-center gap-2 rounded-(--radius-pill) pr-4 pl-1.5 text-[14px] transition-colors hover:border-(--color-stage-accent)"
       >
         {/*
           An initial rather than a photograph. The product has never asked for

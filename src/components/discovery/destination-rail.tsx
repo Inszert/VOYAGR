@@ -167,7 +167,7 @@ function Weather({ point }: { point: DestinationPoint }) {
       <Icon
         name={wet ? 'rain' : 'sun'}
         size={1}
-        className={cn('size-[14px]', wet ? 'text-[--color-biome-ink]' : 'text-accent-300')}
+        className={cn('size-[14px]', wet ? 'text-(--color-biome-ink)' : 'text-accent-300')}
       />
       <span className="font-medium tabular-nums">{point.weather.maxC}°C</span>
       <span className="sr-only">
@@ -367,7 +367,7 @@ export function DestinationRail({
                   key={point.destination}
                   id={`destination-${point.destination}`}
                   style={{ '--stage-delay': `${Math.min(index, 6) * 40}ms` } as React.CSSProperties}
-                  className="stage-rise bg-panel border-hairline ease-standard duration-settled group relative flex flex-col overflow-hidden rounded-[14px] border transition-[border-color,transform] hover:-translate-y-1 hover:border-[--color-accent-ink] motion-reduce:hover:translate-y-0"
+                  className="stage-rise bg-panel border-hairline ease-standard duration-settled group relative flex flex-col overflow-hidden rounded-[14px] border transition-[border-color,transform] hover:-translate-y-1 hover:border-(--color-accent-ink) motion-reduce:hover:translate-y-0"
                 >
                   {/*
                     A band, not a fade.
@@ -410,7 +410,7 @@ export function DestinationRail({
                     ) : null}
 
                     {badge ? (
-                      <span className="border-hairline bg-field/85 text-text absolute top-3 left-3 rounded-[--radius-pill] border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
+                      <span className="border-hairline bg-field/85 text-text absolute top-3 left-3 rounded-(--radius-pill) border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
                         {badge}
                       </span>
                     ) : null}

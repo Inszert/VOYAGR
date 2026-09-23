@@ -65,7 +65,7 @@ export function StageControls({
                 href={modeHref(option)}
                 aria-current={option === mode ? 'true' : undefined}
                 className={[
-                  'ease-standard duration-quick inline-flex rounded-[--radius-pill] px-3 py-1.5 text-[13px] transition-colors',
+                  'ease-standard duration-quick inline-flex rounded-(--radius-pill) px-3 py-1.5 text-[13px] transition-colors',
                   'focus-visible:outline-accent-ink',
                   option === mode ? 'voyagr-cta font-medium' : 'text-muted hover:text-text',
                 ].join(' ')}
@@ -86,7 +86,7 @@ export function StageControls({
       <form
         method="get"
         action={action}
-        className="stage-scope border-hairline bg-panel flex h-[38px] shrink-0 items-center rounded-[--radius-pill] border pl-3 text-[13px]"
+        className="stage-scope border-hairline bg-panel flex h-[38px] shrink-0 items-center rounded-(--radius-pill) border pl-3 text-[13px]"
       >
         {Object.entries(carry).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
@@ -115,7 +115,7 @@ export function StageControls({
 
         <button
           type="submit"
-          className="border-hairline text-muted hover:text-text ease-standard duration-quick focus-visible:outline-accent-ink h-full rounded-r-[--radius-pill] border-l px-3.5 text-[13px] font-medium transition-colors"
+          className="border-hairline text-muted hover:text-text ease-standard duration-quick focus-visible:outline-accent-ink h-full rounded-r-(--radius-pill) border-l px-3.5 text-[13px] font-medium transition-colors"
         >
           Go
         </button>

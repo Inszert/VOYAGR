@@ -81,7 +81,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
           bare
             ? 'h-7 border-0 bg-transparent p-0 focus:outline-none'
             : cn(
-                'bg-surface-raised h-11 rounded-[--radius-control] border px-3',
+                'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
                 error ? 'border-critical-500' : 'border-border-strong',
               ),
           className,

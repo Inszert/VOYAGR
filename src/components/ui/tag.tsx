@@ -30,7 +30,7 @@ export function Tag({ className, tone = 'neutral', ...props }: TagProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-[--radius-pill] border px-3 py-1 text-sm',
+        'inline-flex items-center gap-1.5 rounded-(--radius-pill) border px-3 py-1 text-sm',
         TAG_TONES[tone],
         className,
       )}
@@ -57,7 +57,7 @@ export const ToggleChip = React.forwardRef<HTMLInputElement, ToggleChipProps>(fu
     <label
       className={cn(
         'border-border bg-surface-raised text-ink inline-flex cursor-pointer items-center gap-2',
-        'rounded-[--radius-pill] border px-3 py-1.5 text-sm',
+        'rounded-(--radius-pill) border px-3 py-1.5 text-sm',
         'ease-standard duration-quick transition-colors',
         'hover:bg-surface-sunken',
         // The checked state is carried by the border and weight as well as by
@@ -125,7 +125,7 @@ export const RadioChip = React.forwardRef<HTMLInputElement, RadioChipProps>(func
     <label
       className={cn(
         'border-border bg-surface-raised text-ink inline-flex cursor-pointer items-center gap-2',
-        'rounded-[--radius-pill] border px-3 py-1.5 text-sm',
+        'rounded-(--radius-pill) border px-3 py-1.5 text-sm',
         'ease-standard duration-quick transition-colors',
         'hover:bg-surface-sunken',
         'has-checked:border-brand-500 has-checked:bg-brand-500/10 has-checked:text-brand-ink has-checked:font-medium',

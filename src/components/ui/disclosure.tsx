@@ -30,14 +30,14 @@ export function Disclosure({
   return (
     <details
       open={defaultOpen}
-      className={cn('border-border group rounded-[--radius-control] border', className)}
+      className={cn('border-border group rounded-(--radius-control) border', className)}
       {...props}
     >
       <summary
         className={cn(
           'text-ink flex cursor-pointer items-center justify-between gap-2 px-4 py-3',
           'text-sm font-medium select-none',
-          'hover:bg-surface-sunken rounded-[--radius-control]',
+          'hover:bg-surface-sunken rounded-(--radius-control)',
         )}
       >
         {summary}

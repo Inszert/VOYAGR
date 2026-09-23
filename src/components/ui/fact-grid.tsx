@@ -44,7 +44,7 @@ export function FactGrid({ facts, columns = 4, className, ...props }: FactGridPr
   return (
     <dl
       className={cn(
-        'border-border grid grid-cols-2 overflow-hidden rounded-[--radius-card] border',
+        'border-border grid grid-cols-2 overflow-hidden rounded-(--radius-card) border',
         // Hairlines between the cells rather than around each of them. The
         // negative margins are what stop a double rule where cells meet.
         '[&>div]:border-border [&>div]:-mt-px [&>div]:-ml-px [&>div]:border-t [&>div]:border-l',

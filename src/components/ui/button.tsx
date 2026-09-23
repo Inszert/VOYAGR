@@ -88,7 +88,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       disabled={disabled ?? (loading && !asChild)}
       className={cn(
         'inline-flex items-center justify-center font-medium',
-        shape === 'pill' ? 'rounded-[--radius-pill]' : 'rounded-[--radius-control]',
+        shape === 'pill' ? 'rounded-(--radius-pill)' : 'rounded-(--radius-control)',
         'transition-colors duration-150',
         'disabled:cursor-not-allowed disabled:opacity-70',
         VARIANT_CLASSES[variant],

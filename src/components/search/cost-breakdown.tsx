@@ -104,7 +104,7 @@ export function CostBreakdown({ cost, passengers, nights }: CostBreakdownProps) 
       </table>
 
       {cost.excluded.length > 0 ? (
-        <div className="border-border bg-surface-sunken rounded-[--radius-control] border p-3">
+        <div className="border-border bg-surface-sunken rounded-(--radius-control) border p-3">
           <h5 className="text-ink text-sm font-medium">Not counted in this total</h5>
           <p className="text-ink-muted mt-1 text-sm">
             These are real costs we could not price. The trip will cost more than the figure above.

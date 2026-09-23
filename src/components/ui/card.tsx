@@ -65,7 +65,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
       ref={ref}
       className={cn(
         'border-border border',
-        feature ? 'rounded-[--radius-surface] p-7' : 'rounded-[--radius-card] p-5',
+        feature ? 'rounded-(--radius-surface) p-7' : 'rounded-(--radius-card) p-5',
         SURFACE_CLASSES[surface],
         ELEVATION_CLASSES[elevation],
         interactive &&

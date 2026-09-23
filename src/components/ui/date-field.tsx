@@ -140,7 +140,7 @@ export const DateField = React.forwardRef<HTMLInputElement, DateFieldProps>(func
                 bare
                   ? 'h-7 truncate border-0 bg-transparent p-0 pr-[18px] focus:outline-none'
                   : cn(
-                      'bg-surface-raised h-11 rounded-[--radius-control] border pr-10 pl-3',
+                      'bg-surface-raised h-11 rounded-(--radius-control) border pr-10 pl-3',
                       error ? 'border-critical-500' : 'border-border-strong',
                     ),
                 className,

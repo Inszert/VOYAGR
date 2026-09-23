@@ -1,4 +1,19 @@
-import { twMerge } from 'tailwind-merge';
+import { extendTailwindMerge } from 'tailwind-merge';
+
+/*
+ * The merge, told about our own type scale.
+ *
+ * `text-display-sm/md/lg` are font sizes defined in `globals.css`. Unknown to
+ * tailwind-merge, they were read as text colours - so `text-display-md` beside
+ * `text-white` was one colour too many and the heading silently lost its size.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [{ text: ['display-sm', 'display-md', 'display-lg'] }],
+    },
+  },
+});
 
 type ClassValue = string | number | null | undefined | false | ClassValue[];
 

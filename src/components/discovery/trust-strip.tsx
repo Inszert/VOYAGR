@@ -53,7 +53,7 @@ export function TrustStrip({ provenance, sources = [], noticeShown = false }: Tr
           <li key={item.title} className="border-border flex flex-col gap-3 border-t pt-5">
             <span
               aria-hidden="true"
-              className="voyagr-tile text-stage-accent grid size-9 place-items-center rounded-[--radius-control]"
+              className="voyagr-tile text-stage-accent grid size-9 place-items-center rounded-(--radius-control)"
             >
               <Icon name={item.icon} size={1.05} />
             </span>
