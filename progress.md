@@ -1,9 +1,50 @@
 # Progress
 
-**Last updated:** 2026-09-20
-**Stage:** Phase 1 complete except live providers. Phase 1.10.1 (the frontend) rebuilt around the
-globe: all three phases of `docs/homepage-redesign.md` are done.
-**Next:** the live-provider readiness gate, then 1.11.
+**Last updated:** 2026-09-23
+**Stage:** Phase 1 complete except live providers. Flights run against the Duffel sandbox; the
+technical half of the live-provider readiness gate is answered for Duffel from a recorded search.
+**Next:** the two decisions the gate still waits on - whether Duffel's terms allow background
+polling for Travel Watch, and which hotel vendor - then 1.11.
+
+---
+
+## 2026-09-23
+
+**Readiness gate, Duffel.** A real sandbox search is recorded (`scripts/record-duffel.ts`, redacted)
+and replayed offline in `duffel.test.ts`. It settled pagination (two calls, one page of 60), rate
+limits (per endpoint: 30 and 120 a minute, in `ratelimit-*` headers), timezone (local wall clock,
+as modelled) and freshness (a stated 30-minute window). Offers now carry `expiresAt`; a quote past
+it is stale, and the results say so before the trips.
+
+**Per-provider observability.** Every provider call from a search or a watch is recorded in
+`provider_requests` and summarised per provider (calls, errors, timeouts, rate limits, p50/p95)
+on `/status` for the last 24 hours. Pruned after 30 days.
+
+**The product around it.**
+
+- **Discover and Explore:** Discover is the front door. Every valid search continues to Explore,
+  which shows it as a one-line summary with "Change search" (no form of its own), the globe, and
+  the results.
+- **Results:** results have a side column for the dates and the filters. The trip being built
+  sits on top (swap its flight, hotel or dates; each option shows the change to the whole-trip
+  total). Every other result is a compact row.
+- **Stays:** stays gained a destination header, redesigned cards, a date strip and a property
+  page with a locator map.
+- **Watches:** watches can be added by hand, checked on demand and deleted.
+- **Destination pages:** they describe the weather week by week in words.
+- **Look and legal:** one leather-and-night palette with a per-place tint. Privacy and terms pages
+  (drafts for legal review).
+
+**Found and fixed on the way:**
+
+- **Radius tokens:** 76 radius classes in the old Tailwind v3 form compiled to nothing.
+- **Class merging:** `cn` dropped the display font sizes when merged with a colour.
+- **Budget fields:** two budget fields rejected round numbers (`step` against `min`).
+- **Account page:** the account export and deletion existed but were not reachable.
+
+**Known and not changed:** MapLibre can exhaust its dash atlas after a globe page lives through
+many resizes (`LineAtlas out of space`, then an error per frame). Globe code; reported, not
+patched.
 
 ---
 

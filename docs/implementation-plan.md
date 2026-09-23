@@ -494,6 +494,27 @@ assumption, so each needs a deliberate check rather than a passing test.
   shown. Our own page cache holds a result for five minutes and displays its age; a vendor whose
   quotes expire sooner than that makes the TTL wrong.
 
+#### Duffel, answered from a recorded sandbox search (2026-09-23)
+
+Recorded by `scripts/record-duffel.ts` into `tests/fixtures/providers/duffel-round-trip.json`
+(redacted: no key in any header, URL or body) and replayed offline by `duffel.test.ts`.
+
+- **Pagination** — a search is two calls: create the offer request, then list its offers. The
+  recorded VIE–BCN round trip returned 60 offers on one page with no further cursor. The adapter
+  caps what it keeps; `maxResults` is "offers kept", not "pages walked".
+- **Rate limits** — per endpoint, reported in `ratelimit-limit` / `ratelimit-remaining` /
+  `ratelimit-reset` headers: 30 a minute to create an offer request, 120 to list offers. The
+  adapter declares 30, the binding one, since every search creates exactly one request.
+- **Timezone** — departure and arrival are local wall-clock times with no zone, exactly what
+  `LocalDateTime` models. No mapping needed.
+- **Price freshness** — every offer states `expires_at`, 30 minutes after `created_at` in the
+  recording. It is now `FlightOffer.expiresAt` (explicit `null` when a vendor states none), and
+  `freshnessOf` calls a quote stale once it has passed, whatever its age. The results say so
+  before the trips when any quote has gone stale.
+
+Still open, and not answerable from a sandbox: whether Duffel's terms permit background polling
+for Travel Watch, and a hotel vendor at all.
+
 #### Limits, budgets and observability
 
 - Re-run the Phase 1.1 bounds against the real thing: the default limits imply up to 8 flight and
@@ -503,9 +524,12 @@ assumption, so each needs a deliberate check rather than a passing test.
   `src/lib/concurrency.ts` is the seam, keyed on provider id; `concurrencyFor` sizes each one;
   `maxProviderCalls` is the search's ceiling and reports once when it bites. A **cost** ceiling
   still needs a vendor's price list.
-- Decide the per-provider observability required before go-live: call counts, latency percentiles,
-  error and timeout rates by code, quota consumed, and cost per search — enough to tell a degraded
-  search from a broken one without reading logs.
+- ~~Decide the per-provider observability required before go-live: call counts, latency
+  percentiles, error and timeout rates by code~~ **Done.** Every provider call a search or a watch
+  makes is recorded in `provider_requests` (status, duration, result count) through
+  `SearchDependencies.observe`, summarised per provider with nearest-rank p50/p95 in both
+  backends, shown for the last 24 hours on `/status`, and pruned after 30 days. Quota consumed
+  and cost per search still need a vendor's price list.
 
 #### Degradation policy
 

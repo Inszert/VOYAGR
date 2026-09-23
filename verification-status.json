@@ -1,8 +1,8 @@
 {
   "$comment": "Machine-readable verification record. Regenerate by running the commands below and updating the results. Every status here was produced by actually running the command, not by inspection.",
   "project": "voyagr",
-  "stage": "phase-1-complete-except-live-providers; the vendor-independent half of the 1.11 live-provider readiness gate is built - provider responses schema-checked at the boundary, quote freshness reported, and an FX layer that never invents a rate",
-  "generatedAt": "2026-09-22",
+  "stage": "phase-1-complete-except-live-providers; the technical half of the live-provider readiness gate is answered for Duffel from a recorded sandbox search (pagination, per-endpoint rate limits, local times, a stated 30-minute validity window now modelled as FlightOffer.expiresAt), and per-provider call observability is recorded and shown on /status. Waiting on: Duffel's terms for background polling, and a hotel vendor.",
+  "generatedAt": "2026-09-23",
   "overall": "PASS",
   "environment": {
     "os": "Windows 11 Pro 10.0.26200",
@@ -42,7 +42,7 @@
       "name": "Unit and component tests",
       "status": "PASS",
       "command": "npm test",
-      "detail": "990 tests across 63 files, all passing.",
+      "detail": "1162 tests across 74 files, all passing.",
       "breakdown": {
         "money": 28,
         "tripCost": 19,
@@ -80,14 +80,14 @@
       "status": "PASS",
       "command": "npm run test:coverage",
       "detail": "Lines 72.98%, branches 87.53%, functions 86.58%. All above configured thresholds (60/70/60).",
-      "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly, and the globe renderer, which is a canvas and is covered end to end instead."
+      "notes": "Thresholds are a floor to catch accidentally-deleted tests, not a target. The deterministic core in src/core/ sits far above them; uncovered files are wiring modules (registry, factories, barrels) exercised indirectly, and the globe renderer, which is a canvas and is covered end to end instead. Not re-run on 2026-09-23; the figures are from the previous run."
     },
     {
       "id": "build",
       "name": "Production build",
       "status": "PASS",
       "command": "npm run build",
-      "detail": "Next.js 16 production build succeeds, 14 routes. A prebuild step copies the MapLibre worker into public/maplibre/<version> so the globe can reach it."
+      "detail": "Next.js 16 production build succeeds. A prebuild step copies the MapLibre worker into public/maplibre/<version> so the globe can reach it."
     },
     {
       "id": "day-and-night",
@@ -110,7 +110,7 @@
       "name": "End-to-end smoke tests",
       "status": "PASS",
       "command": "npm run test:e2e",
-      "detail": "176 tests passing across desktop and mobile viewports: app shell, skip link, 404, health endpoint, PWA manifest and icons, service worker, offline page, security headers, accounts and Travel Watches, and the full discovery and search flow - the globe stage with its price chips and routes, country selection from the globe and from a select, the regions and labels drawn inside an open country, the finer coastlines fetched only on zoom, the destination rail, the lenses, the compact search, submitting it, restoring a search from its URL, result cards that draw each flight as a route with real clock times, the score explanation, the cost breakdown, the No-Surprise warnings, component swapping, result filters, flexible dates including a weekend search returning only weekends, the explorer at /explore, and destination pages that open on the globe framed on their country. 176 passed against a production build.",
+      "detail": "204 tests passing across desktop and mobile viewports against a production build, with PLAYWRIGHT_CHANNEL=chrome and 4 workers. Covers the app shell, accounts, Travel Watches (saved, paused, resumed, re-run, plan limits), the data-source switch, the discovery globe, the explorer with its search summary and results, trip cards, component and date swapping, filters, flexible dates, stays and properties, and destination pages. The full run on 2026-09-23 passed 202, and the two watch tests that failed on a copy collision passed after the fix.",
       "notes": "Verified with PLAYWRIGHT_CHANNEL=chrome against locally installed Chrome. Playwright's bundled browser binary could not be downloaded in this environment. See knownIssues.playwright-browser-download. The Playwright web server runs with DATABASE_URL and REDIS_URL blanked, so the suite is hermetic and cannot write test accounts into a developer's real database. It also runs with IMAGERY_PROVIDER=none, so no test depends on Wikimedia being up: every assertion about a destination card is made against a card with no photograph, which is the state the cards must survive. Run with --workers=4: every page renders a WebGL globe, and Playwright's default worker count oversubscribes this machine, which flakes unrelated specs. CI pins one worker."
     },
     {
@@ -151,7 +151,7 @@
       "status": "PASS",
       "command": "npm run db:migrate && npm test",
       "detail": "Repository interfaces implemented in memory and against PostgreSQL. All three migrations applied to a live Railway-hosted PostgreSQL 17 instance, and the same 26-test contract suite passes against both backends.",
-      "notes": "The suite skips the Postgres backend when TEST_DATABASE_URL is unset, and reports the skip as a skipped test, so the project keeps its property of passing with no database. Connection pooling, SSL and failure behaviour under load are untested; the instance is a development one reached over a public proxy at roughly 200ms round trip."
+      "notes": "The suite skips the Postgres backend when TEST_DATABASE_URL is unset, and reports the skip as a skipped test, so the project keeps its property of passing with no database. Connection pooling, SSL and failure behaviour under load are untested; the instance is a development one reached over a public proxy at roughly 200ms round trip. 2026-09-23: new provider_requests repository and trip-search deletion added to the contract suite and passing in memory; the suite was not re-run against Postgres (no TEST_DATABASE_URL here). The Postgres provider summary query ran against the live database through /status."
     },
     {
       "id": "queue",
@@ -175,7 +175,7 @@
       "status": "WARN",
       "command": "npm run test:e2e",
       "detail": "Manifest valid and served, all three declared icons served as real PNGs, service worker served with a must-revalidate policy, offline page renders.",
-      "notes": "Service worker registration and runtime caching behaviour have not been exercised in a browser \u2014 the worker is disabled in development by design, and the E2E suite asserts the file is served rather than that it installs and caches. Install-to-homescreen and push delivery are untested."
+      "notes": "Service worker registration and runtime caching behaviour have not been exercised in a browser — the worker is disabled in development by design, and the E2E suite asserts the file is served rather than that it installs and caches. Install-to-homescreen and push delivery are untested."
     },
     {
       "id": "manual-review",
@@ -198,7 +198,7 @@
       "status": "PASS",
       "command": "npm test && npm run test:e2e",
       "detail": "47 tests. The structured schema is asserted to normalise airport codes, convert budgets to Money in minor units, read an absent checkbox as false, keep optional numbers null rather than zero, and reject fourteen kinds of bad input with a message on the offending field. The booking seam is asserted to drop javascript:, data:, file: and non-URL deep links, and to mark every outbound link noopener and sponsored. Components are asserted on roles and accessible names: estimates labelled in words, excluded costs surfaced, warnings visible without expanding anything, violations listed on a near miss, and the results heading reporting what matched rather than what is shown.",
-      "notes": "No standalone trip detail route exists, by design \u2014 see the note in docs/implementation-plan.md 1.2. Place names come from provider fixtures via src/search/destination-names.ts, a marked stand-in for the destinations table (specification section 21); it is display-only and no computed figure reads it. The page is server-rendered on every request with no caching, which is correct against instant mocks and will need revisiting when a live provider makes a search cost money."
+      "notes": "No standalone trip detail route exists, by design — see the note in docs/implementation-plan.md 1.2. Place names come from provider fixtures via src/search/destination-names.ts, a marked stand-in for the destinations table (specification section 21); it is display-only and no computed figure reads it. The page is server-rendered on every request with no caching, which is correct against instant mocks and will need revisiting when a live provider makes a search cost money."
     },
     {
       "id": "data-honesty",
