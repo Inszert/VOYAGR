@@ -3,7 +3,7 @@ import { money } from '@/core/money';
 import { buildProfile } from '@/core/trip/test-support';
 import { createMemoryRepositories } from '@/db/memory';
 import type { Repositories } from '@/db/repository';
-import { prunePriceHistory, sweepExpiredSessions } from './maintenance';
+import { prunePriceHistory, pruneProviderRequests, sweepExpiredSessions } from './maintenance';
 
 /**
  * Worker housekeeping.
@@ -137,5 +137,32 @@ describe('prunePriceHistory', () => {
     await observe(watchId, 68000, 1);
 
     expect(await prunePriceHistory({ repositories, now: () => NOW }, 90)).toBe(0);
+  });
+});
+
+describe('pruneProviderRequests', () => {
+  it('drops provider calls older than the window and keeps the rest', async () => {
+    const repositories = createMemoryRepositories();
+    await repositories.providerRequests.record({
+      providerId: 'vendor',
+      kind: 'flights',
+      status: 'ok',
+      durationMs: 120,
+      resultCount: 5,
+    });
+
+    // A clock sixty days on puts the call outside a thirty-day window.
+    const later = Date.now() + 60 * 24 * 60 * 60 * 1000;
+    expect(await pruneProviderRequests({ repositories, now: () => later }, 30)).toBe(1);
+
+    // And one that has not moved keeps it.
+    await repositories.providerRequests.record({
+      providerId: 'vendor',
+      kind: 'flights',
+      status: 'ok',
+      durationMs: 120,
+      resultCount: 5,
+    });
+    expect(await pruneProviderRequests({ repositories }, 30)).toBe(0);
   });
 });

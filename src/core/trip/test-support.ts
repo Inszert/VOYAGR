@@ -59,6 +59,7 @@ export function buildFlightOffer(overrides: Partial<FlightOffer> = {}): FlightOf
     }),
     price: money(29800, 'EUR'),
     observedAt: '2026-01-15T09:00:00Z',
+    expiresAt: null,
     ...overrides,
   };
 }

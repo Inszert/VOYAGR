@@ -6,6 +6,7 @@ import { searchProfileToQuery } from '@/search/schema';
 import { resolveEntitlements } from '@/core/entitlements';
 import { getLogger } from '@/lib/logger';
 import { runSearch } from '@/search/orchestrator';
+import { recordProviderCalls } from '@/search/observe';
 import { resolveDestinationNames } from '@/search/destination-names';
 import { WatchService } from './service';
 import type { Repositories, TravelWatchRecord, TripSearchRecord } from '@/db/repository';
@@ -123,13 +124,16 @@ export async function refreshWatch(
   let outcome: SearchOutcome | null = null;
 
   try {
-    outcome = await search({
-      profile: saved.profile,
-      destinations: saved.destinations,
-      destinationNames: resolveDestinationNames(saved.destinations),
-      limits: { maxDestinations: entitlements.maxDestinationsPerSearch },
-      requestId: `watch-${watchId}`,
-    });
+    outcome = await search(
+      {
+        profile: saved.profile,
+        destinations: saved.destinations,
+        destinationNames: resolveDestinationNames(saved.destinations),
+        limits: { maxDestinations: entitlements.maxDestinationsPerSearch },
+        requestId: `watch-${watchId}`,
+      },
+      { observe: recordProviderCalls(repositories) },
+    );
   } catch (error) {
     // A profile the planner rejects will be rejected again in six hours, but
     // the watch still has to be rescheduled or it stops silently.

@@ -67,6 +67,12 @@ export function freshnessOf(
   observedAt: IsoDateTime | null | undefined,
   now: number,
   limits: FreshnessLimits,
+  /**
+   * When the vendor said the price stops holding, if it said. Past it, the
+   * quote is stale however young it is. Before it, the age limit still
+   * applies: a vendor's promise never makes an old observation fresh.
+   */
+  expiresAt?: IsoDateTime | null,
 ): Freshness {
   const observed = instantOf(observedAt);
   if (observed === null) return 'unknown';
@@ -76,6 +82,9 @@ export function freshnessOf(
   // Further ahead than skew explains: not believed, and not quietly treated
   // as the freshest thing on the page.
   if (observed > now + tolerance) return 'unknown';
+
+  const expires = instantOf(expiresAt);
+  if (expires !== null && now >= expires) return 'stale';
 
   return now - observed <= limits.maxAgeMs ? 'fresh' : 'stale';
 }

@@ -10,6 +10,9 @@ import type {
   PriceObservationRecord,
   PushSubscriptionRecord,
   PushSubscriptionRepository,
+  ProviderCallSummary,
+  ProviderRequestRecord,
+  ProviderRequestRepository,
   Repositories,
   SessionRecord,
   SessionRepository,
@@ -24,6 +27,7 @@ import type {
   UserRecord,
   UserRepository,
 } from './repository';
+import type { IsoDateTime } from '@/core/trip/types';
 
 /**
  * PostgreSQL repository implementation.
@@ -355,6 +359,12 @@ function toTripSearch(row: TripSearchRow): TripSearchRecord {
 const SEARCH_COLUMNS = 'id, user_id, name, profile, destinations, created_at, updated_at';
 
 class PostgresTripSearchRepository implements TripSearchRepository {
+  async delete(id: string): Promise<void> {
+    // The watch and its price history go with it: both reference this row
+    // with ON DELETE CASCADE (0001_init.sql).
+    await query('DELETE FROM trip_searches WHERE id = $1', [id]);
+  }
+
   async findById(id: string): Promise<TripSearchRecord | null> {
     const rows = await query<TripSearchRow>(
       `SELECT ${SEARCH_COLUMNS} FROM trip_searches WHERE id = $1`,
@@ -771,6 +781,64 @@ class PostgresPushSubscriptionRepository implements PushSubscriptionRepository {
   }
 }
 
+class PostgresProviderRequestRepository implements ProviderRequestRepository {
+  async record(entry: Omit<ProviderRequestRecord, 'createdAt'>): Promise<void> {
+    await query(
+      `INSERT INTO provider_requests (provider_id, kind, status, duration_ms, result_count)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [entry.providerId, entry.kind, entry.status, Math.round(entry.durationMs), entry.resultCount],
+    );
+  }
+
+  async summarise(since: IsoDateTime): Promise<ProviderCallSummary[]> {
+    // `percentile_disc` is nearest-rank, the same method the in-memory
+    // backend uses (`src/providers/observability.ts`), so both agree.
+    const rows = await query<{
+      provider_id: string;
+      kind: string;
+      calls: string;
+      errors: string;
+      timeouts: string;
+      rate_limited: string;
+      p50: number;
+      p95: number;
+    }>(
+      `SELECT provider_id,
+              kind,
+              count(*) AS calls,
+              count(*) FILTER (WHERE status = 'error') AS errors,
+              count(*) FILTER (WHERE status = 'timeout') AS timeouts,
+              count(*) FILTER (WHERE status = 'rate_limited') AS rate_limited,
+              percentile_disc(0.5) WITHIN GROUP (ORDER BY duration_ms) AS p50,
+              percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
+         FROM provider_requests
+        WHERE created_at >= $1
+        GROUP BY provider_id, kind
+        ORDER BY count(*) DESC, provider_id`,
+      [since],
+    );
+
+    return rows.map((row) => ({
+      providerId: row.provider_id,
+      kind: row.kind,
+      calls: Number(row.calls),
+      errors: Number(row.errors),
+      timeouts: Number(row.timeouts),
+      rateLimited: Number(row.rate_limited),
+      p50Ms: Number(row.p50),
+      p95Ms: Number(row.p95),
+    }));
+  }
+
+  async deleteBefore(before: IsoDateTime): Promise<number> {
+    const rows = await query<{ id: string }>(
+      'DELETE FROM provider_requests WHERE created_at < $1 RETURNING id',
+      [before],
+    );
+    return rows.length;
+  }
+}
+
 /** The Postgres-backed persistence surface. */
 export function createPostgresRepositories(): Repositories {
   return {
@@ -783,6 +851,7 @@ export function createPostgresRepositories(): Repositories {
     priceHistory: new PostgresPriceHistoryRepository(),
     notifications: new PostgresNotificationRepository(),
     pushSubscriptions: new PostgresPushSubscriptionRepository(),
+    providerRequests: new PostgresProviderRequestRepository(),
     backend: 'postgres',
   };
 }

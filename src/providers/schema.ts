@@ -107,6 +107,8 @@ export const flightOfferSchema = z
     inbound: leg,
     price,
     observedAt: isoDateTime,
+    // Required, and null when unstated: a missing key is an adapter bug.
+    expiresAt: isoDateTime.nullable(),
     deepLink: z.string().url().optional(),
   })
   .strict();

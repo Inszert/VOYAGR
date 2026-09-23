@@ -5,6 +5,9 @@ import type {
   NotificationRepository,
   PriceHistoryRepository,
   PriceObservationRecord,
+  ProviderCallSummary,
+  ProviderRequestRecord,
+  ProviderRequestRepository,
   PushSubscriptionRecord,
   PushSubscriptionRepository,
   Repositories,
@@ -22,6 +25,7 @@ import type {
   UserRepository,
 } from './repository';
 import { AppError } from '@/lib/errors';
+import { summariseProviderCalls } from '@/providers/observability';
 
 /**
  * In-memory repository implementation.
@@ -201,6 +205,14 @@ class MemoryUserPreferencesRepository implements UserPreferencesRepository {
 class MemoryTripSearchRepository implements TripSearchRepository {
   private readonly byId = new Map<string, TripSearchRecord>();
 
+  /** What else goes with a search. Wired in `createMemoryRepositories`. */
+  cascade: (searchId: string) => void = () => {};
+
+  async delete(id: string): Promise<void> {
+    if (!this.byId.delete(id)) return;
+    this.cascade(id);
+  }
+
   async findById(id: string): Promise<TripSearchRecord | null> {
     return this.byId.get(id) ?? null;
   }
@@ -247,6 +259,18 @@ class MemoryTripSearchRepository implements TripSearchRepository {
 
 class MemoryTravelWatchRepository implements TravelWatchRepository {
   private readonly byId = new Map<string, TravelWatchRecord>();
+
+  /** Drop the watches on one saved search, returning their ids. */
+  eraseSearch(searchId: string): string[] {
+    const removed: string[] = [];
+    for (const [id, record] of this.byId) {
+      if (record.tripSearchId === searchId) {
+        this.byId.delete(id);
+        removed.push(id);
+      }
+    }
+    return removed;
+  }
 
   async findById(id: string): Promise<TravelWatchRecord | null> {
     return this.byId.get(id) ?? null;
@@ -456,6 +480,25 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
   }
 }
 
+class MemoryProviderRequestRepository implements ProviderRequestRepository {
+  private rows: ProviderRequestRecord[] = [];
+
+  async record(entry: Omit<ProviderRequestRecord, 'createdAt'>): Promise<void> {
+    this.rows.push({ ...entry, createdAt: now() });
+  }
+
+  async summarise(since: string): Promise<ProviderCallSummary[]> {
+    return summariseProviderCalls(this.rows.filter((row) => row.createdAt >= since));
+  }
+
+  async deleteBefore(before: string): Promise<number> {
+    const kept = this.rows.filter((row) => row.createdAt >= before);
+    const removed = this.rows.length - kept.length;
+    this.rows = kept;
+    return removed;
+  }
+}
+
 /** Build a complete, isolated set of in-memory repositories. */
 export function createMemoryRepositories(): Repositories {
   const users = new MemoryUserRepository();
@@ -467,6 +510,7 @@ export function createMemoryRepositories(): Repositories {
   const priceHistory = new MemoryPriceHistoryRepository();
   const notifications = new MemoryNotificationRepository();
   const pushSubscriptions = new MemoryPushSubscriptionRepository();
+  const providerRequests = new MemoryProviderRequestRepository();
 
   /*
    * The cascade, in dependence order.
@@ -476,6 +520,12 @@ export function createMemoryRepositories(): Repositories {
    * gone. Synchronous on purpose: nothing here awaits, so nothing can
    * interleave and leave the erasure half-done.
    */
+  // A saved search takes its watch and that watch's observations with it,
+  // as `ON DELETE CASCADE` does in Postgres.
+  tripSearches.cascade = (searchId) => {
+    priceHistory.eraseWatches(travelWatches.eraseSearch(searchId));
+  };
+
   users.cascade = (userId) => {
     const watchIds = travelWatches.eraseUser(userId);
 
@@ -501,6 +551,7 @@ export function createMemoryRepositories(): Repositories {
     priceHistory,
     notifications,
     pushSubscriptions,
+    providerRequests,
     backend: 'memory',
   };
 }

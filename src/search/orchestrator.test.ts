@@ -19,7 +19,7 @@ import type {
   TransferProvider,
   WeatherProvider,
 } from '@/providers/types';
-import { runSearch, type SearchDependencies } from './orchestrator';
+import { type ProviderCallObservation, runSearch, type SearchDependencies } from './orchestrator';
 import { DEFAULT_SEARCH_LIMITS, type SearchRequest } from './types';
 
 /**
@@ -800,5 +800,45 @@ describe('a provider quoting in another currency', () => {
     );
 
     expect(outcome.results).toEqual([]);
+  });
+});
+
+describe('observing provider calls', () => {
+  it('reports every call the search made, once each', async () => {
+    const calls: ProviderCallObservation[] = [];
+    const outcome = await search({}, { observe: (call) => calls.push(call) });
+
+    expect(calls).toHaveLength(outcome.diagnostics.providerCalls);
+    expect(calls.every((call) => call.status === 'ok')).toBe(true);
+    expect(new Set(calls.map((call) => call.kind))).toEqual(
+      new Set(['flights', 'hotels', 'weather', 'transfers']),
+    );
+  });
+
+  it('reports a failed call as failed, and a thrown one too', async () => {
+    const calls: ProviderCallObservation[] = [];
+    await search(
+      {},
+      { hotels: brokenHotels, weather: throwingWeather, observe: (call) => calls.push(call) },
+    );
+
+    const hotels = calls.filter((call) => call.kind === 'hotels');
+    const weather = calls.filter((call) => call.kind === 'weather');
+    expect(hotels.length).toBeGreaterThan(0);
+    expect(hotels.every((call) => call.status === 'error' && call.resultCount === null)).toBe(true);
+    expect(weather.every((call) => call.status === 'error')).toBe(true);
+  });
+
+  it('keeps searching when the observer itself throws', async () => {
+    const outcome = await search(
+      {},
+      {
+        observe: () => {
+          throw new Error('metrics store is down');
+        },
+      },
+    );
+
+    expect(outcome.results.length).toBeGreaterThan(0);
   });
 });

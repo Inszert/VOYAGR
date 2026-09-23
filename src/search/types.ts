@@ -238,10 +238,10 @@ export interface SearchDiagnostics {
    * is the sort of silent surprise §31.5 exists to prevent.
    *
    * Counted per ranked trip, taking the weaker of its flight and hotel, so a
-   * trip is only as current as its stalest half. **Reported, not acted on.**
-   * What to actually do about a stale quote - refuse it, label it, re-check
-   * it - depends on a vendor's own validity window, which is exactly what
-   * 1.11 goes and finds out. This makes the question answerable first.
+   * trip is only as current as its stalest half. A flight whose vendor
+   * stated a validity window (`FlightOffer.expiresAt`) is stale once it has
+   * passed, whatever its age. Shown on the results as a notice and in the
+   * search's own account of itself; a stale trip is labelled, not dropped.
    */
   readonly quoteFreshness: {
     readonly fresh: number;

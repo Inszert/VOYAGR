@@ -12,6 +12,28 @@ describe('freshnessOf', () => {
     expect(freshnessOf(at('2026-09-22T11:45:00Z'), NOW, limits)).toBe('fresh');
   });
 
+  it('calls a quote stale once the vendor says it has expired, however young', () => {
+    expect(freshnessOf(at('2026-09-22T11:45:00Z'), NOW, limits, at('2026-09-22T11:55:00Z'))).toBe(
+      'stale',
+    );
+  });
+
+  it('keeps a young quote fresh while the vendor still stands behind it', () => {
+    expect(freshnessOf(at('2026-09-22T11:45:00Z'), NOW, limits, at('2026-09-22T12:20:00Z'))).toBe(
+      'fresh',
+    );
+  });
+
+  it('never lets a vendor promise make an old observation fresh', () => {
+    expect(freshnessOf(at('2026-09-22T06:00:00Z'), NOW, limits, at('2026-09-23T12:00:00Z'))).toBe(
+      'stale',
+    );
+  });
+
+  it('treats an unstated expiry as no information, not as expired', () => {
+    expect(freshnessOf(at('2026-09-22T11:45:00Z'), NOW, limits, null)).toBe('fresh');
+  });
+
   it('calls an observation past the limit stale', () => {
     expect(freshnessOf(at('2026-09-22T11:00:00Z'), NOW, limits)).toBe('stale');
   });

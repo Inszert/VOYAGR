@@ -336,6 +336,28 @@ describe.each(backends)('$name repository contract', (backend) => {
       });
     }
 
+    it('deletes a saved search together with its watch and everything it recorded', async () => {
+      const user = await aUser();
+      const watch = await aWatch(user.id);
+      await repositories.priceHistory.record({
+        watchId: watch.id,
+        componentType: 'trip_total',
+        componentId: 'candidate-1',
+        amount: money(68000, 'EUR'),
+        providerId: 'mock-flights',
+        observedAt: new Date().toISOString(),
+        conditions: null,
+      });
+
+      await repositories.tripSearches.delete(watch.tripSearchId);
+
+      expect(await repositories.tripSearches.findById(watch.tripSearchId)).toBeNull();
+      expect(await repositories.travelWatches.findById(watch.id)).toBeNull();
+      expect(await repositories.priceHistory.listForWatch(watch.id)).toEqual([]);
+      // Deleting it again is not an error.
+      await repositories.tripSearches.delete(watch.tripSearchId);
+    });
+
     it('round-trips a watch, including a null best-known total', async () => {
       const user = await aUser();
       const created = await aWatch(user.id);
@@ -461,6 +483,66 @@ describe.each(backends)('$name repository contract', (backend) => {
       await anAlert(other.id);
 
       expect(await repositories.notifications.listByUser(user.id)).toHaveLength(1);
+    });
+  });
+
+  describe('provider requests', () => {
+    it('summarises calls per provider, with nearest-rank percentiles', async () => {
+      const providerId = `vendor-${randomUUID()}`;
+      const since = new Date(Date.now() - 60_000).toISOString();
+
+      for (const [status, durationMs] of [
+        ['ok', 100],
+        ['ok', 200],
+        ['ok', 300],
+        ['error', 400],
+        ['timeout', 5000],
+        ['rate_limited', 50],
+      ] as const) {
+        await repositories.providerRequests.record({
+          providerId,
+          kind: 'flights',
+          status,
+          durationMs,
+          resultCount: status === 'ok' ? 10 : null,
+        });
+      }
+
+      const summary = (await repositories.providerRequests.summarise(since)).find(
+        (row) => row.providerId === providerId,
+      );
+
+      expect(summary).toEqual({
+        providerId,
+        kind: 'flights',
+        calls: 6,
+        errors: 1,
+        timeouts: 1,
+        rateLimited: 1,
+        // Sorted: 50 100 200 300 400 5000. Nearest rank: 3rd and 6th.
+        p50Ms: 200,
+        p95Ms: 5000,
+      });
+    });
+
+    it('leaves out calls before the window, and can sweep them', async () => {
+      const providerId = `vendor-${randomUUID()}`;
+      await repositories.providerRequests.record({
+        providerId,
+        kind: 'hotels',
+        status: 'ok',
+        durationMs: 10,
+        resultCount: 1,
+      });
+
+      const future = new Date(Date.now() + 60_000).toISOString();
+      expect(
+        (await repositories.providerRequests.summarise(future)).some(
+          (row) => row.providerId === providerId,
+        ),
+      ).toBe(false);
+
+      expect(await repositories.providerRequests.deleteBefore(future)).toBeGreaterThan(0);
     });
   });
 

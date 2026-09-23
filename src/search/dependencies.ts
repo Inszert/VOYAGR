@@ -1,6 +1,7 @@
 import type { DataSource } from '@/providers/data-source';
 import { getProviderRegistry } from '@/providers/registry';
 import type { SearchDependencies } from './orchestrator';
+import { recordProviderCalls } from './observe';
 
 /**
  * The adapters a search runs against, for one data source.
@@ -22,5 +23,7 @@ export function dependenciesFor(source: DataSource): Partial<SearchDependencies>
     hotels: registry.hotels,
     weather: registry.weather,
     transfers: registry.transfers,
+    // Every call recorded, per provider, for the status page.
+    observe: recordProviderCalls(),
   };
 }

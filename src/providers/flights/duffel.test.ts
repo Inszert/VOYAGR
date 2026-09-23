@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { flightOfferSchema, validateOffers } from '../schema';
-import { DuffelFlightProvider, durationMinutes, mapDuffelOffer } from './duffel';
+import {
+  createDuffelFlightProvider,
+  DuffelFlightProvider,
+  durationMinutes,
+  mapDuffelOffer,
+} from './duffel';
+import { loadCassette, replayingFetch } from '../http/cassette';
 
 /**
  * The Duffel adapter, offline.
@@ -81,6 +87,17 @@ describe('mapDuffelOffer', () => {
     if (!('offer' in result)) return;
 
     expect(validateOffers(flightOfferSchema, [result.offer]).rejected).toEqual([]);
+  });
+
+  it('keeps the validity window Duffel states, and says nothing when it states none', () => {
+    const stated = map(offer);
+    if (!('offer' in stated)) throw new Error('expected an offer');
+    expect(stated.offer.expiresAt).toBe('2026-09-22T14:57:57.236180Z');
+
+    const { expires_at: _omitted, ...unstated } = offer;
+    const silent = map(unstated as typeof offer);
+    if (!('offer' in silent)) throw new Error('expected an offer');
+    expect(silent.offer.expiresAt).toBeNull();
   });
 
   it('keeps every segment of a connecting leg', () => {
@@ -420,5 +437,69 @@ describe('DuffelFlightProvider', () => {
 
     expect(provider.metadata.operationOverrides?.search?.timeoutMs).toBe(12_000);
     expect(provider.metadata.typicalLatencyMs).toBe(9_000);
+  });
+});
+
+/*
+ * A real Duffel sandbox search, replayed offline.
+ *
+ * Recorded by `scripts/record-duffel.ts` and committed, redacted. It is the
+ * evidence the live-provider readiness gate asks for: what Duffel actually
+ * sends - two calls per search, local wall-clock times, a stated validity
+ * window on every offer - checked against the adapter with no network.
+ */
+describe('a recorded Duffel search', () => {
+  const cassette = loadCassette('duffel-round-trip');
+
+  async function replay() {
+    const provider = createDuffelFlightProvider({
+      token: 'duffel_test_replay',
+      fetchImpl: replayingFetch(cassette),
+    });
+
+    const created = JSON.parse(cassette.exchanges[0]!.request.body ?? '{}') as {
+      data: { slices: { origin: string; destination: string; departure_date: string }[] };
+    };
+    const [out, back] = created.data.slices;
+
+    return provider.searchFlights({
+      origins: [out!.origin],
+      destinations: [out!.destination],
+      departureDate: out!.departure_date,
+      returnDate: back!.departure_date,
+      passengers: 1,
+      currency: 'EUR',
+    });
+  }
+
+  it('maps every recorded offer to one the domain boundary accepts', async () => {
+    const result = await replay();
+    if (!result.ok) throw new Error(result.error.message);
+
+    expect(result.value.items.length).toBeGreaterThan(0);
+    expect(validateOffers(flightOfferSchema, result.value.items).rejected).toEqual([]);
+  });
+
+  it('carries the validity window Duffel stated, thirty minutes after creation', async () => {
+    const result = await replay();
+    if (!result.ok) throw new Error(result.error.message);
+
+    for (const offer of result.value.items) {
+      expect(offer.expiresAt).not.toBeNull();
+      const window = Date.parse(offer.expiresAt!) - Date.parse(offer.observedAt);
+      expect(window).toBeGreaterThan(29 * 60_000);
+      expect(window).toBeLessThan(31 * 60_000);
+    }
+  });
+
+  it('keeps the times as local clock faces, with no zone', async () => {
+    const result = await replay();
+    if (!result.ok) throw new Error(result.error.message);
+
+    for (const offer of result.value.items) {
+      for (const segment of [...offer.outbound.segments, ...offer.inbound.segments]) {
+        expect(segment.departsAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/);
+      }
+    }
   });
 });

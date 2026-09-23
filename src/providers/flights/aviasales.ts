@@ -244,6 +244,8 @@ export function mapOffer(
       // `fromMajor`, never a float: the vendor quotes whole currency units.
       price: fromMajor(price.price, currency),
       observedAt: observedFromLink(price.link, observedAt),
+      // Cached prices come with no promise of how long they hold.
+      expiresAt: null,
       ...(price.link ? { deepLink: `https://www.aviasales.com${price.link}` } : {}),
     } as FlightOffer,
   };

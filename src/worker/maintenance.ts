@@ -76,6 +76,25 @@ export async function prunePriceHistory(
   return removed;
 }
 
+/**
+ * How long a provider call is kept. Long enough to compare this month with
+ * last; the table holds figures about vendors, never about people.
+ */
+export const DEFAULT_PROVIDER_REQUEST_RETENTION_DAYS = 30;
+
+export async function pruneProviderRequests(
+  dependencies: MaintenanceDependencies,
+  retentionDays: number = DEFAULT_PROVIDER_REQUEST_RETENTION_DAYS,
+): Promise<number> {
+  const now = dependencies.now ?? Date.now;
+  const before = new Date(now() - retentionDays * DAY).toISOString();
+
+  const removed = await dependencies.repositories.providerRequests.deleteBefore(before);
+
+  if (removed > 0) log.info({ removed, before, retentionDays }, 'old provider calls pruned');
+  return removed;
+}
+
 export interface MaintenanceHandle {
   stop(): void;
 }
@@ -114,6 +133,11 @@ export function startMaintenance(
       options.pruneIntervalMs ?? DEFAULT_PRUNE_INTERVAL_MS,
       () => prunePriceHistory(dependencies, retentionDays),
       'price-history',
+    ),
+    repeat(
+      options.pruneIntervalMs ?? DEFAULT_PRUNE_INTERVAL_MS,
+      () => pruneProviderRequests(dependencies),
+      'provider-requests',
     ),
   ];
 

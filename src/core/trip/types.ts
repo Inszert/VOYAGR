@@ -126,6 +126,13 @@ export interface FlightOffer {
   /** Total price for all passengers, as quoted. */
   readonly price: Money;
   readonly observedAt: IsoDateTime;
+  /**
+   * When the vendor stops standing behind this price, or null when it never
+   * said. Duffel states one on every offer, usually 15 to 30 minutes out; a
+   * cached-price vendor states none. Past it, the quote is stale however
+   * recently it was observed - the vendor has said so.
+   */
+  readonly expiresAt: IsoDateTime | null;
   readonly deepLink?: string;
 }
 

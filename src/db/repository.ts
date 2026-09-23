@@ -222,6 +222,11 @@ export interface TripSearchRepository {
     id: string,
     patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,
   ): Promise<TripSearchRecord>;
+  /**
+   * Remove a saved search, and with it the watch on it and everything that
+   * watch recorded. Deleting something that is already gone is not an error.
+   */
+  delete(id: string): Promise<void>;
 }
 
 export interface TravelWatchRepository {
@@ -284,6 +289,46 @@ export interface PushSubscriptionRepository {
 }
 
 /** The complete persistence surface, handed to feature code as one object. */
+/** How one provider call ended, as the `provider_requests` table records it. */
+export type ProviderCallStatus = 'ok' | 'error' | 'timeout' | 'rate_limited';
+
+export interface ProviderRequestRecord {
+  readonly providerId: string;
+  readonly kind: string;
+  readonly status: ProviderCallStatus;
+  readonly durationMs: number;
+  /** Offers on the page it returned, or null when it returned none. */
+  readonly resultCount: number | null;
+  readonly createdAt: IsoDateTime;
+}
+
+/**
+ * One provider's calls over a window, summarised.
+ *
+ * Enough to tell a degraded search from a broken one without reading logs:
+ * how many calls, how many failed and how, and how long they took. The
+ * percentiles are nearest-rank over the window's durations - the same method
+ * in both backends, so the figure does not depend on where it was stored.
+ */
+export interface ProviderCallSummary {
+  readonly providerId: string;
+  readonly kind: string;
+  readonly calls: number;
+  readonly errors: number;
+  readonly timeouts: number;
+  readonly rateLimited: number;
+  readonly p50Ms: number;
+  readonly p95Ms: number;
+}
+
+export interface ProviderRequestRepository {
+  record(entry: Omit<ProviderRequestRecord, 'createdAt'>): Promise<void>;
+  /** Every provider called since `since`, busiest first. */
+  summarise(since: IsoDateTime): Promise<ProviderCallSummary[]>;
+  /** Drop calls recorded before `before`, reporting how many went. */
+  deleteBefore(before: IsoDateTime): Promise<number>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly credentials: UserCredentialRepository;
@@ -294,6 +339,7 @@ export interface Repositories {
   readonly priceHistory: PriceHistoryRepository;
   readonly notifications: NotificationRepository;
   readonly pushSubscriptions: PushSubscriptionRepository;
+  readonly providerRequests: ProviderRequestRepository;
   /** Identifies the active backend, for diagnostics. */
   readonly backend: 'memory' | 'postgres';
 }

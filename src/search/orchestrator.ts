@@ -102,6 +102,24 @@ export interface SearchDependencies {
    * "quoted in an unexpected currency".
    */
   readonly rates?: RateSource;
+  /**
+   * Told about every provider call once it ends: who, what kind, how it
+   * ended and how long it took. For per-provider observability - the page
+   * wires it to `provider_requests`. Called synchronously and never awaited;
+   * an observer that throws is logged and ignored, because watching a search
+   * must never be able to break one.
+   */
+  readonly observe?: (call: ProviderCallObservation) => void;
+}
+
+/** One provider call, as the search saw it end. */
+export interface ProviderCallObservation {
+  readonly providerId: string;
+  readonly kind: string;
+  readonly status: 'ok' | 'error' | 'timeout' | 'rate_limited';
+  readonly durationMs: number;
+  /** Items on the page it returned, or null when it returned none. */
+  readonly resultCount: number | null;
 }
 
 function defaultDependencies(): SearchDependencies {
@@ -143,6 +161,35 @@ interface CallBudget {
   calls: number;
   /** Set once the ceiling has been reported, so it is reported once. */
   exhausted: boolean;
+  readonly now: () => number;
+  readonly observe: ((call: ProviderCallObservation) => void) | undefined;
+}
+
+/** How a call ended, by the error code it ended with. */
+function statusFor(code: string | null): ProviderCallObservation['status'] {
+  if (code === null) return 'ok';
+  if (code === 'RATE_LIMITED') return 'rate_limited';
+  if (code === 'PROVIDER_TIMEOUT') return 'timeout';
+  return 'error';
+}
+
+/** Tell the observer, without letting it throw into the search. */
+function report(budget: CallBudget, call: ProviderCallObservation): void {
+  if (!budget.observe) return;
+  try {
+    budget.observe(call);
+  } catch (error) {
+    log.warn({ err: error }, 'provider call observer threw; ignored');
+  }
+}
+
+/** How many items a call returned: a page's items, or an array's length. */
+function countOf(value: unknown): number | null {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === 'object' && Array.isArray((value as { items?: unknown }).items)) {
+    return (value as { items: unknown[] }).items.length;
+  }
+  return null;
 }
 
 /** Everything one provider call needs in order to report itself when it fails. */
@@ -218,6 +265,15 @@ async function callProvider<T>(
   // site. Once a query can span several pages, a caller counting its own
   // calls is a caller that will drift from the truth.
   budget.calls += 1;
+  const started = budget.now();
+  const observed = (code: string | null, value: unknown) =>
+    report(budget, {
+      providerId: context.providerId,
+      kind: context.kind,
+      status: statusFor(code),
+      durationMs: Math.max(0, budget.now() - started),
+      resultCount: code === null ? countOf(value) : null,
+    });
 
   try {
     /*
@@ -232,11 +288,16 @@ async function callProvider<T>(
 
     const result = await limiter.run(run);
 
-    if (result.ok) return result.value;
+    if (result.ok) {
+      observed(null, result.value);
+      return result.value;
+    }
 
+    observed(result.error.code, null);
     issues.push({ ...context, code: result.error.code, message: result.error.publicMessage });
   } catch (error) {
     log.warn({ ...context, err: error }, 'provider adapter threw instead of returning a result');
+    observed(isAppError(error) ? error.code : 'PROVIDER_ERROR', null);
 
     issues.push({
       ...context,
@@ -855,6 +916,8 @@ export async function runSearch(
     maxCalls: plan.limits.maxProviderCalls,
     calls: 0,
     exhausted: false,
+    now: deps.now ?? Date.now,
+    observe: deps.observe,
   };
 
   const contexts = await fetchDestinationContexts(plan, deps, request, issues, budget);
@@ -959,7 +1022,12 @@ export async function runSearch(
 
     freshness[
       weakestFreshness([
-        freshnessOf(candidate.flight.observedAt, startedAt, DEFAULT_FRESHNESS.flights),
+        freshnessOf(
+          candidate.flight.observedAt,
+          startedAt,
+          DEFAULT_FRESHNESS.flights,
+          candidate.flight.expiresAt,
+        ),
         freshnessOf(candidate.hotel.observedAt, startedAt, DEFAULT_FRESHNESS.hotels),
       ])
     ] += 1;

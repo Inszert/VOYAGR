@@ -47,11 +47,21 @@ const wellFormedFlight = {
   },
   price: { amount: 24_900, currency: 'EUR' },
   observedAt: '2026-06-01T09:00:00Z',
+  expiresAt: null,
 };
 
 const only = (value: unknown) => validateOffers(flightOfferSchema, [value]);
 
 describe('flight offers from a provider', () => {
+  it('accepts a vendor-stated expiry, and refuses an offer that omits the key', () => {
+    expect(only({ ...wellFormedFlight, expiresAt: '2026-06-01T09:30:00Z' }).accepted).toHaveLength(
+      1,
+    );
+
+    const { expiresAt: _omitted, ...withoutExpiry } = wellFormedFlight;
+    expect(only(withoutExpiry).accepted).toHaveLength(0);
+  });
+
   it('accepts a well-formed offer', () => {
     expect(only(wellFormedFlight).accepted).toHaveLength(1);
   });

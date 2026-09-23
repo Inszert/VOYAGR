@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Badge, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui';
 import { getProviderRegistry } from '@/providers/registry';
 import { getCapabilities } from '@/lib/env';
+import { getRepositories } from '@/db';
 
 /**
  * Foundation status page.
@@ -17,7 +18,7 @@ import { getCapabilities } from '@/lib/env';
  */
 
 export const metadata: Metadata = {
-  title: 'Foundation status',
+  title: 'System status',
 };
 
 interface Subsystem {
@@ -49,8 +50,20 @@ function stateBadge(state: Subsystem['state']) {
   }
 }
 
-export default function HomePage() {
+/** The last day of provider calls, or null when the store cannot be read. */
+async function lastDayOfProviderCalls() {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  return getRepositories()
+    .providerRequests.summarise(since)
+    .catch(() => null);
+}
+
+export default async function StatusPage() {
   const registry = getProviderRegistry();
+
+  // The last day of provider calls, summarised by the repository. Every
+  // figure is a count or a measured duration; nothing here is estimated.
+  const providerCalls = await lastDayOfProviderCalls();
   const capabilities = getCapabilities();
 
   const subsystems: Subsystem[] = [
@@ -95,13 +108,10 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-3">
-        <h1 className="text-ink text-3xl font-semibold tracking-tight">
-          Voyagr engineering foundation
-        </h1>
+        <h1 className="font-display text-display-md text-ink">System status</h1>
         <p className="text-ink-muted max-w-2xl text-base">
-          The scaffolding is in place: a deterministic trip core, provider adapters behind
-          interfaces, an AI abstraction with guardrails, and testing, security and CI baselines. No
-          product features are implemented yet.
+          What this deployment is running on, and how each travel data provider has behaved over the
+          last day.
         </p>
       </section>
 
@@ -127,18 +137,82 @@ export default function HomePage() {
         </ul>
       </section>
 
-      <section aria-labelledby="next-heading" className="flex flex-col gap-3">
-        <h2 id="next-heading" className="text-ink text-xl font-semibold">
-          What comes next
+      {/*
+        Per-provider figures, so a degraded search can be told from a broken
+        vendor without reading logs. Every call a search or a watch makes is
+        recorded with how it ended and how long it took.
+      */}
+      <section aria-labelledby="providers-heading" className="flex flex-col gap-4">
+        <h2 id="providers-heading" className="text-ink text-xl font-semibold">
+          Providers, last 24 hours
         </h2>
-        <p className="text-ink-muted max-w-2xl text-base">
-          Phase 1 builds the loop the product is judged on: a search becomes a saved Travel Watch,
-          workers keep refreshing it, and a materially better trip produces an alert. The plan is in{' '}
-          <code className="bg-surface-sunken rounded px-1.5 py-0.5 font-mono text-sm">
-            docs/implementation-plan.md
-          </code>
-          .
-        </p>
+
+        {providerCalls === null ? (
+          <p className="text-ink-muted text-sm">Provider figures could not be read just now.</p>
+        ) : providerCalls.length === 0 ? (
+          <p className="text-ink-muted text-sm">No provider calls in the last 24 hours.</p>
+        ) : (
+          <div className="border-border overflow-x-auto rounded-(--radius-card) border">
+            <table className="w-full text-sm tabular-nums">
+              <thead className="bg-surface-sunken text-ink-muted text-left">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Provider
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Kind
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Calls
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Errors
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Timeouts
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Rate limited
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Median
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    95th percentile
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-border divide-y">
+                {providerCalls.map((row) => (
+                  <tr key={`${row.providerId}-${row.kind}`}>
+                    <th scope="row" className="text-ink px-3 py-2 text-left font-medium">
+                      {row.providerId}
+                    </th>
+                    <td className="text-ink-muted px-3 py-2">{row.kind}</td>
+                    <td className="text-ink px-3 py-2 text-right">{row.calls}</td>
+                    <td
+                      className={`px-3 py-2 text-right ${row.errors > 0 ? 'text-critical-ink' : 'text-ink-muted'}`}
+                    >
+                      {row.errors}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right ${row.timeouts > 0 ? 'text-caution-ink' : 'text-ink-muted'}`}
+                    >
+                      {row.timeouts}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right ${row.rateLimited > 0 ? 'text-caution-ink' : 'text-ink-muted'}`}
+                    >
+                      {row.rateLimited}
+                    </td>
+                    <td className="text-ink px-3 py-2 text-right">{row.p50Ms} ms</td>
+                    <td className="text-ink px-3 py-2 text-right">{row.p95Ms} ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -251,6 +251,8 @@ export function mapDuffelOffer(
       price: fromMajor(amount, offer.total_currency),
       // When Duffel made the offer, not when we read it.
       observedAt: offer.created_at,
+      // Duffel's own validity window. Absent means unstated, never "forever".
+      expiresAt: offer.expires_at ?? null,
     },
   };
 }

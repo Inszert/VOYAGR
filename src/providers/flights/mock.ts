@@ -251,6 +251,7 @@ export class MockFlightProvider implements FlightProvider {
             inbound,
             price: money(perPassenger * query.passengers, query.currency),
             observedAt: MOCK_OBSERVED_AT,
+            expiresAt: null,
             deepLink: undefined,
           });
         }
