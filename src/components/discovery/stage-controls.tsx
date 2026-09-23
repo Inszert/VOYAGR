@@ -101,7 +101,7 @@ export function StageControls({
           id="stage-country"
           name="country"
           defaultValue={selected?.adm0 ?? ''}
-          className="text-text focus-visible:outline-accent-ink max-w-[11rem] min-w-0 border-0 bg-transparent px-2 py-1 text-[13px] focus:outline-none"
+          className="text-text focus-visible:outline-accent-ink h-[34px] max-w-[11rem] min-w-0 border-0 bg-transparent px-2 text-[13px] focus:outline-none"
         >
           <option value="">The whole world</option>
           {COUNTRIES.map((country) => (

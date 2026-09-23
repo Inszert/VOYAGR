@@ -64,7 +64,7 @@ export function DataSourceSwitch({ source, className }: DataSourceSwitchProps) {
               // actually in - not the one the cookie asked for.
               aria-pressed={active}
               className={cn(
-                'ease-standard duration-quick focus-visible:outline-accent-ink rounded-[--radius-pill] px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors',
+                'ease-standard duration-quick focus-visible:outline-accent-ink flex h-7 items-center rounded-[--radius-pill] px-2.5 text-[11px] font-semibold tracking-wide transition-colors',
                 active
                   ? option === 'mock'
                     ? 'bg-critical-500/20 text-critical-ink'

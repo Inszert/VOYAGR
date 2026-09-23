@@ -1,4 +1,4 @@
-import { format } from '@/core/money';
+import { abs, format } from '@/core/money';
 import {
   Badge,
   Button,
@@ -212,15 +212,34 @@ export function TripCard({
   const hotelLink = buildHotelHandoff(candidate.hotel, { candidateId: candidate.id });
   const rankLabel = RANK_LABEL[rank];
 
+  /*
+   * Three densities, which is what stops the page being one long column of
+   * identical objects.
+   *
+   *  - **featured** - the answer. The largest picture and the largest price.
+   *  - **medium** - the alternatives to it.
+   *  - **compact** - a near miss. It is shown because "these came close, and
+   *    here is what was wrong" is a better answer than "nothing", but it did
+   *    not meet what was asked for, and rendering it at the same weight as a
+   *    trip that did makes a search that found nothing look like a search
+   *    that found ten things.
+   *
+   * Nothing is removed at any density. The same facts, the same disclosures
+   * and the same warnings are on a near miss as on the best match; what
+   * changes is how much of the page they take.
+   */
+  const featured = rank === 0;
+  const compact = rank < 0;
+
   return (
     <Card
       as="article"
       aria-labelledby={headingId}
       // The top result sits above the rest, because it is the answer and the
       // others are the alternatives to it.
-      elevation={rank === 0 ? 'floating' : 'raised'}
-      feature={rank === 0}
-      className="flex flex-col gap-4"
+      elevation={featured ? 'floating' : compact ? 'flat' : 'raised'}
+      feature={featured}
+      className={cn('flex flex-col', compact ? 'gap-3' : 'gap-4')}
     >
       {/*
         The header carries the picture.
@@ -238,13 +257,15 @@ export function TripCard({
       <Media
         seed={candidate.destination}
         image={image ? { url: imageryUrlFor(candidate.destination), alt: '' } : null}
-        priority={rank === 0}
+        priority={featured}
         scrim="full"
         className={cn(
           'stage-scope flex flex-col justify-end',
-          rank === 0
+          featured
             ? '-mx-7 -mt-7 min-h-[17rem] rounded-t-[--radius-surface] p-7'
-            : '-mx-5 -mt-5 min-h-[13rem] rounded-t-[--radius-card] p-5',
+            : compact
+              ? '-mx-5 -mt-5 min-h-[9rem] rounded-t-[--radius-card] p-5'
+              : '-mx-5 -mt-5 min-h-[13rem] rounded-t-[--radius-card] p-5',
         )}
       >
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
@@ -257,9 +278,12 @@ export function TripCard({
             <h3
               id={headingId}
               className={
-                rank === 0
+                featured
                   ? 'font-display text-display-sm mt-1.5 text-white'
-                  : 'font-display mt-1.5 text-2xl leading-tight text-white'
+                  : cn(
+                      'font-display mt-1.5 leading-tight text-white',
+                      compact ? 'text-xl' : 'text-2xl',
+                    )
               }
             >
               {candidate.destinationName}{' '}
@@ -289,7 +313,7 @@ export function TripCard({
           */}
           <Price
             amount={format(cost.total)}
-            size={rank === 0 ? 'xl' : 'lg'}
+            size={featured ? 'xl' : compact ? 'md' : 'lg'}
             align="end"
             onImage
             badge={<ProvenanceBadge provenance={provenance} explain={false} />}
@@ -304,9 +328,16 @@ export function TripCard({
                       : 'text-critical-ink',
                   )}
                 >
+                  {/*
+                    `abs`, because the word already carries the sign.
+                    "-€472.40 over your maximum" is a double negative, and a
+                    reader has to stop and work out which way it points. The
+                    figure is still the engine's; only the minus sign, which
+                    "over" already said, is dropped.
+                  */}
                   {eligibility.budgetHeadroom.amount >= 0
                     ? `${format(eligibility.budgetHeadroom)} under your maximum`
-                    : `${format(eligibility.budgetHeadroom)} over your maximum`}
+                    : `${format(abs(eligibility.budgetHeadroom))} over your maximum`}
                 </p>
                 {/*
                   Named beside the price, because that is where the question
@@ -388,7 +419,13 @@ export function TripCard({
               ))}
             </ul>
           </>
-        ) : (
+        ) : compact /*
+            Nothing, on a near miss.
+            
+            "This trip fits what you asked for" is false here by definition -
+            the box directly below says what ruled it out - and a reassuring
+            sentence above a rejection is the worst kind of wrong copy.
+          */ ? null : (
           <p className="text-ink-muted mt-1 text-sm">
             This trip fits what you asked for; nothing about it stood out either way.
           </p>
@@ -504,7 +541,7 @@ export function TripCard({
       {flightLink || hotelLink ? (
         <div className="border-border flex flex-wrap items-center gap-3 border-t pt-4">
           {flightLink ? (
-            <Button asChild variant={rank === 0 ? 'cta' : 'secondary'} size="md">
+            <Button asChild variant={featured ? 'cta' : 'secondary'} size={compact ? 'sm' : 'md'}>
               <a href={flightLink.url} rel={OUTBOUND_LINK_REL} target="_blank">
                 Book the flight with {flightLink.providerId}
                 <span className="sr-only"> (opens in a new tab)</span>
@@ -513,7 +550,7 @@ export function TripCard({
             </Button>
           ) : null}
           {hotelLink ? (
-            <Button asChild variant="secondary" size="md">
+            <Button asChild variant="secondary" size={compact ? 'sm' : 'md'}>
               <a href={hotelLink.url} rel={OUTBOUND_LINK_REL} target="_blank">
                 Book the hotel with {hotelLink.providerId}
                 <span className="sr-only"> (opens in a new tab)</span>

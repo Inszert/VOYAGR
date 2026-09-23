@@ -27,7 +27,7 @@ export function AnywhereButton({ targetName }: { readonly targetName: string }) 
           field.focus();
         }
       }}
-      className="text-dim hover:text-text focus-visible:outline-accent-to rounded-sm text-[11px] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+      className="text-dim hover:text-text focus-visible:outline-accent-to -my-1 rounded-sm py-1 text-[11px] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
     >
       Anywhere
     </button>

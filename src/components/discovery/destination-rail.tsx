@@ -299,7 +299,7 @@ export function DestinationRail({
               {country && clearHref ? (
                 <a
                   href={clearHref}
-                  className="text-muted hover:text-text ease-standard duration-quick inline-flex items-center gap-1.5 text-[13px] transition-colors"
+                  className="text-muted hover:text-text ease-standard duration-quick -my-1 inline-flex items-center gap-1.5 py-1 text-[13px] transition-colors"
                 >
                   Show the whole world
                   {totalCount > cards.length ? ` (${totalCount})` : ''}
@@ -310,7 +310,7 @@ export function DestinationRail({
               {viewAllHref ? (
                 <a
                   href={viewAllHref}
-                  className="text-muted hover:text-text ease-standard duration-quick inline-flex items-center gap-1.5 text-[13px] transition-colors"
+                  className="text-muted hover:text-text ease-standard duration-quick -my-1 inline-flex items-center gap-1.5 py-1 text-[13px] transition-colors"
                 >
                   Open the explorer
                   <Icon name="arrow-right" size={1} className="size-[14px]" />
@@ -511,7 +511,9 @@ export function DestinationRail({
                       */}
                       <a
                         href={aboutHref}
-                        className="text-muted hover:text-text ease-standard duration-quick relative z-10 ml-auto hidden shrink-0 transition-colors @[13rem]:block"
+                        // A 16px glyph in a 32px box: the target is the
+                        // box, and it was the glyph.
+                        className="text-muted hover:text-text ease-standard duration-quick relative z-10 -my-1 ml-auto hidden size-8 shrink-0 place-items-center transition-colors @[13rem]:grid"
                       >
                         <Icon name="arrow-right" size={1} className="size-[16px]" />
                         <span className="sr-only">
@@ -586,7 +588,7 @@ export function DestinationRail({
         */}
         {credited.length > 0 ? (
           <details className="text-muted text-[13px]">
-            <summary className="focus-visible:outline-stage-accent hover:text-stage-ink cursor-pointer">
+            <summary className="focus-visible:outline-stage-accent hover:text-stage-ink -my-1 inline-block cursor-pointer py-1">
               Photograph credits
             </summary>
             <ul className="mt-2 flex flex-col gap-1">

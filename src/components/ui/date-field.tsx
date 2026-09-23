@@ -155,7 +155,9 @@ export const DateField = React.forwardRef<HTMLInputElement, DateFieldProps>(func
                   'text-dim hover:text-text focus-visible:outline-accent-to absolute top-1/2 grid -translate-y-1/2 place-items-center rounded-[8px]',
                   'transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
                   'data-[state=open]:text-text',
-                  bare ? 'right-0 size-[18px]' : 'right-2 size-6',
+                  // The box, not the glyph: it is transparent, so a
+                  // larger target costs nothing visually.
+                  bare ? 'right-0 size-7' : 'right-1 size-9',
                 )}
               >
                 <Icon name="calendar" className={bare ? 'size-[14px]' : 'size-4'} />

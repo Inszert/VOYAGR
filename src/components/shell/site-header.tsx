@@ -80,7 +80,8 @@ export function SiteHeader({ children }: SiteHeaderProps) {
         same links, one line lower.
       */}
       <div className="text-text mx-auto flex w-full max-w-[1216px] flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-3 sm:h-[72px] sm:flex-nowrap sm:py-0 md:px-12">
-        <Link href="/" className="group flex items-center gap-2.5">
+        {/* `-my-2 py-2`: a taller target, in the same visual position. */}
+        <Link href="/" className="group -my-2 flex items-center gap-2.5 py-2">
           {/*
             The mark: a four-pointed star, which is what a compass rose and
             a distant sun have in common. Drawn rather than imported, at the

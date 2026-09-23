@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { buildFlightOffer, buildHotelOffer, buildTransferOffer } from '@/core/trip/test-support';
-import { format, money } from '@/core/money';
+import { abs, format, money } from '@/core/money';
 import { buildProfile } from '@/core/trip/test-support';
 import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
@@ -145,6 +145,29 @@ describe('TripCard', () => {
     // cost-engine change into a puzzle in a component test. It appears twice -
     // as the headline and as the breakdown's total - and the two must agree.
     expect(screen.getAllByText(format(trip.cost.total)).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('says how far over the maximum a trip is, without a double negative', () => {
+    // A tiny maximum, so the trip is over it.
+    const trip = buildRankedTrip({}, { maxBudget: money(10_00, 'EUR') });
+    render(<TripCard trip={trip} rank={0} />);
+
+    // "-EUR 472.40 over your maximum" makes a reader work out which way it
+    // points. The word carries the sign.
+    const overBudget = screen.getByText(/over your maximum/);
+    expect(overBudget.textContent).not.toMatch(/-/);
+    expect(overBudget.textContent).toContain(format(abs(trip.eligibility.budgetHeadroom)));
+  });
+
+  it('never tells a near miss that it fits what was asked for', () => {
+    // A near miss is rendered with no reasons, and the fallback sentence for
+    // that case is false here by definition: the violations box directly
+    // below says what ruled it out.
+    const trip = buildRankedTrip({}, { maxBudget: money(10_00, 'EUR') });
+    render(<TripCard trip={trip} rank={-1} />);
+
+    expect(screen.queryByText(/fits what you asked for/)).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Outside what you asked for' })).toBeInTheDocument();
   });
 
   it('shows warnings without the user having to open anything', () => {

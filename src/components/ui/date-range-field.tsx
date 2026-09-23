@@ -232,7 +232,7 @@ export function DateRangeField({
               type="button"
               className={cn(
                 'text-dim hover:text-text focus-visible:outline-accent-to absolute top-1/2 right-0 grid -translate-y-1/2 place-items-center rounded-[8px]',
-                'size-7 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                'size-9 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
                 'data-[state=open]:text-text',
               )}
             >

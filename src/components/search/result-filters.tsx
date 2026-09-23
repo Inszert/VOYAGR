@@ -1,6 +1,6 @@
 import { toMajor } from '@/core/money';
-import { Button, Card, Field, Select, ToggleChip } from '@/components/ui';
-import { FILTER_KEYS, type ResultFilters } from '@/search/filters';
+import { Button, Field, Select, ToggleChip } from '@/components/ui';
+import { FILTER_KEYS, hasActiveFilters, type ResultFilters } from '@/search/filters';
 
 /**
  * Narrowing the results (1.10.1 section 10).
@@ -51,10 +51,34 @@ export function ResultFiltersPanel({
   hidden,
   currency,
 }: ResultFiltersPanelProps) {
+  /*
+   * The same search with every filter key dropped.
+   *
+   * Built from `FILTER_KEYS` rather than from a prefix, so a filter renamed
+   * in `src/search/filters.ts` cannot quietly stop being clearable.
+   */
+  const clearHref = `/?${new URLSearchParams(
+    Object.entries(searchValues).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string' && !isFilterKey(entry[0]),
+    ),
+  ).toString()}`;
+  const active = hasActiveFilters(filters);
+
   return (
-    <Card as="section" aria-labelledby="filters-heading" elevation="raised">
+    /*
+      A region, not a panel.
+
+      This was a raised card the size of a result, which put a second large
+      object between the dates and the trips and made narrowing look like as
+      big a decision as choosing. Filters are a parameter surface: a hairline,
+      a sunken ground and compact controls say so without shouting.
+    */
+    <section
+      aria-labelledby="filters-heading"
+      className="border-border bg-surface-sunken rounded-[--radius-card] border px-5 py-4"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="filters-heading" className="text-ink text-lg font-semibold">
+        <h2 id="filters-heading" className="text-ink text-base font-semibold">
           Narrow these results
         </h2>
         <p className="text-ink-muted text-sm">
@@ -88,12 +112,18 @@ export function ResultFiltersPanel({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/*
+            Compact, because "Any time" does not need half the width of a
+            result card to say so. A supporting control that is as large as
+            the thing it supports is a control competing with it.
+          */}
+          <div className="flex flex-wrap gap-4">
             <Select
               label="Leaves"
               name="fDepartAfter"
               defaultValue={filters.departAfterHour === null ? '' : String(filters.departAfterHour)}
               options={DEPARTURE_OPTIONS}
+              className="w-[10.5rem]"
             />
             <Select
               label="Lands"
@@ -102,6 +132,7 @@ export function ResultFiltersPanel({
                 filters.arriveBeforeHour === null ? '' : String(filters.arriveBeforeHour)
               }
               options={ARRIVAL_OPTIONS}
+              className="w-[10.5rem]"
             />
           </div>
         </fieldset>
@@ -122,7 +153,7 @@ export function ResultFiltersPanel({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-wrap gap-4">
             <Field
               label={`Total no more than (${currency})`}
               name="fMaxTotal"
@@ -130,6 +161,7 @@ export function ResultFiltersPanel({
               min={1}
               step="10"
               defaultValue={filters.maxTotal ? String(toMajor(filters.maxTotal)) : ''}
+              className="w-[12rem]"
             />
             <Field
               label="Hotel rated at least"
@@ -140,15 +172,33 @@ export function ResultFiltersPanel({
               step="0.1"
               defaultValue={filters.minReviewScore === null ? '' : String(filters.minReviewScore)}
               hint="Unrated hotels are hidden when this is set."
+              className="w-[14rem]"
             />
           </div>
         </fieldset>
 
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit">Apply filters</Button>
+        {/*
+          Secondary, deliberately.
+
+          There is one primary action on a results page and it is on a trip.
+          A filled accent button here is a second one, in a louder colour,
+          attached to the least consequential decision on the page.
+        */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" variant="secondary">
+            Apply filters
+          </Button>
+
+          {active ? (
+            // Only when there is something to clear. A permanently visible
+            // "Clear" beside "Apply" is two commands where one applies.
+            <Button asChild variant="ghost" size="sm">
+              <a href={clearHref}>Clear filters</a>
+            </Button>
+          ) : null}
         </div>
       </form>
-    </Card>
+    </section>
   );
 }
 

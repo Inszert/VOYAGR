@@ -71,7 +71,8 @@ export default async function ExplorePage({
               >
                 Explore the world, <span className="text-stage-accent">priced.</span>
               </h1>
-              <p className="text-stage-ink-muted mt-1 text-sm">
+              {/* Four pixels under a forty-pixel heading is not a gap. */}
+              <p className="text-stage-ink-muted mt-3 max-w-2xl text-sm">
                 {page.provenance === 'mock'
                   ? 'Every price is demo data from fixtures, not a real offer. '
                   : ''}

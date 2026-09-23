@@ -120,7 +120,10 @@ function Checkbox({
         type="checkbox"
         name={name}
         defaultChecked={defaultChecked}
-        className="border-border-strong text-brand-600 size-5 rounded-[--radius-control] border"
+        // `shrink-0`, because a flex item shrinks below its own size by
+        // default: a long label was squeezing these 20px boxes to 13px, so
+        // the product shipped oval checkboxes.
+        className="border-border-strong text-brand-600 size-5 shrink-0 rounded-[--radius-control] border"
       />
       {label}
     </label>

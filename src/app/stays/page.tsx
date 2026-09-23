@@ -219,7 +219,7 @@ export default async function StaysPage({
               </h2>
               <a
                 href={stayHref(params, { dates: undefined, property: undefined })}
-                className="text-accent-ink focus-visible:outline-accent-to rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="text-accent-ink focus-visible:outline-accent-to -my-1 inline-block rounded-sm py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 Change dates
               </a>
