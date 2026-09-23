@@ -12,6 +12,7 @@ import { Icon, ProvenanceBadge } from '@/components/ui';
 import type { DataProvenance } from '@/core/trip/provenance';
 import { bandFor, sunLatitude, type SurfaceKind } from '@/discovery/seasons';
 import {
+  routeDashPattern,
   buildGlobeStyle,
   CITY_LIGHT_LAYERS,
   cityLightPaint,
@@ -957,6 +958,8 @@ export function GlobeStage({
 
     const started = performance.now();
     let frame = 0;
+    // The dash position last written, so an unchanged frame writes nothing.
+    let lastDash = -1;
     let last = 0;
 
     const step = (now: number) => {
@@ -1014,10 +1017,14 @@ export function GlobeStage({
         }
 
         if (map.getLayer('routes-flow')) {
-          // The dash walks by lengthening the gap in front of it, which is how
-          // a dash array marches without the line changing length.
-          const phase = (seconds * 1.6) % 5;
-          map.setPaintProperty('routes-flow', 'line-dasharray', [phase, 3, 5 - phase] as never);
+          // A fixed set of dash positions, set only when the step changes:
+          // every new dash array is a permanent entry in MapLibre's line
+          // atlas, and a continuous phase filled it (see `routeDashPattern`).
+          const pattern = routeDashPattern(seconds);
+          if (pattern[0] !== lastDash) {
+            lastDash = pattern[0];
+            map.setPaintProperty('routes-flow', 'line-dasharray', pattern as never);
+          }
         }
       } catch {
         // A style reload between frames leaves a layer momentarily absent.
@@ -1998,7 +2005,7 @@ export function GlobeStage({
 
   /** Every control on the globe wears the same pane of glass. */
   const controlClass =
-    'voyagr-panel text-stage-ink ease-standard duration-quick grid size-10 place-items-center rounded-[--radius-control] transition-colors hover:text-[--color-stage-accent]';
+    'voyagr-panel text-stage-ink ease-standard duration-quick grid size-10 place-items-center rounded-(--radius-control) transition-colors hover:text-(--color-stage-accent)';
 
   return (
     <div
@@ -2107,11 +2114,11 @@ export function GlobeStage({
               a zoom control on a map has always been. Two separate panes
               read as two unrelated buttons that happen to be adjacent.
             */}
-            <div className="voyagr-panel flex flex-col overflow-hidden rounded-[--radius-control]">
+            <div className="voyagr-panel flex flex-col overflow-hidden rounded-(--radius-control)">
               <button
                 type="button"
                 onClick={() => zoom(0.8)}
-                className="text-stage-ink ease-standard duration-quick grid size-10 place-items-center transition-colors hover:text-[--color-stage-accent]"
+                className="text-stage-ink ease-standard duration-quick grid size-10 place-items-center transition-colors hover:text-(--color-stage-accent)"
               >
                 <Icon name="plus" size={1.05} />
                 <span className="sr-only">Zoom in</span>
@@ -2120,7 +2127,7 @@ export function GlobeStage({
               <button
                 type="button"
                 onClick={() => zoom(-0.8)}
-                className="text-stage-ink ease-standard duration-quick grid size-10 place-items-center transition-colors hover:text-[--color-stage-accent]"
+                className="text-stage-ink ease-standard duration-quick grid size-10 place-items-center transition-colors hover:text-(--color-stage-accent)"
               >
                 <Icon name="minus" size={1.05} />
                 <span className="sr-only">Zoom out</span>
@@ -2141,7 +2148,7 @@ export function GlobeStage({
             role="group"
             aria-label="Projection"
             data-globe-overlay
-            className="voyagr-panel stage-scope absolute right-4 bottom-4 z-[5] flex gap-1 rounded-[--radius-pill] p-1"
+            className="voyagr-panel stage-scope absolute right-4 bottom-4 z-[5] flex gap-1 rounded-(--radius-pill) p-1"
           >
             {(
               [
@@ -2155,7 +2162,7 @@ export function GlobeStage({
                 aria-pressed={projection === kind}
                 onClick={() => setProjection(kind)}
                 className={cn(
-                  'ease-standard duration-quick rounded-[--radius-pill] px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                  'ease-standard duration-quick rounded-(--radius-pill) px-3.5 py-1.5 text-xs font-semibold transition-colors',
                   projection === kind ? 'voyagr-cta' : 'text-stage-ink-muted hover:text-stage-ink',
                 )}
               >

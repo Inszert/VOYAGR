@@ -167,6 +167,30 @@ function lightColour(colors: GlobeColors) {
   return ['interpolate', ['linear'], ['get', 'i'], 0, colors.cityLightDim, 1, colors.cityLight];
 }
 
+/** How many distinct positions the marching route dash can take. */
+export const ROUTE_DASH_STEPS = 40;
+
+/**
+ * The route dash pattern at a moment of the animation.
+ *
+ * The dash walks by lengthening the gap in front of it, which is how a dash
+ * array marches without the line changing length: `[phase, 3, 5 - phase]`
+ * always sums to 8.
+ *
+ * **Quantised, on purpose.** MapLibre rasterises every distinct dash array it
+ * is given into a fixed-size line atlas and never evicts one. A continuous
+ * phase handed it a new pattern every frame, so after a few minutes of
+ * animation the atlas was full ("LineAtlas out of space") and every frame
+ * after that threw. Forty steps across the cycle are indistinguishable at
+ * this speed and can never be more than forty entries.
+ */
+export function routeDashPattern(seconds: number): [number, number, number] {
+  const cycle = 5;
+  const step = Math.floor((((seconds * 1.6) % cycle) / cycle) * ROUTE_DASH_STEPS);
+  const phase = (step / ROUTE_DASH_STEPS) * cycle;
+  return [phase, 3, cycle - phase];
+}
+
 export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification {
   const { colors } = options;
 
