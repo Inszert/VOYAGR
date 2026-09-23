@@ -17,6 +17,11 @@ const config = [
       // Copied out of node_modules by scripts/copy-map-worker.mjs. Vendor
       // bundles, not our source, and linting them says nothing about us.
       'public/maplibre/**',
+      // Third-party design skills, vendored by `npx skills add` and `npx
+      // impeccable install`. Upstream content on an upstream release cycle:
+      // linting it reports on somebody else's code and breaks `npm run verify`.
+      '.claude/skills/**',
+      '.playwright-mcp/**',
     ],
   },
 

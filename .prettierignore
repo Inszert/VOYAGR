@@ -15,3 +15,11 @@ docs/PRODUCT-SPECIFICATION.md
 SETUP-CHECKLIST.md
 # Written by scripts/build-geo.mjs; formatted by that script, not by us.
 src/discovery/*.generated.json
+# Third-party design skills, installed by `npx skills add` and `npx impeccable
+# install`. Vendored upstream content: reformatting it would produce a diff
+# against every update and say nothing about our code.
+.claude/skills/
+.playwright-mcp/
+# Installed alongside the Impeccable skill. Voyagr's own agents beside them
+# are ours and stay formatted.
+.claude/agents/impeccable-*.md

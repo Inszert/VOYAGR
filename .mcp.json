@@ -2,8 +2,20 @@
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@0.0.81", "--isolated", "--browser", "chromium"],
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.82",
+        "--isolated",
+        "--browser",
+        "chrome",
+        "--viewport-size",
+        "1440x900"
+      ],
       "env": {}
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
     }
   }
 }

@@ -142,6 +142,101 @@ The one place contrast cannot be read off a token pair is a price chip on the gl
 is behind it depends on which way the world is facing. That one carries its own halo, the way a
 map label always has.
 
+## Design engineering
+
+Design references live in three places and they rank:
+
+- `PRODUCT.md` / `docs/PRODUCT-SPECIFICATION.md` — what the product is and promises.
+- `DESIGN.md` — the tokens, states and densities that exist, read out of `globals.css`.
+- `docs/design-system.md` — why the primitives are what they are, and the accessibility rules.
+
+Four design skills are installed under `.claude/skills/`. They are advisors, not authorities:
+
+| Skill                                                                | What it is for                                                                                                                                                                                              |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `emil-design-eng`                                                    | Emil Kowalski on UI polish, component design and the invisible details                                                                                                                                      |
+| `animate`, `review-animations`, `improve-animations`, `apple-design` | Motion: building it, critiquing it, auditing a codebase of it                                                                                                                                               |
+| `impeccable`                                                         | A design director's pass. `/impeccable audit`, `critique`, `polish`, `layout`, `typeset`, `harden`, `clarify`, `distill`, `quieter`, `optimize` and more — see the skill's `argument-hint` for the full set |
+| `design-taste-frontend`                                              | Taste: anti-slop direction, hierarchy, composition                                                                                                                                                          |
+
+`pick-ui-library`, `prototype` and `review-animations` carry `disable-model-invocation: true` by
+their author's design: invoke them explicitly or not at all.
+
+### Precedence, when advice conflicts
+
+```
+Voyagr product requirements   (PRODUCT.md, the specification)
+        v
+existing functionality and data behaviour
+        v
+accessibility
+        v
+DESIGN.md and the existing primitives
+        v
+Emil  >  Impeccable  >  Taste
+        v
+the simpler, more intentional option
+```
+
+**No tool worship.** These skills are written for greenfield work and will suggest things this
+product has already decided against. When one of them proposes any of the following, the answer is
+no, and no discussion is needed:
+
+- touching the globe, its data, its camera or its rendering;
+- replacing the design system, adding a second font, or introducing raw colours;
+- rewriting the provider layer, the search, the scoring, the pricing or the data model;
+- adding animation for its own sake, or removing information a user needs to decide;
+- "going all out" on a refinement task. Impeccable's default voice is a redesign voice. Voyagr work
+  is almost always refinement: it preserves the incumbent identity, behaviour and copy.
+
+If a skill's advice would change a number a user sees, it is wrong by construction. Numbers come
+from `src/core/`.
+
+### The workflow for any UI task
+
+1. Inspect the existing implementation and what it is handed.
+2. Understand the data and the business logic behind it. Do not change either.
+3. Identify every component affected, and check whether the pattern already exists elsewhere.
+4. Read `DESIGN.md`; use the tokens and primitives that exist. Do not add tokens without a reason.
+5. Apply Emil's principles, then Impeccable, then Taste — in that order, and subject to precedence.
+6. Implement the smallest coherent change.
+7. `npm run typecheck` and `npm run lint`.
+8. Build and run the app: `npm run build && npx next start -p 3100`.
+9. **Inspect the rendered result in a browser.** Playwright MCP is configured for this.
+10. Screenshot at 390, 768 and 1440 at minimum; 320, 375, 430, 1024 and 1280 where relevant.
+11. Critique what the screenshots actually show, not what the code intends.
+12. Refine, and screenshot again.
+13. `npm test` and `npm run test:e2e`.
+14. Report what changed, what was deliberately not changed, and what was verified.
+
+### Visual QA is mandatory
+
+A UI can typecheck, lint, build and pass its tests while looking broken. **For any user-facing
+change, "it compiles" is not evidence.** Open it.
+
+Playwright is configured twice, for two jobs, and they are not interchangeable:
+
+- **Playwright MCP** (`.mcp.json`) — the design loop. Drive the running app, snapshot the
+  accessibility tree, screenshot, resize, read the console. This is how a change is _looked at_.
+- **`npm run test:e2e`** (`playwright.config.ts`) — the regression suite, against a production
+  build, with axe in a desktop and a mobile viewport. This is how a change is _kept_.
+
+The MCP server uses the locally installed Chrome (`--browser chrome`) because this machine cannot
+download Playwright's bundled Chromium. `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` is the same
+escape hatch for the suite.
+
+What to look for every time: horizontal overflow, clipped text, broken or missing images, wrapping
+that breaks a row, controls that are too small to hit, cards that grow too tall, prices that do not
+align, spacing that drifts between sections, and console errors.
+
+### Figma
+
+Use Figma MCP **only when a Figma file, frame or design is actually supplied**, or when the task
+names Figma. There is no Voyagr Figma file at the time of writing; do not invent one, and do not
+screenshot a design and approximate it. When one is supplied, read its structured data — variables,
+components, typography, spacing, layout, states — and implement against that, then verify in the
+browser.
+
 ## What not to do yet
 
 Phase 1 is not implemented. Do not add live provider integrations, booking, payments, real Travel

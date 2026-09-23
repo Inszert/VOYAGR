@@ -47,10 +47,19 @@ playwright/.cache/
 .vercel/
 
 # ---- local Claude Code state ----
-# Shared project config (.claude/settings.json, .claude/agents) IS tracked.
+# Shared project config (.claude/settings.json, .claude/agents, .claude/skills) IS
+# tracked, so the design-engineering tooling comes with a clone.
 .claude/settings.local.json
 .claude/state/
 .claude/logs/
+
+# The Impeccable engine is a 16MB platform-specific binary that the launcher
+# downloads on first run. It is regenerable (`npx impeccable install`) and
+# would only ever be correct for whoever committed it.
+.claude/skills/impeccable/scripts/bin/
+
+# Where Playwright MCP writes screenshots and traces during a design pass.
+.playwright-mcp/
 
 # ---- editors & OS ----
 .idea/
