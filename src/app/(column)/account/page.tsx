@@ -5,7 +5,8 @@ import { PushToggle } from '@/components/notifications/push-toggle';
 import { PasswordForm } from '@/components/auth/password-form';
 import { PreferencesForm } from '@/components/auth/preferences-form';
 import { savePreferencesAction } from '@/app/actions/preferences';
-import { changePasswordAction, signOutAction } from '@/app/actions/auth';
+import { changePasswordAction, deleteAccountAction, signOutAction } from '@/app/actions/auth';
+import { DeleteAccountForm } from '@/components/auth/delete-account-form';
 import { getCurrentUser } from '@/auth/current-user';
 import { readExplicitPreferences, readInferredPreferences } from '@/auth/preferences';
 import { getEnv } from '@/lib/env';
@@ -118,6 +119,41 @@ export default async function AccountPage() {
             ))}
           </dl>
         )}
+      </Card>
+
+      {/*
+        Your data, in and out.
+
+        The export route and the erasure action both existed and nothing on
+        the page reached either, which made the promise in the privacy notice
+        one the product could not keep. The download is a plain link to the
+        route, so it works without JavaScript and the browser saves the file.
+      */}
+      <Card as="section" aria-labelledby="data-heading">
+        <h2 id="data-heading" className="text-ink text-xl font-semibold">
+          Your data
+        </h2>
+        <p className="text-ink-muted mt-1 text-sm">
+          Everything Voyagr holds about you, as one file. What it contains is described in the{' '}
+          <a href="/privacy" className="text-accent-ink underline underline-offset-4">
+            privacy notice
+          </a>
+          .
+        </p>
+        <div className="mt-4">
+          <Button asChild variant="secondary">
+            <a href="/api/account/export" download>
+              Download my data
+            </a>
+          </Button>
+        </div>
+
+        <div className="border-border mt-6 border-t pt-6">
+          <h3 className="text-critical-ink text-base font-semibold">Delete this account</h3>
+          <div className="mt-2">
+            <DeleteAccountForm action={deleteAccountAction} email={user.email} />
+          </div>
+        </div>
       </Card>
     </div>
   );

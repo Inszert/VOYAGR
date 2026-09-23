@@ -80,10 +80,40 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <footer className="border-hairline bg-bg-alt border-t">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-display text-text text-lg tracking-tight">Voyagr</p>
-              <p className="text-muted max-w-xl text-sm">
-                Prices and availability are observed from providers and can change. Nothing here is
-                a booking.
-              </p>
+              <div className="flex flex-col gap-3 sm:items-end">
+                <p className="text-muted max-w-xl text-sm sm:text-right">
+                  Prices and availability are observed from providers and can change. Nothing here
+                  is a booking.
+                </p>
+                <nav aria-label="Legal">
+                  <ul className="text-muted flex gap-5 text-sm">
+                    <li>
+                      <a
+                        href="/privacy"
+                        className="hover:text-text underline-offset-4 hover:underline"
+                      >
+                        Privacy
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="/terms"
+                        className="hover:text-text underline-offset-4 hover:underline"
+                      >
+                        Terms
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="/status"
+                        className="hover:text-text underline-offset-4 hover:underline"
+                      >
+                        Status
+                      </a>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
             </div>
           </footer>
         </div>
