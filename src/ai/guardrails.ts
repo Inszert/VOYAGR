@@ -1,3 +1,4 @@
+import type { Itinerary, ItineraryRequest } from './types';
 import { fromMajor, type Money } from '@/core/money';
 import type { SearchProfile } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
@@ -198,4 +199,47 @@ export function withFigureGuard<T extends string>(
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Accept a drafted itinerary only if it is the shape asked for and invents
+ * no figure.
+ *
+ * One day per night requested, numbered in order; and no number anywhere in
+ * it - a time, a price, a distance - that was not in what the model was
+ * given. A draft that fails either is discarded whole, never repaired: a
+ * half-trusted itinerary is not something to hand a person planning a trip.
+ */
+export function validateItinerary(
+  itinerary: Itinerary,
+  request: ItineraryRequest,
+): Itinerary | null {
+  if (itinerary.days.length !== request.nights) return null;
+  if (itinerary.days.some((day, index) => day.dayNumber !== index + 1)) return null;
+
+  const sources = [
+    request.destinationName,
+    String(request.nights),
+    ...request.placeNames,
+    ...request.weatherByDay,
+  ];
+
+  const texts = [
+    ...itinerary.notes,
+    ...itinerary.days.flatMap((day) => [
+      day.title,
+      day.morning,
+      day.afternoon,
+      day.evening,
+      day.wetWeatherAlternative ?? '',
+    ]),
+  ];
+
+  try {
+    for (const text of texts) assertNoInventedFigures(text, sources, { field: 'itinerary' });
+  } catch {
+    return null;
+  }
+
+  return itinerary;
 }

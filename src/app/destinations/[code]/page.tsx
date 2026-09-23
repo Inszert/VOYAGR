@@ -3,6 +3,10 @@ import { notFound } from 'next/navigation';
 import { format } from '@/core/money';
 import { Container, DemoDataNotice, Icon, type IconName } from '@/components/ui';
 import { tintFor, type Tint } from '@/lib/tint';
+import { daysBetween } from '@/core/dates';
+import { getAiProvider } from '@/ai';
+import { draftItinerary, itineraryRequestFor } from '@/discovery/itinerary';
+import { ItineraryView } from '@/components/discovery/itinerary-view';
 import { loadDestinationDetail } from '@/discovery/destination-detail';
 import { DestinationDetailView } from '@/components/discovery/destination-detail-view';
 import { DestinationHeader } from '@/components/discovery/destination-header';
@@ -97,6 +101,22 @@ export default async function DestinationPage({ params, searchParams }: PageProp
       ? { startDate, endDate }
       : null;
 
+  /*
+   * A drafted plan for the trip's own nights, or a three-night example when
+   * the page was opened without dates. A week at most: a longer draft is a
+   * page nobody reads, and each day costs the model a paragraph.
+   */
+  const nights = dates ? Math.min(7, Math.max(1, daysBetween(dates.startDate, dates.endDate))) : 3;
+  const itinerary = await draftItinerary(
+    itineraryRequestFor({
+      destinationName: place.name,
+      nights,
+      travelStyle: 'balanced',
+      places: detail.places,
+      weather: detail.weather,
+    }),
+  );
+
   return (
     <div className="flex flex-col" data-tint={tintFor(place.adm0 ?? destination)}>
       <DestinationHeader
@@ -116,6 +136,15 @@ export default async function DestinationPage({ params, searchParams }: PageProp
         {detail.provenance === 'mock' ? <DemoDataNotice /> : null}
 
         <DestinationDetailView detail={detail} />
+
+        {itinerary ? (
+          <ItineraryView
+            itinerary={itinerary}
+            nights={nights}
+            sample={dates === null}
+            placeholder={getAiProvider().metadata.isMock}
+          />
+        ) : null}
 
         {detail.transfers.length > 0 ? (
           <section aria-labelledby="transfers-heading" className="flex flex-col gap-4">

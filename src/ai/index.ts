@@ -56,6 +56,7 @@ export type * from './types';
 export {
   assertNoInventedFigures,
   toSearchProfile,
+  validateItinerary,
   validateParsedRequest,
   withFigureGuard,
 } from './guardrails';
