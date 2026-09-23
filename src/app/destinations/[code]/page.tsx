@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { format } from '@/core/money';
-import { Card, CardTitle, Container, DemoDataNotice, Tag } from '@/components/ui';
+import { Container, DemoDataNotice, Icon, type IconName } from '@/components/ui';
+import { tintFor, type Tint } from '@/lib/tint';
 import { loadDestinationDetail } from '@/discovery/destination-detail';
 import { DestinationDetailView } from '@/components/discovery/destination-detail-view';
 import { DestinationHeader } from '@/components/discovery/destination-header';
@@ -49,6 +50,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: place ? `${place.name}, ${place.country}` : 'Destination' };
 }
 
+/** A mark for each way in from the airport. */
+/** Each way in its own colour from the palette, beside its name. */
+const TRANSFER_TINT: Record<string, Tint> = {
+  public: 'sage',
+  shared: 'harbour',
+  taxi: 'sand',
+  private: 'clay',
+  walk: 'leather',
+};
+
+const TRANSFER_ICON: Record<string, IconName> = {
+  public: 'train',
+  shared: 'bus',
+  taxi: 'car',
+  private: 'car',
+  walk: 'pin',
+};
+
 export default async function DestinationPage({ params, searchParams }: PageProps) {
   const { code } = await params;
   const query = await searchParams;
@@ -79,7 +98,7 @@ export default async function DestinationPage({ params, searchParams }: PageProp
       : null;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" data-tint={tintFor(place.adm0 ?? destination)}>
       <DestinationHeader
         today={new Date().toISOString().slice(0, 10)}
         destination={destination}
@@ -89,7 +108,7 @@ export default async function DestinationPage({ params, searchParams }: PageProp
         image={(await resolveImagery([destination])).get(destination.toUpperCase()) ?? null}
       />
 
-      <Container className="flex flex-col gap-6 py-10">
+      <Container className="flex flex-col gap-14 py-12">
         {/*
           Before the content, as everywhere else. A notice that what follows is
           fictional is worthless underneath the fiction.
@@ -99,57 +118,79 @@ export default async function DestinationPage({ params, searchParams }: PageProp
         <DestinationDetailView detail={detail} />
 
         {detail.transfers.length > 0 ? (
-          <Card as="section" aria-labelledby="transfers-heading" elevation="raised">
-            <CardTitle id="transfers-heading" level={2}>
-              Getting in from the airport
-            </CardTitle>
-            <p className="text-ink-muted mt-1 text-sm">
-              Priced each way, for the whole party. A trip total in a search counts both directions
-              - this is the half of it you would pay on arrival.
-            </p>
-            <ul className="mt-4 flex flex-col gap-2">
+          <section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h2 id="transfers-heading" className="font-display text-display-sm text-ink">
+                Getting in from the airport
+              </h2>
+              <p className="text-ink-muted max-w-2xl text-sm">
+                Priced each way, for the whole party. A trip total in a search counts both
+                directions - this is the half of it you would pay on arrival.
+              </p>
+            </div>
+
+            {/*
+              One row of options, side by side, so they compare at a glance:
+              how, how long, how much. Rules between them, not boxes round them.
+            */}
+            <ul className="divide-border border-border grid divide-y border-y sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
               {detail.transfers.map((transfer) => (
                 <li
                   key={transfer.id}
-                  className="border-border flex flex-wrap items-baseline justify-between gap-2 rounded-[--radius-card] border p-3"
+                  data-tint={TRANSFER_TINT[transfer.mode] ?? 'leather'}
+                  className="sm:border-border flex flex-col gap-2 px-1 py-5 sm:border-l sm:px-5 sm:first:border-l-0 sm:[&:nth-child(3)]:border-l-0 lg:[&:nth-child(3)]:border-l"
                 >
-                  <span className="text-ink text-sm font-medium capitalize">{transfer.mode}</span>
+                  <span className="text-ink flex items-center gap-2.5 text-sm font-medium capitalize">
+                    <span
+                      aria-hidden="true"
+                      className="bg-tint/25 text-tint-ink grid size-9 place-items-center rounded-full"
+                    >
+                      <Icon name={TRANSFER_ICON[transfer.mode] ?? 'car'} size={1} />
+                    </span>
+                    {transfer.mode}
+                  </span>
+                  <span className="text-tint-ink text-2xl font-semibold tabular-nums">
+                    {format(transfer.pricePerDirection)}
+                    <span className="text-ink-muted text-sm font-normal"> each way</span>
+                  </span>
                   <span className="text-ink-muted text-sm">
                     about {transfer.durationMinutes} minutes
-                  </span>
-                  <span className="text-ink text-sm font-semibold tabular-nums">
-                    {format(transfer.pricePerDirection)} each way
                   </span>
                 </li>
               ))}
             </ul>
-          </Card>
+          </section>
         ) : null}
 
-        <Card as="section" aria-labelledby="gaps-heading" surface="sunken">
-          <CardTitle id="gaps-heading" level={2}>
+        {/*
+          What is missing, said once and quietly. A footnote rather than a
+          panel: it matters that it is said, not that it is loud.
+        */}
+        <section
+          aria-labelledby="gaps-heading"
+          className="border-border text-ink-muted flex flex-col gap-2 border-t pt-6 text-sm"
+        >
+          <h2 id="gaps-heading" className="text-ink text-sm font-semibold">
             What this page cannot tell you yet
-          </CardTitle>
-          <p className="text-ink-muted mt-2 text-sm">
-            Section 18 of the specification asks for more than this. These are missing because no
-            data source behind the product carries them, not because there is nothing to report -
-            and for a travel warning those are very different things.
-          </p>
-          <ul className="mt-3 flex flex-wrap gap-2">
+          </h2>
+          <p className="max-w-3xl">
+            No data source behind the product carries these, which is not the same as there being
+            nothing to report - and for a travel warning those are very different things:{' '}
             {[
-              'Photographs',
+              'Photographs of the places listed',
               'Events',
               'National holidays',
               'Travel warnings',
               'Hidden places',
               'Recommended trip lengths',
-            ].map((missing) => (
-              <li key={missing}>
-                <Tag>{missing}</Tag>
-              </li>
+            ].map((missing, index, all) => (
+              <span key={missing}>
+                <span className="text-ink">{missing}</span>
+                {index < all.length - 1 ? ', ' : '.'}
+              </span>
             ))}
-          </ul>
-        </Card>
+          </p>
+        </section>
       </Container>
     </div>
   );
