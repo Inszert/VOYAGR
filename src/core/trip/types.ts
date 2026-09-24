@@ -148,6 +148,11 @@ export interface HotelOffer {
   readonly distanceToCentreMetres: number | null;
   readonly boardType: 'room_only' | 'breakfast' | 'half_board' | 'full_board' | 'all_inclusive';
   readonly freeCancellation: boolean;
+  /**
+   * How many rooms the quote covers, or null when the provider did not say.
+   * A group's price depends on it, so a trip for several people shows it.
+   */
+  readonly rooms: number | null;
   /** Price for the whole stay, all guests, as quoted. */
   readonly totalPrice: Money;
   /** Taxes and fees not included in `totalPrice`, when the provider says so. */

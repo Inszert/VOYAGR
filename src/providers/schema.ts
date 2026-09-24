@@ -125,6 +125,7 @@ export const hotelOfferSchema = z
     distanceToCentreMetres: z.number().min(0).nullable(),
     boardType: z.enum(['room_only', 'breakfast', 'half_board', 'full_board', 'all_inclusive']),
     freeCancellation: z.boolean(),
+    rooms: z.number().int().min(1).max(20).nullable(),
     totalPrice: price,
     excludedFees: price.nullable(),
     observedAt: isoDateTime,

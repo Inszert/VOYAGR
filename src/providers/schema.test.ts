@@ -167,6 +167,7 @@ describe('hotel offers from a provider', () => {
     distanceToCentreMetres: null,
     boardType: 'breakfast',
     freeCancellation: true,
+    rooms: 1,
     totalPrice: { amount: 60_000, currency: 'EUR' },
     excludedFees: null,
     observedAt: '2026-06-01T09:00:00Z',

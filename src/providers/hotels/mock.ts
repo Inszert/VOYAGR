@@ -129,6 +129,8 @@ export class MockHotelProvider implements HotelProvider {
         distanceToCentreMetres,
         boardType,
         freeCancellation,
+        // The mock prices one shared room for the party; see occupancyFactor.
+        rooms: 1,
         totalPrice: money(totalCents, query.currency),
         excludedFees: excludedFeesCents > 0 ? money(excludedFeesCents, query.currency) : null,
         observedAt: MOCK_OBSERVED_AT,

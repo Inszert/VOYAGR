@@ -378,7 +378,7 @@ export function TripCard({
             caption={
               view === 'flight'
                 ? `flights for ${candidate.passengers} · whole trip ${format(cost.total)}`
-                : `total · ${format(cost.perPerson)} each · ${format(cost.perNight)} a night`
+                : `total · ${format(cost.perPerson)} each${roomsNote(candidate.passengers, candidate.hotel.rooms)} · ${format(cost.perNight)} a night`
             }
             note={
               <div className="flex flex-col items-end gap-1.5">
@@ -650,6 +650,7 @@ export function TripCard({
             cost={cost}
             passengers={candidate.passengers}
             nights={candidate.dates.nights}
+            rooms={candidate.hotel.rooms ?? null}
           />
         </Disclosure>
 

@@ -76,6 +76,7 @@ export function buildHotelOffer(overrides: Partial<HotelOffer> = {}): HotelOffer
     distanceToCentreMetres: 900,
     boardType: 'breakfast',
     freeCancellation: true,
+    rooms: 1,
     totalPrice: money(34000, 'EUR'),
     excludedFees: null,
     observedAt: '2026-01-15T09:00:00Z',

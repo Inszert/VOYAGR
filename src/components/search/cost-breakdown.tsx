@@ -1,6 +1,7 @@
 import { format } from '@/core/money';
 import { Badge, type BadgeTone } from '@/components/ui';
 import type { TripCost } from '@/core/trip/cost';
+import { budgetAllocation, type AllocationPart } from '@/core/trip/allocation';
 import type { CostConfidence } from '@/core/trip/types';
 
 /**
@@ -27,17 +28,108 @@ const CONFIDENCE_TONE: Record<CostConfidence, BadgeTone> = {
   excluded: 'neutral',
 };
 
+const PART_LABEL: Record<AllocationPart, string> = {
+  flights: 'Flights',
+  stay: 'The stay',
+  getting_around: 'Getting around',
+  other: 'Everything else',
+};
+
+/** Four steps of the place's own colour, darkest first; the words carry the meaning. */
+const PART_SWATCH: Record<AllocationPart, string> = {
+  flights: 'bg-tint-ink',
+  stay: 'bg-tint',
+  getting_around: 'bg-tint/45',
+  other: 'bg-ink-muted/50',
+};
+
 export interface CostBreakdownProps {
   cost: TripCost;
   passengers: number;
   nights: number;
+  /** Rooms the stay was priced for, or null when the provider did not say. */
+  rooms?: number | null;
 }
 
-export function CostBreakdown({ cost, passengers, nights }: CostBreakdownProps) {
+/**
+ * Where the money goes: the engine's lines grouped into shares of the total,
+ * with anything left out named beneath. The bar is a picture of the list
+ * beside it and is hidden from assistive technology; the list is the fact.
+ */
+function Allocation({ cost }: { cost: TripCost }) {
+  const { shares, excluded } = budgetAllocation(cost);
+  if (shares.length === 0) return null;
+
+  return (
+    <section aria-labelledby="allocation-heading" className="flex flex-col gap-3">
+      <h5 id="allocation-heading" className="text-ink text-sm font-medium">
+        Where the money goes
+      </h5>
+      <div
+        aria-hidden="true"
+        className="bg-surface-sunken flex h-2.5 overflow-hidden rounded-(--radius-pill)"
+      >
+        {shares.map((share) => (
+          <span
+            key={share.part}
+            className={PART_SWATCH[share.part]}
+            style={{ width: `${share.percent}%` }}
+          />
+        ))}
+      </div>
+      <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+        {shares.map((share) => (
+          <li key={share.part} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={`size-2.5 shrink-0 rounded-full ${PART_SWATCH[share.part]}`}
+            />
+            <span className="text-ink">{PART_LABEL[share.part]}</span>
+            <span className="text-ink-muted ml-auto tabular-nums">
+              {share.percent}% · {format(share.amount)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {excluded.length > 0 ? (
+        <p className="text-ink-muted text-xs">
+          Not in these shares: {excluded.map((line) => line.label).join(', ')}.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+/** For a group: what each person pays, and the rooms the stay assumed. */
+function GroupLine({
+  cost,
+  passengers,
+  rooms,
+}: {
+  cost: TripCost;
+  passengers: number;
+  rooms: number | null;
+}) {
+  if (passengers <= 1) return null;
+
+  return (
+    <p className="text-ink-muted text-sm">
+      <span className="text-ink font-medium tabular-nums">{format(cost.perPerson)} each</span> for{' '}
+      {passengers} travellers ·{' '}
+      {rooms === null
+        ? 'the hotel did not say how many rooms this covers'
+        : `the stay is priced for ${rooms} ${rooms === 1 ? 'room' : 'rooms'}`}
+    </p>
+  );
+}
+
+export function CostBreakdown({ cost, passengers, nights, rooms = null }: CostBreakdownProps) {
   const counted = cost.lines.filter((line) => line.confidence !== 'excluded');
 
   return (
     <div className="flex flex-col gap-4">
+      <Allocation cost={cost} />
+      <GroupLine cost={cost} passengers={passengers} rooms={rooms} />
       <table className="w-full border-collapse text-sm">
         <caption className="text-ink-muted mb-2 text-left text-sm">
           What the {format(cost.total)} total is made of.
