@@ -162,10 +162,17 @@ This section drifted out of date — it still said "Authentication and sessions 
   should know the deployment's real proxy/header topology _before_ choosing a keying strategy, not
   after discovering the same failure again.
 
-- **CSRF protection** — authenticated mutations exist now (account, preferences, watches). Next.js
-  Server Actions carry built-in same-origin checking since 13.4, which covers the mutations that go
-  through them; this has not been independently verified against this app's actual action set and
-  should be before relying on it.
+- ~~**CSRF protection**~~ **Verified, 3 November 2026 — not merely assumed.** Built the production
+  app, submitted a real sign-in form from `/sign-in` and captured its actual hidden
+  `$ACTION_REF_1`/`$ACTION_1:0`/`$ACTION_KEY` fields (the real no-JS submission path, not a
+  simulation of one), then replayed that exact payload twice: once with a same-origin `Origin`
+  header and once with `http://evil.example.com`. Same-origin reached the action (`200`);
+  cross-origin was rejected before the action ran (`500` - Next.js throws rather than returning a
+  clean `403` for this, which is untidy but not a gap: the handler never executes either way, and
+  the error body is a bare `{"digest":"..."}`, nothing that leaks). Repeated with the
+  `Next-Action`/RSC fetch path (the one a JS-enabled browser actually uses) with the same result.
+  So: genuinely protected for both submission paths, on the action this app actually ships, not
+  inferred from the framework's changelog.
 - **Audit logging** — needed once bookings or payments do.
 - **Nonce-based CSP** — see section 5.
 - **Data retention and deletion** — travel history is personal data; a retention policy is required
