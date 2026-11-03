@@ -1786,12 +1786,31 @@ not. The §9 and §10 recomposition resumes in Phase C.
 
 _In plain words: stop using pretend travel data and plug in one real flight source and one real hotel source._
 
-One flight source and one hotel source behind the existing adapters.
+**Overtaken by a harder constraint, 3 November 2026.** The product owner set a hard requirement
+this section did not anticipate: zero paid search API cost, ever. Every flight and hotel vendor the
+readiness task above evaluated - Duffel, Amadeus, Booking.com, Hotelbeds - is commercial, so none
+of them can be used regardless of what their background-polling terms turn out to say. Re-researched
+for free alternatives; full write-up in `docs/provider-evaluation.md`'s dated update.
 
-- Nothing outside the adapter changes. That is the test of whether the abstraction was right.
-- Gated on the live-provider readiness task above. Starting this first means discovering a vendor's
-  pagination, rate limits and timezone conventions in production.
-- **Done when:** a live search returns normalised offers, and the mocks still work for tests.
+What actually shipped, under that constraint:
+
+- **Flights:** `FLIGHT_PROVIDER=aviasales` (Travelpayouts Data API) was already half-coded and is
+  now wired in correctly. It is real, free, and genuinely live in the sense that it calls a real
+  vendor - but it serves **cached price points from other people's searches, not a quote for this
+  one**, direct flights only. Labelled `provenance: 'indicative'`, a new case added specifically
+  because `'live'` would have been a false claim (see `src/core/trip/provenance.ts`).
+- **Hotels:** no free source exists at all - every candidate is a one-time trial-credit vendor or a
+  scraping reseller, both ruled out. Still mock-only, with no path forward under the current
+  constraint.
+- **Weather** (not originally in this section's scope, but the same constraint applies to it):
+  `WEATHER_PROVIDER=open-meteo` is free, keyless and genuinely real, including a reconstructed
+  climatology normal beyond its forecast horizon rather than an invented seasonal guess.
+
+So "one flight source and one hotel source" together, as this section originally framed it, is not
+achievable for free. One indicative flight source and one real weather source is. **Done when**, for
+this constraint, is already true for flights and weather; hotels stay open until a free source exists
+or the owner accepts a different hotel strategy (e.g. dropping hotel cost to an explicit `excluded`
+line instead of mock demo data when a real flight provider is active - not decided, not implemented).
 
 ---
 

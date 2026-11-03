@@ -131,12 +131,26 @@ Next.js ships ESLint 10 support.
 
 ## 9. Not yet addressed
 
-Deliberately out of scope for the foundation, and each one blocks its own feature:
+This section drifted out of date — it still said "Authentication and sessions — arrives with Phase
+1.3" after 1.3 shipped sign-in, sessions and account mutations. Corrected 3 November 2026:
 
-- **Authentication and sessions** — arrives with Phase 1.3.
-- **Rate limiting** — needed before any public deployment; provider calls cost money, so an abusive
-  client is a billing problem as much as a load problem.
-- **CSRF protection** — needed once authenticated mutations exist.
+- **Rate limiting on the search page itself** — **now a live concern, not only a future one.**
+  `/` is a GET-rendered server component (`src/app/page.tsx`) that calls `runSearch` straight from
+  `searchParams`; it has no API route to attach middleware to in the usual sense, and no rate limit
+  sits in front of it. Sign-in has `src/auth/throttle.ts`, but that is a failure-counting lockout
+  (built for brute-force password attempts) and does not fit "N searches per minute per client" -
+  it would need a different, simpler counter. This mattered less while every provider was a mock;
+  it matters now that `FLIGHT_PROVIDER=aviasales` and `WEATHER_PROVIDER=open-meteo` are real options
+  (see `docs/provider-evaluation.md`'s 3 November update), because an abusive client driving
+  repeated searches spends a rate limit shared across every user of the deployment, on providers
+  that were chosen specifically for having no paid tier to fall back on if blocked. Needed before
+  any public deployment with a live provider configured - not yet implemented, and deliberately not
+  rushed here without knowing the real deployment's proxy/header topology, which decides whether an
+  IP-keyed limiter would even see the real client.
+- **CSRF protection** — authenticated mutations exist now (account, preferences, watches). Next.js
+  Server Actions carry built-in same-origin checking since 13.4, which covers the mutations that go
+  through them; this has not been independently verified against this app's actual action set and
+  should be before relying on it.
 - **Audit logging** — needed once bookings or payments do.
 - **Nonce-based CSP** — see section 5.
 - **Data retention and deletion** — travel history is personal data; a retention policy is required
