@@ -200,7 +200,7 @@ separates `publicMessage` from `context` and `cause`. `toProblemDetails()` produ
 output; `toLogPayload()` keeps everything else for logs.
 
 **Security headers.** HSTS, frame-ancestors and Permissions-Policy are set in `next.config.ts`.
-`Content-Security-Policy` is the one exception, set in `src/middleware.ts` instead, because
+`Content-Security-Policy` is the one exception, set in `src/proxy.ts` instead, because
 `script-src` carries a fresh nonce per request - a static `headers()` entry cannot produce that.
 Both are asserted by the end-to-end suite. See `security.md`.
 

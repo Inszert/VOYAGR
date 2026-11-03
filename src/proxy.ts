@@ -4,11 +4,12 @@ import { NextResponse, type NextRequest } from 'next/server';
  * A fresh CSP nonce, every request.
  *
  * `next.config.ts` sets every other security header as a static value - this
- * is the one exception, and it needs middleware specifically because a nonce
- * generated once at build time would be the same nonce for every visitor
- * forever, which defeats the point: an attacker who ever saw it could reuse
- * it indefinitely. A nonce is only as good as "nobody outside this exact
- * response has seen it".
+ * is the one exception, and it needs this (`proxy.ts` - renamed from
+ * `middleware.ts` for Next.js 16.4.5, which deprecated that file name)
+ * specifically because a nonce generated once at build time would be the
+ * same nonce for every visitor forever, which defeats the point: an attacker
+ * who ever saw it could reuse it indefinitely. A nonce is only as good as
+ * "nobody outside this exact response has seen it".
  *
  * **Scripts only, not styles.** This app injects nothing of its own inline -
  * no `<script>`, no `dangerouslySetInnerHTML` - so Next's own hydration
@@ -23,7 +24,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  * block instead, which is real work with its own risk and belongs to its own
  * change. `style-src` keeps `'unsafe-inline'`; `script-src` does not.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -61,8 +62,13 @@ export const config = {
      * HTML and never run a script: static assets, images, the geo/maplibre
      * files already served with their own long-lived cache headers, and the
      * service worker. Running the nonce dance for a JSON file nobody
-     * executes is pure overhead.
+     * executes is pure overhead. Also skips every /api/ route: none of them
+     * render HTML or run a script, so there is nothing to nonce - checked
+     * directly during this feature's own testing by excluding /api/ and
+     * confirming an unrelated route-handler bug (see src/db/index.ts) was
+     * unaffected either way, so this exclusion is a tidy-up, not a fix for
+     * that.
      */
-    '/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|robots.txt|sitemap.xml|geo/|maplibre/|api/imagery/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|robots.txt|sitemap.xml|geo/|maplibre/|api/).*)',
   ],
 };

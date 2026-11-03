@@ -90,7 +90,8 @@ Most are static values set in `next.config.ts`, asserted by the end-to-end suite
 `X-Powered-By` is disabled.
 
 `Content-Security-Policy` is the one exception - it is **not** in `next.config.ts`. It is set in
-`src/middleware.ts`, because `script-src` carries a fresh nonce generated per request, which a
+`src/proxy.ts` (named `middleware.ts` until Next.js 16.4.5 deprecated that file name), because
+`script-src` carries a fresh nonce generated per request, which a
 static `headers()` list cannot produce (it would hand back the same string to everyone, which is
 not a nonce). `'unsafe-inline'` is gone from `script-src`; `style-src` still carries it, because
 several components set CSS custom properties via a `style={{ '--x': ... }}` **attribute**, and a
