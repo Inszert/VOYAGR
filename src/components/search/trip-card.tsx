@@ -46,6 +46,11 @@ import { shortDate } from '@/lib/display-date';
 
 const RANK_LABEL = ['Best match', 'Runner-up', 'Third'] as const;
 
+/** Only worth saying when the stay needed more than one room; unknown stays silent. */
+function roomsNote(rooms: number | null): string {
+  return rooms !== null && rooms > 1 ? ` across ${rooms} rooms` : '';
+}
+
 /**
  * A disclosure inside the grouped panel.
  *
@@ -378,7 +383,7 @@ export function TripCard({
             caption={
               view === 'flight'
                 ? `flights for ${candidate.passengers} · whole trip ${format(cost.total)}`
-                : `total · ${format(cost.perPerson)} each${roomsNote(candidate.passengers, candidate.hotel.rooms)} · ${format(cost.perNight)} a night`
+                : `total · ${format(cost.perPerson)} each${roomsNote(candidate.hotel.rooms ?? null)} · ${format(cost.perNight)} a night`
             }
             note={
               <div className="flex flex-col items-end gap-1.5">
