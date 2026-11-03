@@ -11,8 +11,15 @@
 | `npm run test:e2e:ui`   | Playwright in UI mode                    |
 | `npm run verify`        | format · lint · typecheck · test · build |
 
-None of these require a database, Redis, provider credentials or an AI key. If a test ever needs
-one, something has stopped being mockable — treat that as a design problem, not a setup problem.
+None of these require provider credentials or an AI key - every adapter test injects its own
+`fetchImpl` and replays a literal or a recorded fixture. **Two suites are a deliberate exception**:
+`src/db/repository-contract.test.ts`'s Postgres half and `src/queue/bullmq.test.ts` genuinely open a
+real database and a real Redis when `TEST_DATABASE_URL`/`REDIS_URL` are set, because the property
+being proven - "the Postgres repository and the in-memory one satisfy the same contract", "a job
+survives a driver restart" - cannot be proven against a mock of the thing being tested. With neither
+configured, both report as **skipped**, never as passing, so the gap shows up in the test output
+rather than as silence. If a _different_ test ever needs real infrastructure, that is the design
+problem this note originally warned about.
 
 ## The three levels
 
