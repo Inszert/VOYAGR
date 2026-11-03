@@ -144,6 +144,30 @@ answers down.
 
 ---
 
+## Update, 3 November 2026 — the zero-cost constraint, resolved as far as it can be
+
+The project owner set a hard requirement: no paid search API, ever, regardless of what it would
+unlock. That rules out every vendor in the comparison above outright — Duffel, Amadeus,
+Booking.com and Hotelbeds are all commercial or partner-gated, independent of whether background
+polling turns out to be permitted. Re-researched specifically for free alternatives:
+
+| | Verdict | Shipped as |
+| --- | --- | --- |
+| **Flight prices** | Kiwi's public API closed in 2024 (invitation-only B2B now); Skyscanner is partner-only; no public API has existed for Google Flights/ITA Matrix since 2018. **Travelpayouts Data API** (`prices_for_dates`) remains the one free source, and was already half-coded — see the adapter doc comment in `src/providers/flights/aviasales.ts`. It serves **cached price points from other people's searches, not a quote for this one**: direct flights only, always stale, tied to carrying the affiliate marker. | `FLIGHT_PROVIDER=aviasales`, labelled `provenance: 'indicative'` (new — see below), never `'live'`. |
+| **Hotel prices** | Nothing free exists. Every "free hotel API" found is either a one-time trial-credit trap (30–1,000 calls, then paid) or a scraping reseller — which does not remove the ToS problem the owner ruled out, it outsources it to a vendor. | Not shipped. Mock only; honestly labelled demo data via the existing `DemoDataNotice`/provenance machinery when mixed with real flights. |
+| **Weather** | **Open-Meteo**: free, keyless, no card, CC BY 4.0 data, 600/min · 5,000/hr · 10,000/day. One open question the vendor has not published an answer to: where their "non-commercial" free-tier wording draws the line — ask before this earns revenue. | `WEATHER_PROVIDER=open-meteo`. Forecast within 15 days; a real climatology normal beyond that, averaged from 3 years of the archive API — not an invented seasonal guess. |
+| **Airport/route reference data** | **OurAirports** (ODC-PDDL, public domain, no attribution required) is the clean choice; OpenFlights is share-alike and was not needed once OurAirports covered what was wanted. | `scripts/build-airports.mjs` → `src/providers/reference/airports.generated.json`, ~4,100 airports with scheduled commercial service and an IATA code. Used by the weather adapter to resolve a destination to coordinates; not yet wired into flight search or the nearby-airport logic. |
+
+**A real defect this surfaced**: the registry's existing fallback (`provider.metadata.mode ?? (isMock ? 'mock' : 'live')`) would have labelled every Aviasales price "Live price" the moment `FLIGHT_PROVIDER=aviasales` was set — the adapter's own `isMock: false` is correct (it is a real vendor call), but nothing told the fallback it was not a quote for *this* search. `DataProvenance` gained an `indicative` case (`src/core/trip/provenance.ts`) and the adapter now sets `metadata.mode: 'indicative'` explicitly, rather than relying on the boolean. Caught by typecheck the moment the case was added, because every provenance map is a `Record<DataProvenance, …>`.
+
+**What is still open:**
+
+- Travelpayouts' own terms say nothing about background polling (same **[none]** gap as every vendor above) — ask in writing before Travel Watch polls it unattended.
+- Open-Meteo's non-commercial boundary, as above.
+- Hotels: still nothing. The product continues as flights-plus-weather-real, hotel-demo, honestly labelled, until that changes.
+
+---
+
 ## Sources
 
 Flights:
@@ -166,6 +190,15 @@ Hotels:
 - [Hotelbeds — Developer portal](https://developer.hotelbeds.com/)
 - [Hotelbeds — Cache API operations](https://developer.hotelbeds.com/documentation/hotels/cache-api/operations/)
 - [Hotelbeds — Booking API](https://developer.hotelbeds.com/documentation/hotels/booking-api/)
+
+Zero-cost alternatives (3 November 2026 update):
+
+- [Travelpayouts — Aviasales Data API](https://support.travelpayouts.com/hc/en-us/articles/203956163-Aviasales-Data-API)
+- [Travelpayouts — Requirements for Aviasales data API access](https://support.travelpayouts.com/hc/en-us/articles/203956083-Requirements-for-Aviasales-data-API-access)
+- [OpenFlights — Airport and airline data](https://openflights.org/data.php)
+- [OurAirports data — LICENSE](https://github.com/davidmegginson/ourairports-data/blob/main/LICENSE)
+- [Open-Meteo — Pricing](https://open-meteo.com/en/pricing)
+- [Open-Meteo — GitHub (license)](https://github.com/open-meteo/open-meteo)
 
 Pages marked **[doc-idx]** could not be fetched directly — several of these sites render
 client-side and return an empty body — and were read through a search index of the same official

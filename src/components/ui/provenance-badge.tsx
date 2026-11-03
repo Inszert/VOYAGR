@@ -30,6 +30,9 @@ const TONE: Record<DataProvenance, BadgeTone> = {
   // Critical, not caution: this is not a weaker price, it is not a price.
   // Test data is as loud as demo data: neither can be bought.
   test: 'critical',
+  // Caution, not critical: a real price exists, it just was not quoted for
+  // this exact search and cannot be relied on to still be there.
+  indicative: 'caution',
   mock: 'critical',
   'ai-generated': 'brand',
   unavailable: 'neutral',

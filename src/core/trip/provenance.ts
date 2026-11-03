@@ -36,6 +36,19 @@ export type DataProvenance =
    * being able to see while an integration is being brought up.
    */
   | 'test'
+  /**
+   * A real figure from a real vendor, but not a quote for this search.
+   *
+   * A cached aggregate price point - "someone searched this route recently
+   * and paid about this much" - names a real airline and a real fare that
+   * existed, and is still neither `live` nor `cached`: both of those mean a
+   * provider answered *this* query. An indicative price answers a different
+   * one, on a timetable nobody here controls, and can move or vanish before
+   * anyone acts on it. Calling it `cached` would borrow trust a real
+   * quote-then-reuse earns; calling it `estimated` would deny that a real
+   * market price sits underneath it. It needs its own word.
+   */
+  | 'indicative'
   /** A deterministic fixture. Not a real offer, and must never look like one. */
   | 'mock'
   /** Written by a language model from facts computed elsewhere. */
@@ -51,6 +64,7 @@ export const PROVENANCE_LABEL: Record<DataProvenance, string> = {
   historical: 'Past price',
   typical: 'Typical',
   test: 'Test data',
+  indicative: 'Indicative price',
   mock: 'Demo data',
   'ai-generated': 'Written by AI',
   unavailable: 'Unavailable',
@@ -64,6 +78,7 @@ export const PROVENANCE_EXPLANATION: Record<DataProvenance, string> = {
   historical: 'A price we recorded earlier, shown for comparison.',
   typical: 'What this usually costs at this time of year. Not a quote or a forecast.',
   test: 'From the provider’s sandbox. The itinerary and price are realistic but the seat does not exist and cannot be booked.',
+  indicative: 'A real price recently seen on this route, not a quote for this exact search. It can move before you act on it.',
   mock: 'Sample data for development. This is not a real offer and cannot be booked.',
   'ai-generated': 'Wording produced by a language model from figures calculated elsewhere.',
   unavailable: 'We could not get this from the provider.',
@@ -85,6 +100,7 @@ export const PROVENANCE_EMPHASIS: Record<DataProvenance, ProvenanceEmphasis> = {
   historical: 'quiet',
   typical: 'notable',
   test: 'intrusive',
+  indicative: 'notable',
   mock: 'intrusive',
   'ai-generated': 'notable',
   unavailable: 'notable',
@@ -111,6 +127,10 @@ const WEAKNESS_ORDER: DataProvenance[] = [
   'typical',
   'ai-generated',
   'estimated',
+  // Stronger than arithmetic over known figures, weaker than anything that
+  // was actually quoted for this search: a real market price, for a
+  // different query than the one being answered.
+  'indicative',
   'historical',
   'cached',
   'live',
@@ -129,15 +149,18 @@ export function combineProvenance(parts: readonly DataProvenance[]): DataProvena
 /**
  * How a provider runs, which is what decides the provenance of its answers.
  *
- * Three states rather than two. `isMock` alone cannot tell a live account
- * from a sandbox one, and a sandbox answer that inherits "Live price" is a
- * lie told by a boolean.
+ * Four states rather than two. `isMock` alone cannot tell a live account
+ * from a sandbox one, or either from a vendor that is real but answers a
+ * different question than the one asked - and a cached-aggregate answer
+ * that inherits "Live price" is a lie told by a boolean just as much as a
+ * sandbox one would be.
  */
-export type ProviderMode = 'mock' | 'test' | 'live';
+export type ProviderMode = 'mock' | 'test' | 'indicative' | 'live';
 
 const MODE_PROVENANCE: Record<ProviderMode, DataProvenance> = {
   mock: 'mock',
   test: 'test',
+  indicative: 'indicative',
   live: 'live',
 };
 

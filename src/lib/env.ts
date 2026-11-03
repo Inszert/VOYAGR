@@ -55,7 +55,13 @@ const envSchema = z.object({
    */
   DATA_SOURCE_SWITCH: booleanish.optional(),
   HOTEL_PROVIDER: providerName,
-  WEATHER_PROVIDER: providerName,
+  /**
+   * `open-meteo` needs no credential - it is a free, keyless API - so unlike
+   * the flight adapters above there is nothing to fail loudly about at
+   * startup. See `src/providers/weather/open-meteo.ts` for the free-tier
+   * terms this still depends on.
+   */
+  WEATHER_PROVIDER: z.enum(['mock', 'live', 'open-meteo']).default('mock'),
   TRANSFER_PROVIDER: providerName,
   PLACES_PROVIDER: providerName,
   /**

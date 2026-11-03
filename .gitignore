@@ -80,3 +80,7 @@ yarn-error.log*
 # ---- geo build cache ----
 # Natural Earth downloads, re-fetched by scripts/build-geo.mjs when absent.
 .geo-cache/
+
+# ---- airport reference build cache ----
+# OurAirports download, re-fetched by scripts/build-airports.mjs when absent.
+.airports-cache/

@@ -256,9 +256,12 @@ export class AviasalesFlightProvider implements FlightProvider {
     id: 'aviasales',
     kind: 'flights',
     displayName: 'Aviasales (Travelpayouts)',
-    // Not a mock: everything downstream treats these prices as real, which is
-    // what makes the cached-price caveat above something to act on.
+    // Not a mock: these are real vendor prices. Also not `live` - see the
+    // module comment above - so `mode` is set explicitly rather than left to
+    // the registry's `isMock ? 'mock' : 'live'` fallback, which would label
+    // an always-stale cached price point "Live price".
     isMock: false,
+    mode: 'indicative',
     /*
      * Measured, not guessed.
      *

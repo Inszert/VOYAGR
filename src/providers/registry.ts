@@ -9,6 +9,7 @@ import { createMockHotelProvider } from './hotels/mock';
 import { createMockPlacesProvider } from './places/mock';
 import { createMockTransferProvider } from './transfers/mock';
 import { createMockWeatherProvider } from './weather/mock';
+import { createOpenMeteoWeatherProvider } from './weather/open-meteo';
 import type {
   AnyProvider,
   FlightProvider,
@@ -185,6 +186,10 @@ function resolveHotelProvider(env: Env): HotelProvider {
 }
 
 function resolveWeatherProvider(env: Env): WeatherProvider {
+  if (env.WEATHER_PROVIDER === 'open-meteo') {
+    return createOpenMeteoWeatherProvider();
+  }
+
   return env.WEATHER_PROVIDER === 'mock'
     ? createMockWeatherProvider()
     : liveProviderNotImplemented('weather');

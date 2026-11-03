@@ -22,6 +22,8 @@ const ALL: DataProvenance[] = [
   'estimated',
   'historical',
   'typical',
+  'test',
+  'indicative',
   'mock',
   'ai-generated',
   'unavailable',
@@ -73,6 +75,8 @@ describe('isRealOffer', () => {
       'mock',
       'historical',
       'unavailable',
+      'test',
+      'indicative',
     ] as const) {
       expect(isRealOffer(provenance)).toBe(false);
     }
@@ -91,6 +95,11 @@ describe('combineProvenance', () => {
     // A trip cannot be half-bookable.
     expect(combineProvenance(['live', 'live', 'mock'])).toBe('mock');
     expect(combineProvenance(['mock', 'estimated'])).toBe('mock');
+  });
+
+  it('ranks an indicative price below a real quote and above arithmetic', () => {
+    expect(combineProvenance(['live', 'indicative'])).toBe('indicative');
+    expect(combineProvenance(['indicative', 'estimated'])).toBe('estimated');
   });
 
   it('reports nothing at all as unavailable rather than guessing', () => {

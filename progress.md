@@ -1,10 +1,56 @@
 # Progress
 
-**Last updated:** 2026-09-23
-**Stage:** Phase 1 complete except live providers. Flights run against the Duffel sandbox; the
-technical half of the live-provider readiness gate is answered for Duffel from a recorded search.
-**Next:** the two decisions the gate still waits on - whether Duffel's terms allow background
-polling for Travel Watch, and which hotel vendor - then 1.11.
+**Last updated:** 2026-11-03
+**Stage:** The product owner set a hard constraint Duffel/Amadeus/Booking.com/Hotelbeds cannot
+meet at any price: zero paid search cost, ever. `docs/provider-evaluation.md` now has a dated
+update researching free alternatives. Shipped this session: a real (keyless, free) weather
+provider, a real airport reference dataset, and a correctness fix to the Aviasales adapter that
+was about to mislabel cached prices as live.
+**Next:** wire the new airport reference data into flight search/nearby-airports so it is not only
+weather that benefits; get a written answer from Travelpayouts on background polling before Travel
+Watch polls it unattended; decide whether hotels stay demo-only or get dropped to an explicit
+`excluded` cost line when a real flight provider is active.
+
+---
+
+## 2026-11-03
+
+**Zero-cost provider research.** Full write-up in `docs/provider-evaluation.md`. Short version:
+live bookable flights and any hotel price are not obtainable for free without violating a ToS the
+owner already ruled out. What is: Travelpayouts (flights, cached/indicative only), Open-Meteo
+(weather, genuinely free and keyless), OurAirports (airport reference data, public domain).
+
+**Fixed: Aviasales prices were about to be mislabelled "Live price".** The registry's fallback
+(`metadata.mode ?? (isMock ? 'mock' : 'live')`) had no case for "a real vendor answered, but not a
+quote for this search" — exactly what Travelpayouts' cached price points are. `DataProvenance`
+gained an `indicative` case (`src/core/trip/provenance.ts`); the Aviasales adapter now sets
+`metadata.mode: 'indicative'` explicitly. TypeScript's `Record<DataProvenance, …>` exhaustiveness
+caught every place that needed updating the moment the case was added.
+
+**Added: a real airport reference dataset.** `scripts/build-airports.mjs` builds
+`src/providers/reference/airports.generated.json` from OurAirports — ~4,100 airports with
+scheduled commercial service and an IATA code, public domain, no attribution burden. Separate from
+the hand-picked fixtures in `src/providers/fixtures/`, which remain explicitly mock/demo data for
+the globe and the mock providers.
+
+**Added: a real weather provider.** `src/providers/weather/open-meteo.ts`, `WEATHER_PROVIDER=open-meteo`.
+Forecast within 15 days; beyond that, a genuine climatology normal averaged from three real past
+years via the archive API — not an invented seasonal guess. Deliberately does not attempt a sea
+temperature: no signal exists yet for whether a destination is coastal, and guessing would show a
+confident-looking number for a landlocked city. Tested against real recorded response bodies in
+`tests/fixtures/providers/open-meteo/`.
+
+**Fixed: a shipped bug from the last session.** `trip-card.tsx` called a `roomsNote()` helper that
+was never written (commit `7eacb15`, "push to git while im off") — every trip card with hotel
+pricing crashed on render. 57 tests were failing because of it; all fixed by writing the helper.
+
+**Found and not yet acted on:** `npm run format:check` fails on 142 files, predating this session —
+looks like a `prettier`/`prettier-plugin-tailwindcss` version bump reformatted class ordering
+rather than genuine drift from hand-editing. Not mass-reformatted yet; that is a large, separate
+diff and deserves its own pass rather than riding along with unrelated changes. Also: the Postgres
+repository-contract tests fail locally with `ECONNRESET` — Postgres is listening on 5432, but
+something in the connection (auth/db-name/SSL) resets it. Local environment issue, not investigated
+further since `.env` is correctly outside what this session can read.
 
 ---
 

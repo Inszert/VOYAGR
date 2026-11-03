@@ -227,12 +227,15 @@ describe('searchFlights', () => {
     expect(() => new AviasalesFlightProvider({ token: '' })).toThrow(/AVIASALES_API_TOKEN/);
   });
 
-  it('declares itself live, and declares a rate limit the limiter can use', () => {
+  it('declares itself real but indicative, and declares a rate limit the limiter can use', () => {
     const { provider } = providerWith({ data: [] });
 
-    // `isMock: false` is what makes the whole result set stop being labelled
-    // demo data, so it has to be true to the adapter.
+    // `isMock: false` is what stops the result set being labelled demo data.
+    // `mode: 'indicative'` is what stops it being labelled a live quote -
+    // without it the registry's `isMock ? 'mock' : 'live'` fallback would
+    // mislabel this always-stale cached price point as "Live price".
     expect(provider.metadata.isMock).toBe(false);
+    expect(provider.metadata.mode).toBe('indicative');
     expect(provider.metadata.rateLimitPerMinute).toBeGreaterThan(0);
   });
 });
