@@ -4,9 +4,12 @@ An AI travel deal hunter that searches for **complete trips** rather than isolat
 hotels, keeps monitoring them after you close the tab, and alerts you when a materially better
 combination appears.
 
-> **Status: engineering foundation.** The architecture, deterministic core, provider interfaces,
-> testing, security and CI baselines are in place and tested. No product feature is implemented yet
-> — there is no real travel search, no live provider integration, and no booking.
+> **Status: Phase 1 MVP loop working end to end.** Search, complete-trip cost and ranking, saved
+> Travel Watches, a background worker, and real Web Push notifications all run against Postgres and
+> Redis when configured, or entirely in-memory with no setup at all. Two live providers exist under
+> a hard zero-paid-search-cost constraint (see `docs/provider-evaluation.md`): Aviasales for
+> indicative (cached, not bookable) flight prices, and Open-Meteo for real weather. Hotels have no
+> free source and stay mock. No booking yet.
 
 ---
 
@@ -19,13 +22,19 @@ npm run dev                    # http://localhost:3000
 ```
 
 No database, no Redis, no API keys. The foundation runs entirely on deterministic mock providers.
+`.env.local` is read by `next dev`/`next build` (Next's own convention); `npm run worker` and
+`npm run db:migrate` read `.env` instead - use that name if you want them to see the same values.
+See `SETUP-CHECKLIST.md` for every variable and what it turns on.
 
 ```bash
 npm run verify                 # format, lint, typecheck, test, build
 npm run test:e2e               # Playwright against a production build
 ```
 
-Requires Node 20.9+ (developed on 24).
+Requires Node 24.15+ — `engines.node` in `package.json` and `engine-strict=true` in `.npmrc` make
+an older Node a hard failure rather than a warning, deliberately (see `progress.md`'s "Known
+constraints": `jsdom@30` needs 22.22.2+, and several hosts pick the floor of an open-ended range,
+which selected an EOL Node 20 when this said `>=20.9.0`).
 
 ---
 
@@ -66,8 +75,8 @@ not support.
 | Styling       | Tailwind CSS v4 with OKLCH design tokens                 |
 | Components    | Radix UI Primitives ([why](docs/design-system.md))       |
 | Testing       | Vitest (unit + component), Playwright + axe (end-to-end) |
-| Database      | PostgreSQL _(intended; in-memory repositories today)_    |
-| Jobs          | Redis + BullMQ _(intended; in-process driver today)_     |
+| Database      | PostgreSQL, or in-memory with no setup                   |
+| Jobs          | Redis + BullMQ, or in-process with no setup              |
 | Notifications | Web Push                                                 |
 | CI            | GitHub Actions                                           |
 
@@ -80,12 +89,15 @@ src/
   core/            Deterministic domain logic — pure, no I/O, no clock, no randomness
     money.ts         Integer minor-unit money arithmetic
     trip/            Cost, constraints, usable time, scoring, domain types
-  providers/       Travel data adapters behind interfaces (all mock today)
+  providers/       Travel data adapters behind interfaces — Aviasales and Open-Meteo are real
+                   and free; everything else is mock (see docs/provider-evaluation.md for why)
   ai/              AI abstraction + guardrails + deterministic mock
-  db/              Repository interfaces, in-memory implementation, SQL migrations
-  queue/           Background job contract + in-process driver
+  db/              Repository interfaces, in-memory and Postgres implementations, SQL migrations
+  queue/           Background job contract, in-process and BullMQ/Redis drivers
+  worker/          The process that runs the queue outside a request (npm run worker)
   notifications/   Channel abstraction, Web Push
   lib/             env, logger, errors, Result
+  middleware.ts    Per-request CSP nonce
   components/ui/   Design system
   app/             Next.js App Router
 tests/e2e/         Playwright
@@ -111,19 +123,21 @@ tests/e2e/         Playwright
 
 ## Scripts
 
-| Script                   | Does                                    |
-| ------------------------ | --------------------------------------- |
-| `npm run dev`            | Development server                      |
-| `npm run build`          | Production build                        |
-| `npm test`               | Unit and component tests                |
-| `npm run test:coverage`  | Tests with coverage                     |
-| `npm run test:e2e`       | Playwright smoke suite                  |
-| `npm run lint`           | ESLint                                  |
-| `npm run typecheck`      | `tsc --noEmit`                          |
-| `npm run format`         | Prettier                                |
-| `npm run verify`         | All of the above that gate a change     |
-| `npm run db:migrate`     | Apply SQL migrations (needs a database) |
-| `npm run icons:generate` | Regenerate the PWA icons                |
+| Script                   | Does                                        |
+| ------------------------ | ------------------------------------------- |
+| `npm run dev`            | Development server                          |
+| `npm run build`          | Production build                            |
+| `npm test`               | Unit and component tests                    |
+| `npm run test:coverage`  | Tests with coverage                         |
+| `npm run test:e2e`       | Playwright smoke suite                      |
+| `npm run lint`           | ESLint                                      |
+| `npm run typecheck`      | `tsc --noEmit`                              |
+| `npm run format`         | Prettier                                    |
+| `npm run verify`         | All of the above that gate a change         |
+| `npm run db:migrate`     | Apply SQL migrations (needs a database)     |
+| `npm run worker`         | Run the background queue as its own process |
+| `npm run vapid:generate` | Generate a Web Push key pair                |
+| `npm run icons:generate` | Regenerate the PWA icons                    |
 
 ---
 
