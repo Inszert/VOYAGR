@@ -5,8 +5,14 @@ import { PushToggle } from '@/components/notifications/push-toggle';
 import { PasswordForm } from '@/components/auth/password-form';
 import { PreferencesForm } from '@/components/auth/preferences-form';
 import { savePreferencesAction } from '@/app/actions/preferences';
-import { changePasswordAction, deleteAccountAction, signOutAction } from '@/app/actions/auth';
+import {
+  changePasswordAction,
+  deleteAccountAction,
+  resendVerificationAction,
+  signOutAction,
+} from '@/app/actions/auth';
 import { DeleteAccountForm } from '@/components/auth/delete-account-form';
+import { ResendVerificationForm } from '@/components/auth/resend-verification-form';
 import { getCurrentUser } from '@/auth/current-user';
 import { readExplicitPreferences, readInferredPreferences } from '@/auth/preferences';
 import { getEnv } from '@/lib/env';
@@ -29,7 +35,11 @@ import { getRepositories } from '@/db';
 
 export const metadata: Metadata = { title: 'Your account' };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in');
 
@@ -38,6 +48,7 @@ export default async function AccountPage() {
   const inferred = readInferredPreferences(stored);
 
   const { entitlements } = user;
+  const verified = (await searchParams).verified;
 
   return (
     <div className="flex flex-col gap-8">
@@ -45,6 +56,23 @@ export default async function AccountPage() {
         <div>
           <h1 className="text-ink text-2xl font-semibold tracking-tight">Your account</h1>
           <p className="text-ink-muted mt-2">{user.email}</p>
+          {user.emailVerified ? null : (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-caution-ink text-sm">This address has not been confirmed yet.</p>
+              <ResendVerificationForm action={resendVerificationAction} />
+            </div>
+          )}
+          {verified === '1' ? (
+            <p role="status" className="text-positive-ink mt-2 text-sm">
+              Email confirmed.
+            </p>
+          ) : null}
+          {verified === 'invalid' ? (
+            <p role="alert" className="text-critical-ink mt-2 text-sm">
+              That verification link was not valid or has expired. Use the button below to get a new
+              one.
+            </p>
+          ) : null}
         </div>
 
         <form action={signOutAction}>

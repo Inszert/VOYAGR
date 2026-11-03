@@ -68,6 +68,11 @@ const sections: readonly LegalSection[] = [
             <strong>Sign-in sessions</strong>: a record per signed-in browser that holds a hash of
             its session token and when it expires.
           </li>
+          <li>
+            <strong>Whether your email address has been confirmed</strong>, and, while a
+            confirmation link is outstanding, a hash of it and when it expires - never the link
+            itself.
+          </li>
         </ul>
       </>
     ),
@@ -160,8 +165,8 @@ const sections: readonly LegalSection[] = [
           From your account page you can download everything Voyagr holds about you as a single
           file, and you can delete your account. Deleting it removes your email address, password
           hash, preferences, saved searches, watches, their price history, notifications, push
-          subscriptions and sessions at once. The only record kept is a count of what was removed,
-          with nothing that identifies you.
+          subscriptions, sessions and any outstanding email confirmation link at once. The only
+          record kept is a count of what was removed, with nothing that identifies you.
         </p>
         <p>
           You do not have to delete your account for old data to go. A watch&rsquo;s price history

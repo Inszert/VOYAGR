@@ -23,6 +23,14 @@ export interface UserRecord {
    */
   readonly plan: string;
   readonly createdAt: IsoDateTime;
+  /**
+   * When this address was last confirmed reachable, or `null` if never.
+   *
+   * Does not gate sign-in or search - see `AuthService.register` - so this is
+   * a fact to display and act on (a banner, a resend prompt), never a check
+   * anything in `src/core/` or the search path reads.
+   */
+  readonly emailVerifiedAt: IsoDateTime | null;
 }
 
 /**
@@ -50,6 +58,22 @@ export interface SessionRecord {
   readonly id: string;
   readonly userId: string;
   /** SHA-256 of the session token, hex encoded. Never the token itself. */
+  readonly tokenHash: string;
+  readonly createdAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+}
+
+/**
+ * An email verification token.
+ *
+ * Same shape as `SessionRecord` and the same reason: the link in the email
+ * carries the raw token, this stores only its SHA-256, and a one-time use is
+ * enforced by deleting the row once it has been consumed - see
+ * `AuthService.verifyEmail`.
+ */
+export interface EmailVerificationTokenRecord {
+  readonly id: string;
+  readonly userId: string;
   readonly tokenHash: string;
   readonly createdAt: IsoDateTime;
   readonly expiresAt: IsoDateTime;
@@ -157,8 +181,15 @@ export interface UserRepository {
   findById(id: string): Promise<UserRecord | null>;
   /** Case-insensitive: nobody registers twice by capitalising their email. */
   findByEmail(email: string): Promise<UserRecord | null>;
-  create(input: Omit<UserRecord, 'createdAt'>): Promise<UserRecord>;
-  update(id: string, patch: Partial<Pick<UserRecord, 'plan'>>): Promise<UserRecord>;
+  /**
+   * Every new account starts unverified - `emailVerifiedAt` is not a
+   * constructor input, so there is no call site to get that wrong.
+   */
+  create(input: Omit<UserRecord, 'createdAt' | 'emailVerifiedAt'>): Promise<UserRecord>;
+  update(
+    id: string,
+    patch: Partial<Pick<UserRecord, 'plan' | 'emailVerifiedAt'>>,
+  ): Promise<UserRecord>;
   /**
    * Erase one account and everything personally attached to it.
    *
@@ -187,6 +218,7 @@ export interface ErasureSummary {
   readonly pushSubscriptions: number;
   readonly preferences: number;
   readonly credentials: number;
+  readonly emailVerificationTokens: number;
 }
 
 export interface UserCredentialRepository {
@@ -200,6 +232,18 @@ export interface SessionRepository {
   create(input: Omit<SessionRecord, 'createdAt'>): Promise<SessionRecord>;
   delete(id: string): Promise<void>;
   /** Every session for a user, for "sign out everywhere" and password changes. */
+  deleteForUser(userId: string): Promise<void>;
+  /** Housekeeping: drop everything already expired at `now`. */
+  deleteExpired(now: IsoDateTime): Promise<number>;
+}
+
+export interface EmailVerificationRepository {
+  findByTokenHash(tokenHash: string): Promise<EmailVerificationTokenRecord | null>;
+  create(
+    input: Omit<EmailVerificationTokenRecord, 'createdAt'>,
+  ): Promise<EmailVerificationTokenRecord>;
+  delete(id: string): Promise<void>;
+  /** Resending a verification email replaces whatever tokens came before it. */
   deleteForUser(userId: string): Promise<void>;
   /** Housekeeping: drop everything already expired at `now`. */
   deleteExpired(now: IsoDateTime): Promise<number>;
@@ -333,6 +377,7 @@ export interface Repositories {
   readonly users: UserRepository;
   readonly credentials: UserCredentialRepository;
   readonly sessions: SessionRepository;
+  readonly emailVerification: EmailVerificationRepository;
   readonly preferences: UserPreferencesRepository;
   readonly tripSearches: TripSearchRepository;
   readonly travelWatches: TravelWatchRepository;

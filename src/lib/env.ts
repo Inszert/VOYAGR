@@ -119,6 +119,13 @@ const envSchema = z.object({
    */
   IMAGERY_PROVIDER: z.enum(['none', 'wikimedia']).default('wikimedia'),
 
+  /**
+   * Which email adapter is active. `console` - the default - writes a
+   * verification link to the structured log instead of sending anything; see
+   * `src/email/console.ts`. No real provider is wired in yet.
+   */
+  EMAIL_PROVIDER: z.enum(['console']).default('console'),
+
   // Web Push.
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
   VAPID_PRIVATE_KEY: z.string().min(1).optional(),

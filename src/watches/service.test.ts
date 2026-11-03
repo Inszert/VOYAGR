@@ -25,7 +25,7 @@ let user: AuthenticatedUser;
 let other: AuthenticatedUser;
 
 function asUser(id: string, email: string): AuthenticatedUser {
-  return { id, email, plan: 'free', entitlements: free };
+  return { id, email, plan: 'free', entitlements: free, emailVerified: false };
 }
 
 beforeEach(async () => {

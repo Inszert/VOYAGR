@@ -1,15 +1,56 @@
 # Progress
 
-**Last updated:** 2026-11-03
-**Stage:** The product owner set a hard constraint Duffel/Amadeus/Booking.com/Hotelbeds cannot
-meet at any price: zero paid search cost, ever. `docs/provider-evaluation.md` now has a dated
-update researching free alternatives. Shipped this session: a real (keyless, free) weather
-provider, a real airport reference dataset, and a correctness fix to the Aviasales adapter that
-was about to mislabel cached prices as live.
-**Next:** wire the new airport reference data into flight search/nearby-airports so it is not only
-weather that benefits; get a written answer from Travelpayouts on background polling before Travel
-Watch polls it unattended; decide whether hotels stay demo-only or get dropped to an explicit
-`excluded` cost line when a real flight provider is active.
+**Last updated:** 2026-11-04
+**Stage:** Zero-paid-search-cost constraint in place (see 11-03 below); this session added email
+verification and, while testing it by hand against the zero-config in-memory backend, found and
+fixed a real, significant pre-existing bug: `getRepositories()`'s singleton was a plain
+module-level `let`, which is not actually process-wide across a Route Handler/Server Action
+boundary in Next.js's App Router - a Route Handler could silently get a _different_, empty
+in-memory store than the one a Server Action had just written to. Fixed by caching on `globalThis`
+instead (`src/db/index.ts`), the standard fix for this exact class of problem. This was already
+silently breaking `/api/account/export` and `/api/push/subscribe` in the zero-config default
+experience the README promotes - not something this session introduced, but something it would
+have shipped a second instance of (`/api/verify-email`) without noticing, had the feature not been
+tested by hand in a real browser rather than trusted on "the tests pass" alone.
+**Next:** decide whether hotels stay demo-only or get dropped to an explicit `excluded` cost line
+when a real flight provider is active; get a written answer from Travelpayouts on background
+polling before Travel Watch polls it unattended; wire the new airport reference data into flight
+search/nearby-airports (parked last session over a risk of silently changing tested distances -
+still parked).
+
+---
+
+## 2026-11-04
+
+**Email verification.** Sign-up now sends a one-time, 24-hour link (`src/auth/email-verification.ts`,
+mirroring the session-token pattern exactly: SHA-256 of a 256-bit token, never the token itself,
+stored). `src/email/` is a new, minimal provider abstraction - `EMAIL_PROVIDER=console` (the only
+option, and the default) logs the link instead of sending anything, clearly labelled as dev-only.
+No real email provider has been researched or wired in; that is next, if wanted. The account page
+shows an unverified banner with a resend button; `/api/verify-email` consumes the link. Failing to
+send never fails the sign-up that triggered it. 23 new tests, including one that closes a gap found
+along the way: `users.erase()` had no test anywhere in the suite before this change touched it.
+
+**Found and fixed while testing the above by hand:**
+
+- **The `getRepositories()` singleton bug**, above - the most consequential finding of the two.
+- **Next.js 16.4.5 deprecates the `middleware.ts` file convention** in favour of `proxy.ts`. Since
+  `src/middleware.ts` (the CSP-nonce proxy from 11-03) was only one day old, renamed it immediately
+  rather than carrying a deprecation warning forward. Also narrowed its matcher to exclude every
+  `/api/` route - none of them render HTML or a script, so a CSP nonce is pure overhead for them.
+  (Checked directly: excluding `/api/` did _not_ fix the repositories bug, so that exclusion is a
+  tidy-up, not the fix - the two are unrelated.)
+- A route handler's own redirect, built from `request.url`, reported a different host
+  (`localhost`) than the one actually requested (`127.0.0.1`) - and the session cookie is scoped to
+  the exact host it was set on, so the mismatch made a just-verified account look signed out.
+  Fixed `src/app/api/verify-email/route.ts` to build the redirect from the literal `Host` header
+  instead.
+
+Verified by hand in a real browser against the production build, not only by the test suite: signed
+up, read the real token out of the console-provider's log, visited the real link, watched the
+unverified banner disappear and "Email confirmed." appear, re-ran the same flow after each fix
+until all three were gone. `npm run verify` and the full Playwright suite both stayed green
+throughout.
 
 ---
 

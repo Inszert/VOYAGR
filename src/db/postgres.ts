@@ -3,6 +3,8 @@ import { AppError } from '@/lib/errors';
 import { query, withTransaction } from './client';
 import type { SearchProfile } from '@/core/trip/types';
 import type {
+  EmailVerificationRepository,
+  EmailVerificationTokenRecord,
   ErasureSummary,
   NotificationRecord,
   NotificationRepository,
@@ -86,18 +88,24 @@ interface UserRow {
   email: string;
   plan: string;
   created_at: Date;
+  email_verified_at: Date | null;
 }
 
 function toUser(row: UserRow): UserRecord {
-  return { id: row.id, email: row.email, plan: row.plan, createdAt: toIso(row.created_at) };
+  return {
+    id: row.id,
+    email: row.email,
+    plan: row.plan,
+    createdAt: toIso(row.created_at),
+    emailVerifiedAt: row.email_verified_at ? toIso(row.email_verified_at) : null,
+  };
 }
+
+const USER_COLUMNS = 'id, email, plan, created_at, email_verified_at';
 
 class PostgresUserRepository implements UserRepository {
   async findById(id: string): Promise<UserRecord | null> {
-    const rows = await query<UserRow>(
-      'SELECT id, email, plan, created_at FROM users WHERE id = $1',
-      [id],
-    );
+    const rows = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE id = $1`, [id]);
     return rows[0] ? toUser(rows[0]) : null;
   }
 
@@ -105,13 +113,13 @@ class PostgresUserRepository implements UserRepository {
     // Matches `users_email_lower_idx`, so the lookup uses the index rather
     // than scanning the table.
     const rows = await query<UserRow>(
-      'SELECT id, email, plan, created_at FROM users WHERE lower(email) = lower($1)',
+      `SELECT ${USER_COLUMNS} FROM users WHERE lower(email) = lower($1)`,
       [email],
     );
     return rows[0] ? toUser(rows[0]) : null;
   }
 
-  async create(input: Omit<UserRecord, 'createdAt'>): Promise<UserRecord> {
+  async create(input: Omit<UserRecord, 'createdAt' | 'emailVerifiedAt'>): Promise<UserRecord> {
     // ON CONFLICT rather than check-then-insert: two simultaneous sign-ups for
     // one address would both pass a check, and the loser would fail on the
     // constraint with an error nobody wrote a message for.
@@ -119,7 +127,7 @@ class PostgresUserRepository implements UserRepository {
       `INSERT INTO users (id, email, plan)
        VALUES ($1, $2, $3)
        ON CONFLICT DO NOTHING
-       RETURNING id, email, plan, created_at`,
+       RETURNING ${USER_COLUMNS}`,
       [input.id, input.email, input.plan],
     );
 
@@ -132,15 +140,25 @@ class PostgresUserRepository implements UserRepository {
     return toUser(rows[0]);
   }
 
-  async update(id: string, patch: Partial<Pick<UserRecord, 'plan'>>): Promise<UserRecord> {
+  async update(
+    id: string,
+    patch: Partial<Pick<UserRecord, 'plan' | 'emailVerifiedAt'>>,
+  ): Promise<UserRecord> {
     // COALESCE lets one statement serve a partial patch, rather than building
-    // SQL from whichever keys happen to be present.
+    // SQL from whichever keys happen to be present. Never used to clear
+    // emailVerifiedAt back to null - nothing in this codebase does that - so
+    // COALESCE's "null means leave it alone" is the right behaviour here, not
+    // the footgun it would be for a field a caller might legitimately want to
+    // null out (see bestKnownTotal on travel watches, which needs the
+    // explicit-flag pattern this does not).
     const rows = await query<UserRow>(
       `UPDATE users
-          SET plan = COALESCE($2, plan), updated_at = now()
+          SET plan = COALESCE($2, plan),
+              email_verified_at = COALESCE($3, email_verified_at),
+              updated_at = now()
         WHERE id = $1
-        RETURNING id, email, plan, created_at`,
-      [id, patch.plan ?? null],
+        RETURNING ${USER_COLUMNS}`,
+      [id, patch.plan ?? null, patch.emailVerifiedAt ?? null],
     );
 
     return toUser(requireRow(rows[0], 'user', id));
@@ -180,6 +198,9 @@ class PostgresUserRepository implements UserRepository {
         ),
         preferences: await countOf('SELECT count(*) FROM user_preferences WHERE user_id = $1'),
         credentials: await countOf('SELECT count(*) FROM user_credentials WHERE user_id = $1'),
+        emailVerificationTokens: await countOf(
+          'SELECT count(*) FROM email_verification_tokens WHERE user_id = $1',
+        ),
       };
 
       const deleted = await client.query('DELETE FROM users WHERE id = $1', [id]);
@@ -277,6 +298,66 @@ class PostgresSessionRepository implements SessionRepository {
   async deleteExpired(now: string): Promise<number> {
     const rows = await query<{ id: string }>(
       'DELETE FROM sessions WHERE expires_at <= $1 RETURNING id',
+      [now],
+    );
+    return rows.length;
+  }
+}
+
+// --- Email verification -----------------------------------------------------
+
+interface EmailVerificationRow {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  created_at: Date;
+  expires_at: Date;
+}
+
+function toEmailVerificationToken(row: EmailVerificationRow): EmailVerificationTokenRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    tokenHash: row.token_hash,
+    createdAt: toIso(row.created_at),
+    expiresAt: toIso(row.expires_at),
+  };
+}
+
+class PostgresEmailVerificationRepository implements EmailVerificationRepository {
+  async findByTokenHash(tokenHash: string): Promise<EmailVerificationTokenRecord | null> {
+    const rows = await query<EmailVerificationRow>(
+      'SELECT id, user_id, token_hash, created_at, expires_at' +
+        ' FROM email_verification_tokens WHERE token_hash = $1',
+      [tokenHash],
+    );
+    return rows[0] ? toEmailVerificationToken(rows[0]) : null;
+  }
+
+  async create(
+    input: Omit<EmailVerificationTokenRecord, 'createdAt'>,
+  ): Promise<EmailVerificationTokenRecord> {
+    const rows = await query<EmailVerificationRow>(
+      `INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, user_id, token_hash, created_at, expires_at`,
+      [input.id, input.userId, input.tokenHash, input.expiresAt],
+    );
+
+    return toEmailVerificationToken(requireRow(rows[0], 'email verification token', input.id));
+  }
+
+  async delete(id: string): Promise<void> {
+    await query('DELETE FROM email_verification_tokens WHERE id = $1', [id]);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    await query('DELETE FROM email_verification_tokens WHERE user_id = $1', [userId]);
+  }
+
+  async deleteExpired(now: string): Promise<number> {
+    const rows = await query<{ id: string }>(
+      'DELETE FROM email_verification_tokens WHERE expires_at <= $1 RETURNING id',
       [now],
     );
     return rows.length;
@@ -845,6 +926,7 @@ export function createPostgresRepositories(): Repositories {
     users: new PostgresUserRepository(),
     credentials: new PostgresUserCredentialRepository(),
     sessions: new PostgresSessionRepository(),
+    emailVerification: new PostgresEmailVerificationRepository(),
     preferences: new PostgresUserPreferencesRepository(),
     tripSearches: new PostgresTripSearchRepository(),
     travelWatches: new PostgresTravelWatchRepository(),

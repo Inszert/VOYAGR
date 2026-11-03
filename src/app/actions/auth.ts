@@ -174,3 +174,33 @@ export async function deleteAccountAction(
   await clearSessionCookie();
   redirect('/?deleted=1');
 }
+
+export interface ResendVerificationState {
+  readonly message?: string;
+  readonly error?: string;
+}
+
+/**
+ * Resend the verification email for the signed-in account.
+ *
+ * The user id comes from the session, never from the form - the same reason
+ * `deleteAccountAction` does not take one. Always reports success: whether
+ * an unverified account existed to resend for is not this response's
+ * business to reveal, and `AuthService.resendVerificationEmail` already
+ * no-ops safely for an already-verified one.
+ */
+export async function resendVerificationAction(
+  _previous: ResendVerificationState,
+  _formData: FormData,
+): Promise<ResendVerificationState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: 'Sign in again to resend your verification email.' };
+
+  try {
+    await getAuthService().resendVerificationEmail(user.id);
+  } catch (error) {
+    return { error: publicMessage(error, 'Could not resend the verification email.') };
+  }
+
+  return { message: 'Verification email sent. Check your inbox.' };
+}

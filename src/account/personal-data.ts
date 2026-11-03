@@ -27,6 +27,7 @@ export interface PersonalExport {
     readonly email: string;
     readonly plan: string;
     readonly createdAt: string;
+    readonly emailVerifiedAt: string | null;
   };
   readonly preferences: unknown;
   readonly savedSearches: readonly unknown[];
@@ -73,6 +74,7 @@ export async function buildPersonalExport(
       email: user.email,
       plan: user.plan,
       createdAt: user.createdAt,
+      emailVerifiedAt: user.emailVerifiedAt,
     },
     preferences: (await repositories.preferences.find(userId)) ?? null,
     savedSearches: await repositories.tripSearches.listByUser(userId),

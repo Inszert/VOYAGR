@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  EmailVerificationRepository,
+  EmailVerificationTokenRecord,
   ErasureSummary,
   NotificationRecord,
   NotificationRepository,
@@ -58,19 +60,22 @@ class MemoryUserRepository implements UserRepository {
     return null;
   }
 
-  async create(input: Omit<UserRecord, 'createdAt'>): Promise<UserRecord> {
+  async create(input: Omit<UserRecord, 'createdAt' | 'emailVerifiedAt'>): Promise<UserRecord> {
     if (await this.findByEmail(input.email)) {
       throw new AppError('CONFLICT', `A user already exists with email ${input.email}`, {
         publicMessage: 'An account with that email already exists.',
       });
     }
 
-    const record: UserRecord = { ...input, createdAt: now() };
+    const record: UserRecord = { ...input, createdAt: now(), emailVerifiedAt: null };
     this.byId.set(record.id, record);
     return record;
   }
 
-  async update(id: string, patch: Partial<Pick<UserRecord, 'plan'>>): Promise<UserRecord> {
+  async update(
+    id: string,
+    patch: Partial<Pick<UserRecord, 'plan' | 'emailVerifiedAt'>>,
+  ): Promise<UserRecord> {
     const existing = this.byId.get(id);
     if (!existing) {
       throw new AppError('NOT_FOUND', `No user with id ${id}`);
@@ -101,6 +106,7 @@ class MemoryUserRepository implements UserRepository {
       pushSubscriptions: 0,
       preferences: 0,
       credentials: 0,
+      emailVerificationTokens: 0,
     };
 
     return { userExisted, ...removed };
@@ -164,6 +170,57 @@ class MemorySessionRepository implements SessionRepository {
     let removed = 0;
     for (const [id, record] of this.byId) {
       if (record.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+}
+
+class MemoryEmailVerificationRepository implements EmailVerificationRepository {
+  private readonly byId = new Map<string, EmailVerificationTokenRecord>();
+
+  async findByTokenHash(tokenHash: string): Promise<EmailVerificationTokenRecord | null> {
+    for (const token of this.byId.values()) {
+      if (token.tokenHash === tokenHash) return token;
+    }
+    return null;
+  }
+
+  async create(
+    input: Omit<EmailVerificationTokenRecord, 'createdAt'>,
+  ): Promise<EmailVerificationTokenRecord> {
+    const record: EmailVerificationTokenRecord = { ...input, createdAt: now() };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    for (const [id, token] of this.byId) {
+      if (token.userId === userId) this.byId.delete(id);
+    }
+  }
+
+  async deleteExpired(nowIso: string): Promise<number> {
+    let removed = 0;
+    for (const [id, token] of this.byId) {
+      if (token.expiresAt <= nowIso) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, token] of this.byId) {
+      if (token.userId === userId) {
         this.byId.delete(id);
         removed += 1;
       }
@@ -504,6 +561,7 @@ export function createMemoryRepositories(): Repositories {
   const users = new MemoryUserRepository();
   const credentials = new MemoryUserCredentialRepository();
   const sessions = new MemorySessionRepository();
+  const emailVerification = new MemoryEmailVerificationRepository();
   const preferences = new MemoryUserPreferencesRepository();
   const tripSearches = new MemoryTripSearchRepository();
   const travelWatches = new MemoryTravelWatchRepository();
@@ -538,6 +596,7 @@ export function createMemoryRepositories(): Repositories {
       pushSubscriptions: pushSubscriptions.eraseUser(userId),
       preferences: preferences.eraseUser(userId),
       credentials: credentials.eraseUser(userId),
+      emailVerificationTokens: emailVerification.eraseUser(userId),
     };
   };
 
@@ -545,6 +604,7 @@ export function createMemoryRepositories(): Repositories {
     users,
     credentials,
     sessions,
+    emailVerification,
     preferences,
     tripSearches,
     travelWatches,

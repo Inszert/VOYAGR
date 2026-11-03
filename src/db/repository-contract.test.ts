@@ -137,6 +137,65 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(updated.email).toBe(created.email);
       expect(updated.createdAt).toBe(created.createdAt);
     });
+
+    it('starts every new account unverified', async () => {
+      const created = await aUser();
+      expect(created.emailVerifiedAt).toBeNull();
+    });
+
+    it('records when an address is verified, and leaves the plan alone', async () => {
+      const created = await aUser();
+      const now = new Date().toISOString();
+
+      const updated = await repositories.users.update(created.id, { emailVerifiedAt: now });
+
+      expect(updated.emailVerifiedAt).toBe(now);
+      expect(updated.plan).toBe(created.plan);
+    });
+
+    /*
+     * `erase()` had no test anywhere in this suite before this one - found
+     * while adding `emailVerificationTokens` to its cascade. Covers what
+     * that change touched directly; the full cross-table cascade (watches,
+     * price history, notifications, push subscriptions) is still only
+     * exercised by the account-deletion end-to-end test, not at the
+     * repository level. Noted in progress.md rather than attempted here.
+     */
+    it('erases the account and reports what it actually removed', async () => {
+      const user = await aUser();
+      await repositories.credentials.upsert(user.id, 'scrypt$1$2$3$salt$hash');
+      await repositories.sessions.create({
+        id: randomUUID(),
+        userId: user.id,
+        tokenHash: 'erase-test-session',
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+      await repositories.emailVerification.create({
+        id: randomUUID(),
+        userId: user.id,
+        tokenHash: 'erase-test-verification',
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+
+      const summary = await repositories.users.erase(user.id);
+
+      expect(summary.userExisted).toBe(true);
+      expect(summary.credentials).toBe(1);
+      expect(summary.sessions).toBe(1);
+      expect(summary.emailVerificationTokens).toBe(1);
+
+      expect(await repositories.users.findById(user.id)).toBeNull();
+      expect(await repositories.credentials.findByUserId(user.id)).toBeNull();
+      expect(await repositories.sessions.findByTokenHash('erase-test-session')).toBeNull();
+      expect(
+        await repositories.emailVerification.findByTokenHash('erase-test-verification'),
+      ).toBeNull();
+    });
+
+    it('reports an erasure of a nonexistent account as "nothing existed", not an error', async () => {
+      const summary = await repositories.users.erase(randomUUID());
+      expect(summary.userExisted).toBe(false);
+    });
   });
 
   describe('credentials', () => {
@@ -204,6 +263,65 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(removed).toBe(1);
       expect(await repositories.sessions.findByTokenHash('expired')).toBeNull();
       expect(await repositories.sessions.findByTokenHash('live')).not.toBeNull();
+    });
+  });
+
+  describe('email verification', () => {
+    async function aToken(userId: string, tokenHash: string, expiresAt: string) {
+      return repositories.emailVerification.create({
+        id: randomUUID(),
+        userId,
+        tokenHash,
+        expiresAt,
+      });
+    }
+
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+
+    it('finds a token by its hash', async () => {
+      const user = await aUser();
+      const created = await aToken(user.id, 'hash-a', future);
+
+      expect(await repositories.emailVerification.findByTokenHash('hash-a')).toEqual(created);
+      expect(await repositories.emailVerification.findByTokenHash('hash-b')).toBeNull();
+    });
+
+    it('deletes one token without touching the others', async () => {
+      const user = await aUser();
+      const first = await aToken(user.id, 'hash-a', future);
+      await aToken(user.id, 'hash-b', future);
+
+      await repositories.emailVerification.delete(first.id);
+
+      expect(await repositories.emailVerification.findByTokenHash('hash-a')).toBeNull();
+      expect(await repositories.emailVerification.findByTokenHash('hash-b')).not.toBeNull();
+    });
+
+    it('deletes every token for one user and nobody else - a resend invalidates old links', async () => {
+      const user = await aUser();
+      const other = await aUser();
+      await aToken(user.id, 'mine-1', future);
+      await aToken(user.id, 'mine-2', future);
+      await aToken(other.id, 'theirs', future);
+
+      await repositories.emailVerification.deleteForUser(user.id);
+
+      expect(await repositories.emailVerification.findByTokenHash('mine-1')).toBeNull();
+      expect(await repositories.emailVerification.findByTokenHash('mine-2')).toBeNull();
+      expect(await repositories.emailVerification.findByTokenHash('theirs')).not.toBeNull();
+    });
+
+    it('sweeps only what has actually expired', async () => {
+      const user = await aUser();
+      await aToken(user.id, 'expired', past);
+      await aToken(user.id, 'live', future);
+
+      const removed = await repositories.emailVerification.deleteExpired(new Date().toISOString());
+
+      expect(removed).toBe(1);
+      expect(await repositories.emailVerification.findByTokenHash('expired')).toBeNull();
+      expect(await repositories.emailVerification.findByTokenHash('live')).not.toBeNull();
     });
   });
 

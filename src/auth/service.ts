@@ -1,8 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_PLAN_ID, resolveEntitlements, type Entitlements } from '@/core/entitlements';
 import { AppError } from '@/lib/errors';
+import { getEnv } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import type { Repositories, UserRecord } from '@/db/repository';
+import { getEmailProvider } from '@/email/registry';
+import type { EmailProvider } from '@/email/types';
+import {
+  hashVerificationToken,
+  isVerificationTokenExpired,
+  issueVerificationToken,
+  verificationTokenExpiry,
+} from './email-verification';
 import { getDecoyHash, hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from './password';
 import { hashSessionToken, isExpired, issueSessionToken, sessionExpiry } from './session';
 import { getSignInThrottle, type SignInThrottle } from './throttle';
@@ -33,6 +42,7 @@ export interface AuthenticatedUser {
   readonly email: string;
   readonly plan: string;
   readonly entitlements: Entitlements;
+  readonly emailVerified: boolean;
 }
 
 export interface SessionIssued {
@@ -46,6 +56,9 @@ export interface AuthDependencies {
   readonly repositories: Repositories;
   readonly throttle?: SignInThrottle;
   readonly now?: () => number;
+  readonly emailProvider?: EmailProvider;
+  /** The app's own canonical origin, for the link in a verification email. */
+  readonly appUrl?: string;
 }
 
 /** Same message for every sign-in failure, on purpose. */
@@ -76,6 +89,7 @@ export function toAuthenticatedUser(user: UserRecord): AuthenticatedUser {
     email: user.email,
     plan: user.plan,
     entitlements: resolveEntitlements(user.plan),
+    emailVerified: user.emailVerifiedAt !== null,
   };
 }
 
@@ -99,11 +113,15 @@ export class AuthService {
   private readonly repositories: Repositories;
   private readonly throttle: SignInThrottle;
   private readonly now: () => number;
+  private readonly emailProvider: EmailProvider;
+  private readonly appUrl: string;
 
   constructor(dependencies: AuthDependencies) {
     this.repositories = dependencies.repositories;
     this.throttle = dependencies.throttle ?? getSignInThrottle();
     this.now = dependencies.now ?? Date.now;
+    this.emailProvider = dependencies.emailProvider ?? getEmailProvider();
+    this.appUrl = dependencies.appUrl ?? getEnv().NEXT_PUBLIC_APP_URL;
   }
 
   /**
@@ -145,7 +163,92 @@ export class AuthService {
 
     log.info({ userId: user.id }, 'account created');
 
+    // A failed verification email must not fail the sign-up that triggered
+    // it - the account is real either way, and the account page's "resend"
+    // button exists precisely for this case.
+    await this.issueAndSendVerificationEmail(user).catch((error: unknown) => {
+      log.warn({ err: error, userId: user.id }, 'verification email could not be sent');
+    });
+
     return this.startSession(user);
+  }
+
+  /**
+   * (Re)send a verification email, replacing any outstanding token.
+   *
+   * Replacing rather than adding means an old, forwarded link stops working
+   * the moment a fresh one is requested - exactly one link is ever valid.
+   */
+  async resendVerificationEmail(userId: string): Promise<void> {
+    const user = await this.repositories.users.findById(userId);
+    if (!user) return;
+
+    if (user.emailVerifiedAt !== null) return;
+
+    await this.issueAndSendVerificationEmail(user);
+  }
+
+  /**
+   * Consume a verification token.
+   *
+   * One-time use: the token is deleted whether or not it was still valid, so
+   * a captured or forwarded link cannot be replayed even within its window.
+   *
+   * @throws AppError VALIDATION_ERROR when the token is unknown or expired.
+   */
+  async verifyEmail(token: string): Promise<void> {
+    const tokenHash = hashVerificationToken(token);
+    const record = await this.repositories.emailVerification.findByTokenHash(tokenHash);
+
+    if (!record) {
+      throw new AppError('VALIDATION_ERROR', 'Unknown verification token', {
+        publicMessage:
+          'That verification link is not valid. Request a new one from your account page.',
+      });
+    }
+
+    await this.repositories.emailVerification.delete(record.id);
+
+    if (isVerificationTokenExpired(record.expiresAt, this.now())) {
+      throw new AppError('VALIDATION_ERROR', 'Expired verification token', {
+        publicMessage:
+          'That verification link has expired. Request a new one from your account page.',
+      });
+    }
+
+    await this.repositories.users.update(record.userId, {
+      emailVerifiedAt: new Date(this.now()).toISOString(),
+    });
+
+    log.info({ userId: record.userId }, 'email verified');
+  }
+
+  private async issueAndSendVerificationEmail(user: UserRecord): Promise<void> {
+    // However many are outstanding, only the newest one sent should work.
+    await this.repositories.emailVerification.deleteForUser(user.id);
+
+    const { token, tokenHash } = issueVerificationToken();
+
+    await this.repositories.emailVerification.create({
+      id: randomUUID(),
+      userId: user.id,
+      tokenHash,
+      expiresAt: verificationTokenExpiry(this.now()),
+    });
+
+    const link = `${this.appUrl}/api/verify-email?token=${token}`;
+
+    const result = await this.emailProvider.send({
+      to: user.email,
+      subject: 'Confirm your email for Voyagr',
+      text:
+        `Click to confirm this address: ${link}\n\n` +
+        `This link works once and expires in 24 hours. If you did not create a Voyagr account, ignore this email.`,
+    });
+
+    if (!result.ok) {
+      log.warn({ err: result.error, userId: user.id }, 'verification email provider failed');
+    }
   }
 
   /**

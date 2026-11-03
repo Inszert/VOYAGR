@@ -1,10 +1,30 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { createMemoryRepositories } from '@/db/memory';
 import { AppError } from '@/lib/errors';
+import { ok } from '@/lib/result';
 import type { Repositories } from '@/db/repository';
+import type { EmailMessage, EmailProvider } from '@/email/types';
 import { AuthService } from './service';
 import { hashSessionToken, issueSessionToken, SESSION_DURATION_MS } from './session';
 import { SignInThrottle } from './throttle';
+
+/** Captures what was "sent" instead of a real provider, so a test can read the link out of it. */
+class CapturingEmailProvider implements EmailProvider {
+  readonly id = 'capturing';
+  readonly sendsRealEmail = false;
+  readonly sent: EmailMessage[] = [];
+
+  async send(message: EmailMessage) {
+    this.sent.push(message);
+    return ok(undefined);
+  }
+}
+
+function extractToken(message: EmailMessage): string {
+  const match = /token=([^\s]+)/.exec(message.text);
+  if (!match) throw new Error('No token found in the captured email');
+  return match[1]!;
+}
 
 /**
  * Authentication behaviour.
@@ -274,5 +294,114 @@ describe('throttling is scoped to the client, not just the address', () => {
     await expect(auth.signIn(EMAIL, PASSWORD, 'one-client')).rejects.toMatchObject({
       code: 'RATE_LIMITED',
     });
+  });
+});
+
+describe('email verification', () => {
+  let email: CapturingEmailProvider;
+  let authWithEmail: AuthService;
+
+  beforeEach(() => {
+    email = new CapturingEmailProvider();
+    authWithEmail = new AuthService({
+      repositories,
+      now: () => clock,
+      emailProvider: email,
+      appUrl: 'https://voyagr.test',
+    });
+  });
+
+  it('sends a verification email on registration, with a working link', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+
+    expect(email.sent).toHaveLength(1);
+    expect(email.sent[0]!.to).toBe(EMAIL);
+    expect(email.sent[0]!.text).toContain('https://voyagr.test/api/verify-email?token=');
+    expect(issued.user.emailVerified).toBe(false);
+  });
+
+  it('marks the account verified once the token is consumed', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    const token = extractToken(email.sent[0]!);
+
+    await authWithEmail.verifyEmail(token);
+
+    const user = await repositories.users.findByEmail(EMAIL);
+    expect(user?.emailVerifiedAt).not.toBeNull();
+  });
+
+  it('refuses an unknown token', async () => {
+    await expect(authWithEmail.verifyEmail('not-a-real-token')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('refuses the same token twice - one-time use even within its window', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    const token = extractToken(email.sent[0]!);
+
+    await authWithEmail.verifyEmail(token);
+
+    await expect(authWithEmail.verifyEmail(token)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('refuses an expired token, even though it was never used', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    const token = extractToken(email.sent[0]!);
+
+    clock += 25 * 60 * 60 * 1000; // past the 24-hour window
+
+    await expect(authWithEmail.verifyEmail(token)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('resend invalidates the previous link and sends a new, different one', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    const firstToken = extractToken(email.sent[0]!);
+
+    const user = await repositories.users.findByEmail(EMAIL);
+    await authWithEmail.resendVerificationEmail(user!.id);
+
+    expect(email.sent).toHaveLength(2);
+    const secondToken = extractToken(email.sent[1]!);
+    expect(secondToken).not.toBe(firstToken);
+
+    await expect(authWithEmail.verifyEmail(firstToken)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    await expect(authWithEmail.verifyEmail(secondToken)).resolves.toBeUndefined();
+  });
+
+  it('does nothing for an already-verified account - no link to leak, no email to spam with', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    const token = extractToken(email.sent[0]!);
+    await authWithEmail.verifyEmail(token);
+
+    const user = await repositories.users.findByEmail(EMAIL);
+    await authWithEmail.resendVerificationEmail(user!.id);
+
+    expect(email.sent).toHaveLength(1);
+  });
+
+  it('does not fail registration when the email provider fails', async () => {
+    class FailingEmailProvider implements EmailProvider {
+      readonly id = 'failing';
+      readonly sendsRealEmail = false;
+      async send() {
+        return { ok: false as const, error: new AppError('PROVIDER_UNAVAILABLE', 'down') };
+      }
+    }
+
+    const authWithFailingEmail = new AuthService({
+      repositories,
+      now: () => clock,
+      emailProvider: new FailingEmailProvider(),
+      appUrl: 'https://voyagr.test',
+    });
+
+    await expect(authWithFailingEmail.register(EMAIL, PASSWORD)).resolves.toBeTruthy();
   });
 });
