@@ -1,7 +1,5 @@
 'use server';
 
-import { createHash } from 'node:crypto';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
   clearSessionCookie,
@@ -10,9 +8,9 @@ import {
   getSessionToken,
   setSessionCookie,
 } from '@/auth/current-user';
-import { UNKNOWN_CLIENT } from '@/auth/service';
 import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
+import { resolveClientKey } from '@/lib/client-key';
 import { getLogger } from '@/lib/logger';
 
 /**
@@ -34,24 +32,6 @@ export interface AuthFormState {
   readonly error?: string;
   /** Echoed back so a rejected form does not lose what was typed. */
   readonly email?: string;
-}
-
-/**
- * A stable, non-identifying handle for the client making the request.
- *
- * Hashed because it is only ever used as a throttle key: the raw address would
- * be personal data sitting in memory for no added benefit. Only as trustworthy
- * as the proxy in front of the app - `x-forwarded-for` is caller-supplied
- * unless something upstream overwrites it - which is why it narrows a lockout
- * rather than being the only defence.
- */
-async function clientKey(): Promise<string> {
-  const requestHeaders = await headers();
-  const forwarded = requestHeaders.get('x-forwarded-for') ?? '';
-  const address = forwarded.split(',')[0]?.trim() || requestHeaders.get('x-real-ip') || '';
-
-  if (!address) return UNKNOWN_CLIENT;
-  return createHash('sha256').update(address).digest('hex').slice(0, 32);
 }
 
 function publicMessage(error: unknown, fallback: string): string {
@@ -87,7 +67,7 @@ export async function signInAction(
   const password = String(formData.get('password') ?? '');
 
   try {
-    const issued = await getAuthService().signIn(email, password, await clientKey());
+    const issued = await getAuthService().signIn(email, password, await resolveClientKey());
     await setSessionCookie(issued.token);
   } catch (error) {
     return { error: publicMessage(error, 'Could not sign you in.'), email };

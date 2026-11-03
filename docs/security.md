@@ -134,19 +134,34 @@ Next.js ships ESLint 10 support.
 This section drifted out of date — it still said "Authentication and sessions — arrives with Phase
 1.3" after 1.3 shipped sign-in, sessions and account mutations. Corrected 3 November 2026:
 
-- **Rate limiting on the search page itself** — **now a live concern, not only a future one.**
-  `/` is a GET-rendered server component (`src/app/page.tsx`) that calls `runSearch` straight from
-  `searchParams`; it has no API route to attach middleware to in the usual sense, and no rate limit
-  sits in front of it. Sign-in has `src/auth/throttle.ts`, but that is a failure-counting lockout
-  (built for brute-force password attempts) and does not fit "N searches per minute per client" -
-  it would need a different, simpler counter. This mattered less while every provider was a mock;
-  it matters now that `FLIGHT_PROVIDER=aviasales` and `WEATHER_PROVIDER=open-meteo` are real options
-  (see `docs/provider-evaluation.md`'s 3 November update), because an abusive client driving
-  repeated searches spends a rate limit shared across every user of the deployment, on providers
-  that were chosen specifically for having no paid tier to fall back on if blocked. Needed before
-  any public deployment with a live provider configured - not yet implemented, and deliberately not
-  rushed here without knowing the real deployment's proxy/header topology, which decides whether an
-  IP-keyed limiter would even see the real client.
+- **Rate limiting on the search page itself** — **now a live concern, not only a future one, and a
+  real attempt at it this session was reverted rather than shipped.** `/` is a GET-rendered server
+  component (`src/app/page.tsx`) that calls `runSearch` straight from `searchParams`; it has no API
+  route to attach middleware to in the usual sense, and no rate limit sits in front of it. This
+  mattered less while every provider was a mock; it matters now that `FLIGHT_PROVIDER=aviasales` and
+  `WEATHER_PROVIDER=open-meteo` are real options (see `docs/provider-evaluation.md`'s 3 November
+  update), because an abusive client driving repeated searches spends a rate limit shared across
+  every user of the deployment, on providers chosen specifically for having no paid tier to fall
+  back on if blocked.
+
+  A per-client fixed-window counter was built and wired into the search path, keyed the same way
+  `src/app/actions/auth.ts` already keys sign-in throttling: a hash of `x-forwarded-for`/`x-real-ip`,
+  falling back to one shared "unknown-client" bucket when neither header is present. **Running the
+  full e2e suite against it immediately failed roughly a dozen search/watch/account tests** -
+  because the test harness connects directly to `127.0.0.1` with no proxy in front of it, every
+  request resolved to that one shared fallback bucket, and the whole suite's search traffic
+  exhausted it within seconds. That is not a test-only artefact: any real deployment with no
+  reverse proxy in front of it, or one that does not forward a client IP, or users sharing one
+  apparent address behind a NAT, would collapse into the same shared bucket - at which point the
+  limiter stops protecting the deployment from one abusive client and starts denying search to
+  every legitimate one instead. Reverted rather than patched further under uncertainty about which
+  topology this will actually deploy behind; `src/lib/client-key.ts` (the header-parsing helper,
+  extracted from `auth.ts` during this attempt) stayed, since sign-in throttling degrading to one
+  shared lockout is a far smaller blast radius than search degrading to one shared refusal. Still
+  needed before any public deployment with a live provider configured; whoever picks this back up
+  should know the deployment's real proxy/header topology _before_ choosing a keying strategy, not
+  after discovering the same failure again.
+
 - **CSRF protection** — authenticated mutations exist now (account, preferences, watches). Next.js
   Server Actions carry built-in same-origin checking since 13.4, which covers the mutations that go
   through them; this has not been independently verified against this app's actual action set and
