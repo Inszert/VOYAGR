@@ -78,7 +78,8 @@ export const PROVENANCE_EXPLANATION: Record<DataProvenance, string> = {
   historical: 'A price we recorded earlier, shown for comparison.',
   typical: 'What this usually costs at this time of year. Not a quote or a forecast.',
   test: 'From the provider’s sandbox. The itinerary and price are realistic but the seat does not exist and cannot be booked.',
-  indicative: 'A real price recently seen on this route, not a quote for this exact search. It can move before you act on it.',
+  indicative:
+    'A real price recently seen on this route, not a quote for this exact search. It can move before you act on it.',
   mock: 'Sample data for development. This is not a real offer and cannot be booked.',
   'ai-generated': 'Wording produced by a language model from figures calculated elsewhere.',
   unavailable: 'We could not get this from the provider.',

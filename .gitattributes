@@ -1,0 +1,18 @@
+# Normalise line endings to LF regardless of a contributor's global
+# core.autocrlf. Without this, Windows with autocrlf=true checks files out
+# as CRLF while prettier's own config (.prettierrc.json: endOfLine: "lf")
+# demands LF, and `npm run format:check` flags every touched file as
+# "needs formatting" even though nothing about its content actually
+# changed - which is exactly what happened here (142 files, zero real
+# diffs once renormalised).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary

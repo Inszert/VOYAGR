@@ -92,7 +92,8 @@ function confidenceForLeadDays(leadDays: number): number {
 
   const decayed =
     FORECAST_DAY_ZERO_CONFIDENCE -
-    (leadDays / FORECAST_HORIZON_DAYS) * (FORECAST_DAY_ZERO_CONFIDENCE - FORECAST_HORIZON_CONFIDENCE);
+    (leadDays / FORECAST_HORIZON_DAYS) *
+      (FORECAST_DAY_ZERO_CONFIDENCE - FORECAST_HORIZON_CONFIDENCE);
   return Math.round(decayed * 100) / 100;
 }
 
@@ -154,7 +155,10 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
     const url = `${FORECAST_BASE_URL}?latitude=0&longitude=0&daily=temperature_2m_max&forecast_days=1`;
 
     try {
-      const response = await this.fetchImpl(url, options?.signal ? { signal: options.signal } : undefined);
+      const response = await this.fetchImpl(
+        url,
+        options?.signal ? { signal: options.signal } : undefined,
+      );
       return {
         status: response.ok ? 'healthy' : 'degraded',
         checkedAt: this.now().toISOString(),
@@ -237,12 +241,22 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 
     const parsed = forecastResponseSchema.safeParse(response.value);
     if (!parsed.success) {
-      log.warn({ url: redactUrl(url), issues: parsed.error.issues }, 'open-meteo forecast shape unrecognised');
-      return err(new AppError('PROVIDER_ERROR', 'Open-Meteo returned an unrecognised forecast response.'));
+      log.warn(
+        { url: redactUrl(url), issues: parsed.error.issues },
+        'open-meteo forecast shape unrecognised',
+      );
+      return err(
+        new AppError('PROVIDER_ERROR', 'Open-Meteo returned an unrecognised forecast response.'),
+      );
     }
 
-    const { time, temperature_2m_max, temperature_2m_min, precipitation_probability_max, wind_speed_10m_max } =
-      parsed.data.daily;
+    const {
+      time,
+      temperature_2m_max,
+      temperature_2m_min,
+      precipitation_probability_max,
+      wind_speed_10m_max,
+    } = parsed.data.daily;
 
     const requested = new Set<string>(dates);
     const outlook: WeatherOutlook[] = [];
@@ -275,7 +289,12 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 
     const byMonth = new Map<
       string,
-      { readonly maxC: number; readonly minC: number; readonly windKph: number; readonly rainFraction: number }
+      {
+        readonly maxC: number;
+        readonly minC: number;
+        readonly windKph: number;
+        readonly rainFraction: number;
+      }
     >();
 
     for (const month of months) {
@@ -298,11 +317,15 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 
         const parsed = archiveResponseSchema.safeParse(response.value);
         if (!parsed.success) {
-          log.warn({ url: redactUrl(url), issues: parsed.error.issues }, 'open-meteo archive shape unrecognised');
+          log.warn(
+            { url: redactUrl(url), issues: parsed.error.issues },
+            'open-meteo archive shape unrecognised',
+          );
           continue;
         }
 
-        const { temperature_2m_max, temperature_2m_min, precipitation_sum, wind_speed_10m_max } = parsed.data.daily;
+        const { temperature_2m_max, temperature_2m_min, precipitation_sum, wind_speed_10m_max } =
+          parsed.data.daily;
 
         temperature_2m_max.forEach((maxC, index) => {
           const minC = temperature_2m_min[index];
@@ -328,7 +351,8 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
         maxC: round1(average(samples.map((s) => s.maxC))),
         minC: round1(average(samples.map((s) => s.minC))),
         windKph: Math.round(average(samples.map((s) => s.windKph))),
-        rainFraction: Math.round((samples.filter((s) => s.rain).length / samples.length) * 100) / 100,
+        rainFraction:
+          Math.round((samples.filter((s) => s.rain).length / samples.length) * 100) / 100,
       });
     }
 

@@ -7,9 +7,9 @@ bodies rather than `Cassette` objects: there is no request to redact and no `rep
 needed. `open-meteo.test.ts` reads them directly and feeds them to the adapter's injected
 `fetchImpl`.
 
-| File                   | Proves                                                              |
-| ----------------------- | -------------------------------------------------------------------- |
-| `forecast-vienna.json`  | The `/v1/forecast` daily shape: numeric `precipitation_probability_max`, no `null`s. |
-| `archive-2023-06.json`  | The `/v1/archive` shape for one June, one of three years averaged into a climatology normal. |
-| `archive-2024-06.json`  | Same, a different year - real month-to-month variation in the numbers the average is taken over. |
-| `archive-2025-06.json`  | Same, the third sampled year. |
+| File                   | Proves                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `forecast-vienna.json` | The `/v1/forecast` daily shape: numeric `precipitation_probability_max`, no `null`s.             |
+| `archive-2023-06.json` | The `/v1/archive` shape for one June, one of three years averaged into a climatology normal.     |
+| `archive-2024-06.json` | Same, a different year - real month-to-month variation in the numbers the average is taken over. |
+| `archive-2025-06.json` | Same, the third sampled year.                                                                    |

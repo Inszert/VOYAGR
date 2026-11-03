@@ -158,7 +158,11 @@ async function main() {
   // every inner field too, since none of them happen to match a 3-letter
   // code. Sorting by rebuilding the object in order keeps the nested data
   // intact and still gets a deterministic, diffable key order.
-  const sorted = Object.fromEntries(Object.keys(index).sort().map((code) => [code, index[code]]));
+  const sorted = Object.fromEntries(
+    Object.keys(index)
+      .sort()
+      .map((code) => [code, index[code]]),
+  );
 
   await mkdir(join('src', 'providers', 'reference'), { recursive: true });
   await writeFile(OUTPUT_FILE, `${JSON.stringify(sorted)}\n`, 'utf8');

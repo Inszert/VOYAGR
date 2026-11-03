@@ -10,8 +10,7 @@ decision is made once, deliberately, rather than by whoever first needs a pictur
 Retrieved 19 September 2026 from each vendor's own documentation. Marked **[vendor]** where an
 answer requires contacting them.
 
---- 
-
+---
 
 ## Why this is not a small dependency
 

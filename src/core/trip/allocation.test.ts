@@ -29,9 +29,7 @@ describe('budgetAllocation', () => {
       .filter((line) => line.category === 'flight' || line.category === 'flight_fees')
       .reduce((total, line) => total + line.amount.amount, 0);
     expect(shares.find((share) => share.part === 'flights')?.amount.amount).toBe(flights);
-    expect(shares.reduce((total, share) => total + share.amount.amount, 0)).toBe(
-      cost.total.amount,
-    );
+    expect(shares.reduce((total, share) => total + share.amount.amount, 0)).toBe(cost.total.amount);
   });
 
   it('names an excluded cost instead of giving it a share', () => {
