@@ -199,27 +199,29 @@ to call sites, because a credential that leaks into a log is a credential that h
 separates `publicMessage` from `context` and `cause`. `toProblemDetails()` produces client-safe
 output; `toLogPayload()` keeps everything else for logs.
 
-**Security headers.** CSP, HSTS, frame-ancestors and Permissions-Policy are set in
-`next.config.ts` and asserted by the end-to-end suite. See `security.md`.
+**Security headers.** HSTS, frame-ancestors and Permissions-Policy are set in `next.config.ts`.
+`Content-Security-Policy` is the one exception, set in `src/middleware.ts` instead, because
+`script-src` carries a fresh nonce per request - a static `headers()` entry cannot produce that.
+Both are asserted by the end-to-end suite. See `security.md`.
 
 ---
 
 ## 5. What is deliberately absent
 
-No authentication, no live providers, no booking, no payments, no real monitoring loop, no
-production notification pipeline, no deployment target. These are Phase 1 and later — see
-`implementation-plan.md`.
+**This section described the engineering-foundation stage, before Phase 1 was built. Corrected 3
+November 2026 rather than left to mislead**: authentication, the Postgres repository, the BullMQ
+driver, Web Push, and a globe/map discovery surface all exist now and are tested - see `progress.md`
+for what is actually built and `docs/provider-evaluation.md` for the two live providers (Aviasales,
+Open-Meteo) that exist under the project's zero-paid-search-cost constraint.
 
-The Postgres repository implementation and the BullMQ driver are also absent. Both have their
-interfaces defined and their absent case handled explicitly, which is what makes them
-straightforward to add without touching anything above them.
+Still genuinely absent: booking, payments, a live hotel provider (no free source exists at all),
+and a production deployment (the app is host-agnostic and has never been deployed anywhere).
 
-Absent by shape rather than by schedule: **multi-country trips and a map or globe discovery
-surface**. `TripCandidate` models one origin, one destination, one flight and one hotel, and every
-engine that reads it assumes that. A trip across several countries is a sequence of legs and stays
-— a new domain type, with cost, constraints, usable time and scoring following it. Ground
-transport such as car rental, rail and ferry would likewise be a new provider kind rather than a
-stretched `transfers`, and a globe or map view would add a geo data dependency (country geometry,
-place coordinates, tiles) that no adapter covers today. Recorded so the current shape is understood
-as a deliberate Phase 1 narrowing, not an assumption the product is stuck with. See
+Absent by shape rather than by schedule: **multi-country trips**. `TripCandidate` still models one
+origin, one destination, one flight and one hotel, and every engine that reads it assumes that. A
+trip across several countries is a sequence of legs and stays — a new domain type, with cost,
+constraints, usable time and scoring following it. Ground transport such as car rental, rail and
+ferry would likewise be a new provider kind rather than a stretched `transfers`. Recorded so the
+current shape is understood as a deliberate narrowing, not an assumption the product is stuck
+with. See
 `implementation-plan.md`, "Noted, not yet planned — the globe explorer".
