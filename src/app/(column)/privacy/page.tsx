@@ -115,16 +115,22 @@ const sections: readonly LegalSection[] = [
   {
     id: 'third-parties',
     title: 'Who else is involved',
-    // `src/providers/flights/duffel.ts` (passenger count only);
+    // `src/providers/flights/duffel.ts` and `aviasales.ts` (route, dates,
+    // currency only - Aviasales not even passenger count);
+    // `src/providers/weather/open-meteo.ts` (coordinates and dates only);
     // `src/app/api/imagery/[code]/route.ts`.
     body: (
       <>
         <ul>
           <li>
             <strong>Flight data providers.</strong> When live flight data is switched on, a search
-            sends the airports, dates and number of passengers to the flight provider this service
-            is configured with (Duffel, at the time of writing) to get prices. It sends no name,
-            email address or other detail about you.
+            sends the airports, dates and currency to the flight provider this service is configured
+            with. It sends no name, email address or other detail about you.
+          </li>
+          <li>
+            <strong>Weather data.</strong> When live weather data is switched on, a search sends a
+            destination&rsquo;s coordinates and the dates asked about to Open-Meteo, a weather
+            service. Nothing about you accompanies that request.
           </li>
           <li>
             <strong>Wikimedia.</strong> Destination photographs come from Wikimedia Commons. Our
@@ -136,8 +142,8 @@ const sections: readonly LegalSection[] = [
           </li>
         </ul>
         <p>
-          Hotel, transfer and weather figures are sample data at this stage and involve no outside
-          provider. Voyagr does not sell personal data or share it for advertising.
+          Hotel and transfer figures are sample data at this stage and involve no outside provider.
+          Voyagr does not sell personal data or share it for advertising.
         </p>
       </>
     ),
@@ -146,7 +152,8 @@ const sections: readonly LegalSection[] = [
     id: 'your-rights',
     title: 'Seeing, taking and deleting your data',
     // `/api/account/export`; `deleteAccountAction` -> `users.erase`, which
-    // cascades to every table above.
+    // cascades to every table above; `src/worker/maintenance.ts` for the
+    // retention periods.
     body: (
       <>
         <p>
@@ -155,6 +162,14 @@ const sections: readonly LegalSection[] = [
           hash, preferences, saved searches, watches, their price history, notifications, push
           subscriptions and sessions at once. The only record kept is a count of what was removed,
           with nothing that identifies you.
+        </p>
+        <p>
+          You do not have to delete your account for old data to go. A watch&rsquo;s price history
+          is kept for 90 days - long enough to cover a full booking season and answer &ldquo;is this
+          actually cheap?&rdquo; - except the single cheapest observation ever seen, which is kept
+          regardless so a watch&rsquo;s best-known price can never quietly rise because its evidence
+          aged out. A session you have not used in 30 days stops working and is removed
+          automatically.
         </p>
         <p>
           Server logs record what the service did, such as that a search ran or a provider timed
@@ -181,7 +196,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy"
-      updated="2026-09-23"
+      updated="2026-11-03"
       summary={
         <p>
           Voyagr works without an account and without tracking. If you make an account, it keeps

@@ -76,23 +76,35 @@ prompt-injected model and a figure a user might act on.
 
 ## 5. Response headers
 
-Set in `next.config.ts`, asserted by the end-to-end suite:
+Most are static values set in `next.config.ts`, asserted by the end-to-end suite:
 
-| Header                       | Value                                                    |
-| ---------------------------- | -------------------------------------------------------- |
-| `Content-Security-Policy`    | `default-src 'self'`, `frame-ancestors 'none'`, and more |
-| `Strict-Transport-Security`  | 2 years, `includeSubDomains`, `preload`                  |
-| `X-Content-Type-Options`     | `nosniff`                                                |
-| `X-Frame-Options`            | `DENY`                                                   |
-| `Referrer-Policy`            | `strict-origin-when-cross-origin`                        |
-| `Permissions-Policy`         | camera, microphone and payment denied                    |
-| `Cross-Origin-Opener-Policy` | `same-origin`                                            |
+| Header                       | Value                                   |
+| ---------------------------- | --------------------------------------- |
+| `Strict-Transport-Security`  | 2 years, `includeSubDomains`, `preload` |
+| `X-Content-Type-Options`     | `nosniff`                               |
+| `X-Frame-Options`            | `DENY`                                  |
+| `Referrer-Policy`            | `strict-origin-when-cross-origin`       |
+| `Permissions-Policy`         | camera, microphone and payment denied   |
+| `Cross-Origin-Opener-Policy` | `same-origin`                           |
 
 `X-Powered-By` is disabled.
 
-**Known limitation.** The CSP allows `'unsafe-inline'` for scripts and styles, which Next.js'
-streaming style and script injection currently requires. Moving to a nonce-based CSP is worthwhile
-before handling payments. `'unsafe-eval'` is development-only.
+`Content-Security-Policy` is the one exception - it is **not** in `next.config.ts`. It is set in
+`src/middleware.ts`, because `script-src` carries a fresh nonce generated per request, which a
+static `headers()` list cannot produce (it would hand back the same string to everyone, which is
+not a nonce). `'unsafe-inline'` is gone from `script-src`; `style-src` still carries it, because
+several components set CSS custom properties via a `style={{ '--x': ... }}` **attribute**, and a
+style attribute is gated by `style-src-attr`, which this nonce does not cover - tightening that
+needs those components rewritten to use a nonced `<style>` element instead, which is real work with
+its own risk, left for its own change. `'unsafe-eval'` is development-only.
+
+**Verified, 3 November 2026, not just configured.** Built the production app, confirmed the
+response header carries a nonce (`curl -i`), confirmed every one of Next's own injected `<script>`
+tags in the rendered HTML carries that exact nonce (`grep`, all 15 matched), then loaded the
+homepage and `/explore` (the globe page, the one most likely to break something subtle) in a real
+browser and read the console directly: zero errors, zero warnings, on either. This app injects no
+script of its own - no `<script>`, no `dangerouslySetInnerHTML` anywhere in `src/` - so there was
+nothing to add a `nonce` prop to; Next's own propagation was the entire mechanism being tested.
 
 Adding a third-party script means widening the CSP. Push back before doing so.
 

@@ -3,40 +3,14 @@ import type { NextConfig } from 'next';
 /**
  * Security response headers applied to every route.
  *
- * The CSP is intentionally strict. `'unsafe-inline'` for styles is required by
- * Next.js' streaming style injection; scripts use `'unsafe-eval'` only in
- * development (React Refresh). Tighten further with a nonce-based CSP when the
- * app gains third-party embeds.
+ * `Content-Security-Policy` is deliberately **not** here any more. It moved
+ * to `src/middleware.ts`, because a nonce-based `script-src` needs a fresh
+ * value generated per request, and this static `headers()` list can only
+ * ever hand back the same string for everyone - which is a nonce in name
+ * only. See that file for what the policy actually says and why `style-src`
+ * still carries `'unsafe-inline'` while `script-src` no longer does.
  */
-const isDev = process.env.NODE_ENV === 'development';
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' blob: data:",
-  "font-src 'self' data:",
-  // Provider APIs are called server-side only; the browser talks to our origin.
-  `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}`,
-  /*
-   * Still `'self'`, and the discovery globe is why that is worth a note.
-   *
-   * MapLibre renders vector data on a worker, and the usual advice is to allow
-   * `blob:` here for it. That is not needed: `scripts/copy-map-worker.mjs`
-   * puts MapLibre's worker under `/maplibre/` and the globe points at it, so
-   * the worker is same-origin like everything else. A CSP entry avoided is a
-   * CSP entry that cannot be leaned on later for something else.
-   */
-  "worker-src 'self'",
-  "manifest-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  'upgrade-insecure-requests',
-].join('; ');
-
 const securityHeaders = [
-  { key: 'Content-Security-Policy', value: contentSecurityPolicy },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
