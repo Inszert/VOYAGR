@@ -1,85 +1,135 @@
-# Voyagr — Setup Checklist
+# Voyagr — setup and deployment checklist
 
-Generated from a repository audit on 2026-09-18. Source of truth: `docs/PRODUCT-SPECIFICATION.md`.
+Rewritten 3 November 2026. The previous version of this file was generated on 18 September 2026,
+when the repository held `docs/PRODUCT-SPECIFICATION.md` and nothing else — no source code, no
+`package.json`, one commit. Every decision it listed as open has since been made and built; keeping
+that version around was actively misleading about what exists today. This version is grounded in
+the actual code: `src/lib/env.ts` (the one place every environment variable is declared), the
+scripts in `package.json`, `/api/health`, and this session's updates to `docs/security.md` and
+`docs/provider-evaluation.md`.
 
-## Current repository state
-
-- **Contents:** `docs/PRODUCT-SPECIFICATION.md` and `.git` only. No source code, no `package.json`/`pyproject.toml`, no config files, no tests, no CI, no `.env*`, no `.claude/` project config.
-- **Git:** local repo, branch `master`, 1 commit (`docs: add product specification`), clean working tree, **no remote configured** (not pushed anywhere yet).
-- **Local machine tooling found:** Node v24.15.0, npm 11.12.1, Python 3.10.9, Git 2.39.0. **Not found:** pnpm, yarn, Docker, `psql` client, `redis-cli`, GitHub CLI (`gh`).
-- Nothing has been installed, created, or modified as part of this audit.
-
-The spec (§20 Architecture, §26 Development Approach) describes a Next.js/React/TypeScript PWA, a Postgres database, a Redis+BullMQ job queue, an LLM for reasoning, and a set of external provider adapters (flights, hotels, weather, places, transfers). Everything below is derived from that description — nothing here has been invented beyond it.
-
----
-
-## Required
-
-Needed to bootstrap even the Phase 1 MVP loop (§25): search → complete-trip cost → ranking → saved watch → background refresh → basic alert.
-
-| Item | Why | When | Where/how configured | Placeholder OK? |
-|---|---|---|---|---|
-| **Node.js runtime** (already installed: v24.15.0) | Spec architecture is Next.js/React/TypeScript (§20). | Before any scaffolding. | Already present on this machine. | N/A |
-| **Package manager choice** (npm/pnpm/yarn) | Needed to install and lock dependencies once code exists. | Before first `npm/pnpm init`. | `package.json` + lockfile in repo root. | npm is already available; no install needed to start. |
-| **Framework decision: Next.js (App Router) + TypeScript** | Explicit recommendation in §20; frontend and initial backend both live here. | Before scaffolding the app. | Project root (`next.config.*`, `tsconfig.json`). | N/A — this is a decision, not an install. |
-| **PostgreSQL database** | System of record for the data model in §21 (users, trips, price history, watches, etc.). | Before persistence/search-saving work (Development step 15 in §26). | Local: install Postgres or run via Docker; connection string in `.env.local` / `DATABASE_URL`. | Yes — local dev can use a throwaway local Postgres instance or a free-tier managed instance (e.g. Neon/Supabase) as a placeholder. |
-| **Redis + a queue library (BullMQ)** | Powers background Travel Watch monitoring workers (§17, §20, §26 step 16–17). | Once background/scheduled search work begins (Phase 1 late, Phase 2). | Local Redis instance or managed Redis (e.g. Upstash); `REDIS_URL` env var. | Yes for local dev; a managed free tier works as a placeholder before production scale. |
-| **Environment variable / secrets strategy** | All provider keys, DB/queue URLs, and the LLM key must live outside source control. | Immediately once any provider integration starts. | `.env.local` (gitignored) for dev; a secrets manager or host-provided env vars (Vercel/Railway/etc.) for deployed environments. | Use empty/placeholder values in `.env.example`; never commit real keys. |
-| **`.gitignore`** | Repo currently has none — first code commit risks leaking `node_modules`, `.env`, build output. | Before the first source-code commit. | Repo root. | N/A |
-| **LLM provider access (API key)** | AI responsibilities in §23 (parsing, explanations, itinerary generation) require an LLM. | Once natural-language parsing or AI explanations are built (§26 step 21, Phase 1→2 boundary). | `.env` as `ANTHROPIC_API_KEY` (or provider of choice); never in chat/checklist. | Yes, can be stubbed with a mock/deterministic response function until a real key is supplied. |
-| **At least one flight-data provider** | §22, §26 step 12 — MVP needs one flight source. | Phase 1 MVP. | Provider adapter module + API key in env. | Yes — can start against a mocked/fixture adapter that returns sample offers, matching the "provider abstraction" principle in §4. |
-| **At least one hotel-data provider** | §22, §26 step 12 — MVP needs one hotel source. | Phase 1 MVP. | Provider adapter module + API key in env. | Yes — same mock-adapter approach as flights. |
-| **Test runner** | Spec doesn't mandate one, but deterministic pricing/total-cost logic (§10, §23) needs unit tests to be trustworthy. | As soon as the pricing/scoring engine exists. | e.g. Vitest or Jest, configured in `package.json`. | N/A — decision, not a blocking install. |
-
-## Optional
-
-Improve the product per the spec but aren't required to prove the MVP loop.
-
-| Item | Why | When | Where/how configured | Placeholder OK? |
-|---|---|---|---|---|
-| **Weather API** | §13 Weather Intelligence is a Phase 1/2 ranking input, not required for the very first search→save→alert loop. | Once weather-aware ranking/itinerary lands (§26 step 21+). | Adapter + API key. | Yes, mock or skip initially. |
-| **Maps/Places API** | Needed for distance-to-beach/center, restaurant and activity discovery (§11, §12). | Phase 2 (restaurants/activities/itinerary). | Adapter + API key. | Yes. |
-| **Transfer/ground-transport provider or estimator** | §9, §10 true-trip-cost needs transfer costs; can start as a rough estimate rather than a live provider. | Phase 1 (estimate) → Phase 2 (real provider). | Adapter + API key or static estimation logic. | Yes — a simple heuristic estimate is explicitly acceptable per §10 ("known, estimated or excluded"). |
-| **Web Push infrastructure (VAPID keys, service worker)** | §18 Notifications, §20 PWA. | Once notifications are built (§26 step 19). | `.env` VAPID keys; service worker registered in the Next.js app. | Yes — can be deferred; email notifications could come first. |
-| **Email delivery provider** (e.g. Resend, SendGrid, Postmark) | Alternate/additional notification channel (§18). | Same phase as notifications. | API key in env. | Yes, can defer to Web Push only initially. |
-| **Docker / docker-compose** | Convenient way to run Postgres + Redis locally without native installs. | Any time during local setup. | `docker-compose.yml` in repo root. | Not installed on this machine currently — optional convenience, not a hard requirement (native installs work too). |
-| **CI/CD pipeline** (e.g. GitHub Actions) | No CI exists yet; useful once there's code and tests to protect. | After first meaningful code + tests land. | `.github/workflows/*.yml`. | N/A |
-| **Error tracking / observability** (e.g. Sentry) | §20 mentions structured logs, metrics, error tracking, provider-health dashboards. | Once there's a deployed environment. | SDK + DSN in env. | Yes, can defer past MVP. |
-| **Restaurant/activity data source** | §11, §12 — richer than what maps/places alone provide. | Phase 2. | Adapter + API key, subject to licensing per §22. | Yes, mock initially. |
-| **Payments/merchant integration** | Only needed if a transaction-fee or checkout model (§24.1) is pursued rather than pure affiliate redirect. | Only if/when that monetization path is chosen. | Payment provider (e.g. Stripe) keys in env. | N/A until the business-model decision below is made. |
-
-## Not applicable (given current spec/stage)
-
-| Item | Why it's not applicable now |
-|---|---|
-| Mobile app store accounts (iOS/Android) | Spec targets a PWA (§20, §29 Phase 3 "Advanced PWA/mobile experience"); no native app is in scope yet. |
-| Booking/checkout merchant-of-record setup | §24.1 explicitly notes this requires contract/legal review and is not needed for an MVP that only ranks and links out. |
-| Authorized/autonomous booking integrations | Phase 4 feature (§25, §31.14 "Authorized Booking Mode") — explicitly the last stage, gated on legal/payment authorization. |
-| Community layer infrastructure (moderation, UGC storage) | §31.12 is explicitly P3/"later-stage," after sufficient user scale. |
-| B2B/white-label infrastructure | §24.5, §31 — explicitly future/optional. |
-| Multi-region/scale infrastructure (load balancing, sharding, CDN tuning) | Nothing in the spec calls for this before the core loop (§25 Phase 1) is proven; premature at this stage. |
-
-## Needs your decision
-
-Architectural/business choices the spec deliberately leaves open (§20, §24) that determine what gets installed/configured next. None of these were guessed — they're presented as open in the source doc itself.
-
-1. **Package manager**: npm (already on this machine), pnpm, or yarn?
-2. **Backend shape**: Next.js API routes only (simplest, matches "initially" in §20), or a separate FastAPI/Node service from day one?
-3. **Database hosting for local dev**: native local Postgres install, Docker Compose, or a managed free-tier (Neon/Supabase/RDS)? (Docker isn't currently installed on this machine — relevant if you want that route.)
-4. **Redis hosting for local dev**: local install, Docker, or managed (Upstash/Redis Cloud)?
-5. **LLM provider**: which model/vendor for the AI responsibilities in §23 (this affects the env var name and SDK dependency)?
-6. **First flight and hotel data providers**: which specific APIs/partners to integrate for Phase 1 (§22 lists categories, not named vendors — the spec deliberately avoids picking one)?
-7. **Monetization model for MVP**: 0% affiliate-only, subscription-only, or a service-fee/hybrid model (§24)? This affects whether payment/merchant setup is "required" or "not applicable" for MVP.
-8. **Notification channel priority**: build Web Push first, email first, or both together (§18)?
-9. **Deployment target**: Vercel (natural fit for Next.js), another host, or self-managed? Affects how env vars/secrets are supplied in production.
-10. **Repo hosting**: no git remote is currently configured — push to GitHub (and if so, which account/org), GitLab, or keep local-only for now?
-11. **Test runner choice**: Vitest, Jest, or another framework?
-12. **CI provider**: GitHub Actions (requires the remote decision above) or something else, or skip CI until later?
+Source of truth for the decisions, not this file: `progress.md` for what is built, `docs/implementation-plan.md`
+for what comes next, `docs/provider-evaluation.md` for why no paid provider is configured by default.
 
 ---
 
-## Audit summary
-The repository currently contains the product specification and setup checklist, with no application code, dependency manifest, test setup, CI, environment files, or Claude Code project configuration yet. Node.js, npm, Python, and Git are available locally; Docker, a PostgreSQL client, a Redis client, and the GitHub CLI are not currently installed. No secrets, credentials, or remote repository are configured. The initial engineering bootstrap should establish the Next.js/TypeScript application foundation, project structure, testing, security baseline, documentation, and provider interfaces without requiring live external services. The Phase 1 MVP can initially use mocked/fixture flight and hotel providers, deterministic pricing and ranking logic, and a mocked AI layer so the core search → complete-trip cost → ranking → saved Travel Watch → monitoring → alert workflow can be developed and tested independently of external API credentials. PostgreSQL should be introduced when persistence is implemented, while Redis/BullMQ should be introduced when background workers and scheduled Travel Watch monitoring are implemented. Real flight/hotel providers, LLM access, weather/maps/transfers, notifications, CI/CD, and monetization integrations can then be added incrementally behind the corresponding provider interfaces and configuration. The core implementation can begin with the decisions already established above. Provider, infrastructure, deployment, and monetization choices that are not required for the initial foundation should remain behind interfaces/configuration and be finalized before their respective integrations are implemented.
+## The one rule that decides most of the rest
 
+**Zero paid search API cost, ever** — the project owner's hard constraint, documented in
+`docs/provider-evaluation.md`. It rules out every commercial flight/hotel vendor regardless of
+their terms, and it is why the two live provider options below (Aviasales, Open-Meteo) are the ones
+that exist rather than Duffel, Amadeus, Booking.com or Hotelbeds. Hosting and a domain may cost
+money; a search must not.
 
-**Decisions that genuinely need your input before implementation starts:** package manager, backend architecture (Next.js-only vs. separate service), local Postgres/Redis hosting approach, LLM vendor, first flight/hotel provider choices, MVP monetization model, notification channel order, deployment target, git remote/repo hosting, test runner, and CI provider. Everything else in this checklist can proceed with reasonable placeholders once you're ready to start building.
+## Runs with nothing configured
+
+`npm install && npm run dev` works with **no `.env` file at all**. Every one of the following
+degrades to a safe default rather than crashing the app:
+
+| Capability | Default | What you lose without it |
+| --- | --- | --- |
+| Database | In-memory repositories | Data does not survive a restart. |
+| Background jobs | In-process queue | A worker restart forgets in-flight jobs. |
+| AI | Deterministic mock provider | No real natural-language parsing or itinerary wording. |
+| Flights / hotels / weather / transfers / places | Deterministic mock fixtures | No real prices - and the UI says so on every surface that shows money. |
+| Destination photographs | Wikimedia (needs no key) | Set `IMAGERY_PROVIDER=none` to turn this off too. |
+| Web Push | Disabled | No browser notifications; watches still work, you just will not be pushed one. |
+
+`src/lib/env.ts` is the only module allowed to read `process.env`; every variable below is declared
+there with a Zod schema, and an invalid value fails loudly at startup rather than silently.
+
+## To run a real database and queue
+
+| Variable | Required for | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | Postgres persistence | `npm run db:migrate` applies `src/db/migrations/*.sql`. Unset = in-memory. |
+| `DATABASE_SSL` | TLS to that database | `true`/`false`, default `false`. Turn on in production. |
+| `DATABASE_POOL_MAX` | Connection pool size | Default 10. |
+| `REDIS_URL` | A shared queue across processes | Unset = in-process queue, fine for one instance, not for several. |
+| `QUEUE_DRIVER` | `memory` (default) or `bullmq` | `bullmq` needs `REDIS_URL`. |
+
+Running the worker as its own process: `npm run worker` (reads `.env` if present). It re-prices
+Travel Watches on a schedule, records price history, detects materially better deals, and sweeps
+expired sessions and old price/provider-request rows (`src/worker/maintenance.ts` - 90 days for
+price history except the cheapest observation ever seen, 30 days for provider request logs, every
+6 hours for expired sessions). The web process and the worker process must point at the **same**
+`DATABASE_URL` and `REDIS_URL` - an in-memory queue is per-process, and a worker that cannot see the
+web process's jobs is not wired up, not degraded.
+
+## To turn on a real (free) flight or weather source
+
+| Variable | Turns on | What it actually is |
+| --- | --- | --- |
+| `FLIGHT_PROVIDER=aviasales` + `AVIASALES_API_TOKEN` | Travelpayouts Data API | Free, real, but **cached price points from other people's searches, not a quote for this one** - labelled `indicative`, never `live`. Direct flights only. |
+| `FLIGHT_PROVIDER=duffel` + `DUFFEL` | Duffel sandbox/live | Coded and tested against a recorded sandbox response; **not enabled by default because Duffel is a paid vendor**, which the zero-cost constraint rules out for a production deployment. Useful for development against something closer to a real booking API. |
+| `WEATHER_PROVIDER=open-meteo` | Open-Meteo | Free, keyless, no card. Real forecast within 15 days; a climatology normal reconstructed from 3 real past years beyond that. One open question, unresolved: Open-Meteo's free tier is scoped to "non-commercial use" and does not define that boundary publicly - ask them before this product earns revenue. |
+| `HOTEL_PROVIDER`, `TRANSFER_PROVIDER`, `PLACES_PROVIDER` | Nothing live exists | **No free hotel source exists at all** - every candidate researched is a one-time trial-credit vendor or a scraping reseller, both ruled out. These stay `mock`; setting them to anything else is a hard error at startup (`ProviderRegistry` refuses to silently fall back to fixtures). |
+
+Setting any `*_PROVIDER` to `live` without an implemented adapter, or to a named provider without
+its required token, fails at process startup with a clear message - never a silent fallback to
+mock data in production.
+
+## To turn on push notifications
+
+```
+npm run vapid:generate
+```
+
+writes a public/private key pair. Set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (safe to expose, hence the
+prefix) and `VAPID_PRIVATE_KEY` (never expose), plus `VAPID_SUBJECT` (a `mailto:` address, default
+is a placeholder - a real deployment should set its own).
+
+## To turn on real AI reasoning
+
+`AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, `AI_MODEL` (default `claude-sonnet-5`). Guardrails in
+`src/ai/guardrails.ts` apply regardless of provider: generated prose is scanned for figures absent
+from its source facts and discarded if it invents one. The model is never the source of truth for a
+price, a total or an eligibility decision - see `docs/architecture.md` section 1.
+
+## Health and verification
+
+- `GET /api/health` - reports booleans (`database`, `redis`, `backgroundJobs`, `webPush`, `ai`,
+  `providersFullyMocked`) and per-provider status, never a connection string or a key. `200` when
+  healthy, `503` when a configured dependency is unreachable. Cached nowhere (`Cache-Control:
+no-store`).
+- `npm run verify` - format, lint, typecheck, unit/component tests, production build. Run this
+  before calling anything done.
+- `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` - the regression suite against a production build,
+  for a machine (like this one) that cannot download Playwright's bundled Chromium.
+- CI: `.github/workflows/ci.yml` already exists and runs on every push to `main`/`master` and on
+  every pull request - this is not a decision still open.
+
+## Secrets
+
+Production secrets come from the host's secret store, never a file in the repository. `.env.example`
+holds inert placeholders only; `.env*` besides it is gitignored. `SECRET_ENV_KEYS` in `src/lib/env.ts`
+lists every variable that must never reach a log or a client-visible error - `describeEnv()` reduces
+each to a boolean before it can be reported anywhere.
+
+## Backup and rollback
+
+Not built, and worth being honest about rather than implying otherwise: there is no backup tooling
+and no rollback procedure beyond standard Postgres practice (point-in-time recovery or your host's
+own backup product) and standard SQL-migration discipline (each file in `src/db/migrations/` is
+additive and forward-only; there is no down-migration). Needed before this handles anything
+customers would notice losing.
+
+## Known gaps, honestly, not hidden
+
+From `docs/security.md`, current as of this file:
+
+- **No rate limiting on the search page.** An attempt was made and reverted this session - a naive
+  per-client limiter collapsed into one shared bucket in any topology without a trustworthy
+  client-distinguishing signal, which is worse than no limiter. Needed before any public deployment
+  with a live provider configured; whoever picks it back up should confirm the real deployment's
+  proxy/header topology first.
+- **Audit logging** - not built. Needed once bookings or payments exist; neither does yet.
+- **Data retention and deletion** - built and documented (`/privacy`, `src/worker/maintenance.ts`,
+  account export and erasure both reachable from the account page). Not a gap any more, listed here
+  only because an earlier version of this file's sibling doc said it was.
+
+## What is genuinely not applicable yet
+
+Unchanged from the original audit, and still true: mobile app store accounts, booking/checkout
+merchant-of-record setup, autonomous booking integrations, community-layer infrastructure, B2B/white
+-label infrastructure, multi-region scaling. Nothing in the product today needs any of them.

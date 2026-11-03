@@ -95,17 +95,17 @@ tests/e2e/         Playwright
 
 ## Documentation
 
-| Document                                                         | Contents                                    |
-| ---------------------------------------------------------------- | ------------------------------------------- |
-| [`docs/PRODUCT-SPECIFICATION.md`](docs/PRODUCT-SPECIFICATION.md) | The product. Source of truth.               |
-| [`docs/architecture.md`](docs/architecture.md)                   | How it is built and why                     |
-| [`docs/implementation-plan.md`](docs/implementation-plan.md)     | What is done and what comes next            |
-| [`docs/testing.md`](docs/testing.md)                             | Testing strategy and rules                  |
-| [`docs/security.md`](docs/security.md)                           | Security baseline and known gaps            |
-| [`docs/design-system.md`](docs/design-system.md)                 | Component and accessibility system          |
-| [`docs/claude-cli.md`](docs/claude-cli.md)                       | Working with Claude Code on this repository |
-| [`progress.md`](progress.md)                                     | Current state                               |
-| [`SETUP-CHECKLIST.md`](SETUP-CHECKLIST.md)                       | Setup decisions and prerequisites           |
+| Document                                                         | Contents                                      |
+| ---------------------------------------------------------------- | --------------------------------------------- |
+| [`docs/PRODUCT-SPECIFICATION.md`](docs/PRODUCT-SPECIFICATION.md) | The product. Source of truth.                 |
+| [`docs/architecture.md`](docs/architecture.md)                   | How it is built and why                       |
+| [`docs/implementation-plan.md`](docs/implementation-plan.md)     | What is done and what comes next              |
+| [`docs/testing.md`](docs/testing.md)                             | Testing strategy and rules                    |
+| [`docs/security.md`](docs/security.md)                           | Security baseline and known gaps              |
+| [`docs/design-system.md`](docs/design-system.md)                 | Component and accessibility system            |
+| [`docs/claude-cli.md`](docs/claude-cli.md)                       | Working with Claude Code on this repository   |
+| [`progress.md`](progress.md)                                     | Current state                                 |
+| [`SETUP-CHECKLIST.md`](SETUP-CHECKLIST.md)                       | Deployment and environment-variable reference |
 
 ---
 

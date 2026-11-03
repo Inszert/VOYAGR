@@ -2048,15 +2048,15 @@ _In plain words: the order we build things in, and why that order matters._
 
 _In plain words: choices only you can make, which nothing can start without._
 
-Carried forward from `SETUP-CHECKLIST.md`; none block Phase 1 development, all block their own
-integration:
+Updated 3 November 2026 - most of what this table listed has since been resolved; see
+`SETUP-CHECKLIST.md` for how each is actually configured today.
 
-| Decision                          | Blocks                                                         |
-| --------------------------------- | -------------------------------------------------------------- |
-| Flight and hotel provider vendors | Live-provider readiness, and 1.11 behind it                    |
-| LLM vendor                        | AI explanations going live                                     |
-| Postgres hosting (local/managed)  | 1.4                                                            |
-| Redis hosting                     | 1.6                                                            |
-| Deployment target                 | Any deployment                                                 |
-| Git remote / repo hosting         | CI actually running                                            |
-| Monetisation model (§24)          | Fee, subscription or affiliate go-live — not the Phase 1 hooks |
+| Decision                  | Status                                                                                                                                                            | Blocks                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Flight provider vendor    | **Resolved for a zero-cost deployment**: Aviasales (indicative, free). Duffel remains coded for anyone willing to pay for a live bookable quote.                  | Nothing; both are wired and tested.                             |
+| Hotel provider vendor     | **Still genuinely open** - no free source exists. See `docs/provider-evaluation.md`'s 3 November update.                                                          | Any real hotel price, ever, at this constraint.                 |
+| LLM vendor                | **Resolved**: Anthropic, optional. `AI_PROVIDER=mock` is the default and needs nothing.                                                                           | Nothing; real AI reasoning is opt-in.                           |
+| Postgres / Redis hosting  | **Resolved as "your choice of host"**: both are `DATABASE_URL`/`REDIS_URL`-configured, work with any provider, and are optional (in-memory/in-process otherwise). | Nothing in code; only a deployment choice.                      |
+| Deployment target         | **Resolved as "host-agnostic"**: standard Next.js, no platform-specific code.                                                                                     | Nothing; pick a host when deploying.                            |
+| Git remote / repo hosting | **Resolved**: pushed to GitHub, CI running on every push/PR.                                                                                                      | Nothing.                                                        |
+| Monetisation model (§24)  | **Still open.**                                                                                                                                                   | Fee, subscription or affiliate go-live — not the Phase 1 hooks. |
