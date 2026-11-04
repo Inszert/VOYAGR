@@ -216,9 +216,13 @@ test.describe('preferences and the search form', () => {
     const { email, password } = newAccount();
     await signUp(page, email, password);
 
-    await page.getByLabel('Current password').fill(password);
-    await page.getByLabel('New password').fill('an-entirely-different-passphrase');
-    await page.getByRole('button', { name: 'Change password' }).click();
+    // Scoped to its own card: the account page also has a "Change your email
+    // address" form with its own "Current password" field now, and an
+    // unscoped getByLabel resolves to both.
+    const passwordCard = page.getByRole('region', { name: 'Change your password' });
+    await passwordCard.getByLabel('Current password').fill(password);
+    await passwordCard.getByLabel('New password').fill('an-entirely-different-passphrase');
+    await passwordCard.getByRole('button', { name: 'Change password' }).click();
 
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
