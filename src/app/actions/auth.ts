@@ -139,6 +139,38 @@ export async function changePasswordAction(
   redirect('/sign-in?passwordChanged=1');
 }
 
+export interface EmailChangeFormState {
+  readonly error?: string;
+  readonly message?: string;
+}
+
+/**
+ * Request moving the signed-in account to a new email address.
+ *
+ * Unlike `changePasswordAction`, nothing is signed out and nothing has
+ * changed yet - `AuthService.requestEmailChange` only sends a link to the
+ * *new* address. The address itself moves when that link is confirmed, in
+ * `/api/confirm-email-change`.
+ */
+export async function requestEmailChangeAction(
+  _previous: EmailChangeFormState,
+  formData: FormData,
+): Promise<EmailChangeFormState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: 'Sign in to change your email address.' };
+
+  const currentPassword = String(formData.get('currentPassword') ?? '');
+  const newEmail = String(formData.get('newEmail') ?? '');
+
+  try {
+    await getAuthService().requestEmailChange(user.id, currentPassword, newEmail);
+  } catch (error) {
+    return { error: publicMessage(error, 'Could not start the email change.') };
+  }
+
+  return { message: `Check ${newEmail} for a link to confirm the change.` };
+}
+
 export interface DeleteAccountState {
   readonly error?: string;
 }

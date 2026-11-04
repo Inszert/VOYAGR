@@ -7,6 +7,18 @@ import { getCurrentUser } from '@/auth/current-user';
 
 export const metadata: Metadata = { title: 'Sign in' };
 
+/**
+ * Every action that redirects here does so as a bare `?flag=1` - only
+ * whether the key is present matters, never its value. One lookup rather
+ * than a growing ternary chain, so a fifth flag is a row, not a rewrite.
+ */
+const SIGN_IN_NOTICES: Record<string, string> = {
+  passwordChanged: 'Password changed. Sign in with your new password.',
+  reset: 'Password reset. Sign in with your new password.',
+  signedOutEverywhere: 'Signed out of every device.',
+  emailChanged: 'Email address changed. Sign in with your new address.',
+};
+
 export default async function SignInPage({
   searchParams,
 }: {
@@ -16,16 +28,8 @@ export default async function SignInPage({
   if (await getCurrentUser()) redirect('/account');
 
   const params = await searchParams;
-  // Every action that lands here does so as a bare `?flag=1` - only whether
-  // the key is present matters, never its value.
-  const notice =
-    params.passwordChanged !== undefined
-      ? 'Password changed. Sign in with your new password.'
-      : params.reset !== undefined
-        ? 'Password reset. Sign in with your new password.'
-        : params.signedOutEverywhere !== undefined
-          ? 'Signed out of every device.'
-          : null;
+  const flag = Object.keys(SIGN_IN_NOTICES).find((key) => params[key] !== undefined);
+  const notice = flag ? SIGN_IN_NOTICES[flag] : null;
 
   return (
     <CredentialsForm

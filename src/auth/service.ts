@@ -7,6 +7,12 @@ import type { Repositories, UserRecord } from '@/db/repository';
 import { getEmailProvider } from '@/email/registry';
 import type { EmailProvider } from '@/email/types';
 import {
+  emailChangeTokenExpiry,
+  hashEmailChangeToken,
+  isEmailChangeTokenExpired,
+  issueEmailChangeToken,
+} from './email-change';
+import {
   hashVerificationToken,
   isVerificationTokenExpired,
   issueVerificationToken,
@@ -462,6 +468,116 @@ export class AuthService {
     await this.repositories.sessions.deleteForUser(record.userId);
 
     log.info({ userId: record.userId }, 'password reset, all sessions invalidated');
+  }
+
+  /**
+   * Request moving the account to a new email address.
+   *
+   * Requires the current password - the same re-authentication
+   * `changePassword` requires - because this is a signed-in action, not a
+   * public one like `requestPasswordReset`: a stolen session alone must not
+   * be enough to redirect the account's recovery address somewhere an
+   * attacker controls. `users.email` is not touched yet; only confirming
+   * the link sent to the *new* address does that - see
+   * `confirmEmailChange`.
+   *
+   * Unlike `requestPasswordReset`, this does reveal whether the new address
+   * is already taken. That is not an enumeration leak the same way: calling
+   * this at all already requires a valid session and the account's current
+   * password, which is a much higher bar than the anonymous "does this
+   * email exist?" question sign-in and password reset both refuse to
+   * answer. `register` already makes the identical call for the identical
+   * reason - two accounts cannot share an address, and that fact cannot be
+   * hidden from whoever is trying to create the second one.
+   *
+   * @throws AppError UNAUTHORIZED on the wrong password, VALIDATION_ERROR on
+   *   an implausible address, CONFLICT when another account already holds it.
+   */
+  async requestEmailChange(userId: string, currentPassword: string, rawNewEmail: string) {
+    const credential = await this.repositories.credentials.findByUserId(userId);
+
+    if (!credential || !(await verifyPassword(currentPassword, credential.passwordHash))) {
+      throw new AppError('UNAUTHORIZED', 'Current password incorrect', {
+        publicMessage: 'Your current password is not correct.',
+      });
+    }
+
+    const newEmail = normaliseEmail(rawNewEmail);
+    if (!isPlausibleEmail(newEmail)) {
+      throw new AppError('VALIDATION_ERROR', 'Implausible email address', {
+        publicMessage: 'Enter a valid email address.',
+      });
+    }
+
+    if (await this.repositories.users.findByEmail(newEmail)) {
+      throw new AppError('CONFLICT', 'Email already registered', {
+        publicMessage: 'An account with that email already exists.',
+      });
+    }
+
+    // However many are outstanding, only the newest request should work.
+    await this.repositories.emailChange.deleteForUser(userId);
+
+    const { token, tokenHash } = issueEmailChangeToken();
+
+    await this.repositories.emailChange.create({
+      id: randomUUID(),
+      userId,
+      newEmail,
+      tokenHash,
+      expiresAt: emailChangeTokenExpiry(this.now()),
+    });
+
+    const link = `${this.appUrl}/api/confirm-email-change?token=${token}`;
+
+    const result = await this.emailProvider.send({
+      to: newEmail,
+      subject: 'Confirm your new email for Voyagr',
+      text:
+        `Click to move your Voyagr account to this address: ${link}\n\n` +
+        `This link works once and expires in 1 hour. If you did not request this, ignore this email - your account's email has not changed.`,
+    });
+
+    if (!result.ok) {
+      log.warn({ err: result.error, userId }, 'email change confirmation could not be sent');
+    }
+  }
+
+  /**
+   * Consume an email change link and move the account to the new address.
+   *
+   * One-time use, and every session is invalidated afterwards - the same
+   * reasoning `changePassword` and `resetPassword` already hold: whatever
+   * is signed in under the old address should have to prove it again under
+   * the new one.
+   *
+   * @throws AppError VALIDATION_ERROR when the token is unknown or expired,
+   *   CONFLICT when the address was taken by someone else in the meantime.
+   */
+  async confirmEmailChange(token: string): Promise<void> {
+    const tokenHash = hashEmailChangeToken(token);
+    const record = await this.repositories.emailChange.findByTokenHash(tokenHash);
+
+    if (!record) {
+      throw new AppError('VALIDATION_ERROR', 'Unknown email change token', {
+        publicMessage:
+          'That confirmation link is not valid. Request a new one from your account page.',
+      });
+    }
+
+    await this.repositories.emailChange.delete(record.id);
+
+    if (isEmailChangeTokenExpired(record.expiresAt, this.now())) {
+      throw new AppError('VALIDATION_ERROR', 'Expired email change token', {
+        publicMessage:
+          'That confirmation link has expired. Request a new one from your account page.',
+      });
+    }
+
+    await this.repositories.users.updateEmail(record.userId, record.newEmail);
+    await this.repositories.sessions.deleteForUser(record.userId);
+
+    log.info({ userId: record.userId }, 'email changed, all sessions invalidated');
   }
 
   private async startSession(user: UserRecord): Promise<SessionIssued> {

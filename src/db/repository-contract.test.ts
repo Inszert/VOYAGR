@@ -153,6 +153,27 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(updated.plan).toBe(created.plan);
     });
 
+    it('changes the email address and resets verification - the claim was about the old one', async () => {
+      const created = await aUser();
+      await repositories.users.update(created.id, { emailVerifiedAt: new Date().toISOString() });
+
+      const updated = await repositories.users.updateEmail(created.id, 'moved-to@example.invalid');
+
+      expect(updated.email).toBe('moved-to@example.invalid');
+      expect(updated.emailVerifiedAt).toBeNull();
+      expect(await repositories.users.findByEmail('moved-to@example.invalid')).not.toBeNull();
+      expect(await repositories.users.findByEmail(created.email)).toBeNull();
+    });
+
+    it('refuses to move an address onto one another account already holds', async () => {
+      const mover = await aUser();
+      const holder = await aUser('already-taken@example.invalid');
+
+      await expect(repositories.users.updateEmail(mover.id, holder.email)).rejects.toThrow(
+        AppError,
+      );
+    });
+
     /*
      * `erase()` had no test anywhere in this suite before this one - found
      * while adding `emailVerificationTokens` to its cascade. Covers what
@@ -182,6 +203,13 @@ describe.each(backends)('$name repository contract', (backend) => {
         tokenHash: 'erase-test-reset',
         expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
       });
+      await repositories.emailChange.create({
+        id: randomUUID(),
+        userId: user.id,
+        tokenHash: 'erase-test-email-change',
+        newEmail: 'erase-test-new@example.invalid',
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
 
       const summary = await repositories.users.erase(user.id);
 
@@ -190,6 +218,7 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(summary.sessions).toBe(1);
       expect(summary.emailVerificationTokens).toBe(1);
       expect(summary.passwordResetTokens).toBe(1);
+      expect(summary.emailChangeTokens).toBe(1);
 
       expect(await repositories.users.findById(user.id)).toBeNull();
       expect(await repositories.credentials.findByUserId(user.id)).toBeNull();
@@ -198,6 +227,7 @@ describe.each(backends)('$name repository contract', (backend) => {
         await repositories.emailVerification.findByTokenHash('erase-test-verification'),
       ).toBeNull();
       expect(await repositories.passwordReset.findByTokenHash('erase-test-reset')).toBeNull();
+      expect(await repositories.emailChange.findByTokenHash('erase-test-email-change')).toBeNull();
     });
 
     it('reports an erasure of a nonexistent account as "nothing existed", not an error', async () => {
@@ -384,6 +414,67 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(removed).toBe(1);
       expect(await repositories.passwordReset.findByTokenHash('expired')).toBeNull();
       expect(await repositories.passwordReset.findByTokenHash('live')).not.toBeNull();
+    });
+  });
+
+  describe('email change', () => {
+    async function aToken(userId: string, tokenHash: string, expiresAt: string) {
+      return repositories.emailChange.create({
+        id: randomUUID(),
+        userId,
+        newEmail: 'new-address@example.invalid',
+        tokenHash,
+        expiresAt,
+      });
+    }
+
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+
+    it('finds a token by its hash, carrying the new address', async () => {
+      const user = await aUser();
+      const created = await aToken(user.id, 'hash-a', future);
+
+      expect(await repositories.emailChange.findByTokenHash('hash-a')).toEqual(created);
+      expect(created.newEmail).toBe('new-address@example.invalid');
+      expect(await repositories.emailChange.findByTokenHash('hash-b')).toBeNull();
+    });
+
+    it('deletes one token without touching the others', async () => {
+      const user = await aUser();
+      const first = await aToken(user.id, 'hash-a', future);
+      await aToken(user.id, 'hash-b', future);
+
+      await repositories.emailChange.delete(first.id);
+
+      expect(await repositories.emailChange.findByTokenHash('hash-a')).toBeNull();
+      expect(await repositories.emailChange.findByTokenHash('hash-b')).not.toBeNull();
+    });
+
+    it('deletes every token for one user and nobody else - a new request invalidates old links', async () => {
+      const user = await aUser();
+      const other = await aUser();
+      await aToken(user.id, 'mine-1', future);
+      await aToken(user.id, 'mine-2', future);
+      await aToken(other.id, 'theirs', future);
+
+      await repositories.emailChange.deleteForUser(user.id);
+
+      expect(await repositories.emailChange.findByTokenHash('mine-1')).toBeNull();
+      expect(await repositories.emailChange.findByTokenHash('mine-2')).toBeNull();
+      expect(await repositories.emailChange.findByTokenHash('theirs')).not.toBeNull();
+    });
+
+    it('sweeps only what has actually expired', async () => {
+      const user = await aUser();
+      await aToken(user.id, 'expired', past);
+      await aToken(user.id, 'live', future);
+
+      const removed = await repositories.emailChange.deleteExpired(new Date().toISOString());
+
+      expect(removed).toBe(1);
+      expect(await repositories.emailChange.findByTokenHash('expired')).toBeNull();
+      expect(await repositories.emailChange.findByTokenHash('live')).not.toBeNull();
     });
   });
 

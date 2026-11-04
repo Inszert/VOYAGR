@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  EmailChangeRepository,
+  EmailChangeTokenRecord,
   EmailVerificationRepository,
   EmailVerificationTokenRecord,
   ErasureSummary,
@@ -87,6 +89,24 @@ class MemoryUserRepository implements UserRepository {
     this.byId.set(id, updated);
     return updated;
   }
+
+  async updateEmail(id: string, newEmail: string): Promise<UserRecord> {
+    const existing = this.byId.get(id);
+    if (!existing) {
+      throw new AppError('NOT_FOUND', `No user with id ${id}`);
+    }
+
+    const other = await this.findByEmail(newEmail);
+    if (other && other.id !== id) {
+      throw new AppError('CONFLICT', `Email already taken: ${newEmail}`, {
+        publicMessage: 'An account with that email already exists.',
+      });
+    }
+
+    const updated: UserRecord = { ...existing, email: newEmail, emailVerifiedAt: null };
+    this.byId.set(id, updated);
+    return updated;
+  }
   /**
    * What else to remove, supplied by the factory.
    *
@@ -110,6 +130,7 @@ class MemoryUserRepository implements UserRepository {
       credentials: 0,
       emailVerificationTokens: 0,
       passwordResetTokens: 0,
+      emailChangeTokens: 0,
     };
 
     return { userExisted, ...removed };
@@ -246,6 +267,55 @@ class MemoryPasswordResetRepository implements PasswordResetRepository {
     input: Omit<PasswordResetTokenRecord, 'createdAt'>,
   ): Promise<PasswordResetTokenRecord> {
     const record: PasswordResetTokenRecord = { ...input, createdAt: now() };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    for (const [id, token] of this.byId) {
+      if (token.userId === userId) this.byId.delete(id);
+    }
+  }
+
+  async deleteExpired(nowIso: string): Promise<number> {
+    let removed = 0;
+    for (const [id, token] of this.byId) {
+      if (token.expiresAt <= nowIso) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, token] of this.byId) {
+      if (token.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+}
+
+class MemoryEmailChangeRepository implements EmailChangeRepository {
+  private readonly byId = new Map<string, EmailChangeTokenRecord>();
+
+  async findByTokenHash(tokenHash: string): Promise<EmailChangeTokenRecord | null> {
+    for (const token of this.byId.values()) {
+      if (token.tokenHash === tokenHash) return token;
+    }
+    return null;
+  }
+
+  async create(input: Omit<EmailChangeTokenRecord, 'createdAt'>): Promise<EmailChangeTokenRecord> {
+    const record: EmailChangeTokenRecord = { ...input, createdAt: now() };
     this.byId.set(record.id, record);
     return record;
   }
@@ -617,6 +687,7 @@ export function createMemoryRepositories(): Repositories {
   const sessions = new MemorySessionRepository();
   const emailVerification = new MemoryEmailVerificationRepository();
   const passwordReset = new MemoryPasswordResetRepository();
+  const emailChange = new MemoryEmailChangeRepository();
   const preferences = new MemoryUserPreferencesRepository();
   const tripSearches = new MemoryTripSearchRepository();
   const travelWatches = new MemoryTravelWatchRepository();
@@ -653,6 +724,7 @@ export function createMemoryRepositories(): Repositories {
       credentials: credentials.eraseUser(userId),
       emailVerificationTokens: emailVerification.eraseUser(userId),
       passwordResetTokens: passwordReset.eraseUser(userId),
+      emailChangeTokens: emailChange.eraseUser(userId),
     };
   };
 
@@ -662,6 +734,7 @@ export function createMemoryRepositories(): Repositories {
     sessions,
     emailVerification,
     passwordReset,
+    emailChange,
     preferences,
     tripSearches,
     travelWatches,

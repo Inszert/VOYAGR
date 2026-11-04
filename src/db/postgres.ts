@@ -6,6 +6,8 @@ import type {
   EmailVerificationRepository,
   EmailVerificationTokenRecord,
   ErasureSummary,
+  EmailChangeRepository,
+  EmailChangeTokenRecord,
   NotificationRecord,
   NotificationRepository,
   PasswordResetRepository,
@@ -165,6 +167,33 @@ class PostgresUserRepository implements UserRepository {
 
     return toUser(requireRow(rows[0], 'user', id));
   }
+
+  async updateEmail(id: string, newEmail: string): Promise<UserRecord> {
+    // Re-checked for a conflict here, atomically with the write, rather than
+    // trusting a check made when the change was first requested - that may
+    // have been up to an hour earlier (AuthService.requestEmailChange), long
+    // enough for someone else to have taken the address since.
+    const rows = await query<UserRow>(
+      `UPDATE users
+          SET email = $2,
+              email_verified_at = NULL,
+              updated_at = now()
+        WHERE id = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM users other WHERE lower(other.email) = lower($2) AND other.id <> $1
+          )
+        RETURNING ${USER_COLUMNS}`,
+      [id, newEmail],
+    );
+
+    if (!rows[0]) {
+      throw new AppError('CONFLICT', `Email already taken or account not found: ${id}`, {
+        publicMessage: 'An account with that email already exists.',
+      });
+    }
+
+    return toUser(rows[0]);
+  }
   /**
    * Erase the account, and let the schema erase the rest.
    *
@@ -205,6 +234,9 @@ class PostgresUserRepository implements UserRepository {
         ),
         passwordResetTokens: await countOf(
           'SELECT count(*) FROM password_reset_tokens WHERE user_id = $1',
+        ),
+        emailChangeTokens: await countOf(
+          'SELECT count(*) FROM email_change_tokens WHERE user_id = $1',
         ),
       };
 
@@ -423,6 +455,66 @@ class PostgresPasswordResetRepository implements PasswordResetRepository {
   async deleteExpired(now: string): Promise<number> {
     const rows = await query<{ id: string }>(
       'DELETE FROM password_reset_tokens WHERE expires_at <= $1 RETURNING id',
+      [now],
+    );
+    return rows.length;
+  }
+}
+
+// --- Email change -----------------------------------------------------------
+
+interface EmailChangeRow {
+  id: string;
+  user_id: string;
+  new_email: string;
+  token_hash: string;
+  created_at: Date;
+  expires_at: Date;
+}
+
+function toEmailChangeToken(row: EmailChangeRow): EmailChangeTokenRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    newEmail: row.new_email,
+    tokenHash: row.token_hash,
+    createdAt: toIso(row.created_at),
+    expiresAt: toIso(row.expires_at),
+  };
+}
+
+class PostgresEmailChangeRepository implements EmailChangeRepository {
+  async findByTokenHash(tokenHash: string): Promise<EmailChangeTokenRecord | null> {
+    const rows = await query<EmailChangeRow>(
+      'SELECT id, user_id, new_email, token_hash, created_at, expires_at' +
+        ' FROM email_change_tokens WHERE token_hash = $1',
+      [tokenHash],
+    );
+    return rows[0] ? toEmailChangeToken(rows[0]) : null;
+  }
+
+  async create(input: Omit<EmailChangeTokenRecord, 'createdAt'>): Promise<EmailChangeTokenRecord> {
+    const rows = await query<EmailChangeRow>(
+      `INSERT INTO email_change_tokens (id, user_id, new_email, token_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, user_id, new_email, token_hash, created_at, expires_at`,
+      [input.id, input.userId, input.newEmail, input.tokenHash, input.expiresAt],
+    );
+
+    return toEmailChangeToken(requireRow(rows[0], 'email change token', input.id));
+  }
+
+  async delete(id: string): Promise<void> {
+    await query('DELETE FROM email_change_tokens WHERE id = $1', [id]);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    await query('DELETE FROM email_change_tokens WHERE user_id = $1', [userId]);
+  }
+
+  async deleteExpired(now: string): Promise<number> {
+    const rows = await query<{ id: string }>(
+      'DELETE FROM email_change_tokens WHERE expires_at <= $1 RETURNING id',
       [now],
     );
     return rows.length;
@@ -993,6 +1085,7 @@ export function createPostgresRepositories(): Repositories {
     sessions: new PostgresSessionRepository(),
     emailVerification: new PostgresEmailVerificationRepository(),
     passwordReset: new PostgresPasswordResetRepository(),
+    emailChange: new PostgresEmailChangeRepository(),
     preferences: new PostgresUserPreferencesRepository(),
     tripSearches: new PostgresTripSearchRepository(),
     travelWatches: new PostgresTravelWatchRepository(),

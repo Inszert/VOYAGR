@@ -14,12 +14,13 @@ have shipped a second instance of (`/api/verify-email`) without noticing, had th
 tested by hand in a real browser rather than trusted on "the tests pass" alone.
 Password reset shipped the same day, reusing the exact token pattern (see below) - verified by
 hand the same way, this time clean on the first real-browser pass because the singleton bug above
-was already fixed.
-**Next:** decide whether hotels stay demo-only or get dropped to an explicit `excluded` cost line
-when a real flight provider is active; get a written answer from Travelpayouts on background
-polling before Travel Watch polls it unattended; wire the new airport reference data into flight
-search/nearby-airports (parked last session over a risk of silently changing tested distances -
-still parked).
+was already fixed. Sign-out-everywhere and email change followed the same day, same pattern.
+**Next:** run `npm run test:e2e` to completion for email change (the harness killed the one attempt
+this session over host memory, not a test result); decide whether hotels stay demo-only or get
+dropped to an explicit `excluded` cost line when a real flight provider is active; get a written
+answer from Travelpayouts on background polling before Travel Watch polls it unattended; wire the
+new airport reference data into flight search/nearby-airports (parked last session over a risk of
+silently changing tested distances - still parked).
 
 ---
 
@@ -75,7 +76,38 @@ there was no standalone control for a user who just wants that without changing 
 `AuthService.signOutEverywhere` and a button on the account page do only that - deliberately
 all-or-nothing (including the session that asked), matching the precedent `changePassword` and
 `resetPassword` already set, rather than adding "every device but this one" tracking that nothing
-else in the repository layer needs. 2 new tests.
+else in the repository layer needs. 2 new tests. Its button was first labelled "Sign out
+everywhere" and broke four pre-existing e2e tests: Playwright's `getByRole(..., {name: 'Sign out'})`
+matches by substring without `exact: true`, so the new button's accessible name collided with the
+existing one's. Renamed to "End every session" rather than touching the (correct) existing tests.
+
+**Email change.** Same token pattern again (`src/auth/email-change.ts`), with two deliberate
+departures from password reset's precedent, both because the two actions start from a different
+footing. First, the token row carries the new address (`email_change_tokens.new_email`) - the
+account only moves once the link in that address's inbox is clicked, so nothing changes at request
+time. Second, `requestEmailChange` reveals a conflict when the new address is already taken,
+where `requestPasswordReset` and `signIn` both refuse to say whether an address exists at all -
+not an inconsistency: calling this at all already requires a live session and the current
+password, the same higher bar `register` stands behind when it makes the identical call for the
+identical reason. Confirming moves the address with a new `UserRepository.updateEmail()` (kept
+separate from the general `update()` because it alone needs the uniqueness check and the reset of
+`emailVerifiedAt` back to `null` - a new address is an unconfirmed one again), then invalidates
+every session the same way a password change does. 17 new tests across the token helpers, both
+repository backends and `AuthService`. Verified by hand in a real browser against the production
+build: signed up, requested the change, read the real confirmation link out of the console
+provider's log, visited it, watched the redirect land on sign-in with the old session gone, signed
+in with the new address, confirmed the account page showed it as unverified. Also exercised the
+invalid-token path the same way.
+
+_Found while doing this, unrelated to the feature:_ the local Postgres backend still answers with
+`ECONNRESET` on every query (see 2026-10-xx below) - re-confirmed, not re-investigated, and worked
+around for manual verification the same way `test:e2e` already does, by starting the server with
+`DATABASE_URL=''` so it falls back to the in-memory backend. The full `npm test` suite passed
+clean otherwise (1235/1288; the 53 failures are exactly that same pre-existing Postgres
+connectivity issue, nothing this feature touched). The `npm run test:e2e` run itself was killed
+this session by the harness over host memory pressure before it finished - not a result either
+way, and not retried automatically per the harness's own guidance. Still owed before this can be
+called fully verified: a clean full e2e run.
 
 ---
 

@@ -92,6 +92,20 @@ export interface PasswordResetTokenRecord {
 }
 
 /**
+ * A pending email change. `users.email` is not touched until this is
+ * confirmed - see `AuthService.confirmEmailChange` - which is what
+ * `newEmail` is for: the address being moved to, not yet the account's own.
+ */
+export interface EmailChangeTokenRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly newEmail: string;
+  readonly tokenHash: string;
+  readonly createdAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+}
+
+/**
  * What a user likes, with explicit and inferred kept apart.
  *
  * Section 31.7 requires the user to be able to see what the system believes
@@ -203,6 +217,24 @@ export interface UserRepository {
     patch: Partial<Pick<UserRecord, 'plan' | 'emailVerifiedAt'>>,
   ): Promise<UserRecord>;
   /**
+   * Change the account's email address.
+   *
+   * Its own method rather than a case inside `update()`: this is the one
+   * field `update()`'s simple COALESCE pattern cannot handle safely, because
+   * it has a uniqueness constraint another account could already hold - see
+   * `users_email_lower_idx`. Re-verifies that address is still free at the
+   * moment of the swap, not only when the change was first requested, since
+   * `AuthService.confirmEmailChange` may run long after that.
+   *
+   * Setting `emailVerifiedAt` back to `null` here, rather than leaving the
+   * old value, is deliberate: "this address is confirmed reachable" was a
+   * claim about the *old* address, which is no longer the one on the
+   * account.
+   *
+   * @throws AppError CONFLICT when another account already holds that email.
+   */
+  updateEmail(id: string, newEmail: string): Promise<UserRecord>;
+  /**
    * Erase one account and everything personally attached to it.
    *
    * One method rather than a sequence the caller assembles, because an
@@ -232,6 +264,7 @@ export interface ErasureSummary {
   readonly credentials: number;
   readonly emailVerificationTokens: number;
   readonly passwordResetTokens: number;
+  readonly emailChangeTokens: number;
 }
 
 export interface UserCredentialRepository {
@@ -267,6 +300,16 @@ export interface PasswordResetRepository {
   create(input: Omit<PasswordResetTokenRecord, 'createdAt'>): Promise<PasswordResetTokenRecord>;
   delete(id: string): Promise<void>;
   /** Requesting a new reset link replaces whatever tokens came before it. */
+  deleteForUser(userId: string): Promise<void>;
+  /** Housekeeping: drop everything already expired at `now`. */
+  deleteExpired(now: IsoDateTime): Promise<number>;
+}
+
+export interface EmailChangeRepository {
+  findByTokenHash(tokenHash: string): Promise<EmailChangeTokenRecord | null>;
+  create(input: Omit<EmailChangeTokenRecord, 'createdAt'>): Promise<EmailChangeTokenRecord>;
+  delete(id: string): Promise<void>;
+  /** Requesting a new change replaces whatever tokens came before it. */
   deleteForUser(userId: string): Promise<void>;
   /** Housekeeping: drop everything already expired at `now`. */
   deleteExpired(now: IsoDateTime): Promise<number>;
@@ -402,6 +445,7 @@ export interface Repositories {
   readonly sessions: SessionRepository;
   readonly emailVerification: EmailVerificationRepository;
   readonly passwordReset: PasswordResetRepository;
+  readonly emailChange: EmailChangeRepository;
   readonly preferences: UserPreferencesRepository;
   readonly tripSearches: TripSearchRepository;
   readonly travelWatches: TravelWatchRepository;

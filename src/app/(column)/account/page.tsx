@@ -8,11 +8,13 @@ import { savePreferencesAction } from '@/app/actions/preferences';
 import {
   changePasswordAction,
   deleteAccountAction,
+  requestEmailChangeAction,
   resendVerificationAction,
   signOutAction,
   signOutEverywhereAction,
 } from '@/app/actions/auth';
 import { DeleteAccountForm } from '@/components/auth/delete-account-form';
+import { EmailChangeForm } from '@/components/auth/email-change-form';
 import { ResendVerificationForm } from '@/components/auth/resend-verification-form';
 import { getCurrentUser } from '@/auth/current-user';
 import { readExplicitPreferences, readInferredPreferences } from '@/auth/preferences';
@@ -49,7 +51,9 @@ export default async function AccountPage({
   const inferred = readInferredPreferences(stored);
 
   const { entitlements } = user;
-  const verified = (await searchParams).verified;
+  const params = await searchParams;
+  const verified = params.verified;
+  const emailChanged = params.emailChanged;
 
   return (
     <div className="flex flex-col gap-8">
@@ -72,6 +76,11 @@ export default async function AccountPage({
             <p role="alert" className="text-critical-ink mt-2 text-sm">
               That verification link was not valid or has expired. Use the button below to get a new
               one.
+            </p>
+          ) : null}
+          {emailChanged === 'invalid' || emailChanged === 'missing-token' ? (
+            <p role="alert" className="text-critical-ink mt-2 text-sm">
+              That email change link was not valid or has expired. Request a new one below.
             </p>
           ) : null}
         </div>
@@ -122,6 +131,8 @@ export default async function AccountPage({
         the entire point of the pair.
       */}
       <PushToggle vapidPublicKey={getEnv().NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
+
+      <EmailChangeForm action={requestEmailChangeAction} />
 
       <PasswordForm action={changePasswordAction} />
 

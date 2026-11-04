@@ -427,6 +427,122 @@ describe('email verification', () => {
   });
 });
 
+describe('email change', () => {
+  const NEW_EMAIL = 'new-address@example.invalid';
+  let email: CapturingEmailProvider;
+  let authWithEmail: AuthService;
+
+  beforeEach(() => {
+    email = new CapturingEmailProvider();
+    authWithEmail = new AuthService({
+      repositories,
+      now: () => clock,
+      emailProvider: email,
+      appUrl: 'https://voyagr.test',
+    });
+  });
+
+  it('sends a confirmation link to the new address, not the old one', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+
+    await authWithEmail.requestEmailChange(issued.user.id, PASSWORD, NEW_EMAIL);
+
+    expect(email.sent).toHaveLength(1);
+    expect(email.sent[0]!.to).toBe(NEW_EMAIL);
+    expect(email.sent[0]!.text).toContain('https://voyagr.test/api/confirm-email-change?token=');
+  });
+
+  it('refuses the wrong current password', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+
+    await expect(
+      authWithEmail.requestEmailChange(issued.user.id, 'wrong-password-entirely', NEW_EMAIL),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+
+  it('refuses an implausible new address', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+
+    await expect(
+      authWithEmail.requestEmailChange(issued.user.id, PASSWORD, 'not-an-email'),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('reveals a conflict - unlike password reset, this already requires the password', async () => {
+    await authWithEmail.register(NEW_EMAIL, PASSWORD);
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+
+    await expect(
+      authWithEmail.requestEmailChange(issued.user.id, PASSWORD, NEW_EMAIL),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it('moves the address and signs every session out, only once the link is clicked', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestEmailChange(issued.user.id, PASSWORD, NEW_EMAIL);
+    const token = extractToken(email.sent[0]!);
+
+    // Nothing changes until the link is clicked.
+    expect(await authWithEmail.authenticate(issued.token)).not.toBeNull();
+
+    await authWithEmail.confirmEmailChange(token);
+
+    expect(await authWithEmail.authenticate(issued.token)).toBeNull();
+    expect(await repositories.users.findByEmail(NEW_EMAIL)).not.toBeNull();
+    expect(await repositories.users.findByEmail(EMAIL)).toBeNull();
+    await expect(authWithEmail.signIn(NEW_EMAIL, PASSWORD)).resolves.toBeTruthy();
+  });
+
+  it('refuses an unknown token', async () => {
+    await expect(authWithEmail.confirmEmailChange('not-a-real-token')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('refuses the same token twice - one-time use even within its window', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestEmailChange(issued.user.id, PASSWORD, NEW_EMAIL);
+    const token = extractToken(email.sent[0]!);
+
+    await authWithEmail.confirmEmailChange(token);
+
+    await expect(authWithEmail.confirmEmailChange(token)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('refuses an expired token, even though it was never used', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestEmailChange(issued.user.id, PASSWORD, NEW_EMAIL);
+    const token = extractToken(email.sent[0]!);
+
+    clock += 61 * 60 * 1000; // past the 1-hour window
+
+    await expect(authWithEmail.confirmEmailChange(token)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('a second request invalidates the first link', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestEmailChange(issued.user.id, PASSWORD, NEW_EMAIL);
+    const firstToken = extractToken(email.sent[0]!);
+
+    await authWithEmail.requestEmailChange(issued.user.id, PASSWORD, 'yet-another@example.invalid');
+    const secondToken = extractToken(email.sent[1]!);
+
+    await expect(authWithEmail.confirmEmailChange(firstToken)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    await expect(authWithEmail.confirmEmailChange(secondToken)).resolves.toBeUndefined();
+  });
+});
+
 function extractResetToken(message: EmailMessage): string {
   const match = /token=([^\s]+)/.exec(message.text);
   if (!match) throw new Error('No token found in the captured email');
