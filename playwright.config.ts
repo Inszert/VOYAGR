@@ -118,6 +118,17 @@ export default defineConfig({
       WEATHER_PROVIDER: 'mock',
       TRANSFER_PROVIDER: 'mock',
       PLACES_PROVIDER: 'mock',
+      /*
+       * Same reasoning as the other providers, caught by actually running
+       * this suite rather than assumed: FX_PROVIDER defaults to 'ecb'
+       * (src/lib/env.ts), and left unset here the suite made a real request
+       * to the ECB's feed on first use, observed in this server's own log.
+       * Free and harmless on its own, but it is still a live vendor call
+       * from a suite whose whole point is to need none - a CI runner with
+       * no outbound network would see this as a (gracefully degraded, but
+       * real) difference in behaviour. 'mock' keeps the suite hermetic.
+       */
+      FX_PROVIDER: 'mock',
       DUFFEL: '',
       AVIASALES_API_TOKEN: '',
       // Blanked too, so the suite behaves the same whether or not the person
