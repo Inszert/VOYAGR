@@ -10,6 +10,7 @@ import {
   deleteAccountAction,
   resendVerificationAction,
   signOutAction,
+  signOutEverywhereAction,
 } from '@/app/actions/auth';
 import { DeleteAccountForm } from '@/components/auth/delete-account-form';
 import { ResendVerificationForm } from '@/components/auth/resend-verification-form';
@@ -174,6 +175,19 @@ export default async function AccountPage({
               Download my data
             </a>
           </Button>
+        </div>
+
+        <div className="border-border mt-6 border-t pt-6">
+          <h3 className="text-ink text-base font-semibold">Sessions</h3>
+          <p className="text-ink-muted mt-2 text-sm">
+            If you think another device might be signed in to your account, end every session at
+            once - this one included, so you will need to sign in again here too.
+          </p>
+          <form action={signOutEverywhereAction} className="mt-3">
+            <Button type="submit" variant="secondary">
+              End every session
+            </Button>
+          </form>
         </div>
 
         <div className="border-border mt-6 border-t pt-6">

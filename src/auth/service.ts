@@ -338,6 +338,21 @@ export class AuthService {
   }
 
   /**
+   * End every session for a user, including the one making this call.
+   *
+   * Deliberately all-or-nothing rather than "every device but this one":
+   * `changePassword` and `resetPassword` already end every session on the
+   * same reasoning, and a user who asked to sign out everywhere typing
+   * their password again on this device too is a small cost next to the
+   * complexity of tracking which session is "this one" through a repository
+   * interface that otherwise never needs to know.
+   */
+  async signOutEverywhere(userId: string): Promise<void> {
+    await this.repositories.sessions.deleteForUser(userId);
+    log.info({ userId }, 'signed out of every session');
+  }
+
+  /**
    * Change a password and invalidate every existing session.
    *
    * Signing out everywhere is the point: a password change is usually a

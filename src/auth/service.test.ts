@@ -266,6 +266,27 @@ describe('changePassword', () => {
   });
 });
 
+describe('signOutEverywhere', () => {
+  it('ends every session for the user, including the one that asked', async () => {
+    const first = await auth.register(EMAIL, PASSWORD);
+    const second = await auth.signIn(EMAIL, PASSWORD);
+
+    await auth.signOutEverywhere(first.user.id);
+
+    expect(await auth.authenticate(first.token)).toBeNull();
+    expect(await auth.authenticate(second.token)).toBeNull();
+  });
+
+  it('leaves another user entirely alone', async () => {
+    const mine = await auth.register(EMAIL, PASSWORD);
+    const theirs = await auth.register('someone-else@example.invalid', PASSWORD);
+
+    await auth.signOutEverywhere(mine.user.id);
+
+    expect(await auth.authenticate(theirs.token)).not.toBeNull();
+  });
+});
+
 describe('throttling is scoped to the client, not just the address', () => {
   beforeEach(async () => {
     await auth.register(EMAIL, PASSWORD);

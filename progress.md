@@ -70,6 +70,13 @@ browser the same way as email verification, and clean on the first pass this tim
 `getRepositories()` singleton bug above was already fixed before this feature existed to be broken
 by it.
 
+**Sign out everywhere.** The account page already invalidated every session on a password change;
+there was no standalone control for a user who just wants that without changing anything.
+`AuthService.signOutEverywhere` and a button on the account page do only that - deliberately
+all-or-nothing (including the session that asked), matching the precedent `changePassword` and
+`resetPassword` already set, rather than adding "every device but this one" tracking that nothing
+else in the repository layer needs. 2 new tests.
+
 ---
 
 ## 2026-11-03

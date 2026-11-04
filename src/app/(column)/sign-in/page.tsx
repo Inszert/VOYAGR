@@ -16,14 +16,16 @@ export default async function SignInPage({
   if (await getCurrentUser()) redirect('/account');
 
   const params = await searchParams;
-  // Both actions redirect here as `?passwordChanged=1`/`?reset=1` - only
-  // whether the key is present matters, never its value.
+  // Every action that lands here does so as a bare `?flag=1` - only whether
+  // the key is present matters, never its value.
   const notice =
     params.passwordChanged !== undefined
       ? 'Password changed. Sign in with your new password.'
       : params.reset !== undefined
         ? 'Password reset. Sign in with your new password.'
-        : null;
+        : params.signedOutEverywhere !== undefined
+          ? 'Signed out of every device.'
+          : null;
 
   return (
     <CredentialsForm

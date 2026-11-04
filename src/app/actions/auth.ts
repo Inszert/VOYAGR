@@ -87,6 +87,22 @@ export async function signOutAction(): Promise<void> {
   redirect('/');
 }
 
+/**
+ * Sign out of every device at once, including this one.
+ *
+ * The user id comes from the verified session, same reason
+ * `deleteAccountAction` does not take one from the form.
+ */
+export async function signOutEverywhereAction(): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect('/sign-in');
+
+  await getAuthService().signOutEverywhere(user.id);
+  await clearSessionCookie();
+
+  redirect('/sign-in?signedOutEverywhere=1');
+}
+
 export interface PasswordFormState {
   readonly error?: string;
   readonly changed?: boolean;

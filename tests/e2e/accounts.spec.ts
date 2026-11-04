@@ -237,4 +237,21 @@ test.describe('preferences and the search form', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
   });
+
+  test('ending every session signs this device out too, with its own password intact', async ({
+    page,
+  }) => {
+    const { email, password } = newAccount();
+    await signUp(page, email, password);
+
+    await page.getByRole('button', { name: 'End every session' }).click();
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByText('Signed out of every device.')).toBeVisible();
+
+    // Unlike a password change, the password itself did not change.
+    await page.getByRole('textbox', { name: 'Email' }).fill(email);
+    await page.getByLabel('Password').fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  });
 });
