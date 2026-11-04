@@ -12,6 +12,9 @@ silently breaking `/api/account/export` and `/api/push/subscribe` in the zero-co
 experience the README promotes - not something this session introduced, but something it would
 have shipped a second instance of (`/api/verify-email`) without noticing, had the feature not been
 tested by hand in a real browser rather than trusted on "the tests pass" alone.
+Password reset shipped the same day, reusing the exact token pattern (see below) - verified by
+hand the same way, this time clean on the first real-browser pass because the singleton bug above
+was already fixed.
 **Next:** decide whether hotels stay demo-only or get dropped to an explicit `excluded` cost line
 when a real flight provider is active; get a written answer from Travelpayouts on background
 polling before Travel Watch polls it unattended; wire the new airport reference data into flight
@@ -51,6 +54,21 @@ up, read the real token out of the console-provider's log, visited the real link
 unverified banner disappear and "Email confirmed." appear, re-ran the same flow after each fix
 until all three were gone. `npm run verify` and the full Playwright suite both stayed green
 throughout.
+
+**Password reset.** Same day, same pattern: `src/auth/password-reset.ts` mirrors
+`email-verification.ts` exactly (SHA-256 of a 256-bit token, one-time use), with one deliberate
+difference - the link expires in 1 hour, not 24, because a working link that changes a password is
+more sensitive than one that only confirms an address. `/forgot-password` requests it and always
+answers with the same sentence regardless of whether the address is registered - the same
+account-enumeration discipline `signIn` already holds, now held in a second place rather than
+re-invented differently. `/reset-password?token=...` consumes it, invalidates every session (same
+as a voluntary password change), and redirects to sign-in with a notice. Also wired up a
+dangling, pre-existing gap found while doing this: `changePassword` already redirected to
+`/sign-in?passwordChanged=1`, but nothing ever read that flag - the sign-in page now shows a
+notice for both `?passwordChanged=1` and `?reset=1`. 22 new tests. Verified by hand in a real
+browser the same way as email verification, and clean on the first pass this time, because the
+`getRepositories()` singleton bug above was already fixed before this feature existed to be broken
+by it.
 
 ---
 

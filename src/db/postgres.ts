@@ -8,6 +8,8 @@ import type {
   ErasureSummary,
   NotificationRecord,
   NotificationRepository,
+  PasswordResetRepository,
+  PasswordResetTokenRecord,
   PriceHistoryRepository,
   PriceObservationRecord,
   PushSubscriptionRecord,
@@ -201,6 +203,9 @@ class PostgresUserRepository implements UserRepository {
         emailVerificationTokens: await countOf(
           'SELECT count(*) FROM email_verification_tokens WHERE user_id = $1',
         ),
+        passwordResetTokens: await countOf(
+          'SELECT count(*) FROM password_reset_tokens WHERE user_id = $1',
+        ),
       };
 
       const deleted = await client.query('DELETE FROM users WHERE id = $1', [id]);
@@ -358,6 +363,66 @@ class PostgresEmailVerificationRepository implements EmailVerificationRepository
   async deleteExpired(now: string): Promise<number> {
     const rows = await query<{ id: string }>(
       'DELETE FROM email_verification_tokens WHERE expires_at <= $1 RETURNING id',
+      [now],
+    );
+    return rows.length;
+  }
+}
+
+// --- Password reset ---------------------------------------------------------
+
+interface PasswordResetRow {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  created_at: Date;
+  expires_at: Date;
+}
+
+function toPasswordResetToken(row: PasswordResetRow): PasswordResetTokenRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    tokenHash: row.token_hash,
+    createdAt: toIso(row.created_at),
+    expiresAt: toIso(row.expires_at),
+  };
+}
+
+class PostgresPasswordResetRepository implements PasswordResetRepository {
+  async findByTokenHash(tokenHash: string): Promise<PasswordResetTokenRecord | null> {
+    const rows = await query<PasswordResetRow>(
+      'SELECT id, user_id, token_hash, created_at, expires_at' +
+        ' FROM password_reset_tokens WHERE token_hash = $1',
+      [tokenHash],
+    );
+    return rows[0] ? toPasswordResetToken(rows[0]) : null;
+  }
+
+  async create(
+    input: Omit<PasswordResetTokenRecord, 'createdAt'>,
+  ): Promise<PasswordResetTokenRecord> {
+    const rows = await query<PasswordResetRow>(
+      `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, user_id, token_hash, created_at, expires_at`,
+      [input.id, input.userId, input.tokenHash, input.expiresAt],
+    );
+
+    return toPasswordResetToken(requireRow(rows[0], 'password reset token', input.id));
+  }
+
+  async delete(id: string): Promise<void> {
+    await query('DELETE FROM password_reset_tokens WHERE id = $1', [id]);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    await query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
+  }
+
+  async deleteExpired(now: string): Promise<number> {
+    const rows = await query<{ id: string }>(
+      'DELETE FROM password_reset_tokens WHERE expires_at <= $1 RETURNING id',
       [now],
     );
     return rows.length;
@@ -927,6 +992,7 @@ export function createPostgresRepositories(): Repositories {
     credentials: new PostgresUserCredentialRepository(),
     sessions: new PostgresSessionRepository(),
     emailVerification: new PostgresEmailVerificationRepository(),
+    passwordReset: new PostgresPasswordResetRepository(),
     preferences: new PostgresUserPreferencesRepository(),
     tripSearches: new PostgresTripSearchRepository(),
     travelWatches: new PostgresTravelWatchRepository(),

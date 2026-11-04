@@ -176,6 +176,12 @@ describe.each(backends)('$name repository contract', (backend) => {
         tokenHash: 'erase-test-verification',
         expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
       });
+      await repositories.passwordReset.create({
+        id: randomUUID(),
+        userId: user.id,
+        tokenHash: 'erase-test-reset',
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
 
       const summary = await repositories.users.erase(user.id);
 
@@ -183,6 +189,7 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(summary.credentials).toBe(1);
       expect(summary.sessions).toBe(1);
       expect(summary.emailVerificationTokens).toBe(1);
+      expect(summary.passwordResetTokens).toBe(1);
 
       expect(await repositories.users.findById(user.id)).toBeNull();
       expect(await repositories.credentials.findByUserId(user.id)).toBeNull();
@@ -190,6 +197,7 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(
         await repositories.emailVerification.findByTokenHash('erase-test-verification'),
       ).toBeNull();
+      expect(await repositories.passwordReset.findByTokenHash('erase-test-reset')).toBeNull();
     });
 
     it('reports an erasure of a nonexistent account as "nothing existed", not an error', async () => {
@@ -322,6 +330,60 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(removed).toBe(1);
       expect(await repositories.emailVerification.findByTokenHash('expired')).toBeNull();
       expect(await repositories.emailVerification.findByTokenHash('live')).not.toBeNull();
+    });
+  });
+
+  describe('password reset', () => {
+    async function aToken(userId: string, tokenHash: string, expiresAt: string) {
+      return repositories.passwordReset.create({ id: randomUUID(), userId, tokenHash, expiresAt });
+    }
+
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+
+    it('finds a token by its hash', async () => {
+      const user = await aUser();
+      const created = await aToken(user.id, 'hash-a', future);
+
+      expect(await repositories.passwordReset.findByTokenHash('hash-a')).toEqual(created);
+      expect(await repositories.passwordReset.findByTokenHash('hash-b')).toBeNull();
+    });
+
+    it('deletes one token without touching the others', async () => {
+      const user = await aUser();
+      const first = await aToken(user.id, 'hash-a', future);
+      await aToken(user.id, 'hash-b', future);
+
+      await repositories.passwordReset.delete(first.id);
+
+      expect(await repositories.passwordReset.findByTokenHash('hash-a')).toBeNull();
+      expect(await repositories.passwordReset.findByTokenHash('hash-b')).not.toBeNull();
+    });
+
+    it('deletes every token for one user and nobody else - a new request invalidates old links', async () => {
+      const user = await aUser();
+      const other = await aUser();
+      await aToken(user.id, 'mine-1', future);
+      await aToken(user.id, 'mine-2', future);
+      await aToken(other.id, 'theirs', future);
+
+      await repositories.passwordReset.deleteForUser(user.id);
+
+      expect(await repositories.passwordReset.findByTokenHash('mine-1')).toBeNull();
+      expect(await repositories.passwordReset.findByTokenHash('mine-2')).toBeNull();
+      expect(await repositories.passwordReset.findByTokenHash('theirs')).not.toBeNull();
+    });
+
+    it('sweeps only what has actually expired', async () => {
+      const user = await aUser();
+      await aToken(user.id, 'expired', past);
+      await aToken(user.id, 'live', future);
+
+      const removed = await repositories.passwordReset.deleteExpired(new Date().toISOString());
+
+      expect(removed).toBe(1);
+      expect(await repositories.passwordReset.findByTokenHash('expired')).toBeNull();
+      expect(await repositories.passwordReset.findByTokenHash('live')).not.toBeNull();
     });
   });
 

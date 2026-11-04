@@ -405,3 +405,117 @@ describe('email verification', () => {
     await expect(authWithFailingEmail.register(EMAIL, PASSWORD)).resolves.toBeTruthy();
   });
 });
+
+function extractResetToken(message: EmailMessage): string {
+  const match = /token=([^\s]+)/.exec(message.text);
+  if (!match) throw new Error('No token found in the captured email');
+  return match[1]!;
+}
+
+describe('password reset', () => {
+  let email: CapturingEmailProvider;
+  let authWithEmail: AuthService;
+
+  beforeEach(() => {
+    email = new CapturingEmailProvider();
+    authWithEmail = new AuthService({
+      repositories,
+      now: () => clock,
+      emailProvider: email,
+      appUrl: 'https://voyagr.test',
+    });
+  });
+
+  it('sends a reset email for a registered address, with a working link', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0; // discard the registration's own verification email
+
+    await authWithEmail.requestPasswordReset(EMAIL);
+
+    expect(email.sent).toHaveLength(1);
+    expect(email.sent[0]!.to).toBe(EMAIL);
+    expect(email.sent[0]!.text).toContain('https://voyagr.test/reset-password?token=');
+  });
+
+  it('does nothing, visibly, for an unregistered address - same silence sign-in already holds', async () => {
+    await authWithEmail.requestPasswordReset('nobody@example.invalid');
+    expect(email.sent).toHaveLength(0);
+  });
+
+  it('sets the new password and signs every session out', async () => {
+    const issued = await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestPasswordReset(EMAIL);
+    const token = extractResetToken(email.sent[0]!);
+
+    await authWithEmail.resetPassword(token, 'a-brand-new-password-1234');
+
+    // The old session is gone.
+    expect(await authWithEmail.authenticate(issued.token)).toBeNull();
+    // The new password works; the old one does not.
+    await expect(authWithEmail.signIn(EMAIL, 'a-brand-new-password-1234')).resolves.toBeTruthy();
+    await expect(authWithEmail.signIn(EMAIL, PASSWORD)).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+
+  it('refuses an unknown token', async () => {
+    await expect(
+      authWithEmail.resetPassword('not-a-real-token', 'a-brand-new-password-1234'),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('refuses the same token twice - one-time use even within its window', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestPasswordReset(EMAIL);
+    const token = extractResetToken(email.sent[0]!);
+
+    await authWithEmail.resetPassword(token, 'a-brand-new-password-1234');
+
+    await expect(
+      authWithEmail.resetPassword(token, 'yet-another-password-5678'),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('refuses an expired token, even though it was never used', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestPasswordReset(EMAIL);
+    const token = extractResetToken(email.sent[0]!);
+
+    clock += 61 * 60 * 1000; // past the 1-hour window
+
+    await expect(
+      authWithEmail.resetPassword(token, 'a-brand-new-password-1234'),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('refuses a new password that is too short', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestPasswordReset(EMAIL);
+    const token = extractResetToken(email.sent[0]!);
+
+    await expect(authWithEmail.resetPassword(token, 'short')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('a second request invalidates the first link', async () => {
+    await authWithEmail.register(EMAIL, PASSWORD);
+    email.sent.length = 0;
+    await authWithEmail.requestPasswordReset(EMAIL);
+    const firstToken = extractResetToken(email.sent[0]!);
+
+    await authWithEmail.requestPasswordReset(EMAIL);
+    const secondToken = extractResetToken(email.sent[1]!);
+
+    await expect(
+      authWithEmail.resetPassword(firstToken, 'a-brand-new-password-1234'),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(
+      authWithEmail.resetPassword(secondToken, 'a-brand-new-password-1234'),
+    ).resolves.toBeUndefined();
+  });
+});

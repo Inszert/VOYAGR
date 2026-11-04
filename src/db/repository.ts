@@ -80,6 +80,18 @@ export interface EmailVerificationTokenRecord {
 }
 
 /**
+ * A password reset token. Same shape and the same reason as
+ * `EmailVerificationTokenRecord` - see `AuthService.resetPassword`.
+ */
+export interface PasswordResetTokenRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly tokenHash: string;
+  readonly createdAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+}
+
+/**
  * What a user likes, with explicit and inferred kept apart.
  *
  * Section 31.7 requires the user to be able to see what the system believes
@@ -219,6 +231,7 @@ export interface ErasureSummary {
   readonly preferences: number;
   readonly credentials: number;
   readonly emailVerificationTokens: number;
+  readonly passwordResetTokens: number;
 }
 
 export interface UserCredentialRepository {
@@ -244,6 +257,16 @@ export interface EmailVerificationRepository {
   ): Promise<EmailVerificationTokenRecord>;
   delete(id: string): Promise<void>;
   /** Resending a verification email replaces whatever tokens came before it. */
+  deleteForUser(userId: string): Promise<void>;
+  /** Housekeeping: drop everything already expired at `now`. */
+  deleteExpired(now: IsoDateTime): Promise<number>;
+}
+
+export interface PasswordResetRepository {
+  findByTokenHash(tokenHash: string): Promise<PasswordResetTokenRecord | null>;
+  create(input: Omit<PasswordResetTokenRecord, 'createdAt'>): Promise<PasswordResetTokenRecord>;
+  delete(id: string): Promise<void>;
+  /** Requesting a new reset link replaces whatever tokens came before it. */
   deleteForUser(userId: string): Promise<void>;
   /** Housekeeping: drop everything already expired at `now`. */
   deleteExpired(now: IsoDateTime): Promise<number>;
@@ -378,6 +401,7 @@ export interface Repositories {
   readonly credentials: UserCredentialRepository;
   readonly sessions: SessionRepository;
   readonly emailVerification: EmailVerificationRepository;
+  readonly passwordReset: PasswordResetRepository;
   readonly preferences: UserPreferencesRepository;
   readonly tripSearches: TripSearchRepository;
   readonly travelWatches: TravelWatchRepository;

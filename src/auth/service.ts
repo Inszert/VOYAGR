@@ -13,6 +13,12 @@ import {
   verificationTokenExpiry,
 } from './email-verification';
 import { getDecoyHash, hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from './password';
+import {
+  hashPasswordResetToken,
+  isPasswordResetTokenExpired,
+  issuePasswordResetToken,
+  passwordResetTokenExpiry,
+} from './password-reset';
 import { hashSessionToken, isExpired, issueSessionToken, sessionExpiry } from './session';
 import { getSignInThrottle, type SignInThrottle } from './throttle';
 
@@ -356,6 +362,91 @@ export class AuthService {
     await this.repositories.sessions.deleteForUser(userId);
 
     log.info({ userId }, 'password changed, all sessions invalidated');
+  }
+
+  /**
+   * Request a password reset link.
+   *
+   * Never reveals whether the address is registered - same work, same
+   * return value, whether or not a matching account exists. This is the
+   * same discipline `signIn` already holds for the same reason: sign-in's
+   * generic failure message is the one place this app already refuses to
+   * answer "does this email exist?", and a reset request is the same
+   * question asked a different way.
+   */
+  async requestPasswordReset(rawEmail: string): Promise<void> {
+    const email = normaliseEmail(rawEmail);
+    const user = await this.repositories.users.findByEmail(email);
+
+    if (!user) {
+      log.info('password reset requested for an unregistered address');
+      return;
+    }
+
+    await this.repositories.passwordReset.deleteForUser(user.id);
+
+    const { token, tokenHash } = issuePasswordResetToken();
+
+    await this.repositories.passwordReset.create({
+      id: randomUUID(),
+      userId: user.id,
+      tokenHash,
+      expiresAt: passwordResetTokenExpiry(this.now()),
+    });
+
+    const link = `${this.appUrl}/reset-password?token=${token}`;
+
+    const result = await this.emailProvider.send({
+      to: user.email,
+      subject: 'Reset your Voyagr password',
+      text:
+        `Click to choose a new password: ${link}\n\n` +
+        `This link works once and expires in 1 hour. If you did not ask to reset your password, ignore this email - your password has not been changed.`,
+    });
+
+    if (!result.ok) {
+      log.warn({ err: result.error, userId: user.id }, 'password reset email provider failed');
+    }
+  }
+
+  /**
+   * Consume a password reset token and set a new password.
+   *
+   * One-time use and invalidates every session, same as `changePassword` -
+   * a password reset is just as much a reason to distrust existing sessions
+   * as a voluntary change is, arguably more so.
+   *
+   * @throws AppError VALIDATION_ERROR when the token is unknown, expired, or
+   *   the new password is too short.
+   */
+  async resetPassword(token: string, next: string): Promise<void> {
+    const tokenHash = hashPasswordResetToken(token);
+    const record = await this.repositories.passwordReset.findByTokenHash(tokenHash);
+
+    if (!record) {
+      throw new AppError('VALIDATION_ERROR', 'Unknown password reset token', {
+        publicMessage: 'That reset link is not valid. Request a new one from the sign-in page.',
+      });
+    }
+
+    await this.repositories.passwordReset.delete(record.id);
+
+    if (isPasswordResetTokenExpired(record.expiresAt, this.now())) {
+      throw new AppError('VALIDATION_ERROR', 'Expired password reset token', {
+        publicMessage: 'That reset link has expired. Request a new one from the sign-in page.',
+      });
+    }
+
+    if (next.length < MIN_PASSWORD_LENGTH) {
+      throw new AppError('VALIDATION_ERROR', 'New password below the minimum length', {
+        publicMessage: `Use a password of at least ${MIN_PASSWORD_LENGTH} characters.`,
+      });
+    }
+
+    await this.repositories.credentials.upsert(record.userId, await hashPassword(next));
+    await this.repositories.sessions.deleteForUser(record.userId);
+
+    log.info({ userId: record.userId }, 'password reset, all sessions invalidated');
   }
 
   private async startSession(user: UserRecord): Promise<SessionIssued> {

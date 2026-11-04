@@ -23,6 +23,8 @@ export interface CredentialsFormProps {
   passwordHint?: string;
   /** `new-password` on sign-up lets a password manager offer to generate one. */
   passwordAutoComplete: 'current-password' | 'new-password';
+  /** A reason to be here that this form itself did not cause, e.g. "Password changed." */
+  notice?: string | null;
   footer: React.ReactNode;
 }
 
@@ -32,6 +34,7 @@ export function CredentialsForm({
   action,
   passwordHint,
   passwordAutoComplete,
+  notice,
   footer,
 }: CredentialsFormProps) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(action, {});
@@ -41,6 +44,12 @@ export function CredentialsForm({
       <h1 id="credentials-heading" className="text-ink text-2xl font-semibold">
         {heading}
       </h1>
+
+      {notice ? (
+        <p role="status" className="text-positive-ink mt-2 text-sm">
+          {notice}
+        </p>
+      ) : null}
 
       <form action={formAction} className="mt-6 flex flex-col gap-4">
         {/*

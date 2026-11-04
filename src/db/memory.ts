@@ -5,6 +5,8 @@ import type {
   ErasureSummary,
   NotificationRecord,
   NotificationRepository,
+  PasswordResetRepository,
+  PasswordResetTokenRecord,
   PriceHistoryRepository,
   PriceObservationRecord,
   ProviderCallSummary,
@@ -107,6 +109,7 @@ class MemoryUserRepository implements UserRepository {
       preferences: 0,
       credentials: 0,
       emailVerificationTokens: 0,
+      passwordResetTokens: 0,
     };
 
     return { userExisted, ...removed };
@@ -192,6 +195,57 @@ class MemoryEmailVerificationRepository implements EmailVerificationRepository {
     input: Omit<EmailVerificationTokenRecord, 'createdAt'>,
   ): Promise<EmailVerificationTokenRecord> {
     const record: EmailVerificationTokenRecord = { ...input, createdAt: now() };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    for (const [id, token] of this.byId) {
+      if (token.userId === userId) this.byId.delete(id);
+    }
+  }
+
+  async deleteExpired(nowIso: string): Promise<number> {
+    let removed = 0;
+    for (const [id, token] of this.byId) {
+      if (token.expiresAt <= nowIso) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, token] of this.byId) {
+      if (token.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+}
+
+class MemoryPasswordResetRepository implements PasswordResetRepository {
+  private readonly byId = new Map<string, PasswordResetTokenRecord>();
+
+  async findByTokenHash(tokenHash: string): Promise<PasswordResetTokenRecord | null> {
+    for (const token of this.byId.values()) {
+      if (token.tokenHash === tokenHash) return token;
+    }
+    return null;
+  }
+
+  async create(
+    input: Omit<PasswordResetTokenRecord, 'createdAt'>,
+  ): Promise<PasswordResetTokenRecord> {
+    const record: PasswordResetTokenRecord = { ...input, createdAt: now() };
     this.byId.set(record.id, record);
     return record;
   }
@@ -562,6 +616,7 @@ export function createMemoryRepositories(): Repositories {
   const credentials = new MemoryUserCredentialRepository();
   const sessions = new MemorySessionRepository();
   const emailVerification = new MemoryEmailVerificationRepository();
+  const passwordReset = new MemoryPasswordResetRepository();
   const preferences = new MemoryUserPreferencesRepository();
   const tripSearches = new MemoryTripSearchRepository();
   const travelWatches = new MemoryTravelWatchRepository();
@@ -597,6 +652,7 @@ export function createMemoryRepositories(): Repositories {
       preferences: preferences.eraseUser(userId),
       credentials: credentials.eraseUser(userId),
       emailVerificationTokens: emailVerification.eraseUser(userId),
+      passwordResetTokens: passwordReset.eraseUser(userId),
     };
   };
 
@@ -605,6 +661,7 @@ export function createMemoryRepositories(): Repositories {
     credentials,
     sessions,
     emailVerification,
+    passwordReset,
     preferences,
     tripSearches,
     travelWatches,

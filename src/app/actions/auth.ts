@@ -204,3 +204,54 @@ export async function resendVerificationAction(
 
   return { message: 'Verification email sent. Check your inbox.' };
 }
+
+export interface RequestPasswordResetState {
+  readonly message?: string;
+}
+
+/**
+ * Request a password reset link, from the sign-in page.
+ *
+ * Always returns the same message regardless of whether the address is
+ * registered - `AuthService.requestPasswordReset` already holds that
+ * discipline, and repeating "if an account exists" here would be the right
+ * wording undone by whatever error path a bug introduces later. There is
+ * deliberately no error case; the only way this throws is a bug, and a bug
+ * here should not turn into evidence about which addresses are registered.
+ */
+export async function requestPasswordResetAction(
+  _previous: RequestPasswordResetState,
+  formData: FormData,
+): Promise<RequestPasswordResetState> {
+  const email = String(formData.get('email') ?? '');
+  await getAuthService().requestPasswordReset(email);
+
+  return { message: 'If that address has an account, a reset link is on its way.' };
+}
+
+export interface ResetPasswordState {
+  readonly error?: string;
+}
+
+/**
+ * Consume a password reset link and set a new password.
+ *
+ * The token comes from a hidden field the page filled in from its own URL,
+ * not from anything this action re-derives - see
+ * `src/app/(column)/reset-password/page.tsx`.
+ */
+export async function resetPasswordAction(
+  _previous: ResetPasswordState,
+  formData: FormData,
+): Promise<ResetPasswordState> {
+  const token = String(formData.get('token') ?? '');
+  const password = String(formData.get('password') ?? '');
+
+  try {
+    await getAuthService().resetPassword(token, password);
+  } catch (error) {
+    return { error: publicMessage(error, 'Could not reset your password.') };
+  }
+
+  redirect('/sign-in?reset=1');
+}
