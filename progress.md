@@ -15,14 +15,68 @@ tested by hand in a real browser rather than trusted on "the tests pass" alone.
 Password reset shipped the same day, reusing the exact token pattern (see below) - verified by
 hand the same way, this time clean on the first real-browser pass because the singleton bug above
 was already fixed. Sign-out-everywhere and email change followed the same day, same pattern.
-**Next:** resolve the Postgres `ECONNRESET` issue for real (try `DATABASE_SSL=true` first - see the
-new entry below); run `npm run test:e2e` to completion (killed twice now by host memory, never by
-a test result); decide whether hotels stay demo-only or get dropped to an explicit `excluded` cost
-line when a real flight provider is active (the hard constraint - never show a mock price as real -
-is already enforced by `combineProvenance()`, so this is a UX choice, not a defect); get a written
-answer from Travelpayouts on background polling before Travel Watch polls it unattended; wire the
-new airport reference data into flight search/nearby-airports (parked last session over a risk of
-silently changing tested distances - still parked).
+**Next:** resolve the Postgres `ECONNRESET` issue for real (try `DATABASE_SSL=true` first); decide
+whether hotels stay demo-only or get dropped to an explicit `excluded` cost line when a real flight
+provider is active (the hard constraint - never show a mock price as real - is already enforced by
+`combineProvenance()`, so this is a UX choice, not a defect); get a written answer from
+Travelpayouts on background polling before Travel Watch polls it unattended; evaluate a static
+OSM/Wikidata extract for real places/attractions data (the live Overpass API was researched and
+rejected for production use - see phase 3 below).
+
+---
+
+## 2026-11-04 (phase 3) — real exchange rates, real airport coverage, overnight autonomous session
+
+**European Central Bank exchange rates, genuinely real.** The orchestrator's
+`SearchDependencies.rates` had defaulted to `fixedRates([])` since phase 2's audit found it -
+correct (never invent a rate) but disconnected. Researched the ECB's own reuse policy directly
+(`ecb.europa.eu/home/disclaimer`), not a search summary: commercial use and redistribution are
+permitted, conditioned on citing the ECB as the source. Free, no key, no account, no card,
+published once a day as a static XML file. `APPROVED`, not `PENDING` - every point on the
+zero-billing checklist has a sourced answer, unlike Aviasales and Open-Meteo below. Implemented as
+`src/providers/fx/ecb.ts` (parses the real feed into the `fixedRates(...)` primitive
+`src/core/fx.ts` already had) and `src/providers/fx/index.ts` (a `globalThis`-cached table,
+refreshed once a day, falling back to the last good table on a failed refresh rather than going
+empty). `FX_PROVIDER=ecb` is the new default. 12 new tests against a real, dated fixture. Caught a
+real hermeticity gap by actually running the e2e suite: the webServer made one live ECB request on
+first use, because `playwright.config.ts` had not yet blanked the new provider the way it already
+blanks every other one - fixed the same way.
+
+**Real airport coverage for nearby-origin suggestions.** `nearbyOrigins`/`resolveOriginGeo`
+(`src/search/destination-names.ts`) drew only from the small, hand-picked `AIRPORT_FIXTURES` set -
+parked twice across two prior sessions over a risk of changing tested distances. Wired the real
+OurAirports dataset in as a strictly _additive_ fallback, behind both existing fixture sources in
+both functions: an origin the fixtures already cover produces the exact distance it always did,
+verified empirically rather than assumed safe. What changes is coverage - a real-world departure
+airport the demo catalogue never had (proven with `JFK`, suggesting real neighbours `EWR`/`LGA`,
+none of which are fixtures) now works.
+
+**Places/attractions, researched and correctly left undone.** The public Overpass API's own
+fair-use policy says production/commercial applications should use a self-hosted or paid instance -
+using the shared instance from Voyagr's backend would be exactly the "public community endpoint as
+unlimited production infrastructure" the zero-billing policy rules out. A downloadable static
+extract (the same shape `scripts/build-airports.mjs` already uses) is a real option, not attempted
+this session - a new build script, a real places data model and real scope decisions, not safe to
+rush alongside everything else in one night.
+
+**The two registry caches flagged but not fixed in phase 2** (`src/providers/registry.ts`,
+`src/providers/stays/registry.ts`) were reviewed for actual consequence rather than fixed on
+pattern alone: each search already builds its own `LimiterPool` fresh per call
+(`src/search/orchestrator.ts`), so a split registry would not double real provider concurrency the
+way the imagery singleton's split limiter would have - lower stakes, confirmed by tracing the code,
+not assumed. Moved to `globalThis` anyway.
+
+**Weather, flights, hotels, transfers, Travel Watch** - reviewed, nothing changed. Weather's
+provenance boundaries (forecast vs. climatology vs. mock) were already correct. Flight indicative
+pricing already cannot read as a live quote (`combineProvenance`). Hotels and transfers are
+already structurally prevented from disguising a mock price as real, for the same reason. Travel
+Watch's job deduplication is real (a BullMQ job id derived from a dedupe key) and was already
+proven against live Redis in an earlier phase; it inherits the same fail-closed provider registry
+a normal search does, so a `PENDING` provider still cannot be polled from there either.
+
+Full `docs/agent-coordination/PHASE-3-OVERNIGHT-REPORT.md` has the complete checklist, evidence and
+test commands. No regressions: unit suite stayed at the same 53 pre-existing Postgres failures
+throughout every change; e2e suite re-run in resource-conscious batches after the hermeticity fix.
 
 ---
 
