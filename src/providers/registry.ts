@@ -204,10 +204,21 @@ function resolvePlacesProvider(env: Env): PlacesProvider {
     : liveProviderNotImplemented('places');
 }
 
-const registries = new Map<DataSource, ProviderRegistry>();
-
 /**
- * The registry a request is served from.
+ * Cached on `globalThis`, not a plain module-level `const` Map.
+ *
+ * Reviewed alongside the five named singletons (phase 2) for the same
+ * module-duplication risk `src/db/index.ts` proved real. This one does
+ * span a Route Handler (`/api/health`) and several Server Components
+ * (`/status`, the search pages), so a split is possible - but traced
+ * through to what it would actually cost: each search already builds its
+ * own `LimiterPool` fresh inside `runSearch` (`src/search/orchestrator.ts`),
+ * scoped to that one search, so a duplicated `ProviderRegistry` would not
+ * double any real concurrency or rate-limit exposure the way the imagery
+ * singleton's split limiter would have. The cost of a split here is a few
+ * wasted adapter-object constructions - real, but far lower stakes. Moved
+ * anyway, since the fix is free and "probably harmless" is not the same
+ * claim as "verified harmless".
  *
  * Two of them at most, both built once and reused: the configured one, and
  * the all-fixtures one. Adapters are stateless and hold no per-request
@@ -218,8 +229,17 @@ const registries = new Map<DataSource, ProviderRegistry>();
  * constructing fixtures directly, so it goes through exactly the same
  * resolution the configured registry does and cannot drift from it.
  */
+declare global {
+  var __voyagrProviderRegistries: Map<DataSource, ProviderRegistry> | undefined;
+}
+
+function registries(): Map<DataSource, ProviderRegistry> {
+  globalThis.__voyagrProviderRegistries ??= new Map<DataSource, ProviderRegistry>();
+  return globalThis.__voyagrProviderRegistries;
+}
+
 export function getProviderRegistry(source: DataSource = 'api'): ProviderRegistry {
-  const existing = registries.get(source);
+  const existing = registries().get(source);
   if (existing) return existing;
 
   const env = getEnv();
@@ -236,7 +256,7 @@ export function getProviderRegistry(source: DataSource = 'api'): ProviderRegistr
       : env,
   );
 
-  registries.set(source, built);
+  registries().set(source, built);
 
   log.info(
     {
@@ -256,5 +276,5 @@ export function getProviderRegistry(source: DataSource = 'api'): ProviderRegistr
 
 /** Test helper - drops the cached registries so a test can vary configuration. */
 export function resetProviderRegistry(): void {
-  registries.clear();
+  globalThis.__voyagrProviderRegistries = undefined;
 }

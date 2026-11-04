@@ -13,6 +13,7 @@ import { createLimiterPool, type LimiterPool } from '@/lib/concurrency';
 import { callsWithin, concurrencyFor } from '@/providers/rate';
 import { resolvePolicy } from '@/providers/policy';
 import { convert, fixedRates, type ConversionFailure, type RateSource } from '@/core/fx';
+import { getRateSource } from '@/providers/fx';
 import type { CurrencyCode } from '@/core/money';
 import { DEFAULT_FRESHNESS, freshnessOf, weakestFreshness } from '@/core/freshness';
 import type { ZodType } from 'zod';
@@ -95,11 +96,11 @@ export interface SearchDependencies {
    * Where exchange rates come from, when a provider quotes in another
    * currency.
    *
-   * Defaults to a source that holds nothing. That is the honest default: no
-   * rate feed has been chosen, and a search must never invent one. With no
-   * rates a foreign quote is dropped and says exactly why - which is what
-   * happened before, except that the reason is now specific instead of
-   * "quoted in an unexpected currency".
+   * Defaults to `FX_PROVIDER`'s configured source (`src/providers/fx/`) -
+   * the European Central Bank's daily reference rates when `FX_PROVIDER=ecb`
+   * (the default; see `docs/provider-policy.md`), or the honest empty table
+   * when it is `mock`. Either way, no rate is ever invented: with no rate
+   * for a pair, a foreign quote is dropped and says exactly why.
    */
   readonly rates?: RateSource;
   /**
@@ -122,7 +123,14 @@ export interface ProviderCallObservation {
   readonly resultCount: number | null;
 }
 
-function defaultDependencies(): SearchDependencies {
+/**
+ * `knownRates` lets a caller that is about to override `rates` anyway skip
+ * the fetch entirely - every test in this suite that supplies its own
+ * `fixedRates(...)` table must never cause a real network call to the ECB
+ * as a side effect of building defaults it is about to discard. Real
+ * callers (nothing passed) still get the configured live source.
+ */
+async function defaultDependencies(knownRates?: RateSource): Promise<SearchDependencies> {
   const registry = getProviderRegistry();
 
   return {
@@ -130,8 +138,8 @@ function defaultDependencies(): SearchDependencies {
     hotels: registry.hotels,
     weather: registry.weather,
     transfers: registry.transfers,
-    // Empty on purpose: see `SearchDependencies.rates`.
-    rates: fixedRates([]),
+    // See `SearchDependencies.rates` - FX_PROVIDER decides what this holds.
+    rates: knownRates ?? (await getRateSource()),
   };
 }
 
@@ -893,7 +901,10 @@ export async function runSearch(
   // fails on its own terms rather than on a configuration error.
   const planned = buildSearchPlan(request);
 
-  const deps: SearchDependencies = { ...defaultDependencies(), ...dependencies };
+  const deps: SearchDependencies = {
+    ...(await defaultDependencies(dependencies?.rates)),
+    ...dependencies,
+  };
   const now = deps.now ?? Date.now;
   const startedAt = now();
 

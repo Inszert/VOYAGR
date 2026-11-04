@@ -30,7 +30,24 @@ const ADAPTERS: Record<string, (env: Env) => StayProvider> = {
   mock: () => createMockStayProvider(),
 };
 
-const cached = new Map<DataSource, StayProvider[]>();
+/**
+ * Cached on `globalThis`, not a plain module-level `const` Map.
+ *
+ * Reviewed alongside the five named singletons (phase 2): today's only
+ * caller is `src/app/stays/page.tsx`, a Server Component - no Route Handler
+ * reaches this, so the module-duplication split `src/db/index.ts` proved
+ * real does not currently apply here. Moved anyway, for the same reason the
+ * other low-risk ones were: cheap, and "not reachable today" is a fact
+ * about today's call sites, not a property of this cache.
+ */
+declare global {
+  var __voyagrStayProviders: Map<DataSource, StayProvider[]> | undefined;
+}
+
+function cached(): Map<DataSource, StayProvider[]> {
+  globalThis.__voyagrStayProviders ??= new Map<DataSource, StayProvider[]>();
+  return globalThis.__voyagrStayProviders;
+}
 
 /**
  * @param source `mock` forces the fixture list, whatever is configured, for
@@ -38,7 +55,7 @@ const cached = new Map<DataSource, StayProvider[]>();
  *   provider list replaced - never a second way of building providers.
  */
 export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'): StayProvider[] {
-  const existing = cached.get(source);
+  const existing = cached().get(source);
   if (existing) return existing;
 
   const names = (source === 'mock' ? 'mock' : (env.STAY_PROVIDERS ?? 'mock'))
@@ -68,12 +85,12 @@ export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'
   // Never an empty list: a search with no providers is an empty page with no
   // explanation, and the mock is always available.
   const resolved = providers.length > 0 ? providers : [createMockStayProvider()];
-  cached.set(source, resolved);
+  cached().set(source, resolved);
 
   return resolved;
 }
 
 /** Testing seam. */
 export function resetStayProviders(): void {
-  cached.clear();
+  globalThis.__voyagrStayProviders = undefined;
 }

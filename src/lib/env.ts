@@ -77,6 +77,19 @@ const envSchema = z.object({
   TRANSFER_PROVIDER: providerName,
   PLACES_PROVIDER: providerName,
   /**
+   * Which exchange-rate source a search converts foreign quotes against.
+   *
+   * `ecb` needs no credential - free, keyless, published once a day by the
+   * European Central Bank - which is why, unlike the flight and weather
+   * providers above, it defaults *on* rather than to `mock`: it is fully
+   * `APPROVED` under `docs/provider-policy.md`, not `PENDING`, so there is
+   * no unresolved term standing between it and the default. `mock` resolves
+   * to the honest empty table `src/core/fx.ts` already defaulted to - no
+   * rate, so a foreign conversion fails and says so, rather than any
+   * invented number. See `src/providers/fx/ecb.ts`.
+   */
+  FX_PROVIDER: z.enum(['mock', 'ecb']).default('ecb'),
+  /**
    * Which accommodation providers to fan out across, in preference order.
    *
    * A list, not one name: stays merge across vendors, so the configuration

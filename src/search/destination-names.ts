@@ -1,6 +1,7 @@
 import { distanceKm } from '@/discovery/geo';
 import { findDestination, DESTINATION_FIXTURES } from '@/providers/fixtures/destinations';
 import { AIRPORT_FIXTURES, findAirport } from '@/providers/fixtures/airports';
+import { allAirports, resolveAirport } from '@/providers/reference/airports';
 import type { AirportCode } from '@/core/trip/types';
 import type { DestinationGeo, OriginPoint } from '@/discovery/map-model';
 
@@ -80,13 +81,30 @@ export function resolveOriginGeo(origin: AirportCode): OriginPoint | null {
   }
 
   const destination = resolveDestinationGeo(origin);
-  if (!destination) return null;
+  if (destination) {
+    return {
+      code: origin.toUpperCase(),
+      name: destination.name,
+      adm0: destination.adm0,
+      position: destination.position,
+    };
+  }
+
+  /*
+   * Falls back to the real OurAirports reference data last, after both
+   * fixture sources, so every origin already covered by a fixture keeps
+   * producing the exact same result it always did - nothing here can
+   * change a distance that was already tested. This only widens coverage
+   * to a departure airport the small hand-picked fixture set never had.
+   */
+  const reference = resolveAirport(origin);
+  if (!reference) return null;
 
   return {
-    code: origin.toUpperCase(),
-    name: destination.name,
-    adm0: destination.adm0,
-    position: destination.position,
+    code: reference.code,
+    name: reference.municipality ?? reference.name,
+    adm0: reference.country,
+    position: reference.position,
   };
 }
 
@@ -180,10 +198,42 @@ export function nearbyOrigins(origins: readonly AirportCode[], withinKm = 250): 
   });
   if (from.length === 0) return [];
 
-  return AIRPORT_FIXTURES.filter((airport) => !searched.includes(airport.code))
-    .map((airport) => ({
+  /*
+   * Fixtures first, then the real OurAirports reference data for every code
+   * the fixtures do not already cover. A `Map` keyed by code means a fixture
+   * entry always wins its own code - nothing already tested against the
+   * small hand-picked set can change - while a real-world departure airport
+   * the demo catalogue never had now gets suggested too, which is the whole
+   * point of wiring this dataset in at all.
+   */
+  const candidates = new Map<
+    string,
+    { code: string; name: string; position: readonly [number, number] }
+  >();
+
+  for (const airport of AIRPORT_FIXTURES) {
+    candidates.set(airport.code, {
       code: airport.code,
       name: airport.city,
+      position: airport.position,
+    });
+  }
+
+  for (const airport of allAirports()) {
+    if (!candidates.has(airport.code)) {
+      candidates.set(airport.code, {
+        code: airport.code,
+        name: airport.municipality ?? airport.name,
+        position: airport.position,
+      });
+    }
+  }
+
+  return [...candidates.values()]
+    .filter((airport) => !searched.includes(airport.code))
+    .map((airport) => ({
+      code: airport.code,
+      name: airport.name,
       km: Math.round(Math.min(...from.map((point) => distanceKm(point, airport.position)))),
     }))
     .filter((airport) => airport.km <= withinKm)

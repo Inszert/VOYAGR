@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { money } from '@/core/money';
 import { buildProfile } from '@/core/trip/test-support';
 import type { FlightOffer } from '@/core/trip/types';
@@ -800,6 +800,25 @@ describe('a provider quoting in another currency', () => {
     );
 
     expect(outcome.results).toEqual([]);
+  });
+
+  it('never touches the network for rates when the caller already supplied a table', async () => {
+    // defaultDependencies() only calls getRateSource() (a real fetch, when
+    // FX_PROVIDER=ecb) if the caller did not already hand it a RateSource -
+    // every test in this suite does, and this is the one that proves the
+    // laziness itself rather than assuming it from the others passing.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await search(
+      {},
+      {
+        hotels: usdHotels(),
+        rates: fixedRates([{ from: 'USD', to: 'EUR', rate: 0.9, observedAt: MOCK_OBSERVED_AT }]),
+      },
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });
 

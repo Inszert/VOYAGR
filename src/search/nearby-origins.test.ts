@@ -31,4 +31,16 @@ describe('nearbyOrigins', () => {
   it('has nothing to say about an airport it cannot place', () => {
     expect(nearbyOrigins(['ZZZ'])).toEqual([]);
   });
+
+  it('places a real-world origin the small fixture catalogue never had, via OurAirports', () => {
+    // JFK is nowhere in src/providers/fixtures/airports.ts - this only
+    // works at all because of the OurAirports fallback wired into
+    // resolveOriginGeo. EWR and LGA are real, nearby, and equally absent
+    // from the fixture set.
+    const nearby = nearbyOrigins(['JFK'], 50);
+
+    expect(nearby.map((airport) => airport.code)).toContain('EWR');
+    expect(nearby.map((airport) => airport.code)).toContain('LGA');
+    expect(nearby.map((airport) => airport.code)).not.toContain('JFK');
+  });
 });

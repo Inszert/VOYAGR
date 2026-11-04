@@ -48,3 +48,16 @@ export function resolveAirport(code: string): AirportReference | null {
 export function airportReferenceCount(): number {
   return Object.keys(INDEX).length;
 }
+
+/**
+ * Every airport this build covers, for callers that need to search across
+ * all of them (nearby-airport suggestions) rather than resolve one known
+ * code. Computed once and cached - the underlying JSON does not change at
+ * runtime.
+ */
+let all: readonly AirportReference[] | undefined;
+
+export function allAirports(): readonly AirportReference[] {
+  all ??= Object.entries(INDEX).map(([code, entry]) => ({ code, ...entry }));
+  return all;
+}
