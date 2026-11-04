@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildProfile } from '@/core/trip/test-support';
-import { SearchCache, searchCacheKey } from './cache';
+import { getSearchCache, resetSearchCache, SearchCache, searchCacheKey } from './cache';
 import type { SearchOutcome, SearchRequest } from './types';
 
 /**
@@ -163,5 +163,30 @@ describe('SearchCache scoping', () => {
     const again = await cache.run(request, async () => outcome('unused'), 'api');
     expect(again.hit).toBe(true);
     expect(label(again)).toBe('api');
+  });
+});
+
+describe('the process-wide cache singleton', () => {
+  afterEach(() => {
+    resetSearchCache();
+  });
+
+  it('is one instance per process, not one per call', () => {
+    // The property the globalThis fix exists for: two pages (or two
+    // requests to the same page) must share one cache, never two separate
+    // ones that each run a duplicate query against a live provider.
+    expect(getSearchCache()).toBe(getSearchCache());
+  });
+
+  it('reset actually drops it, rather than handing back the same stale instance', async () => {
+    const first = getSearchCache();
+    await first.run(request, async () => outcome('before-reset'));
+    expect(first.size).toBe(1);
+
+    resetSearchCache();
+
+    const second = getSearchCache();
+    expect(second).not.toBe(first);
+    expect(second.size).toBe(0);
   });
 });

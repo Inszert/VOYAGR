@@ -190,3 +190,36 @@ This section drifted out of date — it still said "Authentication and sessions 
 - **Nonce-based CSP** — see section 5.
 - **Data retention and deletion** — travel history is personal data; a retention policy is required
   before launch, not after.
+
+**Zero-billing policy, enforced 4 November 2026.** An audit found `FLIGHT_PROVIDER=duffel` active
+in a real build of this environment, directly contradicting the project owner's "no paid API,
+ever" decision already recorded in `docs/provider-evaluation.md`. Fixed the same day: Duffel has
+no selectable value in `FLIGHT_PROVIDER` any more, the registry has no code path that can build
+the adapter, and `src/providers/registry.test.ts` proves zero outbound calls for every unapproved
+or unknown provider configuration, with a `fetch` spy rather than an assumption. The current,
+code-synchronised status of every provider now lives in `docs/provider-policy.md`.
+
+**A likely-relevant finding for whoever next debugs the Postgres `ECONNRESET` issue above the
+database section**: `src/db/client.ts`'s connection pool was cached on a plain module-level `let`,
+the same pattern already proven, in `src/db/index.ts`, to split into two independent instances
+across Next.js App Router's Route-Handler/Server-Action module boundary. For a repository cache
+that meant two empty in-memory stores; for a real `pg.Pool` it would mean two independent pools of
+up to `DATABASE_POOL_MAX` connections each against the same database — a second real connection
+source that would not show up by inspecting `DATABASE_POOL_MAX` alone. Moved to `globalThis`
+(4 November 2026), the same fix pattern, with lifecycle tests in `src/db/client.test.ts`. This
+does not explain the `ECONNRESET` on its own — the symptom (a reset within milliseconds, before
+any query's response, consistent with the real Postgres process itself ending the connection
+rather than a network-level failure) is also consistent with `DATABASE_SSL` being unset against a
+host that requires TLS, which is the first thing worth trying and needs no code change, only a
+setting in the real deployment's environment. Not verified either way by this audit: that needs
+the real `DATABASE_URL`, which is outside what this audit can read.
+
+The same review found three further module-level singletons worth the same scrutiny:
+`src/auth/throttle.ts` (the sign-in rate limiter), `src/search/cache.ts` (the search result
+cache) and `src/providers/imagery/index.ts` (the Wikimedia lookup cache and its concurrency
+limiter). All three were moved to `globalThis`. The imagery module is the one where the risk was
+confirmed real rather than theoretical: its callers already span a Route Handler
+(`/api/imagery/[code]`) and several Server Components, which is exactly the split
+`src/db/index.ts` proved happens — and a split limiter would have silently doubled the concurrent
+request rate against Wikimedia, breaking this module's own documented "one request at a time"
+promise to a free service we depend on behaving politely toward.

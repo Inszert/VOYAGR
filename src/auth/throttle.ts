@@ -97,14 +97,36 @@ export class SignInThrottle {
   }
 }
 
-let shared: SignInThrottle | undefined;
+/**
+ * Cached on `globalThis`, not a plain module-level `let`.
+ *
+ * Reviewed for the same module-duplication risk `src/db/index.ts` found
+ * proven for the repository singleton. Traced the actual call sites first
+ * rather than assuming the same exploit applies: every place that mutates
+ * this throttle (`check`/`recordFailure`/`recordSuccess`) is reached only
+ * through `AuthService.signIn`, which only `signInAction` (a Server Action)
+ * calls - the Route Handlers that also construct an `AuthService` (to read
+ * `getCurrentUser()`) never touch those methods, so a split between a
+ * Route Handler's module instance and the Server Action graph would not by
+ * itself let a lockout be bypassed. Still moved to `globalThis`: a rate
+ * limiter whose entire job is shared mutable state is exactly the class of
+ * object the proven bug affects, the fix is free, and "probably fine
+ * because of how it happens to be called today" is not a property worth
+ * depending on in a security control. The already-documented, separate
+ * limitation above - this throttle is still per-process, and a multi
+ * -instance deployment keeps one counter per instance - is unrelated to
+ * this and is tracked for its own Redis migration (Phase 1.6).
+ */
+declare global {
+  var __voyagrSignInThrottle: SignInThrottle | undefined;
+}
 
 export function getSignInThrottle(): SignInThrottle {
-  shared ??= new SignInThrottle();
-  return shared;
+  globalThis.__voyagrSignInThrottle ??= new SignInThrottle();
+  return globalThis.__voyagrSignInThrottle;
 }
 
 /** Test helper - drops the shared instance. */
 export function resetSignInThrottle(): void {
-  shared = undefined;
+  globalThis.__voyagrSignInThrottle = undefined;
 }

@@ -26,7 +26,28 @@ import { getLogger } from '@/lib/logger';
 
 const log = getLogger('db.client');
 
-let poolPromise: Promise<Pool> | undefined;
+/**
+ * Cached on `globalThis`, not a plain module-level `let`.
+ *
+ * The same class of bug `src/db/index.ts` found and fixed for the repository
+ * singleton applies here with higher stakes: a plain top-level `let` is not
+ * actually process-wide under Next.js's App Router, so a Route Handler
+ * compiled as a separate module instance from Server Components/Actions
+ * could open its *own* `pg.Pool` - not an empty in-memory store this time,
+ * but a second real TCP pool of up to `DATABASE_POOL_MAX` connections to the
+ * same database, on top of the first. Found while auditing this file after
+ * that fix, not independently reproduced here, but the mechanism is
+ * identical and the blast radius is worse: a database with a connection cap
+ * (or a pooler such as PgBouncer/Supabase's pooler in front of it) would see
+ * more live connections than one pool's `max` implies, which is a plausible
+ * contributor to the `ECONNRESET` behaviour this project has already
+ * documented (`progress.md`) without a confirmed root cause. `globalThis`
+ * costs nothing once `DATABASE_URL` is set - the pool was always meant to be
+ * one per process.
+ */
+declare global {
+  var __voyagrPgPoolPromise: Promise<Pool> | undefined;
+}
 
 export function isDatabaseConfigured(): boolean {
   return Boolean(getEnv().DATABASE_URL);
@@ -55,12 +76,12 @@ function requireDatabaseUrl(): string {
  * @throws AppError DEPENDENCY_UNAVAILABLE when no DATABASE_URL is configured.
  */
 export async function getPool(): Promise<Pool> {
-  if (poolPromise) return poolPromise;
+  if (globalThis.__voyagrPgPoolPromise) return globalThis.__voyagrPgPoolPromise;
 
   const connectionString = requireDatabaseUrl();
   const env = getEnv();
 
-  poolPromise = (async () => {
+  globalThis.__voyagrPgPoolPromise = (async () => {
     // Dynamic import keeps the native driver out of every bundle that never
     // queries, including the client and edge runtimes.
     const { Pool: PgPool } = await import('pg');
@@ -84,7 +105,7 @@ export async function getPool(): Promise<Pool> {
     return pool;
   })();
 
-  return poolPromise;
+  return globalThis.__voyagrPgPoolPromise;
 }
 
 /**
@@ -174,10 +195,10 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealth> {
 
 /** Close the pool. Used by scripts and tests; not needed in request handling. */
 export async function closePool(): Promise<void> {
-  if (!poolPromise) return;
+  if (!globalThis.__voyagrPgPoolPromise) return;
 
-  const pool = await poolPromise;
-  poolPromise = undefined;
+  const pool = await globalThis.__voyagrPgPoolPromise;
+  globalThis.__voyagrPgPoolPromise = undefined;
   await pool.end();
 
   log.info('database pool closed');

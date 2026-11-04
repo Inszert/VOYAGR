@@ -3,7 +3,6 @@ import { getEnv, type Env } from '@/lib/env';
 import type { DataSource } from './data-source';
 import { getLogger } from '@/lib/logger';
 import { createAviasalesFlightProvider } from './flights/aviasales';
-import { createDuffelFlightProvider } from './flights/duffel';
 import { createMockFlightProvider } from './flights/mock';
 import { createMockHotelProvider } from './hotels/mock';
 import { createMockPlacesProvider } from './places/mock';
@@ -141,17 +140,15 @@ function liveProviderNotImplemented(kind: ProviderKind): never {
 }
 
 function resolveFlightProvider(env: Env): FlightProvider {
-  if (env.FLIGHT_PROVIDER === 'duffel') {
-    if (!env.DUFFEL) {
-      throw new AppError(
-        'CONFIGURATION_ERROR',
-        'FLIGHT_PROVIDER is "duffel" but DUFFEL is not set.',
-      );
-    }
-
-    return createDuffelFlightProvider({ token: env.DUFFEL });
-  }
-
+  /*
+   * There is deliberately no `duffel` case here, and none above this
+   * function imports the adapter either. Binding project decision,
+   * 2026-11-04: no paid API, ever - Duffel is commercial and
+   * partner-gated, and `FLIGHT_PROVIDER` no longer even has a `'duffel'`
+   * value to match (`src/lib/env.ts`), so this is not one failure mode
+   * among several, it is the only path: the value cannot exist by the
+   * time it would reach here. See `docs/provider-policy.md`.
+   */
   if (env.FLIGHT_PROVIDER === 'aviasales') {
     /*
      * Refused at startup rather than at the first search.

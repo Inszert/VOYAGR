@@ -15,12 +15,71 @@ tested by hand in a real browser rather than trusted on "the tests pass" alone.
 Password reset shipped the same day, reusing the exact token pattern (see below) - verified by
 hand the same way, this time clean on the first real-browser pass because the singleton bug above
 was already fixed. Sign-out-everywhere and email change followed the same day, same pattern.
-**Next:** run `npm run test:e2e` to completion for email change (the harness killed the one attempt
-this session over host memory, not a test result); decide whether hotels stay demo-only or get
-dropped to an explicit `excluded` cost line when a real flight provider is active; get a written
+**Next:** resolve the Postgres `ECONNRESET` issue for real (try `DATABASE_SSL=true` first - see the
+new entry below); run `npm run test:e2e` to completion (killed twice now by host memory, never by
+a test result); decide whether hotels stay demo-only or get dropped to an explicit `excluded` cost
+line when a real flight provider is active (the hard constraint - never show a mock price as real -
+is already enforced by `combineProvenance()`, so this is a UX choice, not a defect); get a written
 answer from Travelpayouts on background polling before Travel Watch polls it unattended; wire the
 new airport reference data into flight search/nearby-airports (parked last session over a risk of
 silently changing tested distances - still parked).
+
+---
+
+## 2026-11-04 (phase 2) — zero-billing enforcement, singleton sweep, Postgres diagnosis
+
+**The audit that started this phase found the zero-paid-API policy below was not actually true in
+code.** `docs/provider-evaluation.md` already said Duffel was ruled out (3 November); a real
+production build's own startup log showed `FLIGHT_PROVIDER=duffel` active anyway. Fixed: Duffel
+has no selectable value left in `FLIGHT_PROVIDER` (`src/lib/env.ts`), the registry has no code
+path that can build the adapter (`src/providers/registry.ts`), and the adapter file is retained,
+unimported, as a historical reference only. **Proved the fix with the real, previously-broken
+configuration**: rebuilding against this environment's actual `.env` now refuses to boot with a
+named `EnvValidationError` naming `FLIGHT_PROVIDER` - not a theoretical guarantee, the exact
+build that used to silently activate Duffel now cannot. `src/providers/registry.test.ts` proves
+zero outbound calls (a `fetch` spy, not an assumption) for Duffel, an unknown provider, and a
+provider missing its credential. New `docs/provider-policy.md` is now the single, code-synced
+source of truth for every provider's status; `docs/provider-evaluation.md` and `docs/security.md`
+point to it.
+
+**Singleton sweep.** The `getRepositories()` `globalThis` fix (above) was reviewed for whether the
+same bug class existed elsewhere, rather than assumed fixed everywhere. Five named candidates,
+plus the pool that bug class would hit hardest:
+
+- `src/db/client.ts` - **the real `pg.Pool` itself** was still a plain module-level `let`. Fixed.
+  This is the one worth re-reading if Postgres connectivity is revisited: two independent pools of
+  up to `DATABASE_POOL_MAX` connections each, against the same database, would not show up by
+  inspecting that setting alone, and is a plausible contributor to the `ECONNRESET` symptom this
+  project has been fighting - not confirmed as _the_ cause, but a real possibility this session
+  removed regardless. New `src/db/client.test.ts` (9 tests) proves the lifecycle without ever
+  touching a real network - `pg.Pool` is lazy, so a never-queried pool costs nothing to construct
+  and tear down.
+- `src/auth/throttle.ts`, `src/search/cache.ts` - traced their actual call sites rather than fixing
+  on pattern alone. Both currently have every mutating call confined to one Next.js module graph
+  (Server Actions / Server Components only, no Route Handler), so the specific exploit the
+  repository bug had is not currently reachable for either - fixed anyway, since both are cheap to
+  fix and the alternative is trusting "safe because of how it happens to be called today."
+- `src/providers/imagery/index.ts` - **the one where the risk is real, not theoretical.** Its
+  callers already span a Route Handler (`/api/imagery/[code]`) and several Server Components, the
+  exact split proven for the repository singleton. A split here would have doubled the concurrent
+  request rate against Wikimedia, breaking this module's own documented "one request at a time"
+  promise to a free service. Fixed, with a dedicated test.
+- `src/queue/index.ts` - has zero callers anywhere in the app today (the worker calls the
+  uncached factory function directly); fixed anyway as a precaution for whenever something does
+  wire it in.
+- Noted, not touched: `src/providers/registry.ts`'s own registry cache and
+  `src/providers/stays/registry.ts`'s adapter-list cache are the same shape of module-level `Map`.
+  Out of this round's named scope; flagged for whoever picks up the next pass.
+
+**Postgres diagnosis.** Confirmed, without reading `DATABASE_URL` or any credential: the real
+`postgres.exe` is genuinely the process listening, a raw TCP connection is accepted, and the reset
+happens before any protocol-level response - consistent with the server itself ending the
+connection rather than a network path failure. `DATABASE_SSL` defaults to `false`
+(`src/lib/env.ts`) and this project's own earlier notes (Railway-hosted Postgres,
+`verification-status.json`) plus a second tool in this environment separately reporting "connection
+is insecure (try using sslmode=require)" for what may be the same real host both point the same
+way: **try `DATABASE_SSL=true` first.** Not verified - that needs the real connection string, which
+this pass could not and did not read. Marked BLOCKED, not fixed; see `docs/deployment-checklist.md`.
 
 ---
 

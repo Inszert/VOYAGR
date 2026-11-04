@@ -42,10 +42,31 @@ interface CacheEntry {
   readonly expiresAt: number;
 }
 
-const cache = new Map<string, CacheEntry>();
+/**
+ * All three cached on `globalThis`, not a module-level `const`/`let`.
+ *
+ * Unlike the other singletons reviewed alongside this one, this module's
+ * callers genuinely do span the split `src/db/index.ts` proved real: both a
+ * Route Handler (`src/app/api/imagery/[code]/route.ts`) and several Server
+ * Components (`src/app/page.tsx` and others) call `resolveImagery`. A plain
+ * module-level cache/provider/limiter would mean two of each - and the
+ * limiter is the one that matters: this module's own promise is "one
+ * limiter, shared... a burst of traffic is still one request at a time" to
+ * Wikimedia, a free service we depend on behaving politely toward. Two
+ * limiters of capacity 1 is two concurrent requests, silently breaking that
+ * promise with no visible symptom until the vendor notices. `globalThis`
+ * restores the single-limiter guarantee the comment above already claims.
+ */
+declare global {
+  var __voyagrImageryCache: Map<string, CacheEntry> | undefined;
+  var __voyagrImageryProvider: ImageryProvider | null | undefined;
+  var __voyagrImageryLimiter: Limiter | undefined;
+}
 
-let provider: ImageryProvider | null | undefined;
-let limiter: Limiter | undefined;
+function getCache(): Map<string, CacheEntry> {
+  globalThis.__voyagrImageryCache ??= new Map<string, CacheEntry>();
+  return globalThis.__voyagrImageryCache;
+}
 
 /**
  * The configured provider, or null when imagery is switched off.
@@ -55,24 +76,25 @@ let limiter: Limiter | undefined;
  * the first place.
  */
 export function getImageryProvider(): ImageryProvider | null {
-  if (provider === undefined) {
+  if (globalThis.__voyagrImageryProvider === undefined) {
     const env = getEnv();
-    provider = env.IMAGERY_PROVIDER === 'wikimedia' ? createWikimediaImagery() : null;
+    globalThis.__voyagrImageryProvider =
+      env.IMAGERY_PROVIDER === 'wikimedia' ? createWikimediaImagery() : null;
   }
 
-  return provider;
+  return globalThis.__voyagrImageryProvider;
 }
 
 function getLimiter(): Limiter {
-  limiter ??= createLimiter(1);
-  return limiter;
+  globalThis.__voyagrImageryLimiter ??= createLimiter(1);
+  return globalThis.__voyagrImageryLimiter;
 }
 
 /** Test helper - drops the memoised provider, limiter and cached images. */
 export function resetImageryCache(): void {
-  provider = undefined;
-  limiter = undefined;
-  cache.clear();
+  globalThis.__voyagrImageryProvider = undefined;
+  globalThis.__voyagrImageryLimiter = undefined;
+  getCache().clear();
 }
 
 /**
@@ -93,7 +115,7 @@ export async function resolveImagery(
   const wanted: ImageryRef[] = [];
 
   for (const code of new Set(codes.map((value) => value.toUpperCase()))) {
-    const cached = cache.get(code);
+    const cached = getCache().get(code);
 
     if (cached && cached.expiresAt > now) {
       if (cached.image) found.set(code, cached.image);
@@ -116,7 +138,7 @@ export async function resolveImagery(
     if (!result.ok) return found;
 
     for (const [code, image] of result.value) {
-      cache.set(code, {
+      getCache().set(code, {
         image,
         expiresAt: Date.now() + (image ? HIT_TTL_MS : MISS_TTL_MS),
       });

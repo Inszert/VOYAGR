@@ -95,12 +95,15 @@ export default defineConfig({
       /*
        * The providers too, and for the same reason.
        *
-       * A developer with `FLIGHT_PROVIDER=duffel` in their `.env` would
+       * A developer with `FLIGHT_PROVIDER=aviasales` in their `.env` would
        * otherwise have this suite make live vendor calls: slow, rate
-       * limited, chargeable, and different on every run - against
-       * assertions written for deterministic fixtures. The credentials are
-       * blanked as well, so the registry cannot be talked into a live
-       * adapter by a variable that survived.
+       * limited, and different on every run - against assertions written
+       * for deterministic fixtures. The credential is blanked as well, so
+       * the registry cannot be talked into a live adapter by a variable
+       * that survived. (Duffel is prohibited outright and has no
+       * `FLIGHT_PROVIDER` value left to select it with - `DUFFEL` below is
+       * blanked only because nothing should be left relying on a variable
+       * the schema no longer even reads.)
        */
       /*
        * The data-source switch is on, so the suite can assert on it.

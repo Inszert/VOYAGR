@@ -51,7 +51,6 @@ describe('parseDataSource', () => {
 
 describe('configuredDataSource', () => {
   it('is api wherever a real adapter is configured', () => {
-    expect(configuredDataSource(env({ FLIGHT_PROVIDER: 'duffel' }))).toBe('api');
     expect(configuredDataSource(env({ FLIGHT_PROVIDER: 'aviasales' }))).toBe('api');
   });
 

@@ -16,6 +16,19 @@ import type {
 } from '../types';
 
 /**
+ * PROHIBITED under the project's zero-billing policy (binding decision,
+ * 2026-11-04): no paid API, ever, including a sandbox key. Duffel is
+ * commercial and partner-gated.
+ *
+ * This file is retained as a historical reference only - for the
+ * recorded-fixture adapter pattern `duffel.test.ts` exercises offline, and
+ * for whoever revisits a real booking integration later. Nothing imports
+ * `createDuffelFlightProvider` from runtime code: `src/providers/registry.ts`
+ * has no case for it, and `FLIGHT_PROVIDER` in `src/lib/env.ts` has no
+ * `'duffel'` value for any configuration to select. Do not add either back
+ * without a new, explicit decision from the project owner. See
+ * `docs/provider-policy.md`.
+ *
  * Duffel, behind the flight adapter interface.
  *
  * Unlike the cached fare calendar beside it, this is an offer API: a search

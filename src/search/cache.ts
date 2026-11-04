@@ -165,15 +165,32 @@ export class SearchCache {
   }
 }
 
-let shared: SearchCache | undefined;
+/**
+ * Cached on `globalThis`, not a plain module-level `let`.
+ *
+ * Reviewed for the module-duplication risk `src/db/index.ts` found proven
+ * for the repository singleton. Both current callers (`src/app/page.tsx`,
+ * `src/app/explore/page.tsx`, via `load-stage.ts`) are Server Components -
+ * no Route Handler reaches this cache today, so the specific cross-graph
+ * split that bug depended on does not currently apply. Moved anyway: this
+ * cache's whole purpose is deduplicating identical concurrent searches so a
+ * live provider is called once, not per tab - a silent split into two caches
+ * would double real provider calls (cost and rate-limit exposure) with no
+ * visible symptom, which is exactly the kind of bug that goes unnoticed
+ * until it is a bill. The fix is free and the risk it removes is the
+ * project's own zero-billing concern, not a hypothetical one.
+ */
+declare global {
+  var __voyagrSearchCache: SearchCache | undefined;
+}
 
 /** The process-wide cache used by the search page. */
 export function getSearchCache(): SearchCache {
-  shared ??= new SearchCache();
-  return shared;
+  globalThis.__voyagrSearchCache ??= new SearchCache();
+  return globalThis.__voyagrSearchCache;
 }
 
 /** Test helper - drops the shared instance. */
 export function resetSearchCache(): void {
-  shared = undefined;
+  globalThis.__voyagrSearchCache = undefined;
 }

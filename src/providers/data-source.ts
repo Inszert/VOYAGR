@@ -12,10 +12,11 @@ import type { Env } from '@/lib/env';
  * Three kinds of "not real" are deliberately kept apart, because collapsing
  * them is how somebody ends up believing a price:
  *
- *  - **`api`** - whatever configuration selected. Today that is Duffel for
- *    flights, and Duffel's own `live_mode` decides whether those offers are
- *    live or sandbox. That distinction belongs to Duffel and is reported as
- *    `live` or `test` provenance; it is not this switch's business.
+ *  - **`api`** - whatever configuration selected: today that can only be
+ *    Aviasales/Travelpayouts for flights, labelled `indicative` rather than
+ *    a live quote (see `docs/provider-policy.md`). Duffel is prohibited
+ *    under the project's zero-billing policy and cannot be configured at
+ *    all - `FLIGHT_PROVIDER` has no `'duffel'` value to select.
  *  - **`mock`** - Voyagr's own fixtures, reported as `mock` provenance.
  *  - Neither is ever substituted for the other silently. If `api` is asked
  *    for and no live adapter is configured, the request is served by whatever

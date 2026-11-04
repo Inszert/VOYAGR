@@ -45,7 +45,19 @@ const envSchema = z.object({
    * without one the registry refuses to build it rather than starting up and
    * failing on the first search.
    */
-  FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales', 'duffel']).default('mock'),
+  /**
+   * `duffel` is deliberately not a valid value here.
+   *
+   * Binding project decision, 2026-11-04: no paid API, ever, with no
+   * exception for a sandbox key. Duffel is a commercial, partner-gated
+   * vendor and is prohibited outright, not merely "not enabled by
+   * default". Removing it from this enum means `FLIGHT_PROVIDER=duffel`
+   * fails environment validation before the process serves a single
+   * request, the same way any other typo in this field already does -
+   * there is no code path left that could read a Duffel credential or
+   * reach `api.duffel.com`. See `docs/provider-policy.md`.
+   */
+  FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales']).default('mock'),
   /**
    * Offer the runtime API/MOCK switch.
    *
@@ -101,14 +113,15 @@ const envSchema = z.object({
    * traveller clicks - it is public by design, so redacting it would be
    * theatre, and it is left out of `SECRET_ENV_KEYS` deliberately.
    */
-  /**
-   * Duffel. One key, and its prefix says whether it is a sandbox.
-   *
-   * `duffel_test_...` returns real carriers and real itineraries for seats
-   * that do not exist, and the adapter labels those results `test` rather
-   * than `live` on the strength of `live_mode` in the response.
+  /*
+   * No `DUFFEL` field here, deliberately. Duffel is a prohibited, paid
+   * provider under the project's zero-billing policy (2026-11-04) - there
+   * is nothing in this schema for a `DUFFEL=...` line to read, so it is
+   * simply ignored rather than activating anything. The adapter still
+   * exists at `src/providers/flights/duffel.ts`, unimported by the
+   * registry, kept only as a historical reference. See
+   * `docs/provider-policy.md`.
    */
-  DUFFEL: z.string().min(1).optional(),
   AVIASALES_API_TOKEN: z.string().min(1).optional(),
   AVIASALES_PARTNER_ID: z.string().min(1).optional(),
 
@@ -144,7 +157,6 @@ export const SECRET_ENV_KEYS = [
   'WEATHER_PROVIDER_API_KEY',
   'TRANSFER_PROVIDER_API_KEY',
   'PLACES_PROVIDER_API_KEY',
-  'DUFFEL',
   // The token, not the marker: see the note beside them above.
   'AVIASALES_API_TOKEN',
   'VAPID_PRIVATE_KEY',
