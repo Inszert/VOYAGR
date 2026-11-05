@@ -28,5 +28,13 @@ export function evaluateTrip(candidate: TripCandidate, profile: SearchProfile): 
     warnings: detectTravelWarnings(candidate, cost),
     score: scoreTrip(candidate, cost, profile),
     usableTime: computeUsableTime(candidate),
+    /*
+     * This function is pure - no clock - and freshness cannot be judged
+     * without one. The orchestrator overwrites this against the instant the
+     * search started (`src/search/orchestrator.ts`); a trip evaluated
+     * directly, as component swapping does, has no clock available and
+     * stays honestly `'unknown'` rather than guessing.
+     */
+    quoteFreshness: 'unknown',
   };
 }

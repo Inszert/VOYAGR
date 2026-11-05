@@ -94,6 +94,29 @@ function nightsLabel(nights: number) {
   return `${nights} ${nights === 1 ? 'night' : 'nights'}`;
 }
 
+/**
+ * "4 Nov, 22:10 UTC", read directly off the ISO string rather than through a
+ * `Date` or `Intl.DateTimeFormat`.
+ *
+ * Deliberately not locale-aware: a server and a browser can disagree about
+ * the default locale, which is a classic source of a hydration mismatch for
+ * exactly this kind of timestamp. An `IsoDateTime` is already UTC
+ * (`src/core/freshness.ts`), so slicing it is the whole job - no parsing, no
+ * timezone math, nothing that could render one value on the server and
+ * another after hydration.
+ */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatObservedAt(observedAt: string | null): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(observedAt ?? '');
+  if (!match) return 'at an unknown time';
+
+  const [, , month, day, hour, minute] = match;
+  const label = MONTHS[Number(month) - 1];
+
+  return label ? `${Number(day)} ${label}, ${hour}:${minute} UTC` : 'at an unknown time';
+}
+
 function hoursLabel(minutes: number) {
   return `${Math.round(minutes / 60)} hours`;
 }
@@ -413,6 +436,11 @@ export function TripCard({
                 */}
                 <DealNote deal={deal} onImage />
                 <SourceStrip sources={sources} className="justify-end" />
+                {trip.quoteFreshness === 'stale' ? (
+                  <p className="text-caution-ink text-right text-xs" role="status">
+                    May have moved - checked {formatObservedAt(candidate.flight.observedAt)}
+                  </p>
+                ) : null}
               </div>
             }
           />

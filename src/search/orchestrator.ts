@@ -1031,19 +1031,22 @@ export async function runSearch(
     const trip = rankCandidate(candidate, request, plan.currency, issues, rates);
     if (!trip) continue;
 
-    freshness[
-      weakestFreshness([
-        freshnessOf(
-          candidate.flight.observedAt,
-          startedAt,
-          DEFAULT_FRESHNESS.flights,
-          candidate.flight.expiresAt,
-        ),
-        freshnessOf(candidate.hotel.observedAt, startedAt, DEFAULT_FRESHNESS.hotels),
-      ])
-    ] += 1;
+    const tripFreshness = weakestFreshness([
+      freshnessOf(
+        candidate.flight.observedAt,
+        startedAt,
+        DEFAULT_FRESHNESS.flights,
+        candidate.flight.expiresAt,
+      ),
+      freshnessOf(candidate.hotel.observedAt, startedAt, DEFAULT_FRESHNESS.hotels),
+    ]);
 
-    ranked.push(trip);
+    freshness[tripFreshness] += 1;
+
+    // Attached to the trip itself, not just counted: the aggregate banner and
+    // one card's own notice must never disagree, and this is the one place
+    // both are computed from - the same clock, the same rule.
+    ranked.push({ ...trip, quoteFreshness: tripFreshness });
   }
 
   const eligible = ranked.filter((trip) => trip.eligibility.eligible).sort(compareRanked);

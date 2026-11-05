@@ -160,6 +160,23 @@ describe('TripCard', () => {
     expect(overBudget.textContent).toContain(format(abs(trip.eligibility.budgetHeadroom)));
   });
 
+  it('warns that the price may have moved when the quote is stale', () => {
+    const trip = buildRankedTrip({}, {}, 'stale');
+    render(<TripCard trip={trip} rank={0} />);
+
+    expect(screen.getByText(/may have moved/i)).toBeInTheDocument();
+  });
+
+  it('says nothing about staleness for a fresh or unjudged quote', () => {
+    for (const freshness of ['fresh', 'unknown'] as const) {
+      const trip = buildRankedTrip({}, {}, freshness);
+      const { unmount } = render(<TripCard trip={trip} rank={0} />);
+
+      expect(screen.queryByText(/may have moved/i)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it('never tells a near miss that it fits what was asked for', () => {
     // A near miss is rendered with no reasons, and the fallback sentence for
     // that case is false here by definition: the violations box directly

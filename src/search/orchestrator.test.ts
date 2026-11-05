@@ -705,6 +705,22 @@ describe('quote freshness', () => {
 
     expect(fresh + stale + unknown).toBe(outcome.diagnostics.candidatesEvaluated);
   });
+
+  it('attaches the same verdict to each trip that the aggregate counted it under', async () => {
+    // The card's own notice and the search's banner read from one computation,
+    // not two - this is what proves they cannot disagree.
+    const outcome = await search({}, at(observed + 8 * 60 * 60_000));
+
+    expect(outcome.diagnostics.quoteFreshness.stale).toBeGreaterThan(0);
+    expect(outcome.results.every((trip) => trip.quoteFreshness === 'stale')).toBe(true);
+  });
+
+  it('marks a fresh trip fresh on the trip itself, not just in the aggregate', async () => {
+    const outcome = await search({}, at(observed + 60_000));
+
+    expect(outcome.results.length).toBeGreaterThan(0);
+    expect(outcome.results.every((trip) => trip.quoteFreshness === 'fresh')).toBe(true);
+  });
 });
 
 describe('a provider quoting in another currency', () => {

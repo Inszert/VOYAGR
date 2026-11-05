@@ -14,6 +14,7 @@ import type {
 } from '@/core/trip/types';
 import type { ProviderKind } from '@/providers/types';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
+import type { Freshness } from '@/core/freshness';
 import type { DestinationSummary } from './destinations';
 
 /**
@@ -191,6 +192,15 @@ export interface RankedTrip {
   readonly warnings: readonly TravelWarning[];
   readonly score: TripScore;
   readonly usableTime: UsableTimeResult;
+  /**
+   * How current this one trip's quotes are, judged against the instant the
+   * search started - the same clock `SearchDiagnostics.quoteFreshness`
+   * already counts against, so a card's own notice and the search's
+   * aggregate banner can never disagree. The weaker of the flight and hotel
+   * quote, same rule as the aggregate: a trip is only as current as its
+   * stalest half.
+   */
+  readonly quoteFreshness: Freshness;
 }
 
 export interface SearchDiagnostics {

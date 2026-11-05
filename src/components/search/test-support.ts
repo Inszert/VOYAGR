@@ -5,6 +5,7 @@ import { computeUsableTime } from '@/core/trip/usable-time';
 import { buildCandidate, buildProfile } from '@/core/trip/test-support';
 import type { SearchProfile, TripCandidate } from '@/core/trip/types';
 import type { RankedTrip } from '@/search/types';
+import type { Freshness } from '@/core/freshness';
 
 /**
  * A ranked trip for component tests.
@@ -19,6 +20,7 @@ import type { RankedTrip } from '@/search/types';
 export function buildRankedTrip(
   overrides: Partial<TripCandidate> = {},
   profileOverrides: Partial<SearchProfile> = {},
+  quoteFreshness: Freshness = 'fresh',
 ): RankedTrip {
   const candidate = buildCandidate(overrides);
   const profile = buildProfile(profileOverrides);
@@ -31,5 +33,6 @@ export function buildRankedTrip(
     warnings: detectTravelWarnings(candidate, cost),
     score: scoreTrip(candidate, cost, profile),
     usableTime: computeUsableTime(candidate),
+    quoteFreshness,
   };
 }

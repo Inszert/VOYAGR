@@ -159,6 +159,15 @@ export function ResultFiltersPanel({
 
           <div className="flex flex-col gap-3">
             <Field
+              label={`Total at least (${currency})`}
+              name="fMinTotal"
+              type="number"
+              min={1}
+              step="1"
+              defaultValue={filters.minTotal ? String(toMajor(filters.minTotal)) : ''}
+              className="w-full"
+            />
+            <Field
               label={`Total no more than (${currency})`}
               name="fMaxTotal"
               type="number"

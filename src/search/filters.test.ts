@@ -21,11 +21,12 @@ import {
 describe('parseFilters', () => {
   it('reads what was asked for', () => {
     const filters = parseFilters(
-      { fMaxTotal: '700', fDirect: 'on', fMinReview: '8.5', fMaxStops: '1' },
+      { fMaxTotal: '700', fMinTotal: '200', fDirect: 'on', fMinReview: '8.5', fMaxStops: '1' },
       'EUR',
     );
 
     expect(filters.maxTotal).toEqual(money(70000, 'EUR'));
+    expect(filters.minTotal).toEqual(money(20000, 'EUR'));
     expect(filters.directOnly).toBe(true);
     expect(filters.minReviewScore).toBe(8.5);
     expect(filters.maxStops).toBe(1);
@@ -54,6 +55,44 @@ describe('price', () => {
 
     expect(matchesFilters(trip, { ...NO_FILTERS, maxTotal: money(total, 'EUR') })).toBe(true);
     expect(matchesFilters(trip, { ...NO_FILTERS, maxTotal: money(total - 1, 'EUR') })).toBe(false);
+  });
+
+  it('hides a trip under the floor and keeps one exactly on it', () => {
+    const trip = buildRankedTrip();
+    const total = trip.cost.total.amount;
+
+    expect(matchesFilters(trip, { ...NO_FILTERS, minTotal: money(total, 'EUR') })).toBe(true);
+    expect(matchesFilters(trip, { ...NO_FILTERS, minTotal: money(total + 1, 'EUR') })).toBe(false);
+  });
+
+  it('keeps a trip inside both bounds at once', () => {
+    const trip = buildRankedTrip();
+    const total = trip.cost.total.amount;
+
+    expect(
+      matchesFilters(trip, {
+        ...NO_FILTERS,
+        minTotal: money(total - 1, 'EUR'),
+        maxTotal: money(total + 1, 'EUR'),
+      }),
+    ).toBe(true);
+  });
+
+  it('hides every trip under an inverted range, rather than crashing or guessing', () => {
+    // min above max is a contradiction, not a special case this filter needs
+    // to detect: each bound is checked independently, so nothing can satisfy
+    // both, and the result is honestly empty - same as any other
+    // mutually-exclusive combination of filters.
+    const trip = buildRankedTrip();
+    const total = trip.cost.total.amount;
+
+    expect(
+      matchesFilters(trip, {
+        ...NO_FILTERS,
+        minTotal: money(total + 100, 'EUR'),
+        maxTotal: money(total - 100, 'EUR'),
+      }),
+    ).toBe(false);
   });
 });
 

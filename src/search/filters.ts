@@ -1,4 +1,4 @@
-import { fromMajor, greaterThan, type Money } from '@/core/money';
+import { fromMajor, greaterThan, lessThan, type Money } from '@/core/money';
 import { localHour } from '@/core/dates';
 import type { RankedTrip } from './types';
 
@@ -24,6 +24,8 @@ import type { RankedTrip } from './types';
 export interface ResultFilters {
   /** Hide trips whose total exceeds this. */
   readonly maxTotal: Money | null;
+  /** Hide trips whose total is below this. */
+  readonly minTotal: Money | null;
   /** Hide anything with a connection. */
   readonly directOnly: boolean;
   /** Connections allowed per leg. Null means no limit. */
@@ -60,6 +62,7 @@ export interface ResultFilters {
 
 export const NO_FILTERS: ResultFilters = {
   maxTotal: null,
+  minTotal: null,
   directOnly: false,
   maxStops: null,
   departAfterHour: null,
@@ -75,6 +78,7 @@ export const NO_FILTERS: ResultFilters = {
 /** Query-string keys, prefixed so they cannot collide with the search itself. */
 export const FILTER_KEYS = [
   'fMaxTotal',
+  'fMinTotal',
   'fDirect',
   'fMaxStops',
   'fDepartAfter',
@@ -112,10 +116,13 @@ export function parseFilters(
   currency: string,
 ): ResultFilters {
   const maxTotalMajor = numberOrNull(params.fMaxTotal);
+  const minTotalMajor = numberOrNull(params.fMinTotal);
 
   return {
     maxTotal:
       maxTotalMajor !== null && maxTotalMajor > 0 ? fromMajor(maxTotalMajor, currency) : null,
+    minTotal:
+      minTotalMajor !== null && minTotalMajor > 0 ? fromMajor(minTotalMajor, currency) : null,
     directOnly: isOn(params.fDirect),
     maxStops: numberOrNull(params.fMaxStops),
     departAfterHour: numberOrNull(params.fDepartAfter),
@@ -134,6 +141,7 @@ export function parseFilters(
 export function hasActiveFilters(filters: ResultFilters): boolean {
   return (
     filters.maxTotal !== null ||
+    filters.minTotal !== null ||
     filters.directOnly ||
     filters.maxStops !== null ||
     filters.departAfterHour !== null ||
@@ -165,6 +173,7 @@ function stopsOf(trip: RankedTrip): number {
  */
 export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolean {
   if (filters.maxTotal && greaterThan(trip.cost.total, filters.maxTotal)) return false;
+  if (filters.minTotal && lessThan(trip.cost.total, filters.minTotal)) return false;
 
   const stops = stopsOf(trip);
   if (filters.directOnly && stops > 0) return false;
