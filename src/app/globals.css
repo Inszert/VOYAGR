@@ -213,8 +213,10 @@
   --color-stage-sea: #1b3a5c;
   --color-stage-sea-deep: #060d16;
   /* The blue the atmosphere scatters at the limb, and in the halo beyond it. */
-  --color-stage-atmosphere: #4a7fd4;
-  --color-stage-atmosphere-outer: #2f4f96;
+  --color-stage-atmosphere: #4f9dff;
+  --color-stage-atmosphere-outer: #2a62c4;
+  /* A flight arc and the light at each end of it: blue-white, drawn at 70%. */
+  --color-stage-arc: #bcd6ff;
   /*
    * The planet's own palette.
    *
@@ -875,8 +877,8 @@
 @layer components {
   .voyagr-orb {
     position: absolute;
-    left: 50%;
-    top: 50%;
+    left: var(--globe-cx, 50%);
+    top: var(--globe-cy, 50%);
     width: var(--globe-diameter, 0px);
     height: var(--globe-diameter, 0px);
     translate: -50% -50%;
@@ -990,36 +992,24 @@
     background: radial-gradient(
       circle at 50% 50%,
       transparent 0%,
-      transparent 88%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 10%, transparent) 95%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 30%, transparent) 99.5%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 38%, transparent) 100%
+      transparent 90%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 14%, transparent) 95%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 46%, transparent) 99%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 78%, transparent) 100%
     );
     /*
-     * The glow outside the limb falls off over about six per cent of the
-     * radius, which is what an atmosphere seen edge-on does, and a much
-     * wider, much fainter bleed carries the last of it into the page. Both
-     * add light - there is nothing dark drawn around this sphere anywhere,
-     * which is what the ring was.
-     */
-    /*
-     * Out over about seven per cent of the radius, and nothing but light.
-     *
-     * Seven per cent of the radius is three and a half of the diameter, which
-     * is the first shadow; the second is a much wider, much fainter bleed
-     * that carries the last of it into the page. Every one of these adds
-     * light - `screen` below guarantees it - so there is no dark band
-     * anywhere between the sphere's edge and the glow. That band was
-     * MapLibre's own atmosphere fading out to a colour darker than the page,
-     * and it is switched off in the style now.
+     * A bright electric-blue rim hugging the limb, and a soft halo about six
+     * per cent of the radius beyond it. Nothing grey over the disc: every
+     * layer here adds light (`screen`), and the haze that used to wash the
+     * ocean is gone.
      */
     box-shadow:
-      0 0 calc(var(--globe-diameter, 0px) * 0.035) calc(var(--globe-diameter, 0px) * 0.004)
-        color-mix(in oklab, var(--color-stage-atmosphere) 42%, transparent),
-      0 0 calc(var(--globe-diameter, 0px) * 0.12) calc(var(--globe-diameter, 0px) * 0.012)
-        color-mix(in oklab, var(--color-stage-atmosphere) 16%, transparent),
-      0 0 calc(var(--globe-diameter, 0px) * 0.42) calc(var(--globe-diameter, 0px) * 0.04)
-        color-mix(in oklab, var(--color-stage-atmosphere-outer) 9%, transparent);
+      0 0 calc(var(--globe-diameter, 0px) * 0.014) calc(var(--globe-diameter, 0px) * 0.002)
+        color-mix(in oklab, var(--color-stage-atmosphere) 80%, transparent),
+      0 0 calc(var(--globe-diameter, 0px) * 0.06) calc(var(--globe-diameter, 0px) * 0.01)
+        color-mix(in oklab, var(--color-stage-atmosphere) 38%, transparent),
+      0 0 calc(var(--globe-diameter, 0px) * 0.2) calc(var(--globe-diameter, 0px) * 0.02)
+        color-mix(in oklab, var(--color-stage-atmosphere-outer) 14%, transparent);
     mix-blend-mode: screen;
   }
 
@@ -1035,14 +1025,13 @@
     background: radial-gradient(
       circle at 50% 50%,
       transparent 0%,
-      transparent 88%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 5%, transparent) 95%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 15%, transparent) 99.5%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 19%, transparent) 100%
+      transparent 90%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 8%, transparent) 95%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 24%, transparent) 99%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 40%, transparent) 100%
     );
-    box-shadow: 0 0 calc(var(--globe-diameter, 0px) * 0.035)
-      calc(var(--globe-diameter, 0px) * 0.004)
-      color-mix(in oklab, var(--color-stage-atmosphere) 21%, transparent);
+    box-shadow: 0 0 calc(var(--globe-diameter, 0px) * 0.03) calc(var(--globe-diameter, 0px) * 0.006)
+      color-mix(in oklab, var(--color-stage-atmosphere) 40%, transparent);
     -webkit-mask-image: radial-gradient(
       circle at var(--globe-sun-x, 50%) var(--globe-sun-y, 40%),
       #000 0%,
@@ -1070,9 +1059,13 @@
   .voyagr-arcs {
     position: absolute;
     inset: 0;
+    /* An SVG is a replaced element: `inset` alone leaves it 300x150. */
+    width: 100%;
+    height: 100%;
     z-index: 2;
     pointer-events: none;
-    overflow: visible;
+    /* Clipped to the stage: an arc never draws over the site's header. */
+    overflow: hidden;
     opacity: var(--globe-shown, 0);
     transition: opacity var(--duration-deliberate) var(--ease-standard);
   }
@@ -2044,4 +2037,16 @@
 /* An open search is a surface to read and fill in: nearly opaque over the planet. */
 .voyagr-search:has(#hero-search-open:checked) {
   background: color-mix(in oklab, var(--color-stage-deep) 96%, transparent);
+}
+
+/* From 1024px the words have their own side; the shade only has to catch a planet that flies under them. */
+@media (min-width: 1024px) {
+  .voyagr-hero-scrim {
+    background: radial-gradient(
+      ellipse 40% 32% at 18% 84%,
+      color-mix(in oklab, var(--color-stage-deep) 80%, transparent) 0%,
+      color-mix(in oklab, var(--color-stage-deep) 45%, transparent) 55%,
+      transparent 100%
+    );
+  }
 }

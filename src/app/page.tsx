@@ -189,6 +189,9 @@ export default async function DiscoverPage({
         season={page.season}
         airports={page.airports}
         rail={rail}
+        featured={
+          rail[0] && railCards[0] ? { item: rail[0], reason: railCards[0].point.reason } : null
+        }
         searched={false}
         action="/explore"
       />

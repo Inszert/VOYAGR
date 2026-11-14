@@ -29,12 +29,15 @@ import {
 } from '@/discovery/terminator';
 import { GLOBE_TEXTURES } from './globe-textures';
 import {
+  facing,
+  limbFade,
   pointAt,
   projectArc,
   readSphere,
   sunOnSphere,
   toArcRuns,
   type ProjectedArc,
+  type SphereFrame,
 } from './globe-arcs';
 import {
   ARC_DRAW_MS,
@@ -51,8 +54,13 @@ import {
   SPIN_RESUME_DELAY_MS,
   arcLightFraction,
   arcLightOpacity,
+  ARC_FADE_MS,
+  arcTargetOpacity,
+  labelFlips,
+  labelLimit,
   changedPins,
   heroDiameter,
+  WIDE_MIN_WIDTH,
   spinFactor,
 } from './globe-motion';
 
@@ -270,19 +278,24 @@ function returnTo(view: { center: [number, number]; zoom: number }) {
 }
 
 /**
- * The colour an arc is drawn in, by how many times its best trip changes planes.
+ * Where the planet sits in a wide hero: the centre of the right two thirds.
  *
- * Direct keeps the route colour, one change is amber and two or more is coral.
- * Colour is never the only signal: the legend names each, the card for the
- * place says "1 stop" in words, and the chip's accessible name carries it too.
+ * The map's canvas is the whole hero - a box that stopped at the planet's
+ * left edge cut the sphere off in a hard vertical line the moment it was
+ * zoomed past the box - and the planet is moved right of centre by padding the
+ * camera instead, so the view's centre is at 66% of the width.
  */
-function routeStroke(stops: number | null): string {
-  if (stops === null || stops <= 0) return 'var(--color-stage-route)';
-  return stops === 1 ? 'var(--color-stage-route-1)' : 'var(--color-stage-route-2)';
+function stagePadding(width: number): { top: number; right: number; bottom: number; left: number } {
+  return {
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: width >= WIDE_MIN_WIDTH ? Math.round(width * 0.32) : 0,
+  };
 }
 
 /** The painted sphere is measured at about 0.855 of the side `overview` is given. */
-const STAGE_FIT = 1.17;
+const STAGE_FIT = 1.22;
 
 /** Where the world opens when there is nothing to fit to: Europe and the Mediterranean. */
 const FALLBACK_VIEW = { center: [18, 38] as [number, number], zoom: 1.8 };
@@ -392,7 +405,7 @@ function overview(
   const side = stage
     ? // The painted disc is about 0.855 of `side` (see the note below), so ask
       // for the diameter the design wants divided by that.
-      heroDiameter(container.clientWidth, window.innerHeight) * STAGE_FIT
+      heroDiameter(window.innerWidth, window.innerHeight) * STAGE_FIT
     : Math.min(container.clientWidth, container.clientHeight);
   // MapLibre draws the globe with the mercator world's width as its
   // circumference: 512px at zoom zero, doubling per level. So its diameter
@@ -415,7 +428,7 @@ function overview(
 
   return {
     center: [anchor[0], Math.max(-30, Math.min(30, anchor[1] - 12))],
-    zoom: Math.max(-1, Math.min(zoom, 2.6)),
+    zoom: Math.max(-1, Math.min(zoom, stage ? 3 : 2.6)),
   };
 }
 
@@ -468,6 +481,8 @@ export function GlobeStage({
   const visibleRef = React.useRef(true);
   /** True while the camera is parked on a destination the rail pointed at. */
   const flownRef = React.useRef(false);
+  /** The destination the camera was pointed at, so only its arc is shown. */
+  const focusedRef = React.useRef<string | null>(null);
   /** Which projection the camera is in, readable from the creation effect. */
   const projectionRef = React.useRef<'globe' | 'mercator'>('globe');
   const stage = variant === 'stage';
@@ -984,11 +999,37 @@ export function GlobeStage({
             }
           };
 
+          // How many labels the globe carries at once, and which way it faces.
+          const limit = stage ? labelLimit(window.innerWidth) : Number.POSITIVE_INFINITY;
+          const centre = map.getCenter();
+          const view = { lng: centre.lng, lat: centre.lat } as SphereFrame;
+          let shown = 0;
+
           for (const [, marker] of ordered) {
             const chipElement = marker.getElement();
 
             // Behind the planet: MapLibre has hidden it already.
             if (chipElement.classList.contains('maplibregl-marker-covered')) continue;
+
+            /*
+             * Nothing hangs on the horizon.
+             *
+             * A label just inside the limb used to be drawn dim and half under
+             * the planet, a ghost over somebody else's label. It fades out as
+             * its place turns away and is gone before it gets there, and while
+             * it is gone it takes no part in the collision pass.
+             */
+            const at = marker.getLngLat();
+            const fade = limbFade(facing(at.lng, at.lat, view));
+            const face = chipElement.firstElementChild as HTMLElement | null;
+            if (face) {
+              const value = fade.toFixed(2);
+              if (face.style.opacity !== value) face.style.opacity = value;
+            }
+            if (fade < 0.05) {
+              setCollided(chipElement, true);
+              continue;
+            }
 
             let rect = chipElement.getBoundingClientRect();
             if (rect.width === 0) continue;
@@ -1005,7 +1046,15 @@ export function GlobeStage({
              */
             const flipped = chipElement.classList.contains('voyagr-chip-left');
             const anchor = flipped ? rect.right - 5 : rect.left + 5;
-            const wanted = anchor > box.left + box.width * 0.6;
+            const wanted = stage
+              ? labelFlips({
+                  anchorX: anchor,
+                  labelWidth: rect.width,
+                  boxLeft: box.left,
+                  boxRight: box.right,
+                  viewportWidth: window.innerWidth,
+                })
+              : anchor > box.left + box.width * 0.6;
 
             if (wanted !== flipped) {
               chipElement.classList.toggle('voyagr-chip-left', wanted);
@@ -1027,16 +1076,21 @@ export function GlobeStage({
               continue;
             }
 
-            const collides = placed.some(
-              (other) =>
-                rect.left < other.right + 4 &&
-                rect.right > other.left - 4 &&
-                rect.top < other.bottom + 4 &&
-                rect.bottom > other.top - 4,
-            );
+            const collides =
+              shown >= limit ||
+              placed.some(
+                (other) =>
+                  rect.left < other.right + 4 &&
+                  rect.right > other.left - 4 &&
+                  rect.top < other.bottom + 4 &&
+                  rect.bottom > other.top - 4,
+              );
 
             setCollided(chipElement, collides);
-            if (!collides) placed.push(rect);
+            if (!collides) {
+              placed.push(rect);
+              shown += 1;
+            }
           }
         };
 
@@ -1092,6 +1146,7 @@ export function GlobeStage({
           // The origins, routes and destinations are all filled by the effect
           // below, which runs as soon as this sets `ready`. Only the opening
           // view belongs here, because it needs the container's real size.
+          if (variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
           map.jumpTo(overview(element, origins, initial.chips, variant === 'stage'));
 
           /*
@@ -1113,6 +1168,7 @@ export function GlobeStage({
             frame = window.requestAnimationFrame(() => {
               if (cancelled) return;
               map.resize();
+              if (variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
 
               const fitted = overview(element, origins, latest.current.chips, variant === 'stage');
               if (Math.abs(map.getZoom() - restingZoom) < 0.05) {
@@ -1152,6 +1208,10 @@ export function GlobeStage({
           (map.getSource('city-lights') as GeoJSONSource | undefined)?.setData(cityLightsUrl);
 
           mapRef.current = map;
+          // Automation only: lets a browser test ask the map where a pin
+          // belongs and compare it with where the pin was drawn.
+          if (navigator.webdriver)
+            (window as unknown as { __voyagrMap?: MapLibreMap }).__voyagrMap = map;
           readBiome();
           setStatus('ready');
         });
@@ -1435,14 +1495,33 @@ export function GlobeStage({
      * no link and no figure would be the most expensive thing on the page.
      * The chips beside them stay React, because those are content.
      */
+    const keys = runs.map((run) => run.key);
+
+    /*
+     * One group per route, so its opacity is one number: fading in with the
+     * hero, fading out when another destination is selected, and fading out
+     * when it runs round to the far side of the planet.
+     *
+     * Thin blue-white luminous lines with a soft glow, and a small bright node
+     * at each end. Colour no longer carries the stop count: that is in words
+     * on every destination card.
+     */
     const drawn = runs.map((run) => {
+      const group = document.createElementNS(NS, 'g');
       const glow = document.createElementNS(NS, 'path');
       const line = document.createElementNS(NS, 'path');
+      const ends = [0, 1].map(() => {
+        const halo = document.createElementNS(NS, 'circle');
+        const core = document.createElementNS(NS, 'circle');
+        for (const circle of [halo, core]) circle.setAttribute('fill', 'var(--color-stage-arc)');
+        halo.setAttribute('r', '7');
+        halo.setAttribute('fill-opacity', '0.28');
+        core.setAttribute('r', '2.6');
+        core.setAttribute('fill-opacity', '1');
+        return { halo, core };
+      });
       // One light per route: 6px across, travelling the arc once per 4s.
       const light = moving ? document.createElementNS(NS, 'circle') : null;
-
-      // One pixel. A route is a thread over a planet, not a pipe.
-      const width = run.selected ? 1.5 : 1;
 
       /*
        * `pathLength` of 1 makes the dash arithmetic independent of the path's
@@ -1454,30 +1533,43 @@ export function GlobeStage({
         path.setAttribute('pathLength', '1');
         path.setAttribute('stroke-dasharray', '1 1');
         path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', routeStroke(run.stops));
+        path.setAttribute('stroke', 'var(--color-stage-arc)');
         path.setAttribute('stroke-linecap', 'round');
       }
 
-      glow.setAttribute('stroke-width', String(width * 6));
-      glow.setAttribute('stroke-opacity', '0.12');
+      glow.setAttribute('stroke-width', '5');
+      glow.setAttribute('stroke-opacity', '0.2');
 
-      line.setAttribute('stroke-width', String(width));
-      line.setAttribute('stroke-opacity', run.selected ? '0.9' : '0.6');
+      line.setAttribute('stroke-width', '1');
+      line.setAttribute('stroke-opacity', '0.7');
 
-      svg.append(glow, line);
+      group.append(glow, line);
+      for (const { halo, core } of ends) group.append(halo, core);
 
       if (light) {
         light.setAttribute('r', '3');
         light.setAttribute('fill', 'var(--color-stage-chip-ink)');
-        light.setAttribute('stroke', routeStroke(run.stops));
+        light.setAttribute('stroke', 'var(--color-stage-arc)');
         light.setAttribute('stroke-width', '4');
         light.setAttribute('stroke-opacity', '0.35');
         light.setAttribute('fill-opacity', '0');
-        light.setAttribute('stroke-linejoin', 'round');
-        svg.append(light);
+        group.append(light);
       }
 
-      return { run, glow, line, light, drawnAt: null as number | null };
+      group.setAttribute('opacity', '0');
+      svg.append(group);
+
+      return {
+        run,
+        group,
+        glow,
+        line,
+        light,
+        ends,
+        shown: 1,
+        written: -1,
+        drawnAt: null as number | null,
+      };
     });
 
     /** Starts a route's 900ms draw the first time it has a path to draw. */
@@ -1507,6 +1599,7 @@ export function GlobeStage({
     // the first frame always writes it.
     let groundTrackHidden: boolean | null = null;
     const arcs = new Map<string, ProjectedArc>();
+    let previousFrame = performance.now();
 
     /*
      * Custom properties are only written when they change.
@@ -1565,6 +1658,9 @@ export function GlobeStage({
       const sphere = readSphere(map, globe);
 
       write('--globe-diameter', `${sphere.diameter.toFixed(1)}px`);
+      // Where the sphere really is: not the middle of the view once it is tilted.
+      write('--globe-cx', `${sphere.x.toFixed(1)}px`);
+      write('--globe-cy', `${sphere.y.toFixed(1)}px`);
       write('--globe-shown', sphere.shown.toFixed(3));
 
       /*
@@ -1648,20 +1744,65 @@ export function GlobeStage({
         }
 
         for (const entry of drawn) {
-          const { run, glow, line } = entry;
+          const { run, glow, line, ends } = entry;
           const arc = projectArc(map, run, sphere);
 
           if (!arc) {
             arcs.delete(run.key);
             glow.removeAttribute('d');
             line.removeAttribute('d');
+            for (const { halo, core } of ends) {
+              halo.setAttribute('visibility', 'hidden');
+              core.setAttribute('visibility', 'hidden');
+            }
             continue;
           }
 
           arcs.set(run.key, arc);
           glow.setAttribute('d', arc.d);
           line.setAttribute('d', arc.d);
+
+          const first = arc.points[0]!;
+          const last = arc.points[arc.points.length - 1]!;
+          for (const [which, { halo, core }] of ends.entries()) {
+            const at = which === 0 ? first : last;
+            const visible = which === 0 ? arc.startVisible : arc.endVisible;
+            for (const circle of [halo, core]) {
+              circle.setAttribute('cx', at.x.toFixed(1));
+              circle.setAttribute('cy', at.y.toFixed(1));
+              circle.setAttribute('visibility', visible ? 'visible' : 'hidden');
+            }
+          }
+
           startDraw(entry, drawn.indexOf(entry), now);
+        }
+      }
+
+      /*
+       * Each arc's opacity, every frame.
+       *
+       * Heading for 1 - or 0 when another destination is the selected one -
+       * at the speed that takes 220ms, and multiplied by how squarely its far
+       * end faces us, so a route to the other side of the planet fades out
+       * instead of stopping at the limb. Written only when it changes.
+       */
+      const seconds = Math.min(0.1, (now - previousFrame) / 1000);
+      previousFrame = now;
+
+      for (const entry of drawn) {
+        const target = arcTargetOpacity(keys, entry.run.key, focusedRef.current);
+        entry.shown = moving
+          ? entry.shown +
+            Math.sign(target - entry.shown) *
+              Math.min(Math.abs(target - entry.shown), (seconds * 1000) / ARC_FADE_MS)
+          : target;
+
+        const opacity =
+          entry.drawnAt === null ? 0 : entry.shown * (arcs.get(entry.run.key)?.fade ?? 0);
+        const rounded = Math.round(opacity * 100) / 100;
+        if (rounded !== entry.written) {
+          entry.written = rounded;
+          entry.group.setAttribute('opacity', String(rounded));
         }
       }
 
@@ -1711,11 +1852,7 @@ export function GlobeStage({
     return () => {
       window.clearTimeout(begin);
       window.cancelAnimationFrame(frame);
-      for (const { glow, line, light } of drawn) {
-        glow.remove();
-        line.remove();
-        light?.remove();
-      }
+      for (const { group } of drawn) group.remove();
     };
   }, [routes, status, projection]);
 
@@ -2280,6 +2417,7 @@ export function GlobeStage({
       if (!chip || latest.current.selectedCountry || projectionRef.current !== 'globe') return;
 
       flownRef.current = true;
+      focusedRef.current = code ?? null;
       const resting = overview(map.getContainer(), origins, latest.current.chips, stage);
 
       map.easeTo({
@@ -2294,6 +2432,7 @@ export function GlobeStage({
     const onRelease = () => {
       if (!flownRef.current) return;
       flownRef.current = false;
+      focusedRef.current = null;
       map.easeTo(returnTo(overview(map.getContainer(), origins, latest.current.chips, stage)));
     };
 
@@ -2573,38 +2712,6 @@ export function GlobeStage({
       {/* Zoom and recentre. Ordinary buttons, outside the canvas. */}
       {status === 'ready' ? (
         <>
-          {/*
-            What the colours of the flights mean, in words as well as colour.
-            Only when there are flights to colour: a key to nothing is noise.
-          */}
-          {routes.features.length > 0 ? (
-            <ul
-              aria-label="Colour of the flights"
-              data-globe-overlay
-              className={cn(
-                'stage-scope text-stage-ink-muted absolute top-4 z-[5] flex flex-wrap gap-x-3 gap-y-1 text-[11px]',
-                stage ? 'left-4 sm:left-6' : 'left-0',
-              )}
-            >
-              {(
-                [
-                  ['Direct', 'var(--color-stage-route)'],
-                  ['1 stop', 'var(--color-stage-route-1)'],
-                  ['2+ stops', 'var(--color-stage-route-2)'],
-                ] as const
-              ).map(([label, colour]) => (
-                <li key={label} className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="inline-block h-0.5 w-4 rounded-full"
-                    style={{ background: colour }}
-                  />
-                  {label}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
           <div
             role="group"
             aria-label="Globe controls"
@@ -2662,7 +2769,12 @@ export function GlobeStage({
             role="group"
             aria-label="Projection"
             data-globe-overlay
-            className="voyagr-panel stage-scope absolute right-4 bottom-4 z-[5] flex gap-1 rounded-(--radius-pill) p-1"
+            className={cn(
+              'voyagr-panel stage-scope absolute right-4 z-[5] flex gap-1 rounded-(--radius-pill) p-1',
+              // The box runs below the hero on a wide screen, so the corner is
+              // measured from the hero's edge, not the box's.
+              stage ? 'bottom-4 lg:bottom-[calc(8%+1.5rem)]' : 'bottom-4',
+            )}
           >
             {(
               [
@@ -2701,6 +2813,7 @@ export function GlobeStage({
             key={chip.destination}
             href={chip.href}
             data-destination={chip.destination}
+            data-lnglat={`${chip.position[0]},${chip.position[1]}`}
             data-highlighted={chip.highlighted ? 'true' : undefined}
             data-sky={chip.condition ?? undefined}
             className={cn(
@@ -2722,7 +2835,9 @@ export function GlobeStage({
 
             <span className="flex flex-col gap-0.5">
               <span className="sr-only">{chip.actionLabel} </span>
-              <span className="text-[13px] font-medium">{chip.name}</span>
+              <span className="text-[14px] leading-tight font-semibold text-white">
+                {chip.name}
+              </span>
               {/*
                 The sky there on the searched dates is shown, not written: a
                 haze around the place (see `data-sky` in `globals.css`). Screen
@@ -2737,15 +2852,27 @@ export function GlobeStage({
                 empty figure beside a provenance badge would imply one.
               */}
               {chip.label ? (
-                <span className="text-muted flex items-center gap-1.5 text-[13px]">
+                <span className="flex items-center gap-1.5 text-[14px] leading-tight text-white">
                   <span className="tabular-nums">{chip.label}</span>
-                  <ProvenanceBreakdown
-                    compact
-                    sources={sources}
-                    provenance={provenance}
-                    className="flex flex-col gap-0.5"
-                    badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
-                  />
+                  {/*
+                    Said once on the page, not on every pin.
+
+                    A demo price carries its provenance in the line under the
+                    hero, and a long tag on each of sixteen pins made the globe
+                    unreadable. A real source keeps its badge here, exactly as
+                    before, and a demo pin still says so to a screen reader.
+                  */}
+                  {provenance === 'mock' ? (
+                    <span className="sr-only"> (demo data)</span>
+                  ) : (
+                    <ProvenanceBreakdown
+                      compact
+                      sources={sources}
+                      provenance={provenance}
+                      className="flex flex-col gap-0.5"
+                      badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
+                    />
+                  )}
                 </span>
               ) : null}
             </span>

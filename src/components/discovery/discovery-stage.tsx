@@ -8,6 +8,8 @@ import type { AirportSuggestion } from '@/search/destination-names';
 import type { SearchFormErrors } from '@/search/schema';
 import { CompactSearch } from './compact-search';
 import { GlobeStage, type GlobeStageProps } from './globe-stage';
+import { FeaturedCard } from './featured-card';
+import { HeroMetrics } from './hero-metrics';
 import { HeroRail, type HeroRailItem } from './hero-rail';
 
 /**
@@ -57,6 +59,8 @@ export interface DiscoveryStageProps {
    * The same places, figures and links as the rail below the hero.
    */
   rail?: readonly HeroRailItem[];
+  /** The one destination on the hero: the first of the rail, and why it is first. */
+  featured?: { readonly item: HeroRailItem; readonly reason: string } | null;
   /** True when the stage sits above results, so the copy can be shorter. */
   searched: boolean;
   action: '/' | '/explore';
@@ -94,6 +98,7 @@ export function DiscoveryStage({
   season,
   airports,
   rail = [],
+  featured = null,
   searched,
   action,
 }: DiscoveryStageProps) {
@@ -133,25 +138,30 @@ export function DiscoveryStage({
       */}
       <div
         data-hero
-        className="group/hero relative h-[calc(100svh-56px)] min-h-[40rem] pt-[72px] sm:h-[100svh] sm:min-h-[44rem]"
+        className="group/hero relative h-[calc(100svh-var(--hero-top,56px))] min-h-[40rem] pt-[calc(var(--hero-top,56px)+72px)] sm:h-[calc(100svh-var(--hero-top,0px))] sm:min-h-[44rem] sm:pt-[calc(var(--hero-top,0px)+72px)] lg:overflow-clip"
       >
+        <HeroMetrics />
+
         {/*
           The planet.
 
-          On a phone (where the header wraps to 128px, so the hero starts 56px
-          higher than the header's 72px implies) the box starts at 38% of the screen and is as tall as the
-          sphere is wide (118vw); anywhere wider it is everything under the
-          header, and the sphere is sized to the window by `heroDiameter`.
-          Behind everything else, and the content layer lets pointers through
-          wherever it is empty, so the globe can still be dragged.
+          Three compositions. On a phone the box starts 38% down the screen
+          and is as tall as the sphere is wide (118vw), so it bleeds off both
+          sides; the hero's own top is measured (`HeroMetrics`), not assumed,
+          because the header wraps there. In between it is centred. From 1024px
+          it is the whole hero with the camera padded so the sphere's centre is at
+          66% of the width, and the box starts 8% down so the bottom of the planet
+          runs off the hero - the hero crops it. Behind everything else, and
+          the content layer lets pointers through wherever it is empty, so the
+          globe can still be dragged.
         */}
         <GlobeStage
           {...globe}
           variant="stage"
-          className="absolute inset-x-0 top-[calc(38svh-56px)] z-0 h-[118vw] sm:top-[72px] sm:bottom-0 sm:h-auto"
+          className="absolute inset-x-0 top-[calc(38svh-var(--hero-top,56px))] z-0 h-[118vw] sm:top-[calc(var(--hero-top,0px)+72px)] sm:bottom-0 sm:h-auto lg:top-[8%] lg:bottom-auto lg:h-full"
         />
 
-        {/* Legibility for the headline over the lit land: a scrim, not a panel. */}
+        {/* Dark behind the words wherever the planet comes under them: a scrim, not a panel. */}
         <div
           aria-hidden="true"
           className="voyagr-hero-scrim pointer-events-none absolute inset-0 z-[1]"
@@ -178,7 +188,7 @@ export function DiscoveryStage({
             */}
             <h1
               id="stage-heading"
-              className="stage-rise lg:text-display-xl max-w-[15ch] text-[2.75rem] leading-none tracking-[-0.03em] text-balance sm:text-[3.5rem]"
+              className="stage-rise 2xl:text-display-xl max-w-[15ch] text-[2.75rem] leading-none tracking-[-0.03em] text-balance sm:text-[3.5rem]"
               style={{ '--stage-delay': '40ms' } as React.CSSProperties}
             >
               {searched ? (
@@ -203,7 +213,7 @@ export function DiscoveryStage({
           {/* The one bar. Expands in place, upward. */}
           <div
             data-globe-overlay
-            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-5 max-sm:w-auto lg:max-w-[64rem]"
+            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-5 max-sm:w-auto lg:max-w-[60rem]"
             style={{ '--stage-delay': '120ms' } as React.CSSProperties}
           >
             <CompactSearch
@@ -223,18 +233,18 @@ export function DiscoveryStage({
             />
           </div>
 
-          {/* The right-edge rail: live destinations, tied to their pins. */}
-          {rail.length > 0 ? (
-            <div className="pointer-events-auto absolute inset-y-0 right-4 hidden items-center lg:flex xl:right-6">
-              <div className="mt-6">
-                <HeroRail items={rail} provenance={provenance} sources={sources} />
-              </div>
+          {/* One destination, bottom right of the planet, like a pin that has been opened. */}
+          {featured ? (
+            <div className="pointer-events-auto absolute right-4 bottom-[6.5rem] hidden w-[19.5rem] lg:block xl:right-6">
+              <FeaturedCard item={featured.item} reason={featured.reason} />
             </div>
           ) : null}
         </Container>
       </div>
 
-      <Container size="wide" className="flex flex-col gap-6 pt-8 pb-12 lg:pb-16">
+      <Container size="wide" className="flex flex-col gap-8 pt-10 pb-12 lg:pb-16">
+        <HeroRail items={rail} provenance={provenance} sources={sources} />
+
         <p className="text-muted max-w-[520px] text-[15px] leading-[1.6] sm:hidden">{INTRO}</p>
 
         {/*
@@ -280,6 +290,8 @@ export function DiscoveryStage({
           </span>
           <span aria-hidden="true">·</span>
           <span>Drag to turn it.</span>
+          <span aria-hidden="true">·</span>
+          <span>Imagery: NASA Earth Observatory / Blue Marble</span>
         </p>
       </Container>
     </section>

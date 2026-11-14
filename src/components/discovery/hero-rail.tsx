@@ -1,20 +1,14 @@
-'use client';
-
-import * as React from 'react';
 import { Icon, ProvenanceBreakdown } from '@/components/ui';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
-import { GLOBE_FOCUS_EVENT, GLOBE_RELEASE_EVENT } from './globe-motion';
+import { initials } from './initials';
 
 /**
- * The right-edge rail: up to five live destinations, each tied to its pin.
+ * Live destinations, as the first section under the hero: up to five rows,
+ * each a real link to the same search its pin leads to, with the figure the
+ * server formatted. Nothing here is computed.
  *
- * Every row is a real link to the same search its pin leads to, with the same
- * figure the server formatted - nothing here is computed. The rail only adds a
- * conversation with the globe: focusing a row (or resting a pointer on it)
- * flies the camera to its pin and lifts the pin; reaching a pin lights its row.
- * Without JavaScript it is still five links.
- *
- * The weather glyph is never alone: the figure and a word sit beside it.
+ * The weather glyph is never alone: the figure sits beside it, and a screen
+ * reader gets the sentence.
  */
 
 export interface HeroRailItem {
@@ -28,7 +22,8 @@ export interface HeroRailItem {
   readonly weather: { readonly maxC: number; readonly wet: boolean } | null;
   /**
    * A photograph: one of the generated set under `/img/destinations`, with its
-   * blur placeholder, or any other image URL. Null: a wash from the code.
+   * blur placeholder, or any other image URL. Null: a plain tile with the
+   * country's initials.
    */
   readonly image:
     | { readonly kind: 'local'; readonly blur: string }
@@ -36,31 +31,24 @@ export interface HeroRailItem {
     | null;
 }
 
-export interface HeroRailProps {
-  items: readonly HeroRailItem[];
-  provenance: DataProvenance;
-  sources?: readonly SourceAttribution[];
-}
-
-function washFor(code: string): React.CSSProperties {
-  const hue = [...code].reduce((total, character) => total + character.charCodeAt(0), 0) % 360;
-
-  return {
-    backgroundImage: `linear-gradient(140deg, oklch(0.55 0.14 ${hue}) 0%, oklch(0.3 0.1 ${(hue + 40) % 360}) 100%)`,
-  };
-}
-
-function Thumb({ item }: { item: HeroRailItem }) {
+/** A destination's picture, or a plain tile saying which country it is. */
+export function HeroThumb({
+  item,
+  className = 'size-12 rounded-[10px]',
+}: {
+  item: HeroRailItem;
+  className?: string;
+}) {
   const { image, code } = item;
 
   return (
     <span
       aria-hidden="true"
-      className="relative block size-12 shrink-0 overflow-hidden rounded-[10px]"
+      className={`relative block shrink-0 overflow-hidden ${className} ${image ? '' : 'bg-surface-sunken text-muted border-hairline grid place-items-center border'}`}
       style={
         image?.kind === 'local'
           ? { backgroundImage: `url(${image.blur})`, backgroundSize: 'cover' }
-          : washFor(code)
+          : undefined
       }
     >
       {image?.kind === 'local' ? (
@@ -68,12 +56,12 @@ function Thumb({ item }: { item: HeroRailItem }) {
           <source
             type="image/avif"
             srcSet={`/img/destinations/${code}-480.avif 480w, /img/destinations/${code}-768.avif 768w`}
-            sizes="48px"
+            sizes="96px"
           />
           <img
             src={`/img/destinations/${code}-480.webp`}
             srcSet={`/img/destinations/${code}-480.webp 480w, /img/destinations/${code}-768.webp 768w`}
-            sizes="48px"
+            sizes="96px"
             alt=""
             loading="eager"
             decoding="async"
@@ -89,110 +77,50 @@ function Thumb({ item }: { item: HeroRailItem }) {
           decoding="async"
           className="absolute inset-0 size-full object-cover"
         />
-      ) : null}
+      ) : (
+        <span className="text-[13px] font-medium tracking-[0.08em]">{initials(item.country)}</span>
+      )}
     </span>
   );
 }
 
+export interface HeroRailProps {
+  items: readonly HeroRailItem[];
+  provenance: DataProvenance;
+  sources?: readonly SourceAttribution[];
+}
+
 export function HeroRail({ items, provenance, sources = [] }: HeroRailProps) {
-  const list = React.useRef<HTMLUListElement>(null);
-  const dwell = React.useRef<number | null>(null);
-
-  const point = React.useCallback((code: string) => {
-    window.dispatchEvent(new CustomEvent(GLOBE_FOCUS_EVENT, { detail: { code } }));
-    document
-      .querySelector(`.voyagr-chip[data-destination="${CSS.escape(code)}"]`)
-      ?.setAttribute('data-lift', 'true');
-  }, []);
-
-  const release = React.useCallback(() => {
-    window.dispatchEvent(new CustomEvent(GLOBE_RELEASE_EVENT));
-    for (const chip of document.querySelectorAll('.voyagr-chip[data-lift]')) {
-      chip.removeAttribute('data-lift');
-    }
-  }, []);
-
-  /*
-   * A pin lights its row.
-   *
-   * Delegated on the document because the pins are markers MapLibre owns. The
-   * row gets `data-active`, which the stylesheet below turns into the same
-   * border a hovered row has.
-   */
-  React.useEffect(() => {
-    const root = list.current;
-    if (!root) return;
-
-    const mark = (event: Event, on: boolean) => {
-      const chip = (event.target as Element | null)?.closest?.('.voyagr-chip[data-destination]');
-      const code = chip?.getAttribute('data-destination');
-      if (!code) return;
-
-      root
-        .querySelector(`[data-rail-for="${CSS.escape(code)}"]`)
-        ?.toggleAttribute('data-active', on);
-    };
-
-    const over = (event: Event) => mark(event, true);
-    const out = (event: Event) => mark(event, false);
-
-    document.addEventListener('mouseover', over);
-    document.addEventListener('mouseout', out);
-    document.addEventListener('focusin', over);
-    document.addEventListener('focusout', out);
-
-    return () => {
-      document.removeEventListener('mouseover', over);
-      document.removeEventListener('mouseout', out);
-      document.removeEventListener('focusin', over);
-      document.removeEventListener('focusout', out);
-      if (dwell.current !== null) window.clearTimeout(dwell.current);
-    };
-  }, []);
-
   if (items.length === 0) return null;
 
   return (
-    <nav aria-labelledby="hero-rail-heading" data-globe-overlay className="stage-scope w-[17.5rem]">
-      <h2 id="hero-rail-heading" className="sr-only">
-        Live destinations
-      </h2>
+    <nav aria-labelledby="hero-rail-heading" className="stage-scope">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 id="hero-rail-heading" className="font-display text-display-sm text-stage-ink">
+          Live destinations
+        </h2>
 
-      {/*
-        Said once, above the list, rather than on every row: whose figures
-        these are. A demo price is not a weaker price, it is not a price, and
-        the words stay beside the numbers.
-      */}
-      <div className="mb-2 flex justify-end">
-        <ProvenanceBreakdown
-          compact
-          sources={sources}
-          provenance={provenance}
-          className="flex flex-col gap-0.5"
-          badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
-        />
+        {/* Said here, once, for a real source; a demo's is in the line below. */}
+        {provenance === 'mock' ? null : (
+          <ProvenanceBreakdown
+            compact
+            sources={sources}
+            provenance={provenance}
+            className="flex flex-col gap-0.5"
+            badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
+          />
+        )}
       </div>
 
-      <ul ref={list} className="flex flex-col gap-2">
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {items.map((item) => (
           <li key={item.code}>
             <a
               href={item.href}
               data-rail-for={item.code}
-              onFocus={() => point(item.code)}
-              onBlur={release}
-              onPointerEnter={(event) => {
-                // Only a resting pointer flies the camera, not one passing over.
-                if (event.pointerType !== 'mouse') return;
-                dwell.current = window.setTimeout(() => point(item.code), 350);
-              }}
-              onPointerLeave={() => {
-                if (dwell.current !== null) window.clearTimeout(dwell.current);
-                release();
-              }}
               className="voyagr-rail-row focus-visible:outline-stage-accent flex min-h-16 items-center gap-3 rounded-[14px] p-2"
             >
-              <Thumb item={item} />
+              <HeroThumb item={item} />
 
               <span className="min-w-0 flex-1">
                 <span className="sr-only">{item.actionLabel} </span>

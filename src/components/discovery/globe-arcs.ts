@@ -48,23 +48,48 @@ export function sphereDiameter(zoom: number): number {
   return (512 * 2 ** zoom) / Math.PI;
 }
 
-/**
- * A point a given angular distance away, due east.
- *
- * The standard destination-point formula at a bearing of 90 degrees, which is
- * well defined from anywhere including a pole. Only used to walk outwards from
- * the middle of the view looking for the limb.
- */
-function eastOf(lng: number, lat: number, angle: number): [number, number] {
+/** The point a given angle away on a given bearing (radians), from anywhere. */
+function destinationPoint(
+  lng: number,
+  lat: number,
+  angle: number,
+  bearing: number,
+): [number, number] {
   const from = lat * RADIANS;
-  const sinTo = Math.sin(from) * Math.cos(angle);
+  const sinTo =
+    Math.sin(from) * Math.cos(angle) + Math.cos(from) * Math.sin(angle) * Math.cos(bearing);
   const to = Math.asin(Math.min(1, Math.max(-1, sinTo)));
-
   const longitude =
     lng * RADIANS +
-    Math.atan2(Math.sin(angle) * Math.cos(from), Math.cos(angle) - Math.sin(from) * sinTo);
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angle) * Math.cos(from),
+      Math.cos(angle) - Math.sin(from) * sinTo,
+    );
 
   return [((longitude / RADIANS + 540) % 360) - 180, to / RADIANS];
+}
+
+/**
+ * The circle through a set of screen points: where the sphere is and how wide.
+ *
+ * The limb is sampled all the way round and the circle is the mean of the
+ * samples and their mean distance. When the camera is tilted the planet's
+ * silhouette is no longer centred on the middle of the view, which is where
+ * everything drawn round it used to assume it was; this is where it really is.
+ */
+export function fitSphere(points: readonly { readonly x: number; readonly y: number }[]): {
+  x: number;
+  y: number;
+  diameter: number;
+} {
+  if (points.length === 0) return { x: 0, y: 0, diameter: 0 };
+
+  const x = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+  const y = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+  const radius =
+    points.reduce((sum, point) => sum + Math.hypot(point.x - x, point.y - y), 0) / points.length;
+
+  return { x, y, diameter: radius * 2 };
 }
 
 /**
@@ -85,22 +110,22 @@ function measureSilhouette(
   centre: { x: number; y: number },
   lng: number,
   lat: number,
-): number {
-  let widest = 0;
+): { x: number; y: number; diameter: number } {
+  const samples: { x: number; y: number }[] = [];
 
-  for (let step = 1; step <= 12; step += 1) {
-    const angle = (step / 12) * (Math.PI / 2) * 0.995;
-    const point = map.project(eastOf(lng, lat, angle));
+  // The limb, all the way round, just inside the geometric horizon.
+  for (let step = 0; step < 16; step += 1) {
+    const point = map.project(
+      destinationPoint(lng, lat, (Math.PI / 2) * 0.995, (step / 16) * 2 * Math.PI),
+    );
 
     // A transform that is mid-change can answer with nothing. One missing
-    // sample out of twelve is not worth a thrown frame.
+    // sample out of sixteen is not worth a thrown frame.
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-
-    const distance = Math.hypot(point.x - centre.x, point.y - centre.y);
-    if (distance > widest) widest = distance;
+    samples.push(point);
   }
 
-  return widest * 2;
+  return samples.length >= 8 ? fitSphere(samples) : { ...centre, diameter: 0 };
 }
 
 /**
@@ -111,8 +136,13 @@ function measureSilhouette(
  * a stubby purple hoop sitting on Europe rather than as a journey. The rise is
  * proportional to the great-circle angle, so a short route stays close to the
  * ground and only something crossing a hemisphere reaches the full height.
+ *
+ * Eight per cent, no more: an arc is a thread laid over the planet, not a
+ * hoop standing off it, and one that rises further than that over the limb
+ * leaves the stage and crosses whatever is above it - at 0.32 an arc to
+ * Greenland ran across the site's own navigation.
  */
-const LIFT = 0.32;
+const LIFT = 0.08;
 
 /** The angular distance, in radians, at which a route earns the full lift. */
 const LIFT_FULL = Math.PI / 2;
@@ -136,7 +166,7 @@ const MINIMUM_SPAN = 1.5 * (Math.PI / 180);
 const COS_HORIZON = 0.06;
 
 /** Above this zoom the sphere no longer fits any box, and the arcs retire. */
-export const ARC_MAX_ZOOM = 3.4;
+export const ARC_MAX_ZOOM = 4.4;
 
 /** A route as the overlay needs it: one continuous run of positions. */
 export interface ArcRun {
@@ -450,11 +480,12 @@ export function readSphere(map: MapLibreMap, globe: boolean): SphereFrame {
   const zoom = map.getZoom();
 
   const fade = globe ? 1 - Math.max(0, Math.min(1, (zoom - (ARC_MAX_ZOOM - 0.9)) / 0.9)) : 0;
+  const sphere = globe ? measureSilhouette(map, point, centre.lng, centre.lat) : null;
 
   return {
-    x: point.x,
-    y: point.y,
-    diameter: globe ? measureSilhouette(map, point, centre.lng, centre.lat) : sphereDiameter(zoom),
+    x: sphere ? sphere.x : point.x,
+    y: sphere ? sphere.y : point.y,
+    diameter: sphere ? sphere.diameter : sphereDiameter(zoom),
     lng: centre.lng,
     lat: centre.lat,
     shown: fade,
@@ -469,7 +500,7 @@ export function readSphere(map: MapLibreMap, globe: boolean): SphereFrame {
  * cosine only to take its cosine again loses precision near the limb, which
  * is the one place this is read carefully.
  */
-function facing(lng: number, lat: number, frame: SphereFrame): number {
+export function facing(lng: number, lat: number, frame: SphereFrame): number {
   const a = lat * RADIANS;
   const b = frame.lat * RADIANS;
 
@@ -478,10 +509,30 @@ function facing(lng: number, lat: number, frame: SphereFrame): number {
   );
 }
 
+/**
+ * How visible something at a place is, from how squarely it faces the viewer.
+ *
+ * `cosine` is 1 in the middle of the disc and 0 at the limb. Nothing is drawn
+ * from the last few degrees before the limb - a label or an arc end sitting on
+ * the horizon is a ghost, half under the planet - and it is fully there by a
+ * little way in. Linear between, so it fades rather than pops. Used for the
+ * ends of arcs and for the price labels.
+ */
+export function limbFade(cosine: number): number {
+  const hidden = 0.18;
+  const shown = 0.3;
+  return Math.max(0, Math.min(1, (cosine - hidden) / (shown - hidden)));
+}
+
 /** A projected arc: its path, and the screen points behind it. */
 export interface ProjectedArc {
   readonly key: string;
   readonly d: string;
+  /** 0 to 1: an arc to the far side of the planet fades out rather than ending at the limb. */
+  readonly fade: number;
+  /** Whether each end is on the near side, and so should wear its node. */
+  readonly startVisible: boolean;
+  readonly endVisible: boolean;
   readonly rank: number;
   readonly selected: boolean;
   readonly points: readonly { readonly x: number; readonly y: number }[];
@@ -527,7 +578,21 @@ export function projectArc(map: MapLibreMap, run: ArcRun, frame: SphereFrame): P
 
   if (points.length < 2) return null;
 
-  return { key: run.key, d: parts.join(' '), rank: run.rank, selected: run.selected, points };
+  const last = run.points[run.points.length - 1]!;
+  const first = run.points[0]!;
+  const endFacing = facing(last[0], last[1], frame);
+  const startFacing = facing(first[0], first[1], frame);
+
+  return {
+    key: run.key,
+    d: parts.join(' '),
+    fade: limbFade(endFacing),
+    startVisible: startFacing >= COS_HORIZON * 2,
+    endVisible: endFacing >= COS_HORIZON * 2,
+    rank: run.rank,
+    selected: run.selected,
+    points,
+  };
 }
 
 /**

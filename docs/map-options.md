@@ -363,6 +363,32 @@ Which projection you are reading is deliberately _not_ in the URL, unlike the co
 and the search. Those are answers, and an answer belongs in a link somebody can send. A preference
 about how to look at them is not, and a link carrying it would be telling the recipient how to see.
 
+## The fifth pass: a photographic surface
+
+The flat vector fills read as a diagram, so the globe now draws a raster under
+everything it computes.
+
+- **Source.** NASA Earth Observatory, _Blue Marble Next Generation_ with
+  topography and bathymetry, August 2004, 5400 x 2700 equirectangular.
+  Public domain. Credit: "NASA Earth Observatory / Blue Marble", which the
+  front page carries in its caption line.
+- **Build.** `scripts/build-earth-texture.mjs` fetches it once into the
+  git-ignored `.geo-cache/`, reprojects it to Web Mercator (the projection
+  MapLibre's globe draws raster tiles in) and cuts 256px WebP tiles for zoom 0
+  to 4 into `public/geo/earth/v1/{z}/{x}/{y}.webp`: 341 tiles, about 1.1 MB.
+  The source image is not committed.
+- **Immutable.** The service worker keeps `/geo/` for ever by URL. A rebuilt
+  set goes into `v2` and `EARTH_TILES_URL` in `globe-style.ts` changes with it;
+  `v1` is never rewritten.
+- **Layering.** The `earth` raster sits over the flat land, relief, sand and ice
+  fills - which stay in the style as the colour shown while tiles load - and
+  under the country hit layer, the thin country borders (white, 12%), the
+  night caps, the city lights and everything the product draws. Tiles are on
+  our origin, so the globe still reaches nobody else.
+- **What it is not.** It is August 2004 imagery. The season model's ice and
+  snow bands are hidden under it, so the polar caps are NASA's, not the
+  selected date's.
+
 ## What the map does not claim
 
 Section 13 asks for transport filters: flights, trains, buses, cars, ferries, mixed. Only flights

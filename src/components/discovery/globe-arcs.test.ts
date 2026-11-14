@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { greatCirclePath } from '@/discovery/geo';
-import { toArcRuns } from './globe-arcs';
+import { fitSphere, limbFade, toArcRuns } from './globe-arcs';
 
 type LngLat = readonly [number, number];
 
@@ -91,5 +91,46 @@ describe('toArcRuns bundling', () => {
     );
 
     expect(runs.some((run) => run.key.endsWith('-branch'))).toBe(false);
+  });
+});
+
+describe('limbFade', () => {
+  it('is fully visible facing the viewer and gone at the limb', () => {
+    expect(limbFade(1)).toBe(1);
+    expect(limbFade(0.3)).toBe(1);
+    expect(limbFade(0.18)).toBe(0);
+    expect(limbFade(-0.5)).toBe(0);
+  });
+
+  it('fades smoothly between, never going backwards', () => {
+    let previous = 0;
+    for (let cosine = 0; cosine <= 1; cosine += 0.02) {
+      const value = limbFade(cosine);
+      expect(value).toBeGreaterThanOrEqual(previous);
+      previous = value;
+    }
+    expect(limbFade(0.24)).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe('fitSphere', () => {
+  it('finds the centre and diameter of points on a circle, wherever it is', () => {
+    const points = Array.from({ length: 16 }, (_, i) => ({
+      x: 300 + 120 * Math.cos((i / 16) * 2 * Math.PI),
+      y: 410 + 120 * Math.sin((i / 16) * 2 * Math.PI),
+    }));
+    const sphere = fitSphere(points);
+
+    expect(sphere.x).toBeCloseTo(300, 6);
+    expect(sphere.y).toBeCloseTo(410, 6);
+    expect(sphere.diameter).toBeCloseTo(240, 6);
+  });
+});
+
+describe('arc lift', () => {
+  it('keeps the apex of the longest route within eight per cent of the radius', () => {
+    const [run] = toArcRuns(collection(route('VIE', 'BKK', VIE, BKK, 0)));
+
+    expect(run!.lift).toBeLessThanOrEqual(0.08 + 1e-9);
   });
 });

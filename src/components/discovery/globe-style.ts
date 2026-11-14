@@ -65,6 +65,8 @@ export interface GlobeColors {
 export interface GlobeStyleOptions {
   readonly colors: GlobeColors;
   readonly countriesUrl: string;
+  /** The satellite raster, as an XYZ template on our own origin. */
+  readonly earthTilesUrl?: string;
   /** The land itself, dissolved: continents and islands, no boundaries. */
   readonly landUrl: string;
   /** Glaciers and ice shelves. */
@@ -87,6 +89,52 @@ export interface GlobeStyleOptions {
   readonly routes: unknown;
   readonly points: unknown;
 }
+
+/**
+ * Where the planet's surface tiles live. Versioned: the service worker keeps
+ * `/geo/` for ever, so a rebuilt set goes in `v2` and this changes with it.
+ */
+export const EARTH_TILES_URL = '/geo/earth/v1/{z}/{x}/{y}.webp';
+
+/**
+ * The two poles, which Web Mercator cannot reach.
+ *
+ * The tiles stop at 85.05 degrees, and beyond that the flat fallback showed
+ * through as a ring on the top of the planet. These two caps are the average
+ * colour of the tile pyramid's own first and last rows - the Arctic Ocean in
+ * August, and Antarctica - so they continue the photograph rather than
+ * outlining where it ends.
+ */
+const MERCATOR_EDGE = 85.0511287798;
+const POLAR_CAPS = {
+  type: 'FeatureCollection' as const,
+  features: [
+    { colour: 'rgb(12, 35, 75)', south: false },
+    { colour: 'rgb(233, 234, 235)', south: true },
+  ].map(({ colour, south }) => ({
+    type: 'Feature' as const,
+    properties: { colour },
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [
+        (south
+          ? [
+              [-180, -MERCATOR_EDGE],
+              [-180, -90],
+              [180, -90],
+              [180, -MERCATOR_EDGE],
+            ]
+          : [
+              [-180, MERCATOR_EDGE],
+              [180, MERCATOR_EDGE],
+              [180, 90],
+              [-180, 90],
+            ]
+        ).concat([south ? [-180, -MERCATOR_EDGE] : [-180, MERCATOR_EDGE]]),
+      ],
+    },
+  })),
+};
 
 /** A source with nothing in it yet. */
 const EMPTY = { type: 'FeatureCollection' as const, features: [] };
@@ -147,9 +195,10 @@ export function cityLightOpacity(solar: GlobeStyleOptions['solar']) {
  * north of India and the Ruhr were single flat shapes.
  */
 export const CITY_LIGHT_LAYERS = [
-  // 15% brighter than the shipped 0.3 and 0.05 (design-direction section 3).
-  ['city-lights', 0.345],
-  ['city-lights-bloom', 0.0575],
+  // Brighter than the 0.3 and 0.05 this shipped with (the spec asked for +15%,
+  // and a photographic night side asked for more): warm lights read against it.
+  ['city-lights', 0.7],
+  ['city-lights-bloom', 0.14],
 ] as const;
 
 /**
@@ -346,6 +395,14 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
        * country outlines, kept because a click on the globe has to resolve to
        * a country and a dissolved landmass cannot answer that.
        */
+      poles: { type: 'geojson', data: POLAR_CAPS },
+      earth: {
+        type: 'raster',
+        tiles: [options.earthTilesUrl ?? EARTH_TILES_URL],
+        tileSize: 256,
+        minzoom: 0,
+        maxzoom: 4,
+      },
       land: { type: 'geojson', data: options.landUrl },
       ice: { type: 'geojson', data: options.iceUrl },
       places: { type: 'geojson', data: options.placesUrl },
@@ -445,58 +502,6 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
         },
       },
       /*
-       * The country under the pointer, as a wash rather than an outline.
-       *
-       * Invisible until it is hovered or selected. This is the layer the
-       * globe's click, hover and selection all bind to: it is the only thing
-       * on the sphere that knows which country a pixel belongs to, and it
-       * says so by lighting up rather than by being drawn round.
-       */
-      {
-        id: 'countries',
-        type: 'fill',
-        source: 'world',
-        paint: {
-          'fill-color': colors.landLit,
-          'fill-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            0.24,
-            ['boolean', ['feature-state', 'hover'], false],
-            0.14,
-            0,
-          ],
-          'fill-opacity-transition': { duration: 180 },
-          'fill-antialias': false,
-        },
-      },
-      /*
-       * Where one country ends and the next begins.
-       *
-       * Nothing at globe zoom. A whole planet ruled into a hundred and
-       * seventy-seven outlined cells is a political map, and the point of
-       * the sphere on the front page is that it is a place rather than a
-       * diagram - the last time these were drawn there they were the first
-       * thing that gave it away.
-       *
-       * Zoomed in they are exactly what is wanted, because by then the
-       * question has changed from "what does the world look like" to "which
-       * country am I looking at". So they fade up across the same range the
-       * finer coastline file loads over, and they stay thin and cool: a
-       * border is a fact about the ground, not a thing to look at.
-       */
-      {
-        id: 'country-borders',
-        type: 'line',
-        source: 'world',
-        layout: { 'line-join': 'round' },
-        paint: {
-          'line-color': colors.border,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 2.6, 0.4, 5, 0.8, 8, 1.1],
-          'line-opacity': ['interpolate', ['linear'], ['zoom'], 2.6, 0, 3.6, 0.6, 6, 0.85],
-        },
-      },
-      /*
        * Relief, at the scale a whole planet shows it.
        *
        * Not a height map - there is no elevation raster here and there is not
@@ -565,6 +570,85 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
        * `scripts/build-geo.mjs` - so every edge the eye can find is a
        * coastline, and the sea is never painted at all.
        */
+      /*
+       * The photograph.
+       *
+       * NASA's Blue Marble, cut into tiles by `scripts/build-earth-texture.mjs`
+       * and served from our own origin. It sits over every flat fill below -
+       * land, relief, sand and ice - which stay in the style as the colour the
+       * globe shows while its tiles are still arriving, and under the night,
+       * the lights and everything the product itself draws.
+       */
+      {
+        id: 'earth',
+        type: 'raster',
+        source: 'earth',
+        paint: {
+          'raster-saturation': 0.15,
+          'raster-contrast': 0.1,
+          'raster-brightness-max': 0.95,
+          'raster-fade-duration': 300,
+        },
+      },
+      {
+        id: 'poles',
+        type: 'fill',
+        source: 'poles',
+        paint: { 'fill-color': ['get', 'colour'], 'fill-antialias': false },
+      },
+      /*
+       * The country under the pointer, as a wash rather than an outline.
+       *
+       * Invisible until it is hovered or selected. This is the layer the
+       * globe's click, hover and selection all bind to: it is the only thing
+       * on the sphere that knows which country a pixel belongs to, and it
+       * says so by lighting up rather than by being drawn round.
+       */
+      {
+        id: 'countries',
+        type: 'fill',
+        source: 'world',
+        paint: {
+          'fill-color': colors.landLit,
+          'fill-opacity': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false],
+            0.24,
+            ['boolean', ['feature-state', 'hover'], false],
+            0.14,
+            0,
+          ],
+          'fill-opacity-transition': { duration: 180 },
+          'fill-antialias': false,
+        },
+      },
+      /*
+       * Where one country ends and the next begins.
+       *
+       * Nothing at globe zoom. A whole planet ruled into a hundred and
+       * seventy-seven outlined cells is a political map, and the point of
+       * the sphere on the front page is that it is a place rather than a
+       * diagram - the last time these were drawn there they were the first
+       * thing that gave it away.
+       *
+       * Zoomed in they are exactly what is wanted, because by then the
+       * question has changed from "what does the world look like" to "which
+       * country am I looking at". So they fade up across the same range the
+       * finer coastline file loads over, and they stay thin and cool: a
+       * border is a fact about the ground, not a thing to look at.
+       */
+      {
+        id: 'country-borders',
+        type: 'line',
+        source: 'world',
+        layout: { 'line-join': 'round' },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 5, 0.8, 8, 1.1],
+          // Thin and faint on the photograph: a border is a fact, not a picture.
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.12, 4, 0.2, 6, 0.4],
+        },
+      },
       /*
        * The night.
        *
@@ -719,7 +803,7 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
         source: 'city-lights',
         paint: {
           'circle-color': lightColour(colors),
-          'circle-radius': ['interpolate', ['linear'], ['get', 'i'], 0, 0.4, 1, 1.5],
+          'circle-radius': ['interpolate', ['linear'], ['get', 'i'], 0, 0.6, 1, 2],
           // The glow. A hard dot at this size reads as a pixel fault; a blurred
           // one reads as a light seen through air.
           'circle-blur': 1.1,

@@ -62,7 +62,7 @@ export const EASE_OUT_QUART_CSS = 'cubic-bezier(0.25, 1, 0.5, 1)';
 export const FLY_MS = 1400;
 export const RETURN_MS = 900;
 /** Zoom added on top of the resting view when a destination is selected. */
-export const FLY_ZOOM = 0.6;
+export const FLY_ZOOM = 0.35;
 /** Camera tilt while a destination is selected, in degrees. */
 export const FLY_PITCH = 18;
 
@@ -115,16 +115,80 @@ export function arcLightOpacity(fraction: number): number {
 
 /** Below this width the hero is a phone's: a big planet bleeding off both sides. */
 export const PHONE_MAX_WIDTH = 640;
+/** From this width the planet sits right of centre and the copy has the left. */
+export const WIDE_MIN_WIDTH = 1024;
 
 /**
  * How big the planet is in the hero, in pixels across.
  *
- * `min(92vh, 78vw)` on anything wider than a phone, and `118vw` on a phone so
- * it bleeds off both sides.
+ * Three compositions. From 1024px the planet is right of centre and large,
+ * `min(96vh, 62vw)`, and is allowed to run off the bottom of the hero. In
+ * between it is centred, `min(92vh, 78vw)`. On a phone it is `118vw`, so it
+ * bleeds off both sides.
  */
 export function heroDiameter(width: number, height: number): number {
   if (width < PHONE_MAX_WIDTH) return width * 1.18;
-  return Math.min(height * 0.92, width * 0.78);
+  if (width < WIDE_MIN_WIDTH) return Math.min(height * 0.92, width * 0.78);
+  return Math.min(height * 0.96, width * 0.62);
+}
+
+/** How many price labels the globe shows at once: five on a screen, three on a phone. */
+export function labelLimit(viewportWidth: number): number {
+  return viewportWidth < PHONE_MAX_WIDTH ? 3 : 5;
+}
+
+/**
+ * Which side of its pin a label reads on.
+ *
+ * The label sits beside its dot. It turns round - to the left of the dot - when
+ * on the right it would run past the edge of the screen (or of its box), and
+ * stays where it is when turning round would run off the other side, because a
+ * label cut off on one side is no better than one cut off on the other.
+ * Returns true for "read leftwards".
+ */
+export function labelFlips(input: {
+  /** Where the dot is. */
+  readonly anchorX: number;
+  readonly labelWidth: number;
+  readonly boxLeft: number;
+  readonly boxRight: number;
+  readonly viewportWidth: number;
+  readonly margin?: number;
+}): boolean {
+  const margin = input.margin ?? 8;
+  const right = Math.min(input.boxRight, input.viewportWidth) - margin;
+  const left = Math.max(input.boxLeft, 0) + margin;
+
+  const overflowsRight = input.anchorX + input.labelWidth > right;
+  const fitsLeft = input.anchorX - input.labelWidth >= left;
+
+  return overflowsRight && fitsLeft;
+}
+
+/** Whether an arc's key belongs to a destination: its own arc, or its branch of a trunk. */
+export function arcMatchesDestination(key: string, destination: string): boolean {
+  return key.startsWith(`${destination}-`) || key.endsWith(`-${destination}-branch`);
+}
+
+/** How long the other arcs take to fade out when one is selected. */
+export const ARC_FADE_MS = 220;
+
+/**
+ * What an arc's opacity is heading for.
+ *
+ * With nothing selected every arc is shown. With a destination selected only
+ * its own arc is - unless it has none to show (a destination with no route
+ * drawn), in which case hiding everything would leave the globe blank.
+ */
+export function arcTargetOpacity(
+  keys: readonly string[],
+  key: string,
+  selected: string | null,
+): 0 | 1 {
+  if (selected === null) return 1;
+  if (!keys.some((candidate) => arcMatchesDestination(candidate, selected))) return 1;
+
+  return arcMatchesDestination(key, selected) ? 1 : 0;
 }
 
 /**

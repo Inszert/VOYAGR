@@ -11,6 +11,9 @@ import {
   changedPins,
   cubicBezier,
   heroDiameter,
+  labelFlips,
+  labelLimit,
+  arcTargetOpacity,
   spinFactor,
 } from './globe-motion';
 
@@ -67,13 +70,66 @@ describe('arcLightFraction', () => {
 });
 
 describe('heroDiameter', () => {
-  it('is min(92vh, 78vw) on a desktop', () => {
-    expect(heroDiameter(1440, 900)).toBeCloseTo(828, 6);
-    expect(heroDiameter(1000, 1400)).toBeCloseTo(780, 6);
+  it('is min(96vh, 62vw) from 1024px, right of centre', () => {
+    expect(heroDiameter(1440, 900)).toBeCloseTo(864, 6);
+    expect(heroDiameter(1100, 1400)).toBeCloseTo(682, 6);
+  });
+
+  it('is min(92vh, 78vw) between a phone and a desktop', () => {
+    expect(heroDiameter(800, 1000)).toBeCloseTo(624, 6);
   });
 
   it('is 118vw on a phone', () => {
     expect(heroDiameter(390, 844)).toBeCloseTo(460.2, 6);
+  });
+});
+
+describe('labelLimit', () => {
+  it('is five labels on a screen and three on a phone', () => {
+    expect(labelLimit(1440)).toBe(5);
+    expect(labelLimit(639)).toBe(3);
+  });
+});
+
+describe('labelFlips', () => {
+  const base = { boxLeft: 0, boxRight: 390, viewportWidth: 390, labelWidth: 150 };
+
+  it('stays on the right of its pin when it fits', () => {
+    expect(labelFlips({ ...base, anchorX: 100 })).toBe(false);
+  });
+
+  it('turns to the left when it would run off the right edge', () => {
+    expect(labelFlips({ ...base, anchorX: 300 })).toBe(true);
+  });
+
+  it('stays put when turning round would run off the left edge instead', () => {
+    expect(labelFlips({ ...base, anchorX: 120, labelWidth: 300 })).toBe(false);
+  });
+
+  it('measures against the viewport when the box is wider than it', () => {
+    expect(labelFlips({ ...base, boxRight: 600, anchorX: 300 })).toBe(true);
+  });
+});
+
+describe('arcTargetOpacity', () => {
+  const keys = ['TBS-0', 'BUS-0', 'VIE-BOS-branch'];
+
+  it('shows every arc when nothing is selected', () => {
+    expect(arcTargetOpacity(keys, 'BUS-0', null)).toBe(1);
+  });
+
+  it('shows only the selected destination, and fades the rest', () => {
+    expect(arcTargetOpacity(keys, 'TBS-0', 'TBS')).toBe(1);
+    expect(arcTargetOpacity(keys, 'BUS-0', 'TBS')).toBe(0);
+  });
+
+  it('counts a branch of a trunk as the destination own arc', () => {
+    expect(arcTargetOpacity(keys, 'VIE-BOS-branch', 'BOS')).toBe(1);
+    expect(arcTargetOpacity(keys, 'TBS-0', 'BOS')).toBe(0);
+  });
+
+  it('hides nothing when the selected destination has no arc to show', () => {
+    expect(arcTargetOpacity(keys, 'BUS-0', 'ZZZ')).toBe(1);
   });
 });
 
