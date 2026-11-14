@@ -80,3 +80,39 @@ nothing is needed from you.
 - Choose the hotel feed (above) and accept its terms.
 - Approve the production host spend, if any.
 - Legal pages (`/privacy`, `/terms`) review before launch: I draft, I'm not your lawyer.
+
+## Update 2026-11-14: partners, and three things to decide
+
+### Affiliate programs worth checking (one per need, free to join)
+
+From what I know of these programs, not verified against today's terms. Most are inside
+Travelpayouts, so commission is paid to you there; the Travelpayouts agent is checking which ones
+your account can actually join. Tick or strike each:
+
+| Need                  | First pick                      | Alternative                 | Note                                                    |
+| --------------------- | ------------------------------- | --------------------------- | ------------------------------------------------------- |
+| Hotels                | Booking.com (via Travelpayouts) | Trip.com, Hotels.com        | Links only; no price feed without a separate hotel API  |
+| Hotel prices (API)    | LiteAPI                         | Booking.com Demand API      | The only route to a real "flight + stay" total          |
+| Car rental            | DiscoverCars                    | Localrent, EconomyBookings  |                                                         |
+| Transfers / taxis     | Intui (you have it)             | Kiwitaxi, GetTransfer       |                                                         |
+| Tours and activities  | GetYourGuide                    | Viator, Tiqets, Klook       | Also a source for the "things to do" list               |
+| eSIM                  | Yesim, GigSky (you have both)   | Airalo                      |                                                         |
+| Travel insurance      | EKTA                            | VisitorsCoverage, SafetyWing | Check which countries each one sells to                |
+| Flight compensation   | AirHelp (you have it)           | Compensair                  |                                                         |
+| Trains and buses      | 12Go                            | Omio, Rail Europe           |                                                         |
+| Luggage storage       | Radical Storage                 | Bounce                      |                                                         |
+| Events (dated)        | Ticketmaster Discovery API      |                             | Free key; feeds the events group in "things to do"      |
+
+### Decide
+
+1. **Cookie consent.** The Travelpayouts Drive script and affiliate links set tracking cookies.
+   For EU visitors that needs a consent banner before the script loads. I recommend I build one
+   (Drive loads only after "accept"); say if you would rather load it unconditionally.
+2. **Deploy.** Drive's "Verify installation" only passes after the next deploy of this branch.
+3. **Postal address for emails** (`EMAIL_POSTAL_ADDRESS`): optional now that email is
+   transactional only.
+
+### No longer needed
+
+`UNSUBSCRIBE_SECRET` and the weekly digest: dropped, since email is now only for password reset
+and welcome/verification.

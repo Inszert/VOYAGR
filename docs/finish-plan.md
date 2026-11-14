@@ -98,3 +98,40 @@ As in the brief; plus the honesty caveat from D1/D2 — real priced hotels need 
   Slot: after design slice 2. "30" is a ceiling; fewer real places is fine.
 - **Higgsfield:** owner reports unlimited use for two days (to 2026-11-16). Generate hero video
   loops and the destination batch within that window.
+
+## Additions (owner, 2026-11-14, second round)
+
+- **D14 — Email is transactional only.** Email is used for password reset, the welcome mail
+  (carries the verification link) and email-change confirmation, nothing else. Price drops and every
+  other notice go to web push and a new **in-app notification centre** (header bell, unread count,
+  toast). This replaces the digest and alert emails in D9; no unsubscribe machinery is needed.
+- **D15 — Travelpayouts Drive script** on every page, production only, loaded by `src` with the CSP
+  nonce; its origin `https://emrldco.com` is the only third-party script origin in the CSP
+  (`src/components/shell/affiliate-drive.tsx`, `src/proxy.ts`). Open: EU consent (see below).
+- **D16 — Voyagr is the hub ("all in one").** Every travel need gets an answer on our site, as a
+  native component with an affiliate link, never an embedded third-party widget: stays, car rental,
+  transfers/taxis, tours and activities, eSIM, insurance, flight compensation, trains/buses,
+  luggage storage. A partner offer shows a price only when the partner gave one; otherwise it is a
+  labelled link-out. Partner links are config (`src/booking/partners.ts`), carry `rel="sponsored"`,
+  and are disclosed as affiliate links. First four: Intui (transfers), AirHelp (compensation),
+  Yesim and GigSky (eSIM).
+- **D17 — Trip hub (new product area, after the design build):**
+  1. **Travel plan**: a trip page per user with flights, stay, transfers and extras as items.
+     Items are added by the user; an item clicked through from us is offered as "Add to my plan"
+     at click time. We cannot see what was booked on a partner site, so nothing is added silently
+     and nothing is marked "booked" unless the user says so.
+  2. **Shared expenses (Tricount-style)**: members, expenses, who paid, split, settle-up
+     suggestions. All arithmetic in `src/core/` on `Money` (integer minor units, per-currency,
+     FX only through `src/core/fx.ts`), deterministic and tested.
+  3. **Emergency contacts per destination**: emergency numbers and embassy details from an open,
+     citable dataset, schema-checked, dated, with the source shown. Never model-written.
+  4. **Promo codes**: a partner offer may carry a code and an expiry; expired codes are not shown.
+- **D18 — Native partner components** replace default Travelpayouts widgets (owner design brief):
+  search forms, offer cards, booking buttons, price displays and promo banners built from our
+  primitives and tokens, tracking parameters preserved. Slot: design slice 2b.
+- **Account setup** runs through the `travelpayouts-manager` agent (`.claude/agents/`), which may
+  join free programs but never spends, never enters payout or personal data, and stops on anything
+  beyond a standard program-join.
+
+Revised order: finish 3 + 4a + slice 1 → partner registry and native components (D16, D18) →
+Phase 5 flexible dates → design slices 2–5 → things-to-do (D13) → trip hub (D17) → Phase 8.
