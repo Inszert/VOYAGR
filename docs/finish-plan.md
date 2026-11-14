@@ -135,3 +135,20 @@ As in the brief; plus the honesty caveat from D1/D2 — real priced hotels need 
 
 Revised order: finish 3 + 4a + slice 1 → partner registry and native components (D16, D18) →
 Phase 5 flexible dates → design slices 2–5 → things-to-do (D13) → trip hub (D17) → Phase 8.
+
+## Additions (owner, 2026-11-14, third round)
+
+- Globe look approved. Open globe defects reported by the owner: arcs lag while dragging; changing
+  the search re-initialises the whole globe; too few places. Fixes: same-frame arc projection, one
+  map instance for the life of the page, and a static catalogue of ~300–400 real cities shown as
+  dots at once (D19). A dot gets a price only when the cache has one; last-known prices may be shown
+  stale; nothing is invented.
+- **D20 — No provenance badges.** "Indicative price", "Demo data" and similar chips are removed
+  from every surface at the owner's request. Honesty is carried by: "from" on prices, the
+  "Updated N min ago" line, the footer sentence that prices are observed and can change, and
+  wording that names what a total excludes. Provenance stays in the data model.
+- The search form's price calendar loads only a few days: it must load every day the provider has
+  for both visible months (cached, per month).
+- Standing instruction: go through every surface one by one; nothing is too small. Order after the
+  globe: cards + rail + mosaic → /explore results → destination page → /stays → /watches →
+  account, auth pages → trips hub → status/legal/offline/error/empty/loading states → emails.
