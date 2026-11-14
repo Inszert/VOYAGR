@@ -1,6 +1,7 @@
 ---
 name: debugger
 description: Use when something fails and the cause is not obvious — a failing test, a wrong total, a flaky suite, an unexpected provider result. Finds the root cause before proposing a fix.
+model: sonnet
 tools: Read, Edit, Grep, Glob, Bash
 ---
 

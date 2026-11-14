@@ -1,6 +1,7 @@
 ---
 name: devops
 description: Use for CI workflows, build and deployment configuration, environment and secrets plumbing, and bringing up Postgres or Redis when those become required.
+model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: ui-designer
 description: Use when building or changing user-facing screens and components. Works within the existing Radix + Tailwind design system and holds the accessibility line.
+model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

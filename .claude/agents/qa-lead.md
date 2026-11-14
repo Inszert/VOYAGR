@@ -1,6 +1,7 @@
 ---
 name: qa-lead
 description: Use to decide whether a change or a release is actually ready — what is proven, what is assumed, and what would have to be true for this to be safe to ship.
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 

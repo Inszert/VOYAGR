@@ -1,6 +1,7 @@
 ---
 name: security-engineer
 description: Use when handling credentials, authentication, user data, external requests or response headers, and to review changes for security defects before they land.
+model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

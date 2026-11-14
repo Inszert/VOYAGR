@@ -1,6 +1,7 @@
 ---
 name: test-engineer
 description: Use to add or improve unit and component test coverage, especially for the deterministic core. Also use to judge whether an existing suite actually proves anything.
+model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

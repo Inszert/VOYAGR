@@ -1,6 +1,7 @@
 ---
 name: code-reviewer
 description: Use to review a diff or a branch before it lands. Finds correctness defects first, then architectural drift, then quality issues worth raising.
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 

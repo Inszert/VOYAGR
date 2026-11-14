@@ -1,6 +1,7 @@
 ---
 name: architect
 description: Use when a change spans multiple subsystems, introduces a new provider or external dependency, or risks blurring the deterministic/AI boundary. Produces a design and the reasoning behind it, not code.
+model: sonnet
 tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 

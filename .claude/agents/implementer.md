@@ -1,6 +1,7 @@
 ---
 name: implementer
 description: Use to build a feature or fix a defect once the approach is clear. Writes production code plus the tests that prove it, following the existing conventions.
+model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

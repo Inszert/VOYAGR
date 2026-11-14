@@ -133,3 +133,9 @@ From `docs/security.md`, current as of this file:
 Unchanged from the original audit, and still true: mobile app store accounts, booking/checkout
 merchant-of-record setup, autonomous booking integrations, community-layer infrastructure, B2B/white
 -label infrastructure, multi-region scaling. Nothing in the product today needs any of them.
+
+## Going live — see `WHAT-I-NEED-FROM-YOU.md`
+
+The list of keys, accounts and DNS records needed for the live product (Resend, Redis, Postgres,
+hotel feed, VAPID, Higgsfield) lives in `WHAT-I-NEED-FROM-YOU.md`, free tiers first. Decision of
+record: production never shows mock data — see `docs/finish-plan.md`.

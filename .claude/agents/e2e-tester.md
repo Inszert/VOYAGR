@@ -1,6 +1,7 @@
 ---
 name: e2e-tester
 description: Use to write or debug Playwright end-to-end tests, or to verify a user-facing flow works in a real browser against a production build.
+model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: security-redteam
 description: Use to adversarially probe Voyagr's own code and architecture for exploitable weaknesses — prompt injection, data exfiltration, abuse of the search and notification loops, and provider-cost attacks. Defensive testing of this codebase only.
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 
