@@ -532,3 +532,29 @@ What is still open, and all of it needs a human:
 4. Sandbox credentials, so the remaining behaviours (pagination stability, real rate limits,
    `Retry-After`, timeout figures, price validity windows) can be confirmed against something
    real rather than assumed.
+
+---
+
+## Finish-the-product run (started 2026-11-14) — RESUME HERE
+
+Plan and decisions: `docs/finish-plan.md`. What the owner must supply: `WHAT-I-NEED-FROM-YOU.md`.
+Method: lead (Fable) plans/designs/reviews; implementation goes to sub-agents with `model: "sonnet"`,
+exploration to `Explore` with `model: "haiku"`. All `.claude/agents/*` are pinned to sonnet.
+Decision of record: **production goes live — no mock providers, no "Demo data" in production.**
+
+| Phase                      | Status                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| 1 Plan                     | Done: finish-plan.md, WHAT-I-NEED-FROM-YOU.md. Design audit still to do (see Phase 6)    |
+| 2a Cache + refresh worker  | Done, committed (617dcb1). `src/cache/`, `cache.refresh` job, `UpdatedAgo`               |
+| 2b Weather, no-mock guard  | In progress when this was written; check `git status` / `git log` for its result         |
+| 3 Hotels                   | Not started. Hotellook closed 2025-10-20: build deep-link adapter + priced-adapter slot  |
+| 4 Accounts, email, alerts  | Not started (Resend driver, alert prefs, digest, unsubscribe, templates)                 |
+| 5 Flexible dates           | Not started (`src/core/flex-dates.ts`, ±3 days strip)                                    |
+| 6 Design direction + imagery | Not started. Needs Higgsfield MCP (owner connected it in a NEW session)                |
+| 7 Design build            | Not started                                                                              |
+| 8 Polish, review, docs    | Not started                                                                              |
+
+Known loose ends: `UpdatedAgo` line not yet looked at in a browser; three `collection:*` refresh
+targets feed no page yet; `HOTEL_REFRESH_MINUTES` defined but unused; `--ease-emphasis` in
+`globals.css` flagged as bounce easing (decide in the Phase 6 motion system);
+Postgres repository-contract tests fail without a database (2b makes them skip).
