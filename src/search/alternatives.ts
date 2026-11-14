@@ -62,7 +62,7 @@ function offersForRoute(outcome: SearchOutcome, current: RankedTrip) {
   // and nothing else, which is honest, rather than throwing.
   return {
     flights: match?.flights ?? [current.candidate.flight],
-    hotels: match?.hotels ?? [current.candidate.hotel],
+    hotels: match?.hotels ?? (current.candidate.hotel ? [current.candidate.hotel] : []),
   };
 }
 
@@ -134,7 +134,7 @@ export function hotelAlternatives(input: AlternativesInput): Alternative[] {
 
     try {
       const swapped =
-        hotel.id === current.candidate.hotel.id
+        hotel.id === current.candidate.hotel?.id
           ? current
           : evaluateTrip(swapHotel(current.candidate, hotel), profile);
 
@@ -149,7 +149,7 @@ export function hotelAlternatives(input: AlternativesInput): Alternative[] {
           .filter(Boolean)
           .join(' · '),
         trip: swapped,
-        isCurrent: hotel.id === current.candidate.hotel.id,
+        isCurrent: hotel.id === current.candidate.hotel?.id,
         ...compare(swapped, current),
       });
     } catch (error) {

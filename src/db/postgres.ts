@@ -3,6 +3,9 @@ import { AppError } from '@/lib/errors';
 import { query, withTransaction } from './client';
 import type { SearchProfile } from '@/core/trip/types';
 import type {
+  AlertPreferencesInput,
+  AlertPreferencesRecord,
+  AlertPreferencesRepository,
   EmailVerificationRepository,
   EmailVerificationTokenRecord,
   ErasureSummary,
@@ -570,6 +573,81 @@ class PostgresUserPreferencesRepository implements UserPreferencesRepository {
   }
 }
 
+// --- Alert preferences -----------------------------------------------------
+
+interface AlertPreferencesRow {
+  user_id: string;
+  home_airport: string | null;
+  destinations: string[];
+  budget_amount: string | null;
+  budget_currency: string | null;
+  earliest_departure: string | null;
+  latest_departure: string | null;
+  price_drop_alerts: boolean;
+  updated_at: Date;
+}
+
+// Dates are read as text (`to_char`), never as a `Date`, so a calendar day cannot
+// shift with the server's timezone.
+const ALERT_PREFERENCES_COLUMNS = `user_id, home_airport, destinations, budget_amount, budget_currency,
+  to_char(earliest_departure, 'YYYY-MM-DD') AS earliest_departure,
+  to_char(latest_departure, 'YYYY-MM-DD') AS latest_departure,
+  price_drop_alerts, updated_at`;
+
+function toAlertPreferences(row: AlertPreferencesRow): AlertPreferencesRecord {
+  return {
+    userId: row.user_id,
+    homeAirport: row.home_airport,
+    destinations: row.destinations,
+    budget: toMoney(row.budget_amount, row.budget_currency),
+    earliestDeparture: row.earliest_departure,
+    latestDeparture: row.latest_departure,
+    priceDropAlerts: row.price_drop_alerts,
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+class PostgresAlertPreferencesRepository implements AlertPreferencesRepository {
+  async find(userId: string): Promise<AlertPreferencesRecord | null> {
+    const rows = await query<AlertPreferencesRow>(
+      `SELECT ${ALERT_PREFERENCES_COLUMNS} FROM alert_preferences WHERE user_id = $1`,
+      [userId],
+    );
+    return rows[0] ? toAlertPreferences(rows[0]) : null;
+  }
+
+  async save(userId: string, input: AlertPreferencesInput): Promise<AlertPreferencesRecord> {
+    const rows = await query<AlertPreferencesRow>(
+      `INSERT INTO alert_preferences
+         (user_id, home_airport, destinations, budget_amount, budget_currency,
+          earliest_departure, latest_departure, price_drop_alerts)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (user_id) DO UPDATE
+         SET home_airport = EXCLUDED.home_airport,
+             destinations = EXCLUDED.destinations,
+             budget_amount = EXCLUDED.budget_amount,
+             budget_currency = EXCLUDED.budget_currency,
+             earliest_departure = EXCLUDED.earliest_departure,
+             latest_departure = EXCLUDED.latest_departure,
+             price_drop_alerts = EXCLUDED.price_drop_alerts,
+             updated_at = now()
+       RETURNING ${ALERT_PREFERENCES_COLUMNS}`,
+      [
+        userId,
+        input.homeAirport,
+        [...input.destinations],
+        input.budget?.amount ?? null,
+        input.budget?.currency ?? null,
+        input.earliestDeparture,
+        input.latestDeparture,
+        input.priceDropAlerts,
+      ],
+    );
+
+    return toAlertPreferences(requireRow(rows[0], 'alert preferences', userId));
+  }
+}
+
 // --- Saved searches and watches --------------------------------------------
 
 interface TripSearchRow {
@@ -1087,6 +1165,7 @@ export function createPostgresRepositories(): Repositories {
     passwordReset: new PostgresPasswordResetRepository(),
     emailChange: new PostgresEmailChangeRepository(),
     preferences: new PostgresUserPreferencesRepository(),
+    alertPreferences: new PostgresAlertPreferencesRepository(),
     tripSearches: new PostgresTripSearchRepository(),
     travelWatches: new PostgresTravelWatchRepository(),
     priceHistory: new PostgresPriceHistoryRepository(),

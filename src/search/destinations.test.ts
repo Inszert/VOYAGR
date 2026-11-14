@@ -15,7 +15,7 @@ function tripAt(destination: string, hotelPrice: number, id = `${destination}-${
   return buildRankedTrip({
     id,
     destination,
-    hotel: { ...buildRankedTrip().candidate.hotel, totalPrice: money(hotelPrice, 'EUR') },
+    hotel: { ...buildRankedTrip().candidate.hotel!, totalPrice: money(hotelPrice, 'EUR') },
   });
 }
 

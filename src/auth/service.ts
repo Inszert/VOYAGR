@@ -6,6 +6,7 @@ import { getLogger } from '@/lib/logger';
 import type { Repositories, UserRecord } from '@/db/repository';
 import { getEmailProvider } from '@/email/registry';
 import type { EmailProvider } from '@/email/types';
+import { emailChangeTemplate, passwordResetTemplate, welcomeTemplate } from '@/email/templates';
 import {
   emailChangeTokenExpiry,
   hashEmailChangeToken,
@@ -26,7 +27,16 @@ import {
   passwordResetTokenExpiry,
 } from './password-reset';
 import { hashSessionToken, isExpired, issueSessionToken, sessionExpiry } from './session';
-import { getSignInThrottle, type SignInThrottle } from './throttle';
+import {
+  ACCOUNT_SEND_LIMIT,
+  CLIENT_SEND_LIMIT,
+  getSendThrottle,
+  getSignInThrottle,
+  type SendEntry,
+  type SendThrottle,
+  type SignInThrottle,
+  type ThrottleDecision,
+} from './throttle';
 
 /**
  * Authentication service.
@@ -67,6 +77,7 @@ export interface SessionIssued {
 export interface AuthDependencies {
   readonly repositories: Repositories;
   readonly throttle?: SignInThrottle;
+  readonly sendThrottle?: SendThrottle;
   readonly now?: () => number;
   readonly emailProvider?: EmailProvider;
   /** The app's own canonical origin, for the link in a verification email. */
@@ -93,6 +104,33 @@ export const UNKNOWN_CLIENT = 'unknown-client';
  */
 export function throttleKey(email: string, client: string): string {
   return `${email}|${client}`;
+}
+
+type SendKind = 'password-reset' | 'verification' | 'email-change';
+
+/**
+ * What one email-sending request is counted against: the account, and the
+ * client when we know which one it is.
+ *
+ * With no client identifier every anonymous caller would share one bucket, and
+ * ten of them would lock everybody out of password reset. The account limit
+ * still applies, so the unknown case is weaker, not unprotected.
+ */
+export function sendEntries(kind: SendKind, account: string, client: string): SendEntry[] {
+  const entries: SendEntry[] = [{ key: `${kind}:account:${account}`, limit: ACCOUNT_SEND_LIMIT }];
+  if (client !== UNKNOWN_CLIENT) {
+    entries.push({ key: `${kind}:client:${client}`, limit: CLIENT_SEND_LIMIT });
+  }
+  return entries;
+}
+
+function sendThrottledError(decision: ThrottleDecision): AppError {
+  return new AppError('RATE_LIMITED', 'Email send throttled', {
+    publicMessage: `Too many requests. Try again in ${Math.ceil(
+      decision.retryAfterSeconds / 60,
+    )} minutes.`,
+    context: { retryAfterSeconds: decision.retryAfterSeconds },
+  });
 }
 
 export function toAuthenticatedUser(user: UserRecord): AuthenticatedUser {
@@ -124,6 +162,7 @@ export function isPlausibleEmail(email: string): boolean {
 export class AuthService {
   private readonly repositories: Repositories;
   private readonly throttle: SignInThrottle;
+  private readonly sendThrottle: SendThrottle;
   private readonly now: () => number;
   private readonly emailProvider: EmailProvider;
   private readonly appUrl: string;
@@ -131,6 +170,7 @@ export class AuthService {
   constructor(dependencies: AuthDependencies) {
     this.repositories = dependencies.repositories;
     this.throttle = dependencies.throttle ?? getSignInThrottle();
+    this.sendThrottle = dependencies.sendThrottle ?? getSendThrottle();
     this.now = dependencies.now ?? Date.now;
     this.emailProvider = dependencies.emailProvider ?? getEmailProvider();
     this.appUrl = dependencies.appUrl ?? getEnv().NEXT_PUBLIC_APP_URL;
@@ -190,8 +230,14 @@ export class AuthService {
    *
    * Replacing rather than adding means an old, forwarded link stops working
    * the moment a fresh one is requested - exactly one link is ever valid.
+   *
+   * @throws AppError RATE_LIMITED when this account or client has asked too
+   *   often. Safe to say so: the caller is signed in, so it reveals nothing.
    */
-  async resendVerificationEmail(userId: string): Promise<void> {
+  async resendVerificationEmail(userId: string, client: string = UNKNOWN_CLIENT): Promise<void> {
+    const decision = this.sendThrottle.consume(sendEntries('verification', userId, client));
+    if (!decision.allowed) throw sendThrottledError(decision);
+
     const user = await this.repositories.users.findById(userId);
     if (!user) return;
 
@@ -250,13 +296,8 @@ export class AuthService {
 
     const link = `${this.appUrl}/api/verify-email?token=${token}`;
 
-    const result = await this.emailProvider.send({
-      to: user.email,
-      subject: 'Confirm your email for Voyagr',
-      text:
-        `Click to confirm this address: ${link}\n\n` +
-        `This link works once and expires in 24 hours. If you did not create a Voyagr account, ignore this email.`,
-    });
+    const mail = welcomeTemplate({ link });
+    const result = await this.emailProvider.send({ to: user.email, ...mail });
 
     if (!result.ok) {
       log.warn({ err: result.error, userId: user.id }, 'verification email provider failed');
@@ -394,9 +435,23 @@ export class AuthService {
    * generic failure message is the one place this app already refuses to
    * answer "does this email exist?", and a reset request is the same
    * question asked a different way.
+   *
+   * Throttled per address and per client, and a throttled request returns
+   * exactly as a sent one does - an error here would tell a stranger that the
+   * address has been asked about recently. The address is counted whether or
+   * not an account exists, so the budget cannot be used to tell the two apart.
+   * The cost is that anyone can use up an address's three an hour; the reset
+   * email is then late, not lost, which is the better side of that trade.
    */
-  async requestPasswordReset(rawEmail: string): Promise<void> {
+  async requestPasswordReset(rawEmail: string, client: string = UNKNOWN_CLIENT): Promise<void> {
     const email = normaliseEmail(rawEmail);
+
+    const decision = this.sendThrottle.consume(sendEntries('password-reset', email, client));
+    if (!decision.allowed) {
+      log.warn({ retryAfterSeconds: decision.retryAfterSeconds }, 'password reset throttled');
+      return;
+    }
+
     const user = await this.repositories.users.findByEmail(email);
 
     if (!user) {
@@ -417,13 +472,8 @@ export class AuthService {
 
     const link = `${this.appUrl}/reset-password?token=${token}`;
 
-    const result = await this.emailProvider.send({
-      to: user.email,
-      subject: 'Reset your Voyagr password',
-      text:
-        `Click to choose a new password: ${link}\n\n` +
-        `This link works once and expires in 1 hour. If you did not ask to reset your password, ignore this email - your password has not been changed.`,
-    });
+    const mail = passwordResetTemplate({ link });
+    const result = await this.emailProvider.send({ to: user.email, ...mail });
 
     if (!result.ok) {
       log.warn({ err: result.error, userId: user.id }, 'password reset email provider failed');
@@ -490,10 +540,22 @@ export class AuthService {
    * reason - two accounts cannot share an address, and that fact cannot be
    * hidden from whoever is trying to create the second one.
    *
+   * Throttled before the password is checked, so a refused request also costs
+   * no scrypt. Wrong-password attempts count against the allowance.
+   *
    * @throws AppError UNAUTHORIZED on the wrong password, VALIDATION_ERROR on
-   *   an implausible address, CONFLICT when another account already holds it.
+   *   an implausible address, CONFLICT when another account already holds it,
+   *   RATE_LIMITED when asked too often.
    */
-  async requestEmailChange(userId: string, currentPassword: string, rawNewEmail: string) {
+  async requestEmailChange(
+    userId: string,
+    currentPassword: string,
+    rawNewEmail: string,
+    client: string = UNKNOWN_CLIENT,
+  ) {
+    const decision = this.sendThrottle.consume(sendEntries('email-change', userId, client));
+    if (!decision.allowed) throw sendThrottledError(decision);
+
     const credential = await this.repositories.credentials.findByUserId(userId);
 
     if (!credential || !(await verifyPassword(currentPassword, credential.passwordHash))) {
@@ -530,13 +592,8 @@ export class AuthService {
 
     const link = `${this.appUrl}/api/confirm-email-change?token=${token}`;
 
-    const result = await this.emailProvider.send({
-      to: newEmail,
-      subject: 'Confirm your new email for Voyagr',
-      text:
-        `Click to move your Voyagr account to this address: ${link}\n\n` +
-        `This link works once and expires in 1 hour. If you did not request this, ignore this email - your account's email has not changed.`,
-    });
+    const mail = emailChangeTemplate({ link, newEmail });
+    const result = await this.emailProvider.send({ to: newEmail, ...mail });
 
     if (!result.ok) {
       log.warn({ err: result.error, userId }, 'email change confirmation could not be sent');
@@ -575,6 +632,13 @@ export class AuthService {
     }
 
     await this.repositories.users.updateEmail(record.userId, record.newEmail);
+    // `updateEmail` clears verification because the old claim was about the old address. But
+    // this link was delivered to the new inbox and clicked, which is exactly the proof
+    // verification asks for - leaving it unset would make the user confirm the same address twice,
+    // and would keep the email alerts that need a verified address switched off.
+    await this.repositories.users.update(record.userId, {
+      emailVerifiedAt: new Date(this.now()).toISOString(),
+    });
     await this.repositories.sessions.deleteForUser(record.userId);
 
     log.info({ userId: record.userId }, 'email changed, all sessions invalidated');

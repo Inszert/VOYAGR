@@ -35,7 +35,7 @@ function tripAt(destination: string, hotelPrice: number, overrides = {}): Ranked
     id: `${destination}-${hotelPrice}`,
     destination,
     destinationName: PLACES[destination]?.name ?? destination,
-    hotel: { ...buildRankedTrip().candidate.hotel, totalPrice: money(hotelPrice, 'EUR') },
+    hotel: { ...buildRankedTrip().candidate.hotel!, totalPrice: money(hotelPrice, 'EUR') },
     ...overrides,
   });
 }

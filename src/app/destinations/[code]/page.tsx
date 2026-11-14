@@ -13,6 +13,11 @@ import { DestinationHeader } from '@/components/discovery/destination-header';
 import { findCountry } from '@/discovery/countries';
 import { resolveDestinationGeo } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
+import { getActiveDataSource } from '@/providers/request-source';
+import { FindStayLink } from '@/components/stays/find-stay-link';
+import { loadStayLinks } from '@/search/stays/stay-links';
+import { offersForTrip } from '@/booking/partners';
+import { TripExtras } from '@/components/partners';
 
 /**
  * A destination (1.10.1 section 18).
@@ -117,10 +122,30 @@ export default async function DestinationPage({ params, searchParams }: PageProp
     }),
   );
 
+  // Only with real dates: a link for a window nobody chose would be a guess.
+  const stayLinks = dates
+    ? await loadStayLinks(
+        {
+          destination: { code: destination, name: place.name, position: null, radiusKm: null },
+          checkIn: dates.startDate,
+          checkOut: dates.endDate,
+          occupancy: {
+            adults: Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2,
+            children: 0,
+            rooms: 1,
+          },
+          currency,
+        },
+        (await getActiveDataSource()).effective,
+      )
+    : [];
+
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="flex flex-col" data-tint={tintFor(place.adm0 ?? destination)}>
       <DestinationHeader
-        today={new Date().toISOString().slice(0, 10)}
+        today={today}
         destination={destination}
         place={place}
         country={place.adm0 ? findCountry(place.adm0) : null}
@@ -144,6 +169,21 @@ export default async function DestinationPage({ params, searchParams }: PageProp
             sample={dates === null}
             placeholder={getAiProvider().metadata.isMock}
           />
+        ) : null}
+
+        {stayLinks.length > 0 ? (
+          <section aria-labelledby="stay-heading" className="flex flex-col gap-3">
+            <h2 id="stay-heading" className="font-display text-display-sm text-ink">
+              Where to stay
+            </h2>
+            <p className="text-ink-muted max-w-2xl text-sm">
+              We have no priced hotels for {place.name}. This opens a search for your dates and
+              party at a booking site.
+            </p>
+            {stayLinks.map((link) => (
+              <FindStayLink key={link.id} offer={link} />
+            ))}
+          </section>
         ) : null}
 
         {detail.transfers.length > 0 ? (
@@ -190,6 +230,9 @@ export default async function DestinationPage({ params, searchParams }: PageProp
             </ul>
           </section>
         ) : null}
+
+        {/* Partner link-outs for what a search does not price. Nothing renders without a partner. */}
+        <TripExtras offers={offersForTrip()} today={today} />
 
         {/*
           What is missing, said once and quietly. A footnote rather than a

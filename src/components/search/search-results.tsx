@@ -17,7 +17,9 @@ import { ResultFiltersPanel } from './result-filters';
 import { SortSelect } from './sort-select';
 import type { SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
+import type { StayLinkOffer } from '@/core/stay/types';
 import type { DestinationImage } from '@/providers/imagery/types';
+import { offersFor } from '@/booking/partners';
 import { TripCard } from './trip-card';
 import { TripRow } from './trip-row';
 import { buildTrip } from '@/search/trip-builder';
@@ -58,6 +60,11 @@ export interface SearchResultsProps {
    * cards are built for it.
    */
   images?: ReadonlyMap<string, DestinationImage>;
+  /**
+   * "Find a stay" links for trips that have no priced stay, keyed by candidate
+   * id. Resolved by the page for the same reason as `images`.
+   */
+  stayLinks?: ReadonlyMap<string, StayLinkOffer>;
   /** The page the results are on, for every link that narrows or rebuilds them. */
   basePath?: string;
   /**
@@ -84,6 +91,7 @@ export function SearchResults({
   searchValues,
   resultAgeMs = 0,
   images,
+  stayLinks,
   basePath = '/explore',
   saveSearch,
 }: SearchResultsProps) {
@@ -374,6 +382,8 @@ export function SearchResults({
               sources={diagnostics.sources}
               reasons={explainTrip(built.trip, profile)}
               image={images?.get(built.trip.candidate.destination) ?? null}
+              stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
+              transferOffer={offersFor('transfer')[0] ?? null}
               builder={{
                 built,
                 flightHref: (offerId) =>

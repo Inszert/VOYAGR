@@ -72,7 +72,7 @@ describe('observationsFor', () => {
       trip.candidate.flight.id,
     );
     expect(rows.find((row) => row.componentType === 'hotel')?.componentId).toBe(
-      trip.candidate.hotel.id,
+      trip.candidate.hotel!.id,
     );
   });
 
@@ -104,7 +104,7 @@ describe('observationsFor', () => {
     const rows = observationsFor('watch-1', trip, AT);
 
     expect(rows.find((row) => row.componentType === 'hotel')?.amount).toEqual(
-      money(trip.candidate.hotel.totalPrice.amount, 'EUR'),
+      money(trip.candidate.hotel!.totalPrice.amount, 'EUR'),
     );
   });
 });

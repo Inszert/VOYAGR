@@ -4,6 +4,7 @@ import { getRepositories } from '@/db';
 import { createQueueDriver } from '@/queue';
 import { createCacheRefreshHandler, startCacheRefresh } from '@/cache/refresh';
 import { createRefreshHandler } from '@/watches/refresh';
+import { getEmailProvider } from '@/email/registry';
 import { createDeliveryHandler } from '@/notifications/deliver';
 import { startScheduler, sweepDueWatches, type SchedulerHandle } from '@/watches/scheduler';
 import { startMaintenance, type MaintenanceHandle, type MaintenanceOptions } from './maintenance';
@@ -40,6 +41,10 @@ export interface WorkerOptions {
 }
 
 export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHandle> {
+  // Resolved now so a production worker with no real email provider stops at
+  // startup rather than discovering it on the first alert.
+  getEmailProvider();
+
   const repositories = getRepositories();
   const queue = createQueueDriver();
 

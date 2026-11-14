@@ -7,6 +7,7 @@ import { DataSourceSwitch } from '@/components/dev/data-source-switch';
 import { getActiveDataSource } from '@/providers/request-source';
 import { SeasonalAmbience } from '@/components/discovery/seasonal-ambience';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
+import { AffiliateDrive } from '@/components/shell/affiliate-drive';
 import './globals.css';
 
 const inter = Inter({
@@ -58,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           value: string;
         })}
       />
+      <AffiliateDrive />
 
       <body className="bg-surface text-ink min-h-dvh antialiased">
         <SkipLink targetId="main-content" />

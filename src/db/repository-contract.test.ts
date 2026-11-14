@@ -530,6 +530,59 @@ describe.each(backends)('$name repository contract', (backend) => {
     });
   });
 
+  describe('alert preferences', () => {
+    const input = {
+      homeAirport: 'LHR',
+      destinations: ['LIS', 'FAO'],
+      budget: money(45_000, 'EUR'),
+      earliestDeparture: '2026-12-01',
+      latestDeparture: '2027-01-15',
+      priceDropAlerts: true,
+    };
+
+    it('returns null before anything was ever saved', async () => {
+      const user = await aUser();
+      expect(await repositories.alertPreferences.find(user.id)).toBeNull();
+    });
+
+    it('round-trips every field, with money as integer minor units and dates as plain days', async () => {
+      const user = await aUser();
+      await repositories.alertPreferences.save(user.id, input);
+
+      expect(await repositories.alertPreferences.find(user.id)).toMatchObject(input);
+    });
+
+    it('round-trips a user with nothing chosen', async () => {
+      const user = await aUser();
+      const blank = {
+        homeAirport: null,
+        destinations: [],
+        budget: null,
+        earliestDeparture: null,
+        latestDeparture: null,
+        priceDropAlerts: false,
+      };
+      await repositories.alertPreferences.save(user.id, blank);
+
+      expect(await repositories.alertPreferences.find(user.id)).toMatchObject(blank);
+    });
+
+    it('replaces the settings on a second save', async () => {
+      const user = await aUser();
+      await repositories.alertPreferences.save(user.id, input);
+      await repositories.alertPreferences.save(user.id, {
+        ...input,
+        budget: null,
+        homeAirport: 'AMS',
+      });
+
+      expect(await repositories.alertPreferences.find(user.id)).toMatchObject({
+        homeAirport: 'AMS',
+        budget: null,
+      });
+    });
+  });
+
   describe('saved searches', () => {
     it('round-trips a search profile, money and all', async () => {
       const user = await aUser();

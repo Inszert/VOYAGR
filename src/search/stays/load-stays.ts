@@ -1,12 +1,12 @@
 import { addDays, isIsoDate } from '@/core/dates';
 import { bestRateFor, compareAgainst, ratesOf, type PriceComparison } from '@/core/stay/comparison';
 import type { CanonicalStay } from '@/core/stay/identity';
-import { nightsIn, type StayQuery, type StayRate } from '@/core/stay/types';
+import { nightsIn, type StayLinkOffer, type StayQuery, type StayRate } from '@/core/stay/types';
 import type { IsoDate } from '@/core/trip/types';
 import { createLimiter } from '@/lib/concurrency';
 import { getStayProviders } from '@/providers/stays/registry';
 import type { DataSource } from '@/providers/data-source';
-import { searchAllStays, type StayFanoutFailure } from '@/providers/stays/fanout';
+import { findAllStayLinks, searchAllStays, type StayFanoutFailure } from '@/providers/stays/fanout';
 import { exploreStayDates, type StayDatePrice } from './calendar';
 
 /**
@@ -32,6 +32,8 @@ export interface StayViewModel {
   readonly calendar: readonly StayDatePrice[];
   /** Populated once the dates are confirmed. */
   readonly stays: readonly CanonicalStay[];
+  /** "Find a stay" links, which carry no price and are not counted as stays. */
+  readonly links: readonly StayLinkOffer[];
   /** The property being looked at, on the `property` step. */
   readonly openStay: CanonicalStay | null;
   /** Every rate for the open property, compared against the reference. */
@@ -151,6 +153,7 @@ export async function loadStaySearch(
       nights: nightsIn(query),
       calendar,
       stays: [],
+      links: [],
       openStay: null,
       comparison: [],
       reference: null,
@@ -160,7 +163,10 @@ export async function loadStaySearch(
     };
   }
 
-  const found = await searchAllStays(providers, query, { limiter });
+  const [found, links] = await Promise.all([
+    searchAllStays(providers, query, { limiter }),
+    findAllStayLinks(providers, query, { limiter }),
+  ]);
 
   const openStay = params.property
     ? (found.stays.find((stay) => stay.key === params.property) ?? null)
@@ -181,6 +187,7 @@ export async function loadStaySearch(
     nights: nightsIn(query),
     calendar: [],
     stays: found.stays,
+    links,
     openStay,
     comparison: reference ? compareAgainst(reference, rates) : [],
     reference,

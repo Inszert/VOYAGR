@@ -354,4 +354,38 @@ describe('alerting on a material drop', () => {
     await refreshAt(watch.id, 61000, 0);
     expect((await refreshAt(watch.id, 72000, 6)).alerted).toBe(false);
   });
+
+  it('stays quiet when the user turned price-drop alerts off', async () => {
+    const watch = await aWatch();
+    await repositories.alertPreferences.save('user-1', {
+      homeAirport: null,
+      destinations: [],
+      budget: null,
+      earliestDeparture: null,
+      latestDeparture: null,
+      priceDropAlerts: false,
+    });
+
+    await refreshAt(watch.id, 68000, 0);
+    expect((await refreshAt(watch.id, 61000, 6)).alerted).toBe(false);
+    expect(await repositories.notifications.listByUser('user-1')).toHaveLength(0);
+  });
+
+  it('stays quiet for a trip over the budget the user set, and alerts under it', async () => {
+    const watch = await aWatch();
+    const prefs = {
+      homeAirport: null,
+      destinations: [],
+      earliestDeparture: null,
+      latestDeparture: null,
+      priceDropAlerts: true,
+    };
+
+    await repositories.alertPreferences.save('user-1', { ...prefs, budget: money(60_999, 'EUR') });
+    await refreshAt(watch.id, 68000, 0);
+    expect((await refreshAt(watch.id, 61000, 6)).alerted).toBe(false);
+
+    await repositories.alertPreferences.save('user-1', { ...prefs, budget: money(61_000, 'EUR') });
+    expect((await refreshAt(watch.id, 54000, 12)).alerted).toBe(true);
+  });
 });

@@ -3,6 +3,7 @@ import { Button, Container, DateRangeField, EmptyState, Field, Icon } from '@/co
 import { SearchKindTabs } from '@/components/search/search-kind-tabs';
 import { DatePriceGrid } from '@/components/stays/date-price-grid';
 import { RateComparison } from '@/components/stays/rate-comparison';
+import { FindStayLink } from '@/components/stays/find-stay-link';
 import { StayCard } from '@/components/stays/stay-card';
 import { StaySearchForm } from '@/components/stays/stay-search-form';
 import { StayHeader } from '@/components/stays/stay-header';
@@ -256,6 +257,10 @@ export default async function StaysPage({
                 Change dates
               </a>
             </div>
+
+            {view.links.map((link) => (
+              <FindStayLink key={link.id} offer={link} />
+            ))}
 
             {view.stays.length === 0 ? (
               <EmptyState

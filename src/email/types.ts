@@ -14,8 +14,15 @@ import type { Result } from '@/lib/result';
 export interface EmailMessage {
   readonly to: string;
   readonly subject: string;
-  /** Plain text only. No HTML template exists yet. */
+  /** Always present: the text alternative is what a client that blocks HTML shows. */
   readonly text: string;
+  readonly html?: string;
+  /**
+   * Extra message headers, for `List-Unsubscribe` and its `-Post` companion.
+   * A provider that cannot carry headers must say so by failing, not by
+   * dropping them - a bulk message without them is a compliance defect.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface EmailProvider {

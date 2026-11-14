@@ -424,3 +424,39 @@ describe('day-of-week rules', () => {
     );
   });
 });
+
+describe('a trip with no priced stay', () => {
+  const noStay = () => buildCandidate({ hotel: null });
+  const eligibility = (profile = buildProfile()) => {
+    const candidate = noStay();
+    return evaluateEligibility(candidate, costTripCandidate(candidate), profile);
+  };
+
+  it('is eligible when the traveller asked nothing of the stay', () => {
+    expect(eligibility().eligible).toBe(true);
+  });
+
+  it('does not treat a hotel requirement as met', () => {
+    for (const [profile, code] of [
+      [buildProfile({ requireFreeCancellation: true }), 'FREE_CANCELLATION_REQUIRED'],
+      [buildProfile({ minHotelReviewScore: 8 }), 'HOTEL_REVIEW_SCORE_TOO_LOW'],
+      [buildProfile({ maxBeachDistanceMetres: 500 }), 'BEACH_TOO_FAR'],
+    ] as const) {
+      const violation = eligibility(profile).violations.find((v) => v.code === code);
+
+      expect(violation?.message).toContain('no priced stay');
+      // Unproven, not failed: the reader can tell the two apart.
+      expect(violation?.detail?.confirmed).toBe(false);
+    }
+  });
+
+  it('warns that the total covers flights only, and not that the rate is non-refundable', () => {
+    const candidate = noStay();
+    const codes = detectTravelWarnings(candidate, costTripCandidate(candidate)).map(
+      (warning) => warning.code,
+    );
+
+    expect(codes).toContain('NO_STAY_PRICED');
+    expect(codes).not.toContain('NON_REFUNDABLE');
+  });
+});

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { minorUnitExponent } from '@/core/money';
 import { isLocalDateTime } from '@/core/dates';
+import type { StayLinkOffer } from '@/core/stay/types';
 import type { FlightOffer, HotelOffer, TransferOffer } from '@/core/trip/types';
 
 /**
@@ -146,6 +147,37 @@ export const transferOfferSchema = z
   })
   .strict();
 
+const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be a YYYY-MM-DD date');
+
+/**
+ * A link into a stay search. `price` is `z.null()`, not `.nullable()`: this
+ * kind of offer has no price by definition, and a vendor figure sneaking in
+ * would be a number no engine has costed.
+ */
+export const stayLinkOfferSchema = z
+  .object({
+    id: z.string().min(1),
+    providerId: z.string().min(1),
+    displayName: z.string().min(1),
+    destinationName: z.string().min(1),
+    checkIn: calendarDate,
+    checkOut: calendarDate,
+    occupancy: z
+      .object({
+        adults: z.number().int().min(1),
+        children: z.number().int().min(0),
+        rooms: z.number().int().min(1),
+      })
+      .strict(),
+    price: z.null(),
+    // Plain https only: this goes straight into an `href`.
+    url: z
+      .string()
+      .url()
+      .refine((value) => value.startsWith('https://'), 'must be an https URL'),
+  })
+  .strict();
+
 /**
  * A price whose currency the domain cannot hold.
  *
@@ -215,6 +247,7 @@ function readId(offer: unknown): string | null {
 export type ValidatedFlightOffer = z.infer<typeof flightOfferSchema>;
 export type ValidatedHotelOffer = z.infer<typeof hotelOfferSchema>;
 export type ValidatedTransferOffer = z.infer<typeof transferOfferSchema>;
+export type ValidatedStayLinkOffer = z.infer<typeof stayLinkOfferSchema>;
 
 /*
  * The schemas and the domain types must not drift.
@@ -228,6 +261,9 @@ const _flightMatches: FlightOffer = null as unknown as ValidatedFlightOffer;
 const _hotelMatches: HotelOffer = null as unknown as ValidatedHotelOffer;
 const _transferMatches: TransferOffer = null as unknown as ValidatedTransferOffer;
 
+const _stayLinkMatches: StayLinkOffer = null as unknown as ValidatedStayLinkOffer;
+
+void _stayLinkMatches;
 void _flightMatches;
 void _hotelMatches;
 void _transferMatches;

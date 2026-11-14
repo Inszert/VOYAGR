@@ -16,9 +16,15 @@ export function candidateId(
   destination: AirportCode,
   dates: Pick<TripDates, 'departureDate' | 'nights'>,
   flight: Pick<FlightOffer, 'id'>,
-  hotel: Pick<HotelOffer, 'id'>,
+  hotel: Pick<HotelOffer, 'id'> | null,
 ): string {
-  return [origin, destination, dates.departureDate, `${dates.nights}n`, flight.id, hotel.id].join(
-    '|',
-  );
+  return [
+    origin,
+    destination,
+    dates.departureDate,
+    `${dates.nights}n`,
+    flight.id,
+    // A trip with no priced stay is still one trip, and it must keep one id.
+    hotel?.id ?? 'no-stay',
+  ].join('|');
 }

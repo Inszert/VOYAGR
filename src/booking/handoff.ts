@@ -1,5 +1,7 @@
+import type { StayLinkOffer } from '@/core/stay/types';
 import type { FlightOffer, HotelOffer } from '@/core/trip/types';
 import { getLogger } from '@/lib/logger';
+import { isAllowedPartnerUrl, type PartnerOffer } from './partners';
 
 /**
  * The booking hand-off seam (implementation plan 1.2).
@@ -21,7 +23,7 @@ const log = getLogger('booking.handoff');
 /** `http` is accepted only so a local provider sandbox can be used in development. */
 const ALLOWED_PROTOCOLS = new Set(['https:', 'http:']);
 
-export type HandoffKind = 'flight' | 'hotel';
+export type HandoffKind = 'flight' | 'hotel' | 'partner';
 
 export interface BookingHandoff {
   readonly kind: HandoffKind;
@@ -111,6 +113,39 @@ export function buildHotelHandoff(
   context: HandoffContext = {},
 ): BookingHandoff | null {
   return build('hotel', offer.deepLink, offer.providerId, offer.id, context);
+}
+
+/**
+ * A "find a stay" link: a search at a vendor, not an offer to book one.
+ *
+ * Vetted like every other provider link even though our own adapter built it,
+ * because this is the function that puts an `href` on a page and it should not
+ * depend on every adapter staying careful.
+ */
+export function buildStayLinkHandoff(
+  offer: StayLinkOffer,
+  context: HandoffContext = {},
+): BookingHandoff | null {
+  return build('hotel', offer.url, offer.providerId, offer.id, context);
+}
+
+/**
+ * A partner offer's affiliate link.
+ *
+ * Stricter than the provider links: `https` only and on the partner host
+ * allow-list, because this URL is hand-written config rather than something a
+ * provider returned, and the sandbox exception for `http` has no use here.
+ */
+export function buildPartnerHandoff(
+  offer: PartnerOffer,
+  context: HandoffContext = {},
+): BookingHandoff | null {
+  if (!isAllowedPartnerUrl(offer.url)) {
+    log.warn({ offerId: offer.id }, 'rejected a partner link that is not on the allow-list');
+    return null;
+  }
+
+  return build('partner', offer.url, offer.partner, offer.id, context);
 }
 
 /**

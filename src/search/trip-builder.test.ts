@@ -102,7 +102,7 @@ describe('buildTrip', () => {
     });
 
     expect(built.trip.candidate.flight.id).toBe('flight-early');
-    expect(built.trip.candidate.hotel.id).toBe('hotel-other');
+    expect(built.trip.candidate.hotel!.id).toBe('hotel-other');
   });
 
   it('ignores a choice the search never saw', () => {

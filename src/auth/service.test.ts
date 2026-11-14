@@ -6,7 +6,7 @@ import type { Repositories } from '@/db/repository';
 import type { EmailMessage, EmailProvider } from '@/email/types';
 import { AuthService } from './service';
 import { hashSessionToken, issueSessionToken, SESSION_DURATION_MS } from './session';
-import { SignInThrottle } from './throttle';
+import { SendThrottle, SignInThrottle } from './throttle';
 
 /** Captures what was "sent" instead of a real provider, so a test can read the link out of it. */
 class CapturingEmailProvider implements EmailProvider {
@@ -48,6 +48,7 @@ beforeEach(() => {
   auth = new AuthService({
     repositories,
     throttle: new SignInThrottle({ now: () => clock }),
+    sendThrottle: new SendThrottle({ now: () => clock }),
     now: () => clock,
   });
 });
@@ -327,6 +328,7 @@ describe('email verification', () => {
     authWithEmail = new AuthService({
       repositories,
       now: () => clock,
+      sendThrottle: new SendThrottle({ now: () => clock }),
       emailProvider: email,
       appUrl: 'https://voyagr.test',
     });
@@ -437,6 +439,7 @@ describe('email change', () => {
     authWithEmail = new AuthService({
       repositories,
       now: () => clock,
+      sendThrottle: new SendThrottle({ now: () => clock }),
       emailProvider: email,
       appUrl: 'https://voyagr.test',
     });
@@ -558,6 +561,7 @@ describe('password reset', () => {
     authWithEmail = new AuthService({
       repositories,
       now: () => clock,
+      sendThrottle: new SendThrottle({ now: () => clock }),
       emailProvider: email,
       appUrl: 'https://voyagr.test',
     });

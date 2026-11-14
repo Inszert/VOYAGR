@@ -14,6 +14,10 @@ import { SaveSearchForm } from '@/components/watches/save-search-form';
 import { saveSearchAction } from '@/app/actions/watches';
 import { firstValues, loadStagePage } from '@/discovery/load-stage';
 import { resolveImagery } from '@/providers/imagery';
+import { getActiveDataSource } from '@/providers/request-source';
+import { loadStayLinksForTrips } from '@/search/stays/stay-links';
+import { offersForTrip } from '@/booking/partners';
+import { TripExtras } from '@/components/partners';
 import {
   COUNTRIES_DETAIL_URL,
   COUNTRIES_URL,
@@ -73,6 +77,13 @@ export default async function ExplorePage({
   }
 
   const images = await resolveImagery(stage.cards.map((card) => card.point.destination));
+  // Only trips with no priced stay get one; see `loadStayLinksForTrips`.
+  const stayLinks = page.outcome
+    ? await loadStayLinksForTrips(
+        [...page.outcome.results, ...page.outcome.nearMisses].map((trip) => trip.candidate),
+        (await getActiveDataSource()).effective,
+      )
+    : undefined;
   const query = new URLSearchParams(
     Object.entries(values).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -246,6 +257,7 @@ export default async function ExplorePage({
               searchValues={values}
               resultAgeMs={page.resultAgeMs}
               images={images}
+              stayLinks={stayLinks}
               basePath="/explore"
               saveSearch={
                 <SaveSearchForm
@@ -255,6 +267,11 @@ export default async function ExplorePage({
                   action={saveSearchAction}
                 />
               }
+            />
+            <TripExtras
+              offers={offersForTrip()}
+              today={new Date().toISOString().slice(0, 10)}
+              className="border-border border-t pt-8"
             />
           </Container>
         </section>

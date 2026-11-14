@@ -5,6 +5,7 @@ import { getLogger } from '@/lib/logger';
 import { createAbsentStayProvider } from '../absent';
 import { mockAllowed } from '../mock-policy';
 import { createMockStayProvider } from './mock';
+import { createTravelpayoutsLinksProvider } from './travelpayouts-links';
 import type { StayProvider } from './types';
 
 /**
@@ -32,6 +33,8 @@ const log = getLogger('providers.stays.registry');
 const ADAPTERS: Record<string, (env: Env) => StayProvider> = {
   mock: () => createMockStayProvider(),
   absent: () => createAbsentStayProvider(),
+  // Affiliate links, no prices. Unavailable until its three identifiers are set.
+  'travelpayouts-links': (env) => createTravelpayoutsLinksProvider(env),
 };
 
 /**

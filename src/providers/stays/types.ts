@@ -1,4 +1,4 @@
-import type { StayOffer, StayQuery } from '@/core/stay/types';
+import type { StayLinkOffer, StayOffer, StayQuery } from '@/core/stay/types';
 import type { ProviderMetadata, ProviderRequestOptions, ProviderResult } from '../types';
 
 /**
@@ -31,6 +31,20 @@ export interface StayProvider {
     query: StayQuery,
     options?: ProviderRequestOptions,
   ): Promise<ProviderResult<readonly StayOffer[]>>;
+
+  /**
+   * Links into a search at this vendor, for a vendor that cannot quote a price.
+   *
+   * Optional, and a different question from `searchStays`: a priced adapter
+   * answers `searchStays` and has no reason to answer this; a link-only adapter
+   * answers this and returns no priced stays. The fan-out asks both, so a page
+   * can say "here is what it costs" and "here is where to look" separately,
+   * and never presents the second as the first.
+   */
+  searchStayLinks?(
+    query: StayQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly StayLinkOffer[]>>;
 
   /**
    * Re-price one rate the user is looking at.

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildFlightOffer, buildHotelOffer } from '@/core/trip/test-support';
-import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from './handoff';
+import {
+  buildFlightHandoff,
+  buildHotelHandoff,
+  buildPartnerHandoff,
+  buildStayLinkHandoff,
+  OUTBOUND_LINK_REL,
+} from './handoff';
+import { PARTNER_OFFERS } from './partners';
 
 /**
  * The hand-off seam is a trust boundary as much as an attribution seam: a
@@ -61,6 +68,25 @@ describe('buildHotelHandoff', () => {
   });
 });
 
+describe('buildStayLinkHandoff', () => {
+  const offer = {
+    id: 'l1',
+    providerId: 'travelpayouts-links',
+    displayName: 'Booking.com via Travelpayouts',
+    destinationName: 'Barcelona',
+    checkIn: '2026-06-10',
+    checkOut: '2026-06-14',
+    occupancy: { adults: 2, children: 0, rooms: 1 },
+    price: null,
+    url: 'https://tp.media/r?marker=1',
+  } as const;
+
+  it('vets a find-a-stay link by the same rules', () => {
+    expect(buildStayLinkHandoff(offer)?.url).toBe('https://tp.media/r?marker=1');
+    expect(buildStayLinkHandoff({ ...offer, url: 'javascript:void 0' })).toBeNull();
+  });
+});
+
 describe('OUTBOUND_LINK_REL', () => {
   it('blocks window.opener access and declares the commercial relationship', () => {
     // noopener is the security-relevant one; nofollow and sponsored are what an
@@ -69,5 +95,26 @@ describe('OUTBOUND_LINK_REL', () => {
     expect(OUTBOUND_LINK_REL).toContain('noreferrer');
     expect(OUTBOUND_LINK_REL).toContain('nofollow');
     expect(OUTBOUND_LINK_REL).toContain('sponsored');
+  });
+});
+
+describe('buildPartnerHandoff', () => {
+  it('hands off every seeded partner on its own link, attributed to the partner', () => {
+    for (const offer of PARTNER_OFFERS) {
+      const handoff = buildPartnerHandoff(offer);
+
+      expect(handoff?.url).toBe(offer.url);
+      expect(handoff?.kind).toBe('partner');
+      expect(handoff?.providerId).toBe(offer.partner);
+      expect(handoff?.offerId).toBe(offer.id);
+    }
+  });
+
+  it('refuses a link that is off the allow-list or not https', () => {
+    const [offer] = PARTNER_OFFERS;
+
+    expect(buildPartnerHandoff({ ...offer!, url: 'https://example.com/x' })).toBeNull();
+    expect(buildPartnerHandoff({ ...offer!, url: 'http://intui.tpk.lv/x' })).toBeNull();
+    expect(buildPartnerHandoff({ ...offer!, url: 'javascript:alert(1)' })).toBeNull();
   });
 });

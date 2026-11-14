@@ -83,9 +83,11 @@ export function swapFlight(candidate: TripCandidate, flight: FlightOffer): TripC
  * exactly what the scoring engine will re-read.
  */
 export function swapHotel(candidate: TripCandidate, hotel: HotelOffer): TripCandidate {
-  if (hotel.totalPrice.currency !== candidate.hotel.totalPrice.currency) {
+  // Compared with the flight's currency, which a trip always has: a trip with
+  // no priced stay has no hotel currency to compare against.
+  if (hotel.totalPrice.currency !== candidate.flight.price.currency) {
     throw new SwapError(
-      `The replacement hotel is priced in ${hotel.totalPrice.currency}, not ${candidate.hotel.totalPrice.currency}`,
+      `The replacement hotel is priced in ${hotel.totalPrice.currency}, not ${candidate.flight.price.currency}`,
     );
   }
 

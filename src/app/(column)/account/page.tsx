@@ -4,6 +4,8 @@ import { Badge, Button, Card } from '@/components/ui';
 import { PushToggle } from '@/components/notifications/push-toggle';
 import { PasswordForm } from '@/components/auth/password-form';
 import { PreferencesForm } from '@/components/auth/preferences-form';
+import { AlertPreferencesForm } from '@/components/auth/alert-preferences-form';
+import { saveAlertPreferencesAction } from '@/app/actions/alert-preferences';
 import { savePreferencesAction } from '@/app/actions/preferences';
 import {
   changePasswordAction,
@@ -18,6 +20,7 @@ import { EmailChangeForm } from '@/components/auth/email-change-form';
 import { ResendVerificationForm } from '@/components/auth/resend-verification-form';
 import { getCurrentUser } from '@/auth/current-user';
 import { readExplicitPreferences, readInferredPreferences } from '@/auth/preferences';
+import { minorUnitExponent, toMajor } from '@/core/money';
 import { getEnv } from '@/lib/env';
 import { getRepositories } from '@/db';
 
@@ -49,6 +52,8 @@ export default async function AccountPage({
   const stored = await getRepositories().preferences.find(user.id);
   const explicit = readExplicitPreferences(stored);
   const inferred = readInferredPreferences(stored);
+
+  const alerts = await getRepositories().alertPreferences.find(user.id);
 
   const { entitlements } = user;
   const params = await searchParams;
@@ -131,6 +136,23 @@ export default async function AccountPage({
         the entire point of the pair.
       */}
       <PushToggle vapidPublicKey={getEnv().NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
+
+      <AlertPreferencesForm
+        action={saveAlertPreferencesAction}
+        values={{
+          homeAirport: alerts?.homeAirport ?? explicit.homeAirports?.[0] ?? '',
+          destinations: alerts?.destinations.join(', ') ?? '',
+          // Display only: the stored figure is integer minor units.
+          budget: alerts?.budget
+            ? toMajor(alerts.budget).toFixed(minorUnitExponent(alerts.budget.currency))
+            : '',
+          currency: alerts?.budget?.currency ?? explicit.currency ?? 'EUR',
+          earliestDeparture: alerts?.earliestDeparture ?? '',
+          latestDeparture: alerts?.latestDeparture ?? '',
+          // No row means every alert, as it did before the settings existed.
+          priceDropAlerts: alerts?.priceDropAlerts ?? true,
+        }}
+      />
 
       <EmailChangeForm action={requestEmailChangeAction} />
 

@@ -110,28 +110,45 @@ export function deriveCostLines(candidate: TripCandidate): CostLine[] {
     }),
   );
 
-  lines.push(
-    buildCostLine({
-      category: 'hotel',
-      label: `${candidate.hotel.name}, ${candidate.dates.nights} nights`,
-      amount: candidate.hotel.totalPrice,
-      confidence: 'known',
-      source: candidate.hotel.providerId,
-      observedAt: candidate.hotel.observedAt,
-      conditions: candidate.hotel.freeCancellation ? 'Free cancellation' : 'Non-refundable',
-    }),
-  );
+  const { hotel } = candidate;
 
-  if (candidate.hotel.excludedFees && candidate.hotel.excludedFees.amount > 0) {
+  if (hotel) {
     lines.push(
       buildCostLine({
-        category: 'hotel_fees',
-        label: 'Local taxes and resort fees',
-        amount: candidate.hotel.excludedFees,
-        confidence: 'estimated',
-        source: candidate.hotel.providerId,
-        observedAt: candidate.hotel.observedAt,
-        conditions: 'Payable at the property',
+        category: 'hotel',
+        label: `${hotel.name}, ${candidate.dates.nights} nights`,
+        amount: hotel.totalPrice,
+        confidence: 'known',
+        source: hotel.providerId,
+        observedAt: hotel.observedAt,
+        conditions: hotel.freeCancellation ? 'Free cancellation' : 'Non-refundable',
+      }),
+    );
+
+    if (hotel.excludedFees && hotel.excludedFees.amount > 0) {
+      lines.push(
+        buildCostLine({
+          category: 'hotel_fees',
+          label: 'Local taxes and resort fees',
+          amount: hotel.excludedFees,
+          confidence: 'estimated',
+          source: hotel.providerId,
+          observedAt: hotel.observedAt,
+          conditions: 'Payable at the property',
+        }),
+      );
+    }
+  } else {
+    // Same rule as the transfer below: a stay nobody priced is a line the total
+    // visibly leaves out, never a zero that reads as a free night.
+    lines.push(
+      buildCostLine({
+        category: 'hotel',
+        label: 'Stay not priced',
+        amount: zero(currency),
+        confidence: 'excluded',
+        source: 'voyagr.cost-engine',
+        conditions: 'No priced stay is available for these dates',
       }),
     );
   }

@@ -13,6 +13,7 @@ import { NO_FILTERS } from '@/search/filters';
 import { explainTrip, summariseReasons } from '@/search/explain';
 import { summariseDestinations } from '@/search/destinations';
 import { buildRankedTrip } from './test-support';
+import { offersFor } from '@/booking/partners';
 
 /**
  * Search UI tests.
@@ -611,5 +612,90 @@ describe('what the dates are worth', () => {
     const section = screen.getByRole('region', { name: 'Pick your dates' });
 
     expect(within(section).getByText(/Events, public holidays and live availability/)).toBeTruthy();
+  });
+});
+
+describe('TripCard with no priced stay', () => {
+  const stayLink = {
+    id: 'travelpayouts-links:AYT:2026-06-10:2026-06-15',
+    providerId: 'travelpayouts-links',
+    displayName: 'Booking.com via Travelpayouts',
+    destinationName: 'Antalya',
+    checkIn: '2026-06-10',
+    checkOut: '2026-06-15',
+    occupancy: { adults: 2, children: 0, rooms: 1 },
+    price: null,
+    url: 'https://tp.media/r?marker=partner-123&p=4115&u=x',
+  } as const;
+
+  it('says the total is flights only, and never claims it is all in', () => {
+    render(<TripCard trip={buildRankedTrip({ hotel: null })} rank={0} />);
+
+    expect(screen.getByText('Flights only — stay not included')).toBeInTheDocument();
+    expect(screen.queryByText(/all in/i)).not.toBeInTheDocument();
+  });
+
+  it('says nothing of the kind when the stay is priced', () => {
+    render(<TripCard trip={buildRankedTrip()} rank={0} />);
+
+    expect(screen.queryByText(/Flights only/)).not.toBeInTheDocument();
+  });
+
+  it('shows the stay as not priced rather than as a price', () => {
+    render(<TripCard trip={buildRankedTrip({ hotel: null })} rank={0} />);
+
+    // The transfer is priced on this trip, so this is the stay's.
+    expect(screen.getByText('Not priced')).toBeInTheDocument();
+  });
+
+  it('offers a find-a-stay link that opens in a new tab and declares itself sponsored', () => {
+    render(<TripCard trip={buildRankedTrip({ hotel: null })} rank={0} stayLink={stayLink} />);
+
+    const link = screen.getByRole('link', { name: /Find a stay in Antalya.*opens in a new tab/ });
+    expect(link).toHaveAttribute('href', stayLink.url);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('sponsored');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('has no find-a-stay link when none was resolved, and no price in its place', () => {
+    render(<TripCard trip={buildRankedTrip({ hotel: null })} rank={0} />);
+
+    expect(screen.queryByRole('link', { name: /Find a stay/ })).not.toBeInTheDocument();
+  });
+
+  it('offers the transfer partner beside the not-included wording when the transfer is excluded', () => {
+    const transferOffer = offersFor('transfer')[0]!;
+    render(
+      <TripCard
+        trip={buildRankedTrip({ transfer: null })}
+        rank={0}
+        transferOffer={transferOffer}
+      />,
+    );
+
+    expect(screen.getByText('Airport transfer not included')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /Continue to Intui.*opens in a new tab/ });
+    expect(link).toHaveAttribute('href', transferOffer.url);
+    expect(link.getAttribute('rel')).toContain('sponsored');
+  });
+
+  it('does not offer a transfer partner when the transfer was priced', () => {
+    render(
+      <TripCard
+        trip={buildRankedTrip({ transfer: buildTransferOffer() })}
+        rank={0}
+        transferOffer={offersFor('transfer')[0]!}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: /Continue to Intui/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Airport transfer not included')).not.toBeInTheDocument();
+  });
+
+  it('shows nothing extra for an excluded transfer when no partner is registered', () => {
+    render(<TripCard trip={buildRankedTrip({ transfer: null })} rank={0} />);
+
+    expect(screen.queryByRole('link', { name: /Continue to/ })).not.toBeInTheDocument();
   });
 });

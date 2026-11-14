@@ -130,3 +130,116 @@ export function getSignInThrottle(): SignInThrottle {
 export function resetSignInThrottle(): void {
   globalThis.__voyagrSignInThrottle = undefined;
 }
+
+// --- Outbound email ----------------------------------------------------------
+
+/** How many sends one key may cause inside a window. */
+export interface SendLimit {
+  readonly max: number;
+  readonly windowMs: number;
+}
+
+export interface SendEntry {
+  readonly key: string;
+  readonly limit: SendLimit;
+}
+
+/**
+ * Per account, so one inbox is not mail-bombed through us. Three an hour is
+ * more than a person who mistyped needs and less than a nuisance wants.
+ */
+export const ACCOUNT_SEND_LIMIT: SendLimit = { max: 3, windowMs: 60 * 60 * 1000 };
+
+/**
+ * Per client, so one machine cannot spray many accounts. Higher than the
+ * account limit because a household or an office shares an address.
+ */
+export const CLIENT_SEND_LIMIT: SendLimit = { max: 10, windowMs: 60 * 60 * 1000 };
+
+interface SendWindow {
+  count: number;
+  startedAt: number;
+}
+
+/**
+ * Throttle for actions that send an email.
+ *
+ * `SignInThrottle` counts failures, because a correct sign-in is not abuse. A
+ * send has no failure to count: every request costs a message, so every
+ * request is counted, and it is counted whether or not it was allowed to send.
+ *
+ * A fixed window rather than an escalating lockout. A refused request does not
+ * extend the wait, so somebody who keeps pressing "resend" is told the same
+ * time rather than pushed further away. Same per-instance limitation as the
+ * sign-in throttle, for the same reason, and it moves to Redis with it.
+ */
+export class SendThrottle {
+  private readonly now: () => number;
+  private readonly windows = new Map<string, SendWindow & { windowMs: number }>();
+
+  constructor(options: { readonly now?: () => number } = {}) {
+    this.now = options.now ?? Date.now;
+  }
+
+  /**
+   * Take one send from every key, or from none.
+   *
+   * All-or-nothing: a request refused because the client is over its limit must
+   * not also spend the account's allowance, or an attacker could drain a
+   * victim's three sends from a client that was already blocked.
+   */
+  consume(entries: readonly SendEntry[]): ThrottleDecision {
+    const now = this.now();
+
+    let retryAfterMs = 0;
+    for (const { key, limit } of entries) {
+      const window = this.windows.get(key);
+      if (!window || now - window.startedAt >= limit.windowMs) continue;
+      if (window.count >= limit.max) {
+        retryAfterMs = Math.max(retryAfterMs, window.startedAt + limit.windowMs - now);
+      }
+    }
+
+    if (retryAfterMs > 0) {
+      return { allowed: false, retryAfterSeconds: Math.ceil(retryAfterMs / 1000) };
+    }
+
+    for (const { key, limit } of entries) {
+      const window = this.windows.get(key);
+      if (!window || now - window.startedAt >= limit.windowMs) {
+        this.windows.set(key, { count: 1, startedAt: now, windowMs: limit.windowMs });
+      } else {
+        window.count += 1;
+      }
+    }
+
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
+  /** Drop windows that have run out, so the map cannot grow forever. */
+  prune(): void {
+    const now = this.now();
+    for (const [key, window] of this.windows) {
+      if (now - window.startedAt >= window.windowMs) this.windows.delete(key);
+    }
+  }
+
+  get size(): number {
+    return this.windows.size;
+  }
+}
+
+declare global {
+  var __voyagrSendThrottle: SendThrottle | undefined;
+}
+
+/** On `globalThis` for the same reason as the sign-in throttle above. */
+export function getSendThrottle(): SendThrottle {
+  globalThis.__voyagrSendThrottle ??= new SendThrottle();
+  return globalThis.__voyagrSendThrottle;
+}
+
+/** Test helper - drops the shared instance. */
+export function resetSendThrottle(): void {
+  globalThis.__voyagrSendThrottle = undefined;
+}

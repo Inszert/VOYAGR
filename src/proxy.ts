@@ -27,14 +27,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV === 'development';
+  // Travelpayouts Drive, production only - see src/components/shell/affiliate-drive.tsx.
+  // Its origin is spelled out here rather than imported: this file runs in the
+  // proxy runtime and must not pull in the server env module.
+  const drive = process.env.NODE_ENV === 'production' ? ' https://emrldco.com' : '';
 
   const contentSecurityPolicy = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}${drive}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self' data:",
-    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}`,
+    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}`,
     "worker-src 'self'",
     "manifest-src 'self'",
     "frame-ancestors 'none'",

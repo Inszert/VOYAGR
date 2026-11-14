@@ -240,6 +240,16 @@ describe('hotels', () => {
       false,
     );
   });
+
+  it('drops a trip with no priced stay when a hotel filter was asked for, and keeps it otherwise', () => {
+    // There is nothing to show is refundable or well rated, so neither filter
+    // can be met - and with no hotel filter the trip is just a flights trip.
+    const noStay = buildRankedTrip({ hotel: null });
+
+    expect(matchesFilters(noStay, { ...NO_FILTERS, freeCancellationOnly: true })).toBe(false);
+    expect(matchesFilters(noStay, { ...NO_FILTERS, minReviewScore: 1 })).toBe(false);
+    expect(matchesFilters(noStay, NO_FILTERS)).toBe(true);
+  });
 });
 
 describe('transfers', () => {

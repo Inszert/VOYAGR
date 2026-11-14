@@ -161,6 +161,26 @@ describe('swapFlight', () => {
 });
 
 describe('swapHotel', () => {
+  it('puts a stay into a trip that had none, and the id says which stay', () => {
+    const original = buildCandidate({ hotel: null });
+    const hotel = buildHotelOffer({ id: 'hotel-new' });
+
+    const swapped = swapHotel(original, hotel);
+
+    expect(swapped.hotel).toBe(hotel);
+    expect(swapped.id).not.toBe(original.id);
+    expect(swapped.id).toContain('hotel-new');
+    expect(evaluateTrip(swapped, profile).cost.excluded.some((l) => l.category === 'hotel')).toBe(
+      false,
+    );
+  });
+
+  it('refuses a stay priced in another currency than the trip', () => {
+    const usd = buildHotelOffer({ totalPrice: money(30000, 'USD') });
+
+    expect(() => swapHotel(buildCandidate({ hotel: null }), usd)).toThrow(SwapError);
+  });
+
   it('updates cost, quality and location together', () => {
     const original = buildCandidate();
     const before = evaluateTrip(original, profile);

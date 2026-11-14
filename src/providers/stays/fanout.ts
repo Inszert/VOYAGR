@@ -1,5 +1,5 @@
 import { canonicalise, type CanonicalStay } from '@/core/stay/identity';
-import type { StayOffer, StayQuery } from '@/core/stay/types';
+import type { StayLinkOffer, StayOffer, StayQuery } from '@/core/stay/types';
 import type { Limiter } from '@/lib/concurrency';
 import { getLogger } from '@/lib/logger';
 import type { ProviderRequestOptions } from '../types';
@@ -88,4 +88,41 @@ export async function searchAllStays(
   }
 
   return { stays: canonicalise(offers), offers, failures, answered };
+}
+
+/**
+ * Ask every provider that has one for its "find a stay" links.
+ *
+ * Kept apart from `searchAllStays` so a link is never counted as a result:
+ * `stays.length` stays the number of priced places, and a page with only links
+ * can say so. A provider that cannot answer is skipped, never fatal - a missing
+ * link is a missing convenience, not a reason to fail the page.
+ */
+export async function findAllStayLinks(
+  providers: readonly StayProvider[],
+  query: StayQuery,
+  options: ProviderRequestOptions & { readonly limiter?: Limiter } = {},
+): Promise<readonly StayLinkOffer[]> {
+  const { limiter, ...request } = options;
+
+  const settled = await Promise.all(
+    providers.map(async (provider) => {
+      if (!provider.searchStayLinks) return [];
+
+      const run = () => provider.searchStayLinks!(query, request);
+
+      try {
+        const result = limiter ? await limiter.run(run) : await run();
+        return result.ok ? result.value : [];
+      } catch (error) {
+        log.warn(
+          { providerId: provider.metadata.id, err: error },
+          'stay link adapter threw instead of returning a result',
+        );
+        return [];
+      }
+    }),
+  );
+
+  return settled.flat();
 }

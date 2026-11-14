@@ -67,4 +67,5 @@ export { Select, type SelectOption, type SelectProps } from './select';
 export { SkipLink, type SkipLinkProps } from './skip-link';
 export { SourceStrip, SourceTag, type SourceStripProps } from './source-strip';
 export { UpdatedAgo, describeAge, type UpdatedAgoProps } from './updated-ago';
+export { Toast, type ToastProps } from './toast';
 export { TimeRangeField, type TimeRangeFieldProps } from './time-range-field';

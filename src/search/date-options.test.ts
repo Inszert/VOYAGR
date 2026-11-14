@@ -23,7 +23,7 @@ function tripOn(window: DateWindow, hotelPrice: number, id = window.departureDat
     id,
     dates: window,
     hotel: {
-      ...buildRankedTrip().candidate.hotel,
+      ...buildRankedTrip().candidate.hotel!,
       totalPrice: money(hotelPrice, 'EUR'),
     },
   });

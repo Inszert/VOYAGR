@@ -73,7 +73,11 @@ export function observationsFor(
       observedAt,
       conditions: conditionsFor(trip, 'flight'),
     },
-    {
+  ];
+
+  // Only when a stay was priced, for the same reason as the transfer below.
+  if (candidate.hotel) {
+    observations.push({
       watchId,
       componentType: 'hotel',
       componentId: candidate.hotel.id,
@@ -81,8 +85,8 @@ export function observationsFor(
       providerId: candidate.hotel.providerId,
       observedAt,
       conditions: conditionsFor(trip, 'hotel'),
-    },
-  ];
+    });
+  }
 
   // Only when one was actually priced. An unpriced transfer is an excluded cost
   // line, not a zero, and recording a zero here would poison every later

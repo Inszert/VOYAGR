@@ -40,6 +40,8 @@ export interface AirportInputProps {
   limit?: number;
   /** Drop the control's own border, for a segmented bar. */
   bare?: boolean;
+  /** Open the suggestions above the field, for a bar pinned to the bottom of a screen. */
+  dropUp?: boolean;
 }
 
 /** The comma-separated word the cursor is in, and where it sits. */
@@ -105,6 +107,7 @@ export function AirportInput({
   airports,
   limit = 8,
   bare = false,
+  dropUp = false,
 }: AirportInputProps) {
   const id = React.useId();
   const listId = `${id}-listbox`;
@@ -302,7 +305,7 @@ export function AirportInput({
         aria-label={`Airport suggestions for ${label.toLowerCase()}`}
         className={cn(
           'border-border-strong bg-surface-raised shadow-floating absolute right-0 left-0 z-30',
-          bare ? 'top-[3.4rem]' : 'top-[4.6rem]',
+          dropUp ? 'bottom-[calc(100%+0.5rem)]' : bare ? 'top-[3.4rem]' : 'top-[4.6rem]',
           'max-h-64 overflow-auto rounded-(--radius-control) border py-1',
           open && suggestions.length > 0 ? '' : 'hidden',
         )}

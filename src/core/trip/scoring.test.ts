@@ -286,3 +286,20 @@ describe('scoring a partly described itinerary', () => {
     expect(score.score).toBe(Math.round(summed * 100));
   });
 });
+
+describe('scoring a trip with no priced stay', () => {
+  const priced = buildCandidate();
+  const unpriced = buildCandidate({ hotel: null });
+
+  it('scores the stay-dependent factors neutrally, as for an unrated hotel', () => {
+    const { factors } = score(unpriced);
+
+    expect(factors.find((factor) => factor.key === 'hotel_quality')?.value).toBe(0.5);
+    expect(factors.find((factor) => factor.key === 'location')?.value).toBe(0.5);
+  });
+
+  it('lowers data confidence, because a stay nobody priced is a fact we lack', () => {
+    expect(score(unpriced).evidenceStrength).toBeLessThan(score(priced).evidenceStrength);
+    expect(itineraryCompleteness(unpriced)).toBeLessThan(itineraryCompleteness(priced));
+  });
+});

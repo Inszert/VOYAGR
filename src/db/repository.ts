@@ -1,5 +1,5 @@
 import type { Money } from '@/core/money';
-import type { IsoDateTime, SearchProfile } from '@/core/trip/types';
+import type { IsoDate, IsoDateTime, SearchProfile } from '@/core/trip/types';
 
 /**
  * Repository interfaces.
@@ -121,6 +121,33 @@ export interface UserPreferencesRecord {
   readonly inferred: Readonly<Record<string, unknown>>;
   readonly updatedAt: IsoDateTime;
 }
+
+/**
+ * Which price-drop alerts a user wants, and about where.
+ *
+ * Its own record rather than a key in `UserPreferencesRecord.explicit`: these
+ * are read on every watch refresh by the alert filter, and a typed row keeps
+ * the budget as integer minor units instead of a number inside JSON.
+ *
+ * A row that does not exist means "no filter, alerts on" - the behaviour before
+ * this record existed - so nobody loses an alert by never opening the form.
+ */
+export interface AlertPreferencesRecord {
+  readonly userId: string;
+  /** IATA code of the airport the user flies from, or null when not chosen. */
+  readonly homeAirport: string | null;
+  /** IATA codes alerts are limited to. Empty means anywhere. */
+  readonly destinations: readonly string[];
+  /** The most the user wants an alerted trip to cost, or null for no limit. */
+  readonly budget: Money | null;
+  /** The departure window of interest, either end open. Inclusive. */
+  readonly earliestDeparture: IsoDate | null;
+  readonly latestDeparture: IsoDate | null;
+  readonly priceDropAlerts: boolean;
+  readonly updatedAt: IsoDateTime;
+}
+
+export type AlertPreferencesInput = Omit<AlertPreferencesRecord, 'userId' | 'updatedAt'>;
 
 export interface TripSearchRecord {
   readonly id: string;
@@ -324,6 +351,11 @@ export interface UserPreferencesRepository {
   ): Promise<UserPreferencesRecord>;
 }
 
+export interface AlertPreferencesRepository {
+  find(userId: string): Promise<AlertPreferencesRecord | null>;
+  save(userId: string, input: AlertPreferencesInput): Promise<AlertPreferencesRecord>;
+}
+
 export interface TripSearchRepository {
   findById(id: string): Promise<TripSearchRecord | null>;
   listByUser(userId: string): Promise<TripSearchRecord[]>;
@@ -447,6 +479,7 @@ export interface Repositories {
   readonly passwordReset: PasswordResetRepository;
   readonly emailChange: EmailChangeRepository;
   readonly preferences: UserPreferencesRepository;
+  readonly alertPreferences: AlertPreferencesRepository;
   readonly tripSearches: TripSearchRepository;
   readonly travelWatches: TravelWatchRepository;
   readonly priceHistory: PriceHistoryRepository;

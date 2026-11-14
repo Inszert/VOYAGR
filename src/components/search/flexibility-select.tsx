@@ -4,7 +4,11 @@ import * as React from 'react';
 import { Select as RadixSelect } from 'radix-ui';
 import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
-import { FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS, type FlexibilityPreset } from '@/search/flexibility';
+import {
+  FLEXIBILITY_LABELS,
+  FLEXIBILITY_PRESETS,
+  type FlexibilityPreset,
+} from '@/search/flexibility';
 
 /**
  * The date flexibility control, as a grouped listbox rather than a plain

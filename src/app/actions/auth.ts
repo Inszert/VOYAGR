@@ -163,7 +163,12 @@ export async function requestEmailChangeAction(
   const newEmail = String(formData.get('newEmail') ?? '');
 
   try {
-    await getAuthService().requestEmailChange(user.id, currentPassword, newEmail);
+    await getAuthService().requestEmailChange(
+      user.id,
+      currentPassword,
+      newEmail,
+      await resolveClientKey(),
+    );
   } catch (error) {
     return { error: publicMessage(error, 'Could not start the email change.') };
   }
@@ -232,10 +237,12 @@ export interface ResendVerificationState {
  * Resend the verification email for the signed-in account.
  *
  * The user id comes from the session, never from the form - the same reason
- * `deleteAccountAction` does not take one. Always reports success: whether
- * an unverified account existed to resend for is not this response's
- * business to reveal, and `AuthService.resendVerificationEmail` already
- * no-ops safely for an already-verified one.
+ * `deleteAccountAction` does not take one. Reports success whether or not
+ * there was anything to send: whether an unverified account existed to resend
+ * for is not this response's business to reveal, and
+ * `AuthService.resendVerificationEmail` already no-ops safely for an
+ * already-verified one. The one exception is a throttled request, which says
+ * so - the caller is signed in, so that reveals nothing about anyone else.
  */
 export async function resendVerificationAction(
   _previous: ResendVerificationState,
@@ -245,7 +252,7 @@ export async function resendVerificationAction(
   if (!user) return { error: 'Sign in again to resend your verification email.' };
 
   try {
-    await getAuthService().resendVerificationEmail(user.id);
+    await getAuthService().resendVerificationEmail(user.id, await resolveClientKey());
   } catch (error) {
     return { error: publicMessage(error, 'Could not resend the verification email.') };
   }
@@ -272,7 +279,7 @@ export async function requestPasswordResetAction(
   formData: FormData,
 ): Promise<RequestPasswordResetState> {
   const email = String(formData.get('email') ?? '');
-  await getAuthService().requestPasswordReset(email);
+  await getAuthService().requestPasswordReset(email, await resolveClientKey());
 
   return { message: 'If that address has an account, a reset link is on its way.' };
 }

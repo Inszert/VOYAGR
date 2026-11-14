@@ -132,7 +132,11 @@ export function assembleRouteCandidates(input: RouteAssemblyInput): TripCandidat
     .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount || a.id.localeCompare(b.id))
     .slice(0, limits.maxHotelOffersPerDestination);
 
-  if (flights.length === 0 || hotels.length === 0) return [];
+  if (flights.length === 0) return [];
+
+  // No priced stay is not a reason to drop the trip. The flights are real, and
+  // the cost engine reports the missing stay as an excluded line.
+  const stays: readonly (HotelOffer | null)[] = hotels.length === 0 ? [null] : hotels;
 
   const transfer = selectTransfer(input.transfers);
   const weather = weatherForWindow(input.outlook, window);
@@ -143,7 +147,7 @@ export function assembleRouteCandidates(input: RouteAssemblyInput): TripCandidat
     const origin = flightOrigin(flight);
     if (origin === null) continue;
 
-    for (const hotel of hotels) {
+    for (const hotel of stays) {
       candidates.push({
         id: candidateId(origin, input.destination, window, flight, hotel),
         origin,
@@ -173,8 +177,8 @@ export function assembleRouteCandidates(input: RouteAssemblyInput): TripCandidat
     .sort(
       (a, b) =>
         a.flight.price.amount +
-          a.hotel.totalPrice.amount -
-          (b.flight.price.amount + b.hotel.totalPrice.amount) || a.id.localeCompare(b.id),
+          (a.hotel?.totalPrice.amount ?? 0) -
+          (b.flight.price.amount + (b.hotel?.totalPrice.amount ?? 0)) || a.id.localeCompare(b.id),
     )
     .slice(0, limits.maxCandidatesPerRoute);
 }

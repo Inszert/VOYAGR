@@ -31,6 +31,7 @@ const REDACTED_PATHS = [
   'REDIS_URL',
   'ANTHROPIC_API_KEY',
   'VAPID_PRIVATE_KEY',
+  'RESEND_API_KEY',
   'subscription.keys',
   '*.subscription.keys',
 ];

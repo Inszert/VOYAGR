@@ -216,7 +216,12 @@ export interface TripCandidate {
   readonly dates: TripDates;
   readonly passengers: number;
   readonly flight: FlightOffer;
-  readonly hotel: HotelOffer;
+  /**
+   * The priced stay, or null when no provider quoted one. Null is not a free
+   * stay: the cost engine emits an `excluded` stay line, and every hotel-based
+   * requirement is unproven rather than met.
+   */
+  readonly hotel: HotelOffer | null;
   readonly transfer: TransferOffer | null;
   readonly weather: readonly WeatherOutlook[];
   /** Additional lines such as food budget or activities. */

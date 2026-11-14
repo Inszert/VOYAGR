@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  AlertPreferencesInput,
+  AlertPreferencesRecord,
+  AlertPreferencesRepository,
   EmailChangeRepository,
   EmailChangeTokenRecord,
   EmailVerificationRepository,
@@ -383,6 +386,30 @@ class MemoryUserPreferencesRepository implements UserPreferencesRepository {
   }
 }
 
+class MemoryAlertPreferencesRepository implements AlertPreferencesRepository {
+  private readonly byUserId = new Map<string, AlertPreferencesRecord>();
+
+  async find(userId: string): Promise<AlertPreferencesRecord | null> {
+    return this.byUserId.get(userId) ?? null;
+  }
+
+  async save(userId: string, input: AlertPreferencesInput): Promise<AlertPreferencesRecord> {
+    const record: AlertPreferencesRecord = {
+      ...input,
+      destinations: [...input.destinations],
+      userId,
+      updatedAt: now(),
+    };
+
+    this.byUserId.set(userId, record);
+    return record;
+  }
+
+  eraseUser(userId: string): number {
+    return this.byUserId.delete(userId) ? 1 : 0;
+  }
+}
+
 class MemoryTripSearchRepository implements TripSearchRepository {
   private readonly byId = new Map<string, TripSearchRecord>();
 
@@ -689,6 +716,7 @@ export function createMemoryRepositories(): Repositories {
   const passwordReset = new MemoryPasswordResetRepository();
   const emailChange = new MemoryEmailChangeRepository();
   const preferences = new MemoryUserPreferencesRepository();
+  const alertPreferences = new MemoryAlertPreferencesRepository();
   const tripSearches = new MemoryTripSearchRepository();
   const travelWatches = new MemoryTravelWatchRepository();
   const priceHistory = new MemoryPriceHistoryRepository();
@@ -712,6 +740,9 @@ export function createMemoryRepositories(): Repositories {
 
   users.cascade = (userId) => {
     const watchIds = travelWatches.eraseUser(userId);
+    // Not in the summary: it is part of the same preferences the user set, and Postgres
+    // removes it by cascade without counting it.
+    alertPreferences.eraseUser(userId);
 
     return {
       priceObservations: priceHistory.eraseWatches(watchIds),
@@ -736,6 +767,7 @@ export function createMemoryRepositories(): Repositories {
     passwordReset,
     emailChange,
     preferences,
+    alertPreferences,
     tripSearches,
     travelWatches,
     priceHistory,

@@ -214,3 +214,43 @@ describe('flight conditions when a provider was terse', () => {
     expect(conditionsFor({ selfTransfer: null })).toContain('Connection ticketing not stated');
   });
 });
+
+describe('a trip with no priced stay', () => {
+  const withStay = buildCandidate();
+  const withoutStay = buildCandidate({ hotel: null });
+
+  it('emits an excluded stay line rather than a zero or nothing', () => {
+    const stay = deriveCostLines(withoutStay).find((line) => line.category === 'hotel');
+
+    expect(stay?.confidence).toBe('excluded');
+    expect(stay?.amount.amount).toBe(0);
+    expect(stay?.source).toBe('voyagr.cost-engine');
+  });
+
+  it('emits no hotel-fee line without a hotel', () => {
+    expect(deriveCostLines(withoutStay).some((line) => line.category === 'hotel_fees')).toBe(false);
+  });
+
+  it('counts a quoted stay in the total and an excluded one not at all', () => {
+    const known = costTripCandidate(withStay);
+    const excluded = costTripCandidate(withoutStay);
+
+    // The difference between the two totals is exactly the quoted stay.
+    expect(known.total.amount - excluded.total.amount).toBe(withStay.hotel!.totalPrice.amount);
+    expect(excluded.knownTotal.amount).toBe(
+      withoutStay.flight.price.amount + withoutStay.transfer!.pricePerDirection.amount * 2,
+    );
+  });
+
+  it('lists the stay as excluded only when there is no stay', () => {
+    expect(costTripCandidate(withoutStay).excluded.map((line) => line.category)).toContain('hotel');
+    expect(costTripCandidate(withStay).excluded.map((line) => line.category)).not.toContain(
+      'hotel',
+    );
+  });
+
+  it('keeps the stay out of every category total while it is excluded', () => {
+    const cost = costTripCandidate(withoutStay);
+    expect(cost.byCategory.some((entry) => entry.category === 'hotel')).toBe(false);
+  });
+});

@@ -162,6 +162,14 @@ const envSchema = z.object({
    */
   AVIASALES_API_TOKEN: z.string().min(1).optional(),
   AVIASALES_PARTNER_ID: z.string().min(1).optional(),
+  /**
+   * The Travelpayouts hotel programme and campaign that "find a stay" links are
+   * wrapped in. Both are public affiliate identifiers, like the marker. Neither
+   * has a default: with either unset the link adapter is unavailable rather
+   * than guessing an id.
+   */
+  TRAVELPAYOUTS_HOTEL_PROGRAM_ID: z.string().min(1).optional(),
+  TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID: z.string().min(1).optional(),
 
   /*
    * Destination photographs. `none` is a supported state, not a degraded one:
@@ -173,9 +181,15 @@ const envSchema = z.object({
   /**
    * Which email adapter is active. `console` - the default - writes a
    * verification link to the structured log instead of sending anything; see
-   * `src/email/console.ts`. No real provider is wired in yet.
+   * `src/email/console.ts`. `resend` posts to Resend's HTTPS API and needs
+   * `RESEND_API_KEY`. Production refuses `console` - see `src/email/registry.ts`.
    */
-  EMAIL_PROVIDER: z.enum(['console']).default('console'),
+  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).default('Voyagr <hello@voyagrfind.com>'),
+  EMAIL_REPLY_TO: z.string().min(1).optional(),
+  /** The sender's postal address, printed in the footer of every email. */
+  EMAIL_POSTAL_ADDRESS: z.string().min(1).optional(),
 
   // Web Push.
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
@@ -198,6 +212,7 @@ export const SECRET_ENV_KEYS = [
   // The token, not the marker: see the note beside them above.
   'AVIASALES_API_TOKEN',
   'VAPID_PRIVATE_KEY',
+  'RESEND_API_KEY',
 ] as const satisfies readonly (keyof Env)[];
 
 export class EnvValidationError extends Error {

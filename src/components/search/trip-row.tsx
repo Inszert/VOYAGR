@@ -114,7 +114,7 @@ export function TripRow({
           {back ? <span>Back {back}</span> : null}
           <span className="flex items-center gap-1.5">
             <Icon name="bed" size={0.95} className="text-tint-ink" />
-            {candidate.hotel.name}
+            {candidate.hotel?.name ?? 'Stay not included'}
           </span>
         </p>
 

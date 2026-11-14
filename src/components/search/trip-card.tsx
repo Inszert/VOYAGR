@@ -18,6 +18,11 @@ import { cn } from '@/lib/cn';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/booking/handoff';
+import { FindStayLink } from '@/components/stays/find-stay-link';
+import type { PartnerOffer } from '@/booking/partners';
+import { PartnerOfferRow } from '@/components/partners/partner-offer-row';
+import { costCoverage, describeExclusions } from '@/core/trip/coverage';
+import type { StayLinkOffer } from '@/core/stay/types';
 import type { RankedTrip } from '@/search/types';
 import type { Alternative } from '@/search/alternatives';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
@@ -186,6 +191,18 @@ export interface TripCardProps {
    * resolved imagery first. The header is built to look deliberate without it.
    */
   image?: DestinationImage | null;
+  /**
+   * A "find a stay" link, for a trip with no priced stay. Resolved by the page;
+   * absent when there is no link vendor configured, and the card then says only
+   * that the stay is not included.
+   */
+  stayLink?: StayLinkOffer | null;
+  /**
+   * A partner who can sort the airport transfer. Shown only when this trip's
+   * transfer cost line is `excluded`, beside the words that say so; absent
+   * when no partner is registered, and the card then shows nothing extra.
+   */
+  transferOffer?: PartnerOffer | null;
 }
 
 export function TripCard({
@@ -198,6 +215,8 @@ export function TripCard({
   flightAlternatives = [],
   hotelAlternatives = [],
   image = null,
+  stayLink = null,
+  transferOffer = null,
   builder,
   view = 'trip',
   buildHref,
@@ -245,15 +264,19 @@ export function TripCard({
       key: 'hotel',
       icon: 'bed',
       label: 'Hotel',
-      value: (
+      value: candidate.hotel ? (
         <>
           {format(candidate.hotel.totalPrice)}
           <span className="text-ink-muted"> · {candidate.dates.nights} nights</span>
         </>
+      ) : (
+        // Never a zero: no price was quoted, which is not a free stay.
+        <span className="text-caution-ink">Not priced</span>
       ),
-      detail: sourceFor('hotels') ? (
-        <SourceTag source={sourceFor('hotels')!} className={FACT_TAG} />
-      ) : null,
+      detail:
+        candidate.hotel && sourceFor('hotels') ? (
+          <SourceTag source={sourceFor('hotels')!} className={FACT_TAG} />
+        ) : null,
     },
     {
       key: 'transfer',
@@ -276,7 +299,17 @@ export function TripCard({
   ];
 
   const flightLink = buildFlightHandoff(candidate.flight, { candidateId: candidate.id });
-  const hotelLink = buildHotelHandoff(candidate.hotel, { candidateId: candidate.id });
+  const hotelLink = candidate.hotel
+    ? buildHotelHandoff(candidate.hotel, { candidateId: candidate.id })
+    : null;
+  // Said by the coverage module, not worded here: the total is a true number
+  // and "all in" is what a missing stay would make it a false one.
+  const stayMissing = candidate.hotel
+    ? null
+    : describeExclusions(costCoverage(cost.excluded).excluded);
+  // Read from the engine's own tagging, not from "no transfer on the candidate":
+  // the cost lines are what the total was built from.
+  const transferExcluded = cost.excluded.some((line) => line.category === 'transfer');
   const rankLabel = label ?? (rank === 0 ? (lead ?? RANK_LABEL[0]) : RANK_LABEL[rank]);
 
   /*
@@ -389,10 +422,11 @@ export function TripCard({
             caption={
               view === 'flight'
                 ? `flights for ${candidate.passengers} · whole trip ${format(cost.total)}`
-                : `total · ${format(cost.perPerson)} each${roomsNote(candidate.hotel.rooms ?? null)} · ${format(cost.perNight)} a night`
+                : `total · ${format(cost.perPerson)} each${roomsNote(candidate.hotel?.rooms ?? null)} · ${format(cost.perNight)} a night`
             }
             note={
               <div className="flex flex-col items-end gap-1.5">
+                {stayMissing ? <p className="text-caution-ink font-medium">{stayMissing}</p> : null}
                 <p
                   className={cn(
                     'font-medium tabular-nums',
@@ -454,9 +488,15 @@ export function TripCard({
 
       {view === 'flight' ? (
         <p className="text-ink-muted -mt-1 text-sm">
-          Showing the flights&rsquo; price. The hotel on this trip,{' '}
-          <span className="text-ink">{candidate.hotel.name}</span>, adds{' '}
-          <span className="text-ink tabular-nums">{format(candidate.hotel.totalPrice)}</span>.
+          {candidate.hotel ? (
+            <>
+              Showing the flights&rsquo; price. The hotel on this trip,{' '}
+              <span className="text-ink">{candidate.hotel.name}</span>, adds{' '}
+              <span className="text-ink tabular-nums">{format(candidate.hotel.totalPrice)}</span>.
+            </>
+          ) : (
+            'Showing the flights’ price. No stay was priced for this trip, so it is also the whole total.'
+          )}
         </p>
       ) : null}
 
@@ -676,7 +716,7 @@ export function TripCard({
                 cost={cost}
                 passengers={candidate.passengers}
                 nights={candidate.dates.nights}
-                rooms={candidate.hotel.rooms ?? null}
+                rooms={candidate.hotel?.rooms ?? null}
               />
             </Disclosure>
 
@@ -703,14 +743,20 @@ export function TripCard({
                 <div>
                   <dt className="text-ink font-medium">Hotel</dt>
                   <dd className="text-ink-muted">
-                    {candidate.hotel.name}
-                    {candidate.hotel.starRating === null
-                      ? ''
-                      : `, ${candidate.hotel.starRating} star`}
-                    {candidate.hotel.reviewScore === null
-                      ? ''
-                      : `, guests rate it ${candidate.hotel.reviewScore} from ${candidate.hotel.reviewCount} reviews`}
-                    .
+                    {candidate.hotel ? (
+                      <>
+                        {candidate.hotel.name}
+                        {candidate.hotel.starRating === null
+                          ? ''
+                          : `, ${candidate.hotel.starRating} star`}
+                        {candidate.hotel.reviewScore === null
+                          ? ''
+                          : `, guests rate it ${candidate.hotel.reviewScore} from ${candidate.hotel.reviewCount} reviews`}
+                        .
+                      </>
+                    ) : (
+                      'No stay was priced for these dates.'
+                    )}
                   </dd>
                 </div>
               </dl>
@@ -738,7 +784,14 @@ export function TripCard({
         </div>
       </Disclosure>
 
-      {flightLink || hotelLink ? (
+      {transferExcluded && transferOffer ? (
+        <div className="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4">
+          <p className="text-caution-ink text-sm font-medium">{describeExclusions(['transfer'])}</p>
+          <PartnerOfferRow offer={transferOffer} />
+        </div>
+      ) : null}
+
+      {flightLink || hotelLink || stayLink ? (
         <div className="border-border flex flex-wrap items-center gap-3 border-t pt-4">
           {flightLink ? (
             <Button asChild variant={featured ? 'cta' : 'secondary'} size={compact ? 'sm' : 'md'}>
@@ -757,6 +810,7 @@ export function TripCard({
               </a>
             </Button>
           ) : null}
+          {stayLink ? <FindStayLink offer={stayLink} size={compact ? 'sm' : 'md'} /> : null}
         </div>
       ) : (
         <p className="text-ink-muted border-border border-t pt-4 text-sm">

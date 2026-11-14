@@ -255,41 +255,72 @@ export function evaluateEligibility(
     }
   }
 
-  if (profile.requireFreeCancellation && !candidate.hotel.freeCancellation) {
-    violations.push({
-      code: 'FREE_CANCELLATION_REQUIRED',
-      message: 'Free cancellation was required, but this rate is non-refundable.',
-    });
-  }
+  const { hotel } = candidate;
 
-  if (
-    profile.minHotelReviewScore !== null &&
-    candidate.hotel.reviewScore !== null &&
-    candidate.hotel.reviewScore < profile.minHotelReviewScore
-  ) {
-    violations.push({
-      code: 'HOTEL_REVIEW_SCORE_TOO_LOW',
-      message: `The hotel scores ${candidate.hotel.reviewScore}, below the required ${profile.minHotelReviewScore}.`,
-      detail: {
-        reviewScore: candidate.hotel.reviewScore,
-        required: profile.minHotelReviewScore,
-      },
-    });
-  }
+  if (hotel === null) {
+    // No priced stay means nothing is known about the hotel. A hard requirement
+    // we cannot show is met is reported as unmet, with `confirmed: false` so the
+    // reader can tell "no stay was priced" from "the stay fails it".
+    if (profile.requireFreeCancellation) {
+      violations.push({
+        code: 'FREE_CANCELLATION_REQUIRED',
+        message: 'Free cancellation was required, and no priced stay is available to check.',
+        detail: { confirmed: false },
+      });
+    }
 
-  if (
-    profile.maxBeachDistanceMetres !== null &&
-    candidate.hotel.distanceToBeachMetres !== null &&
-    candidate.hotel.distanceToBeachMetres > profile.maxBeachDistanceMetres
-  ) {
-    violations.push({
-      code: 'BEACH_TOO_FAR',
-      message: `The hotel is ${candidate.hotel.distanceToBeachMetres} m from the beach, beyond the ${profile.maxBeachDistanceMetres} m limit.`,
-      detail: {
-        distanceToBeachMetres: candidate.hotel.distanceToBeachMetres,
-        maxBeachDistanceMetres: profile.maxBeachDistanceMetres,
-      },
-    });
+    if (profile.minHotelReviewScore !== null) {
+      violations.push({
+        code: 'HOTEL_REVIEW_SCORE_TOO_LOW',
+        message: `A hotel review score of ${profile.minHotelReviewScore} was required, and no priced stay is available to check.`,
+        detail: { required: profile.minHotelReviewScore, confirmed: false },
+      });
+    }
+
+    if (profile.maxBeachDistanceMetres !== null) {
+      violations.push({
+        code: 'BEACH_TOO_FAR',
+        message: `A stay within ${profile.maxBeachDistanceMetres} m of the beach was required, and no priced stay is available to check.`,
+        detail: { maxBeachDistanceMetres: profile.maxBeachDistanceMetres, confirmed: false },
+      });
+    }
+  } else {
+    if (profile.requireFreeCancellation && !hotel.freeCancellation) {
+      violations.push({
+        code: 'FREE_CANCELLATION_REQUIRED',
+        message: 'Free cancellation was required, but this rate is non-refundable.',
+      });
+    }
+
+    if (
+      profile.minHotelReviewScore !== null &&
+      hotel.reviewScore !== null &&
+      hotel.reviewScore < profile.minHotelReviewScore
+    ) {
+      violations.push({
+        code: 'HOTEL_REVIEW_SCORE_TOO_LOW',
+        message: `The hotel scores ${hotel.reviewScore}, below the required ${profile.minHotelReviewScore}.`,
+        detail: {
+          reviewScore: hotel.reviewScore,
+          required: profile.minHotelReviewScore,
+        },
+      });
+    }
+
+    if (
+      profile.maxBeachDistanceMetres !== null &&
+      hotel.distanceToBeachMetres !== null &&
+      hotel.distanceToBeachMetres > profile.maxBeachDistanceMetres
+    ) {
+      violations.push({
+        code: 'BEACH_TOO_FAR',
+        message: `The hotel is ${hotel.distanceToBeachMetres} m from the beach, beyond the ${profile.maxBeachDistanceMetres} m limit.`,
+        detail: {
+          distanceToBeachMetres: hotel.distanceToBeachMetres,
+          maxBeachDistanceMetres: profile.maxBeachDistanceMetres,
+        },
+      });
+    }
   }
 
   const budgetHeadroom = subtract(profile.maxBudget, cost.total);
@@ -326,6 +357,7 @@ export type TravelWarningCode =
   | 'EXCLUDED_FEES'
   | 'ESTIMATE_HEAVY_TOTAL'
   | 'NO_TRANSFER_PRICED'
+  | 'NO_STAY_PRICED'
   | 'LOW_WEATHER_CONFIDENCE';
 
 export type WarningSeverity = 'confirmed' | 'estimated' | 'possible' | 'needs_verification';
@@ -421,7 +453,13 @@ export function detectTravelWarnings(candidate: TripCandidate, cost: TripCost): 
     });
   }
 
-  if (!candidate.hotel.freeCancellation) {
+  if (!candidate.hotel) {
+    warnings.push({
+      code: 'NO_STAY_PRICED',
+      severity: 'needs_verification',
+      message: 'No stay was priced, so the total covers flights only. Add a stay to see the cost.',
+    });
+  } else if (!candidate.hotel.freeCancellation) {
     warnings.push({
       code: 'NON_REFUNDABLE',
       severity: 'confirmed',
@@ -429,7 +467,7 @@ export function detectTravelWarnings(candidate: TripCandidate, cost: TripCost): 
     });
   }
 
-  if (candidate.hotel.excludedFees && candidate.hotel.excludedFees.amount > 0) {
+  if (candidate.hotel?.excludedFees && candidate.hotel.excludedFees.amount > 0) {
     warnings.push({
       code: 'EXCLUDED_FEES',
       severity: 'estimated',

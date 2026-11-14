@@ -259,10 +259,12 @@ export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolea
     if (!arrivesAt || localHour(arrivesAt) > filters.arriveBeforeHour) return false;
   }
 
-  if (filters.freeCancellationOnly && !trip.candidate.hotel.freeCancellation) return false;
+  // With no priced stay there is nothing to show is refundable or well rated,
+  // so both filters drop the trip, as an unrated hotel does below.
+  if (filters.freeCancellationOnly && !trip.candidate.hotel?.freeCancellation) return false;
 
   if (filters.minReviewScore !== null) {
-    const score = trip.candidate.hotel.reviewScore;
+    const score = trip.candidate.hotel?.reviewScore ?? null;
     // Unrated is not "below the bar"; it is unknown, and the user asked for a
     // score they could rely on.
     if (score === null || score < filters.minReviewScore) return false;

@@ -5,6 +5,8 @@ import type { FlightOffer } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
 import { err, ok } from '@/lib/result';
 import { fixedRates } from '@/core/fx';
+import { costCoverage, describeExclusions } from '@/core/trip/coverage';
+import { createAbsentHotelProvider } from '@/providers/absent';
 import { MOCK_OBSERVED_AT } from '@/providers/fixtures/deterministic';
 import { createMockFlightProvider } from '@/providers/flights/mock';
 import { createMockHotelProvider } from '@/providers/hotels/mock';
@@ -154,8 +156,8 @@ describe('runSearch against mock providers', () => {
     expect(outcome.results.length).toBeGreaterThan(0);
     for (const trip of outcome.results) {
       expect(trip.candidate.dates.nights).toBe(5);
-      expect(trip.candidate.hotel.freeCancellation).toBe(true);
-      expect(trip.candidate.hotel.reviewScore).toBeGreaterThanOrEqual(8);
+      expect(trip.candidate.hotel!.freeCancellation).toBe(true);
+      expect(trip.candidate.hotel!.reviewScore).toBeGreaterThanOrEqual(8);
       expect(trip.cost.total.amount).toBeLessThanOrEqual(profile.maxBudget.amount);
     }
   });
@@ -242,11 +244,48 @@ describe('runSearch degrades rather than failing when a provider is down', () =>
     );
   });
 
-  it('returns nothing but explains itself when hotels are unavailable', async () => {
+  it('still returns flight-only trips, and explains itself, when hotels are unavailable', async () => {
     const outcome = await search({}, { hotels: brokenHotels });
 
-    expect(outcome.results).toEqual([]);
+    expect(outcome.results.length).toBeGreaterThan(0);
+    expect(outcome.results.every((trip) => trip.candidate.hotel === null)).toBe(true);
     expect(outcome.diagnostics.issues.some((issue) => issue.kind === 'hotels')).toBe(true);
+  });
+
+  it('assembles trips in production shape: flights answer, the hotel slot is absent', async () => {
+    const outcome = await search({}, { hotels: createAbsentHotelProvider() });
+
+    expect(outcome.results.length).toBeGreaterThan(0);
+
+    for (const trip of outcome.results) {
+      expect(trip.candidate.hotel).toBeNull();
+
+      // The total is the flights and the transfer, and says what it leaves out.
+      const stay = trip.cost.excluded.find((line) => line.category === 'hotel');
+      expect(stay?.amount.amount).toBe(0);
+      expect(trip.cost.total.amount).toBe(
+        trip.candidate.flight.price.amount +
+          (trip.candidate.transfer ? trip.candidate.transfer.pricePerDirection.amount * 2 : 0),
+      );
+      expect(describeExclusions(costCoverage(trip.cost.excluded).excluded)).toMatch(
+        /^Flights only — .*stay.* not included$/,
+      );
+      expect(trip.warnings.some((warning) => warning.code === 'NO_STAY_PRICED')).toBe(true);
+    }
+  });
+
+  it('does not treat a stay-dependent requirement as met when there is no stay', async () => {
+    const outcome = await search(
+      { profile: buildProfile({ requireFreeCancellation: true }) },
+      { hotels: createAbsentHotelProvider() },
+    );
+
+    expect(outcome.results).toEqual([]);
+    expect(
+      outcome.nearMisses.some((trip) =>
+        trip.eligibility.violations.some((violation) => violation.detail?.confirmed === false),
+      ),
+    ).toBe(true);
   });
 
   it('keeps the destinations a failing hotel search did not affect', async () => {

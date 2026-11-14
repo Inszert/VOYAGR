@@ -64,8 +64,8 @@ export function SaveSearchForm({ query, suggestedName, signedIn, action }: SaveS
         Keep looking for this trip
       </h2>
       <p className="text-ink-muted mt-1 text-sm">
-        We will re-run this search in the background and tell you if a materially better trip
-        turns up.
+        We will re-run this search in the background and tell you if a materially better trip turns
+        up.
       </p>
 
       <form action={formAction} className="mt-4 flex flex-col items-start gap-3">

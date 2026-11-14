@@ -149,7 +149,7 @@ describe('hotelAlternatives', () => {
   it('evaluates a different hotel as a complete trip', () => {
     const current = buildRankedTrip();
     const dearer = buildRankedTrip({
-      hotel: { ...current.candidate.hotel, id: 'hotel-2', totalPrice: money(52000, 'EUR') },
+      hotel: { ...current.candidate.hotel!, id: 'hotel-2', totalPrice: money(52000, 'EUR') },
     });
 
     const option = hotelAlternatives({
@@ -158,7 +158,7 @@ describe('hotelAlternatives', () => {
       profile,
     }).find((entry) => entry.offerId === 'hotel-2');
 
-    expect(option?.totalDeltaMinorUnits).toBe(52000 - current.candidate.hotel.totalPrice.amount);
+    expect(option?.totalDeltaMinorUnits).toBe(52000 - current.candidate.hotel!.totalPrice.amount);
     expect(option?.trip.candidate.flight.id).toBe(current.candidate.flight.id);
   });
 
@@ -168,7 +168,7 @@ describe('hotelAlternatives', () => {
     const tight = buildProfile({ maxBudget: money(70000, 'EUR') });
     const current = buildRankedTrip();
     const expensive = buildRankedTrip({
-      hotel: { ...current.candidate.hotel, id: 'hotel-lux', totalPrice: money(90000, 'EUR') },
+      hotel: { ...current.candidate.hotel!, id: 'hotel-lux', totalPrice: money(90000, 'EUR') },
     });
 
     const option = hotelAlternatives({

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getCurrentUser } from '@/auth/current-user';
+import { NotificationCentre } from '@/components/notifications/notification-centre';
 
 /**
  * Header navigation that knows whether anyone is signed in.
@@ -40,6 +41,7 @@ export async function AccountNav() {
 
   return (
     <nav aria-label="Account" className="flex items-center gap-2 text-sm">
+      <NotificationCentre />
       <Link
         href="/account"
         className="voyagr-panel text-text ease-standard duration-quick flex h-[38px] items-center gap-2 rounded-(--radius-pill) pr-4 pl-1.5 text-[14px] transition-colors hover:border-(--color-stage-accent)"

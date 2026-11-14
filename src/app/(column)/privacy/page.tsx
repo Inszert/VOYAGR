@@ -124,7 +124,8 @@ const sections: readonly LegalSection[] = [
     // `src/providers/flights/duffel.ts` and `aviasales.ts` (route, dates,
     // currency only - Aviasales not even passenger count);
     // `src/providers/weather/open-meteo.ts` (coordinates and dates only);
-    // `src/app/api/imagery/[code]/route.ts`.
+    // `src/app/api/imagery/[code]/route.ts`; `src/booking/partners.ts` (plain
+    // links with no parameter about the visitor).
     body: (
       <>
         <ul>
@@ -151,6 +152,13 @@ const sections: readonly LegalSection[] = [
           Hotel and transfer prices come from no outside provider at this stage, so nothing about
           you is sent anywhere for them. Voyagr does not sell personal data or share it for
           advertising.
+        </p>
+        <p>
+          Some links on Voyagr, such as airport transfers, travel eSIMs and flight compensation, are
+          partner links. If you book through one, Voyagr may earn a commission, at no cost to you.
+          Following a partner link opens that partner&rsquo;s own website in a new tab; Voyagr does
+          not pass your name, email address or account to it, and what the partner collects is
+          described in its own privacy notice.
         </p>
       </>
     ),
@@ -204,7 +212,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy"
-      updated="2026-11-04"
+      updated="2026-11-14"
       summary={
         <p>
           Voyagr works without an account and without tracking. If you make an account, it keeps

@@ -198,6 +198,10 @@ export function scoreFlightQuality(candidate: TripCandidate): number {
 export function scoreHotelQuality(candidate: TripCandidate): number {
   const { hotel } = candidate;
 
+  // No priced stay: the same neutral an unrated hotel gets, not a penalty. The
+  // doubt itself is recorded in data confidence.
+  if (hotel === null) return 0.5;
+
   // Review score carries most of the weight; stars are a weaker signal.
   const reviewComponent = hotel.reviewScore === null ? 0.5 : normalise(hotel.reviewScore, 5, 9.5);
   const starComponent = hotel.starRating === null ? 0.5 : normalise(hotel.starRating, 2, 5);
@@ -222,7 +226,11 @@ export function scoreHotelQuality(candidate: TripCandidate): number {
 }
 
 export function scoreLocation(candidate: TripCandidate): number {
-  const { distanceToBeachMetres, distanceToCentreMetres } = candidate.hotel;
+  // Both distances unknown, which is what a missing stay is.
+  const { distanceToBeachMetres, distanceToCentreMetres } = candidate.hotel ?? {
+    distanceToBeachMetres: null,
+    distanceToCentreMetres: null,
+  };
 
   // 150 m is excellent, 3 km is poor. Unknown distances score neutrally rather
   // than optimistically.
@@ -302,11 +310,15 @@ export function scoreDataConfidence(cost: TripCost, candidate: TripCandidate): n
 
 /** Share of the per-leg facts the provider actually stated, 0-1. */
 export function itineraryCompleteness(candidate: TripCandidate): number {
-  const facts = [candidate.flight.outbound, candidate.flight.inbound].flatMap((leg) => [
-    leg.cabinBaggageIncluded,
-    leg.checkedBaggageIncluded,
-    leg.selfTransfer,
-  ]);
+  const facts = [
+    ...[candidate.flight.outbound, candidate.flight.inbound].flatMap((leg) => [
+      leg.cabinBaggageIncluded,
+      leg.checkedBaggageIncluded,
+      leg.selfTransfer,
+    ]),
+    // A stay nobody priced is one unstated fact about the trip.
+    ...(candidate.hotel === null ? [null] : []),
+  ];
 
   const stated = facts.filter((fact) => fact !== null).length;
   return facts.length === 0 ? 0 : stated / facts.length;

@@ -4,6 +4,7 @@ import { fromMajor } from '@/core/money';
 import { readExplicitPreferences } from '@/auth/preferences';
 import { observationsFor } from './observations';
 import { buildAlertContent } from './alerts';
+import { filterAlert } from './alert-filter';
 import { searchProfileToQuery } from '@/search/schema';
 import { resolveEntitlements } from '@/core/entitlements';
 import { getLogger } from '@/lib/logger';
@@ -275,6 +276,17 @@ async function raiseAlert(
     !clearsPersonalThreshold(verdict, minimum === undefined ? null : fromMajor(minimum, currency))
   ) {
     log.info({ watchId: watch.id }, 'deal below the alert threshold the traveller set');
+    return false;
+  }
+
+  // The user's own narrowing: destinations, budget, departure window, or alerts off.
+  const narrowed = filterAlert(await repositories.alertPreferences.find(watch.userId), {
+    destination: trip.candidate.destination,
+    departureDate: trip.candidate.dates.departureDate,
+    total: trip.cost.total,
+  });
+  if (!narrowed.allowed) {
+    log.info({ watchId: watch.id, reason: narrowed.reason }, 'deal excluded by alert settings');
     return false;
   }
 

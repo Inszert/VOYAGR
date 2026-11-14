@@ -189,10 +189,24 @@ describe('assembleRouteCandidates', () => {
     expect(candidates).toHaveLength(2);
   });
 
-  it('produces nothing when either side of the trip is missing', () => {
-    // Half a trip is not a cheaper trip; it is not a trip.
+  it('produces nothing when there is no flight', () => {
+    // The flight is the one part a trip cannot be assembled without.
     expect(assembleRouteCandidates(routeInput({ flights: [] }))).toEqual([]);
-    expect(assembleRouteCandidates(routeInput({ hotels: [] }))).toEqual([]);
+  });
+
+  it('still assembles each flight, with no stay, when no hotel was priced', () => {
+    const candidates = assembleRouteCandidates(
+      routeInput({
+        hotels: [],
+        flights: [buildFlightOffer({ id: 'f1' }), buildFlightOffer({ id: 'f2' })],
+      }),
+    );
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates.every((candidate) => candidate.hotel === null)).toBe(true);
+    // The id says so, and is stable across runs.
+    expect(candidates[0]?.id).toContain('no-stay');
+    expect(new Set(candidates.map((candidate) => candidate.id)).size).toBe(2);
   });
 
   it('still assembles a trip when transfers and weather are unavailable', () => {

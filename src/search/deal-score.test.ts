@@ -14,7 +14,7 @@ import { summariseDestinations } from './destinations';
 const trips = [30_000, 34_000, 40_000, 52_000].map((amount, index) =>
   buildRankedTrip({
     id: `trip-${index}`,
-    hotel: { ...buildRankedTrip().candidate.hotel, totalPrice: money(amount, 'EUR') },
+    hotel: { ...buildRankedTrip().candidate.hotel!, totalPrice: money(amount, 'EUR') },
   }),
 );
 

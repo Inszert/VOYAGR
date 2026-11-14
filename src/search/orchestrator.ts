@@ -689,13 +689,28 @@ function convertCandidate(
     };
   }
 
-  const hotelConversion = convert(candidate.hotel.totalPrice, currency, rates);
+  const { hotel } = candidate;
+
+  // No priced stay: only the flight has a price to convert.
+  if (hotel === null) {
+    return flightConversion.value === candidate.flight.price
+      ? { ok: true, candidate }
+      : {
+          ok: true,
+          candidate: {
+            ...candidate,
+            flight: { ...candidate.flight, price: flightConversion.value },
+          },
+        };
+  }
+
+  const hotelConversion = convert(hotel.totalPrice, currency, rates);
 
   if (!hotelConversion.ok) {
     return {
       ok: false,
       kind: 'hotels',
-      providerId: candidate.hotel.providerId,
+      providerId: hotel.providerId,
       message: explainConversion(hotelConversion.failure, 'hotel'),
     };
   }
@@ -708,21 +723,21 @@ function convertCandidate(
    * that cannot be converted fails the whole candidate rather than being
    * quietly dropped. Never silently drop a cost is the rule this obeys.
    */
-  const fees = candidate.hotel.excludedFees;
+  const fees = hotel.excludedFees;
   const feeConversion = fees === null ? null : convert(fees, currency, rates);
 
   if (feeConversion && !feeConversion.ok) {
     return {
       ok: false,
       kind: 'hotels',
-      providerId: candidate.hotel.providerId,
+      providerId: hotel.providerId,
       message: explainConversion(feeConversion.failure, 'hotel fee'),
     };
   }
 
   const unchanged =
     flightConversion.value === candidate.flight.price &&
-    hotelConversion.value === candidate.hotel.totalPrice &&
+    hotelConversion.value === hotel.totalPrice &&
     (feeConversion === null || feeConversion.value === fees);
 
   if (unchanged) return { ok: true, candidate };
@@ -733,7 +748,7 @@ function convertCandidate(
       ...candidate,
       flight: { ...candidate.flight, price: flightConversion.value },
       hotel: {
-        ...candidate.hotel,
+        ...hotel,
         totalPrice: hotelConversion.value,
         excludedFees: feeConversion ? feeConversion.value : null,
       },
@@ -841,7 +856,7 @@ function collectRouteOffers(candidates: readonly TripCandidate[], limit: number)
 
     if (!entry.flights.has(candidate.flight.id))
       entry.flights.set(candidate.flight.id, candidate.flight);
-    if (!entry.hotels.has(candidate.hotel.id))
+    if (candidate.hotel && !entry.hotels.has(candidate.hotel.id))
       entry.hotels.set(candidate.hotel.id, candidate.hotel);
   }
 
@@ -1049,16 +1064,15 @@ export async function runSearch(
           // single biggest saving in the whole fan-out.
           if (routeFlights.length === 0) return [];
 
-          const hotels = await fetchHotels(
-            plan,
-            deps,
-            request,
-            destination,
-            window,
-            issues,
-            budget,
-          );
-          if (hotels.length === 0) return [];
+          // A slot configured as absent is a stated fact, not an outage: asking
+          // it would spend a call to learn what the configuration already says,
+          // and report a "degraded" search on every request in production.
+          // Other failures are still reported, and the trip is still assembled
+          // - without a stay - because the flights were real.
+          const hotels =
+            deps.hotels.metadata.mode === 'absent'
+              ? []
+              : await fetchHotels(plan, deps, request, destination, window, issues, budget);
 
           const context = contexts.get(destination);
 
@@ -1131,6 +1145,8 @@ export async function runSearch(
     const trip = rankCandidate(candidate, request, plan.currency, issues, rates);
     if (!trip) continue;
 
+    // A trip with no priced stay has no stay quote to be stale; its flight is
+    // the only observation it rests on.
     const tripFreshness = weakestFreshness([
       freshnessOf(
         candidate.flight.observedAt,
@@ -1138,7 +1154,9 @@ export async function runSearch(
         DEFAULT_FRESHNESS.flights,
         candidate.flight.expiresAt,
       ),
-      freshnessOf(candidate.hotel.observedAt, startedAt, DEFAULT_FRESHNESS.hotels),
+      ...(candidate.hotel
+        ? [freshnessOf(candidate.hotel.observedAt, startedAt, DEFAULT_FRESHNESS.hotels)]
+        : []),
     ]);
 
     freshness[tripFreshness] += 1;

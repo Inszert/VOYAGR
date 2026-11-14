@@ -163,6 +163,29 @@ export interface StayOffer {
   readonly rates: readonly StayRate[];
 }
 
+/**
+ * A way to find a stay, with no price in it.
+ *
+ * What an affiliate-only vendor can honestly give us: a link into a search that
+ * already carries the destination, dates and party. `price` is a literal `null`
+ * rather than an optional field, so "nobody quoted this" is something an
+ * adapter states and not something it forgot - and so nothing can sum it.
+ */
+export interface StayLinkOffer {
+  readonly id: string;
+  readonly providerId: string;
+  /** The vendor's name, for the link text and the disclosure beside it. */
+  readonly displayName: string;
+  /** The place the link searches, as it was typed into the search. */
+  readonly destinationName: string;
+  readonly checkIn: IsoDate;
+  readonly checkOut: IsoDate;
+  readonly occupancy: StayOccupancy;
+  readonly price: null;
+  /** The attribution-carrying `https` URL. */
+  readonly url: string;
+}
+
 /** What was asked for. Every rate is only meaningful against this. */
 export interface StayQuery {
   /**

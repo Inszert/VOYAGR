@@ -246,6 +246,52 @@ below about 21 needs fewer or smaller targets. A test (`src/cache/refresh.test.t
 default stays inside the limit. User searches spend from the same per-provider limiter and are not
 in this figure.
 
+### 3.12 Stays: priced, unpriced, and where a priced feed plugs in
+
+Travelpayouts' Hotellook API closed on 2025-10-20, so there is no priced hotel feed. A trip is
+therefore assembled **without** a stay: `TripCandidate.hotel` is `HotelOffer | null`, and `null`
+means "nobody priced one", never "free".
+
+| Where                      | What a null stay does                                                                                                                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/trip/cost.ts`        | Emits a `hotel` line, `excluded`, amount zero, source `voyagr.cost-engine`. Excluded lines are listed but never folded into a total, so the total is the flights (and transfer) only.         |
+| `core/trip/coverage.ts`    | Reads that line and says "Flights only — stay not included". "All in" is said only when no line is excluded.                                                                                  |
+| `core/trip/constraints.ts` | Free cancellation, a minimum review score and a beach distance are unproven, not met: a violation with `detail.confirmed: false`. A `NO_STAY_PRICED` warning (`needs_verification`) is added. |
+| `core/trip/scoring.ts`     | Hotel quality and location take the neutral 0.5 an unrated hotel gets; data confidence drops through `itineraryCompleteness`, which counts the stay as one unstated fact.                     |
+| `search/assemble.ts`       | No hotels means one candidate per flight with `hotel: null` and the id segment `no-stay`. No flights still means no trip.                                                                     |
+| `search/orchestrator.ts`   | A hotel slot whose provider reports `mode: 'absent'` is not called and not reported as an outage: absence is configuration. A hotel call that fails is still reported and degrades.           |
+
+**Link-out, not price.** `src/providers/stays/travelpayouts-links.ts` implements `StayProvider` for
+affiliate links only. It answers `searchStayLinks` with a `StayLinkOffer` whose `price` is a literal
+`null` (checked by `stayLinkOfferSchema`), and answers `searchStays` with an empty list, because it
+quotes nothing. The link is `https://tp.media/r?marker=<AVIASALES_PARTNER_ID>&campaign_id=<…>&p=<program>&u=<encoded vendor search>`.
+It needs `AVIASALES_PARTNER_ID`, `TRAVELPAYOUTS_HOTEL_PROGRAM_ID` and
+`TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID`; with any unset it returns a `PROVIDER_UNAVAILABLE` error and
+never guesses an id. Enable it with `STAY_PROVIDERS=travelpayouts-links` (production defaults to
+`absent`). The trip card, the destination page (when dates are known) and `/stays` render it through
+`FindStayLink`, whose href is vetted by `buildStayLinkHandoff`.
+
+**Plugging in a priced feed** (LiteAPI, Amadeus Self-Service Hotel Search, Booking.com Demand). Two
+slots exist, because the product asks two different questions:
+
+1. **Trips** ask a `HotelProvider` (`searchHotels`, `HOTEL_PROVIDER`) for `HotelOffer`s, which
+   `assembleRouteCandidates` pairs with each flight. This is the slot that promotes a trip's stay
+   line from `excluded` to `known`.
+2. **`/stays`** asks every `StayProvider` in `STAY_PROVIDERS` (`searchStays`) for `StayOffer`s with
+   rates, merged by `searchAllStays`.
+
+To add a vendor: write the adapter to the relevant interface, returning `Result` and never
+throwing; money as `Money` in minor units; every fact the vendor did not state as explicit `null`;
+`observedAt` on every offer. Add `hotelOfferSchema` validation for the trip slot (the orchestrator
+already screens hotel pages through it) and register it in `src/providers/registry.ts`
+(`resolveHotelProvider`) and/or `ADAPTERS` in `src/providers/stays/registry.ts`. Declare
+`metadata.mode` honestly (`live`, `test` or `indicative`). Nothing above the registry changes:
+once `searchHotels` returns offers, `deriveCostLines` emits a `known` hotel line and the card shows
+a price instead of the link, and the `NO_STAY_PRICED` warning and the "Flights only" statement
+disappear because no line is excluded any more. Add the vendor to the stay contract test list
+(`contract.test.ts`) or write an equivalent for the hotel slot, and test against recorded
+fixtures, not a live key. No vendor adapter exists yet because none has a key.
+
 ---
 
 ## 4. Cross-cutting concerns
