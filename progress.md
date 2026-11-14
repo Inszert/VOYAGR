@@ -558,3 +558,26 @@ Known loose ends: `UpdatedAgo` line not yet looked at in a browser; three `colle
 targets feed no page yet; `HOTEL_REFRESH_MINUTES` defined but unused; `--ease-emphasis` in
 `globals.css` flagged as bounce easing (decide in the Phase 6 motion system);
 Postgres repository-contract tests fail without a database (2b makes them skip).
+
+### Checkpoint 2026-11-14 (usage limit reached mid-run)
+
+Committed: plan, cache + refresh worker (2a), weather + no-mock guard (2b), design direction
+(`docs/design-direction.md`), 16 destination illustrations (`public/img/destinations/`,
+masters in `assets/destination-masters/`, `scripts/export-destination-images.mjs`).
+
+**Uncommitted in the working tree — check `git status` first:**
+
+- **Phase 3 hotels: finished by its agent, NOT committed.** Typecheck and tests passed (1529).
+  `TripCandidate.hotel` nullable, excluded stay line, `travelpayouts-links` adapter, "Find a stay"
+  link. Unverified: Booking.com URL parameters, no browser check, `/stays` empty-state copy.
+- **Phase 4a email/alerts: was still running** (Resend driver, templates, alert prefs, digest,
+  unsubscribe). May be partial. Run typecheck + tests, finish or revert.
+- **Design slice 1 hero + globe: was still running.** May be partial. Screenshots, if any, in the
+  session scratchpad `slice1/`. Must be looked at in a browser and shown to the owner.
+
+Because the three overlap in the tree, nothing above was committed. Next session: run
+`npm run typecheck && npm run lint && npm test`, repair, then commit per phase.
+
+Still to do: Phase 5 flexible dates; design slices 2–5 (cards use the new images; upscale masters,
+they are only 1024px wide); D13 "up to 30 things to do"; hero video loops (Higgsfield window ends
+2026-11-16); `.env.example` update; Phase 8 polish, e2e, docs, `npm run verify`.
