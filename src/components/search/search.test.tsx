@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { buildFlightOffer, buildHotelOffer, buildTransferOffer } from '@/core/trip/test-support';
 import { abs, format, money } from '@/core/money';
@@ -505,6 +505,13 @@ describe('the flexibility control', () => {
 });
 
 describe('what the dates are worth', () => {
+  // The calendar asks `/api/price-calendar` for the rest of each month; these
+  // tests are about what the search itself priced, so the vendor says nothing.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async () => new Response('{}', { status: 500 }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   const WINDOWS = [
     { departureDate: '2026-06-10', returnDate: '2026-06-15', nights: 5 },
     { departureDate: '2026-06-17', returnDate: '2026-06-22', nights: 5 },

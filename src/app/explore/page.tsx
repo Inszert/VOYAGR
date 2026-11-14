@@ -10,6 +10,7 @@ import { DestinationRail } from '@/components/discovery/destination-rail';
 import { GlobeStage } from '@/components/discovery/globe-stage';
 import { StageControls } from '@/components/discovery/stage-controls';
 import { SearchResults } from '@/components/search/search-results';
+import { FlexDatesSection } from '@/components/search/flex-dates-section';
 import { SaveSearchForm } from '@/components/watches/save-search-form';
 import { saveSearchAction } from '@/app/actions/watches';
 import { firstValues, loadStagePage } from '@/discovery/load-stage';
@@ -54,6 +55,71 @@ function suggestedSearchName(values: Record<string, string | undefined>): string
 
   if (destinations && from) return `${destinations} in ${from}`;
   return destinations || 'Saved search';
+}
+
+const AIRPORT = /^[A-Z]{3}$/;
+const DATE_WINDOW = /^(d{4}-d{2}-d{2})..(d{4}-d{2}-d{2})$/;
+
+/**
+ * The trip the strip moves, when there is exactly one to move.
+ *
+ * One place, one origin, and a set of dates: the picked window if there is one,
+ * otherwise the dates of the best trip the search found. Anything wider is a
+ * search across places or days, and a strip about "these dates" would have no
+ * dates to be about.
+ */
+function flexTrip(
+  values: Record<string, string | undefined>,
+  outcome: {
+    results: readonly { candidate: { dates: { departureDate: string; returnDate: string } } }[];
+  } | null,
+  currency: string | undefined,
+): {
+  origin: string;
+  destination: string;
+  departureDate: string;
+  returnDate: string;
+  currency: string;
+  passengers: number;
+  hrefTemplate: string;
+} | null {
+  const codes = (value: string | undefined) =>
+    (value ?? '')
+      .split(/[,s]+/)
+      .map((code) => code.toUpperCase())
+      .filter(Boolean);
+
+  const destinations = codes(values.destinations);
+  const origin = codes(values.origins)[0];
+  const destination = destinations[0];
+  if (destinations.length !== 1 || !origin || !destination) return null;
+  if (!AIRPORT.test(origin) || !AIRPORT.test(destination)) return null;
+
+  const picked = DATE_WINDOW.exec(values.fDates ?? '');
+  const best = outcome?.results[0]?.candidate.dates;
+  const departureDate = picked?.[1] ?? best?.departureDate;
+  const returnDate = picked?.[2] ?? best?.returnDate;
+  if (!departureDate || !returnDate) return null;
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (typeof value === 'string' && value !== '' && key !== 'fDates') params.set(key, value);
+  }
+  params.set('flexibility', 'exact');
+  params.set('departureDate', '__DEPARTURE__');
+  params.set('returnDate', '__RETURN__');
+
+  const passengers = Number(values.passengers ?? 1);
+
+  return {
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    currency: currency ?? 'EUR',
+    passengers: Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 1,
+    hrefTemplate: `/explore?${params.toString()}`,
+  };
 }
 
 export default async function ExplorePage({
@@ -250,6 +316,10 @@ export default async function ExplorePage({
          */
         <section className="stage-scope bg-stage text-stage-ink">
           <Container size="wide" className="flex flex-col gap-6 pt-2 pb-12">
+            {(() => {
+              const trip = flexTrip(values, page.outcome, page.outcome.diagnostics.plan.currency);
+              return trip ? <FlexDatesSection {...trip} /> : null;
+            })()}
             <SearchResults
               outcome={page.outcome}
               profile={page.profile}

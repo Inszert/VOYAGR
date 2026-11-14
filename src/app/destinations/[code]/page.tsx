@@ -18,6 +18,8 @@ import { FindStayLink } from '@/components/stays/find-stay-link';
 import { loadStayLinks } from '@/search/stays/stay-links';
 import { offersForTrip } from '@/booking/partners';
 import { TripExtras } from '@/components/partners';
+import { buildDiscoveryQuery } from '@/discovery/snapshot';
+import { FlexDatesSection } from '@/components/search/flex-dates-section';
 
 /**
  * A destination (1.10.1 section 18).
@@ -142,6 +144,23 @@ export default async function DestinationPage({ params, searchParams }: PageProp
 
   const today = new Date().toISOString().slice(0, 10);
 
+  /*
+   * "Fly a few days earlier or later", for one real pair of dates. Arriving
+   * from a search brings the origin and the pair; without both there is no
+   * trip to move, and a strip for a window nobody chose would be a guess.
+   */
+  const origin = (single(query.origin) ?? '').toUpperCase();
+  const flexDeparture = single(query.departureDate);
+  const flexReturn = single(query.returnDate);
+  const flex =
+    /^[A-Z]{3}$/.test(origin) &&
+    flexDeparture &&
+    flexReturn &&
+    ISO_DATE.test(flexDeparture) &&
+    ISO_DATE.test(flexReturn)
+      ? { origin, departureDate: flexDeparture, returnDate: flexReturn }
+      : null;
+
   return (
     <div className="flex flex-col" data-tint={tintFor(place.adm0 ?? destination)}>
       <DestinationHeader
@@ -159,6 +178,31 @@ export default async function DestinationPage({ params, searchParams }: PageProp
           fictional is worthless underneath the fiction.
         */}
         {detail.provenance === 'mock' ? <DemoDataNotice parts={detail.demoParts} /> : null}
+
+        {flex ? (
+          <FlexDatesSection
+            {...flex}
+            destination={destination}
+            currency={/^[A-Z]{3}$/.test(currency) ? currency : 'EUR'}
+            passengers={Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2}
+            hrefTemplate={`/explore?${new URLSearchParams({
+              ...buildDiscoveryQuery({
+                today,
+                defaults: {
+                  origins: origin,
+                  currency: /^[A-Z]{3}$/.test(currency) ? currency : 'EUR',
+                  passengers: String(
+                    Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2,
+                  ),
+                },
+              }),
+              destinations: destination,
+              flexibility: 'exact',
+              departureDate: '__DEPARTURE__',
+              returnDate: '__RETURN__',
+            }).toString()}`}
+          />
+        ) : null}
 
         <DestinationDetailView detail={detail} />
 

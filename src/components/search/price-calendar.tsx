@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { Icon } from '@/components/ui/icon';
+import { Skeleton } from '@/components/ui/feedback';
 import { monthName, spoken } from '@/components/ui/calendar-month';
 import {
   addDays,
   addMonths,
   dayOfWeek,
+  daysBetween,
   daysInMonth,
   isAfter,
   isBefore,
@@ -14,6 +16,7 @@ import {
 } from '@/core/dates';
 import type { IsoDate } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
+import type { MonthPricesJson } from '@/search/day-prices-json';
 
 /**
  * The dates as a calendar, with what each one costs written in it.
@@ -70,8 +73,30 @@ export interface PriceCalendarChip {
   readonly active: boolean;
 }
 
+/**
+ * Where to fetch a price for every day the vendor has one.
+ *
+ * The search prices a handful of date windows; the calendar shows a month, so
+ * the rest of its days are read from `/api/price-calendar`, a month at a time,
+ * for the months on screen and the one after.
+ */
+export interface PriceCalendarLoad {
+  readonly origin: string;
+  /** The places to price: the one asked about, or the ones the search found. */
+  readonly destinations: readonly string[];
+  readonly currency: string;
+  readonly passengers: number;
+  readonly minNights: number;
+  readonly maxNights: number;
+  /** `YYYY-MM-DD`. Days before it cannot be flown, so they are not waited for. */
+  readonly today: IsoDate;
+  /** A search link with `__DEPARTURE__` and `__RETURN__` where the dates go. */
+  readonly hrefTemplate: string;
+}
+
 export interface PriceCalendarProps {
   options: readonly PriceCalendarOption[];
+  load?: PriceCalendarLoad;
   /** The chosen pair, as `2026-06-10..2026-06-15`, or null. */
   selected: string | null;
   cheapestKey: string | null;
@@ -114,46 +139,149 @@ function shortDay(day: IsoDate): string {
   return spoken(day).replace(/ \d{4}$/, '');
 }
 
+const MONTHS_AHEAD_WHEN_LOADING = 12;
+
 export function PriceCalendar({
-  options,
+  options: searchOptions,
+  load,
   selected,
   cheapestKey,
   bestValueKey,
   clearHref,
   chips,
 }: PriceCalendarProps) {
-  const chosen = options.find((option) => option.key === selected) ?? null;
+  const chosen = searchOptions.find((option) => option.key === selected) ?? null;
 
   const [departure, setDeparture] = React.useState<IsoDate | null>(chosen?.departure ?? null);
   const [offset, setOffset] = React.useState(0);
 
   // Every month from the first day anyone could leave to the last they could come home.
   const months = React.useMemo(() => {
-    if (options.length === 0) return [] as IsoDate[];
+    if (searchOptions.length === 0 && !load) return [] as IsoDate[];
 
     const first = startOfMonth(
-      options.reduce((a, o) => (isBefore(o.departure, a) ? o.departure : a), options[0]!.departure),
+      searchOptions.length === 0
+        ? load!.today
+        : searchOptions.reduce(
+            (a, o) => (isBefore(o.departure, a) ? o.departure : a),
+            searchOptions[0]!.departure,
+          ),
     );
     const last = startOfMonth(
-      options.reduce(
+      searchOptions.reduce(
         (a, o) => (isAfter(o.returnDate, a) ? o.returnDate : a),
-        options[0]!.returnDate,
+        searchOptions[0]?.returnDate ?? first,
       ),
     );
+
+    // With a vendor to ask, a year of months can be paged to; without one, only
+    // the months the search itself priced.
+    const most = load ? MONTHS_AHEAD_WHEN_LOADING : 8;
 
     const list: IsoDate[] = [];
     // At least two, so a desktop never shows half a calendar next to a gap. The
     // second of two is simply a month with nothing priced in it, said as such.
     for (
       let month = first;
-      (!isAfter(month, last) || list.length < 2) && list.length < 8;
+      (!isAfter(month, last) || list.length < 2 || load !== undefined) && list.length < most;
       month = addMonths(month, 1)
     ) {
       list.push(month);
     }
 
     return list;
-  }, [options]);
+  }, [searchOptions, load]);
+
+  /*
+   * The days the vendor has a flight on, a month at a time.
+   *
+   * The two visible months are asked for, and the one after them as well, so
+   * paging forward finds its prices already there. A month that fails is
+   * 'failed' and stays so for the visit: the calendar is still a calendar, with
+   * no price on those days, rather than a spinner that never ends.
+   */
+  const [loaded, setLoaded] = React.useState<Record<string, MonthPricesJson | 'failed'>>({});
+  const requested = React.useRef(new Set<string>());
+
+  React.useEffect(() => {
+    if (!load) return;
+
+    for (const first of months.slice(offset, offset + 3)) {
+      const month = first.slice(0, 7);
+      if (requested.current.has(month)) continue;
+      requested.current.add(month);
+
+      const params = new URLSearchParams({
+        origin: load.origin,
+        destinations: load.destinations.join(','),
+        month,
+        currency: load.currency,
+        passengers: String(load.passengers),
+        minNights: String(load.minNights),
+        maxNights: String(load.maxNights),
+      });
+
+      fetch(`/api/price-calendar?${params.toString()}`)
+        .then((response) => (response.ok ? (response.json() as Promise<MonthPricesJson>) : null))
+        .then(
+          (json) => setLoaded((previous) => ({ ...previous, [month]: json ?? 'failed' })),
+          () => setLoaded((previous) => ({ ...previous, [month]: 'failed' })),
+        );
+    }
+  }, [load, months, offset]);
+
+  // What the vendor has, as options. Never on a day the search already priced
+  // for a trip: that total is the better answer and the two would disagree.
+  const { options, monthCheapest } = React.useMemo(() => {
+    if (!load) return { options: searchOptions, monthCheapest: new Set<string>() };
+
+    const priced = new Set(searchOptions.map((option) => option.departure));
+    const extra: PriceCalendarOption[] = [];
+    const cheapest = new Set<string>();
+
+    for (const entry of Object.values(loaded)) {
+      if (entry === 'failed') continue;
+
+      let low: PriceCalendarOption | null = null;
+
+      for (const [day, price] of Object.entries(entry.days)) {
+        if (priced.has(day)) continue;
+
+        const option: PriceCalendarOption = {
+          kind: 'flight',
+          key: `flight:${day}..${price.returnDate}`,
+          departure: day,
+          returnDate: price.returnDate,
+          nights: daysBetween(day, price.returnDate),
+          exact: price.exact,
+          whole: price.whole,
+          amount: price.amount,
+          delta: null,
+          href: load.hrefTemplate
+            .replace('__DEPARTURE__', day)
+            .replace('__RETURN__', price.returnDate),
+        };
+
+        extra.push(option);
+        if (!low || option.amount < low.amount) low = option;
+      }
+
+      if (low) cheapest.add(low.key);
+    }
+
+    return { options: [...searchOptions, ...extra], monthCheapest: cheapest };
+  }, [searchOptions, loaded, load]);
+
+  const loading = (day: IsoDate) =>
+    load !== undefined && day >= load.today && loaded[day.slice(0, 7)] === undefined;
+
+  const failedMonths = months
+    .slice(offset, offset + 2)
+    .filter((month) => {
+      const entry = loaded[month.slice(0, 7)];
+      return entry === 'failed' || (entry !== undefined && entry.reason !== null);
+    })
+    .map((month) => monthName(month));
 
   // Leaving: the cheapest total on each day somebody could leave. Coming back:
   // the total for each return that goes with the day already chosen.
@@ -310,6 +438,25 @@ export function PriceCalendar({
                   const option = byDay.get(day);
                   const number = Number(day.slice(8, 10));
 
+                  // A month still on its way: a shimmer where the price will be, so
+                  // the cell reads as waiting rather than as having no flight.
+                  if (!option && phase === 'leave' && loading(day)) {
+                    return (
+                      <span
+                        key={day}
+                        role="gridcell"
+                        aria-busy="true"
+                        aria-label={`${spoken(day)}, loading price`}
+                        className="flex min-h-12 flex-col items-stretch gap-1.5 rounded-(--radius-control) p-1.5 md:min-h-14"
+                      >
+                        <span aria-hidden="true" className="text-dim text-sm">
+                          {number}
+                        </span>
+                        <Skeleton className="mt-auto h-3 w-3/4" />
+                      </span>
+                    );
+                  }
+
                   // A day with nothing priced: a number, no price, not a button.
                   if (!option) {
                     return (
@@ -334,7 +481,8 @@ export function PriceCalendar({
                     (phase === 'return' && day === departure);
                   const isReturn =
                     chosen !== null && day === chosen.returnDate && phase === 'return';
-                  const isCheapest = !flightOnly && option.key === cheapestKey;
+                  const isMonthLow = monthCheapest.has(option.key);
+                  const isCheapest = (!flightOnly && option.key === cheapestKey) || isMonthLow;
                   const isBest = !flightOnly && option.key === bestValueKey;
 
                   const body = (
@@ -385,7 +533,13 @@ export function PriceCalendar({
                         {phase === 'return' && option.delta
                           ? `, ${option.delta} against the cheapest return for this departure`
                           : ''}
-                        {isBest ? ', best value' : isCheapest ? ', cheapest' : ''}
+                        {isBest
+                          ? ', best value'
+                          : isMonthLow
+                            ? ', cheapest flight this month'
+                            : isCheapest
+                              ? ', cheapest'
+                              : ''}
                       </span>
                     </>
                   );
@@ -428,10 +582,17 @@ export function PriceCalendar({
         </div>
       </div>
 
+      {failedMonths.length > 0 ? (
+        <p role="status" className="text-ink-muted text-sm">
+          Prices for {failedMonths.join(' and ')} could not be loaded just now. You can still pick a
+          day; it searches those dates.
+        </p>
+      ) : null}
+
       {/* What the marks mean. Text, so colour is not the only thing saying it. */}
       <ul className="text-ink-muted flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
         <li>
-          <span aria-hidden="true">▼ </span>Cheapest dates
+          <span aria-hidden="true">▼ </span>Cheapest dates, and the cheapest flight in each month
         </li>
         <li>
           <span aria-hidden="true">★ </span>Best value

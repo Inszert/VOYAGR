@@ -11,7 +11,12 @@ import {
   type DateBreakdown,
   type DateOption,
 } from '@/search/date-options';
-import { PriceCalendar, type PriceCalendarChip, type PriceCalendarOption } from './price-calendar';
+import {
+  PriceCalendar,
+  type PriceCalendarChip,
+  type PriceCalendarLoad,
+  type PriceCalendarOption,
+} from './price-calendar';
 
 /**
  * Choosing the dates, and what they are worth (1.10.1 section 8).
@@ -105,6 +110,57 @@ function href(
   window: string | null,
 ): string {
   return linkWith(basePath, searchValues, window ? { fDates: window } : {}, true);
+}
+
+/** The most places "anywhere" is priced for: each is a call per month. */
+const MAX_LOADED_DESTINATIONS = 5;
+const CALENDAR_MIN_NIGHTS = 2;
+const CALENDAR_MAX_NIGHTS = 14;
+
+const AIRPORT = /^[A-Z]{3}$/;
+
+function calendarLoad(
+  breakdown: DateBreakdown,
+  searchValues: Readonly<Record<string, string | undefined>>,
+  basePath: string,
+): PriceCalendarLoad | null {
+  const codes = (value: string | undefined) =>
+    (value ?? '')
+      .split(/[,s]+/)
+      .map((code) => code.toUpperCase())
+      .filter((code) => AIRPORT.test(code));
+
+  const origin = codes(searchValues.origins)[0];
+  if (!origin) return null;
+
+  const named = codes(searchValues.destinations);
+  const found = [
+    ...breakdown.options.flatMap((option) => (option.destination ? [option.destination] : [])),
+    ...breakdown.flightOnly.map((flight) => flight.destination),
+  ].filter((code) => AIRPORT.test(code));
+
+  const destinations = [...new Set(named.length > 0 ? named : found)].slice(
+    0,
+    MAX_LOADED_DESTINATIONS,
+  );
+  if (destinations.length === 0) return null;
+
+  const passengers = Number(searchValues.passengers ?? 1);
+
+  return {
+    origin,
+    destinations,
+    currency: breakdown.currency,
+    passengers: Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 1,
+    minNights: CALENDAR_MIN_NIGHTS,
+    maxNights: Math.max(Number(searchValues.maxNights) || 0, CALENDAR_MAX_NIGHTS),
+    today: new Date().toISOString().slice(0, 10),
+    hrefTemplate: linkWith(basePath, searchValues, {
+      flexibility: 'exact',
+      departureDate: '__DEPARTURE__',
+      returnDate: '__RETURN__',
+    }),
+  };
 }
 
 export function DateOptions({
@@ -217,6 +273,16 @@ export function DateOptions({
     },
   ];
 
+  /*
+   * Where the rest of the days' prices come from.
+   *
+   * The search priced a few date windows; the calendar shows whole months, so
+   * every other day is asked of the flight vendor by the calendar itself. The
+   * places to ask about are the ones named, or, for "anywhere", the places the
+   * search found - never a guess about where somebody might like to go.
+   */
+  const load = calendarLoad(breakdown, searchValues, basePath);
+
   const cheapestKey = highlights.cheapest ? dateWindowKey(highlights.cheapest.window) : null;
   const bestValueKey = highlights.bestValue ? dateWindowKey(highlights.bestValue.window) : null;
 
@@ -248,6 +314,7 @@ export function DateOptions({
 
       <PriceCalendar
         options={[...calendarOptions, ...flightOnlyOptions]}
+        {...(load ? { load } : {})}
         selected={selected}
         cheapestKey={cheapestKey}
         bestValueKey={bestValueKey}

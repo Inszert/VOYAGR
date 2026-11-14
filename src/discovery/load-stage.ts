@@ -273,6 +273,15 @@ export async function loadStagePage(
             endDate: plan.latestDate,
             passengers: String(plan.passengers),
             currency: plan.currency,
+            // What the destination page's "fly earlier or later" strip moves:
+            // where from, and one real pair of dates rather than the whole window.
+            ...(plan.origins[0] ? { origin: plan.origins[0] } : {}),
+            ...(plan.dateWindows[0]
+              ? {
+                  departureDate: plan.dateWindows[0].departureDate,
+                  returnDate: plan.dateWindows[0].returnDate,
+                }
+              : {}),
           }).toString()}`
         : ''
     }`;
