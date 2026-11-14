@@ -82,3 +82,19 @@ This file, `SETUP-CHECKLIST.md` additions, design audit (`/impeccable audit`, `f
 
 As in the brief; plus the honesty caveat from D1/D2 — real priced hotels need the key listed in
 `SETUP-CHECKLIST.md`; until then stays are deep links and the total says what it excludes.
+
+## Additions (owner, 2026-11-14)
+
+- **Owner approval:** imagery art direction approved; lead may do "whatever works best", including
+  the globe's size, camera, light and animation. Bigger changes are shown to the owner as they land.
+- **D13 — "Up to 30 things to do" per destination.** When a destination/country is selected, show
+  a recommended list (sights, food, neighbourhoods, events) grouped by kind, with imagery.
+  Places must be **real**: sourced from a free open dataset (Wikidata / Wikivoyage / OpenStreetMap,
+  licences recorded), schema-checked like any provider, cached with a long TTL. The model may
+  order and describe selected places (guardrails apply) but may not invent a place or a date.
+  Events need a dated feed (candidate: Ticketmaster Discovery API free tier, key in
+  `WHAT-I-NEED-FROM-YOU.md`); without a key the events group is absent, not made up.
+  Higgsfield imagery for a place is labelled "AI-generated illustration".
+  Slot: after design slice 2. "30" is a ceiling; fewer real places is fine.
+- **Higgsfield:** owner reports unlimited use for two days (to 2026-11-16). Generate hero video
+  loops and the destination batch within that window.
