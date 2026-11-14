@@ -24,6 +24,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  /*
+   * Lets two builds exist side by side (`NEXT_DIST_DIR=.next-a npm run build`),
+   * so parallel visual-QA runs do not overwrite each other. Unset everywhere
+   * that matters: CI and production build into `.next`.
+   */
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   poweredByHeader: false,
 

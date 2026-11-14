@@ -13,6 +13,7 @@ node_modules/
 # authored: committing it would let a 500KB artifact drift from its library.
 public/maplibre/
 .next/
+.next-*/
 out/
 build/
 dist/
