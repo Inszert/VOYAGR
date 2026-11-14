@@ -39,6 +39,13 @@ export function findCountry(adm0: string): Country | null {
   return BY_ADM0.get(adm0.toUpperCase()) ?? null;
 }
 
+const BY_ISO2 = new Map(COUNTRIES.map((country) => [country.iso2.toUpperCase(), country]));
+
+/** The country an ISO 3166-1 alpha-2 code names, for data that speaks ISO2. */
+export function findCountryByIso2(iso2: string): Country | null {
+  return BY_ISO2.get(iso2.toUpperCase()) ?? null;
+}
+
 /**
  * The country a query string names, or null.
  *

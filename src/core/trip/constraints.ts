@@ -1,6 +1,7 @@
 import { dayOfWeek, localHour } from '../dates';
 import { greaterThan, subtract, type Money } from '../money';
 import type { TripCost } from './cost';
+import { connectionCount } from './legs';
 import type { SearchProfile, TripCandidate } from './types';
 
 /**
@@ -25,6 +26,7 @@ export type ConstraintCode =
   | 'ORIGIN_NOT_ALLOWED'
   | 'PASSENGER_COUNT_MISMATCH'
   | 'DIRECT_FLIGHT_REQUIRED'
+  | 'TOO_MANY_STOPS'
   | 'CHECKED_BAGGAGE_REQUIRED'
   | 'FREE_CANCELLATION_REQUIRED'
   | 'HOTEL_REVIEW_SCORE_TOO_LOW'
@@ -78,8 +80,8 @@ const DAY_NAMES = [
 
 function isDirect(candidate: TripCandidate): boolean {
   return (
-    candidate.flight.outbound.segments.length === 1 &&
-    candidate.flight.inbound.segments.length === 1
+    connectionCount(candidate.flight.outbound) === 0 &&
+    connectionCount(candidate.flight.inbound) === 0
   );
 }
 
@@ -209,10 +211,26 @@ export function evaluateEligibility(
       code: 'DIRECT_FLIGHT_REQUIRED',
       message: 'Direct flights were required, but this itinerary has a connection.',
       detail: {
-        outboundSegments: candidate.flight.outbound.segments.length,
-        inboundSegments: candidate.flight.inbound.segments.length,
+        outboundSegments: connectionCount(candidate.flight.outbound) + 1,
+        inboundSegments: connectionCount(candidate.flight.inbound) + 1,
       },
     });
+  }
+
+  if (profile.maxStops !== null && profile.maxStops !== undefined) {
+    // The busier leg is what "two stops" means to a traveller.
+    const stops = Math.max(
+      connectionCount(candidate.flight.outbound),
+      connectionCount(candidate.flight.inbound),
+    );
+
+    if (stops > profile.maxStops) {
+      violations.push({
+        code: 'TOO_MANY_STOPS',
+        message: `This itinerary has ${stops} ${stops === 1 ? 'stop' : 'stops'} on a leg, and ${profile.maxStops} ${profile.maxStops === 1 ? 'is' : 'are'} the most you allowed.`,
+        detail: { stops, maxStops: profile.maxStops },
+      });
+    }
   }
 
   if (profile.requireCheckedBaggage) {

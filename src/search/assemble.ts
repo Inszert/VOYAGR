@@ -6,6 +6,7 @@ import type {
   TripCandidate,
   WeatherOutlook,
 } from '@/core/trip/types';
+import { localDate } from '@/core/dates';
 import { candidateId } from '@/core/trip/identity';
 import type { DateWindow, SearchLimits } from './types';
 
@@ -49,6 +50,23 @@ export function groupFlightsByDestination(
   }
 
   return grouped;
+}
+
+/**
+ * Whether a flight actually flies on the days a window names.
+ *
+ * A trip carries the window's dates and a hotel booked for them, so a flight
+ * on other days would make the trip claim dates it does not have. A vendor
+ * that answers with a whole month (Aviasales) returns flights on many days;
+ * only the ones that fly this window's outbound and return days belong in it.
+ * Compared as calendar dates through `localDate`, never through `Date`.
+ */
+export function flightMatchesWindow(offer: FlightOffer, window: DateWindow): boolean {
+  const out = offer.outbound.segments[0]?.departsAt;
+  const back = offer.inbound.segments[0]?.departsAt;
+  if (!out || !back) return false;
+
+  return localDate(out) === window.departureDate && localDate(back) === window.returnDate;
 }
 
 /** The forecast days that fall inside the trip, inclusive of both travel days. */
@@ -105,7 +123,8 @@ export interface RouteAssemblyInput {
 export function assembleRouteCandidates(input: RouteAssemblyInput): TripCandidate[] {
   const { window, limits } = input;
 
-  const flights = [...input.flights]
+  const flights = input.flights
+    .filter((offer) => flightMatchesWindow(offer, window))
     .sort((a, b) => a.price.amount - b.price.amount || a.id.localeCompare(b.id))
     .slice(0, limits.maxFlightOffersPerRoute);
 

@@ -37,7 +37,8 @@ import type {
   WeatherProvider,
 } from '@/providers/types';
 import { collectPages } from '@/providers/paging';
-import { assembleRouteCandidates, interleave } from './assemble';
+import { assembleRouteCandidates, flightMatchesWindow, interleave } from './assemble';
+import { calendarFlightsFromOffers, windowsFromOffers } from './derive-windows';
 import { evaluateTrip } from './evaluate';
 import {
   combineProvenance,
@@ -46,6 +47,7 @@ import {
 } from '@/core/trip/provenance';
 import { buildSearchPlan } from './plan';
 import type {
+  CalendarFlight,
   DateWindow,
   ProviderIssue,
   RankedTrip,
@@ -75,6 +77,10 @@ import type {
  */
 
 const log = getLogger('search.orchestrator');
+
+/** The shortest and longest stay the calendar will show a flight price for. */
+const CALENDAR_MIN_NIGHTS = 2;
+const CALENDAR_MAX_NIGHTS = 14;
 
 /**
  * Stands in when a page call failed.
@@ -516,38 +522,70 @@ async function fetchFlightsForWindow(
     scope: `flights:${window.departureDate}..${window.returnDate}`,
   };
 
-  // Paged, because "one call returns everything" is false for every vendor
-  // evaluated. Each page is a separate provider call and takes its own slot.
-  const { result, error } = await collectPages<FlightOffer>(
-    async (cursor) => {
-      const page = await callProvider(context, issues, budget, () =>
-        deps.flights.searchFlights(
-          {
-            origins: plan.origins,
-            destinations: plan.destinations,
-            departureDate: window.departureDate,
-            returnDate: window.returnDate,
-            passengers: plan.passengers,
-            currency: plan.currency,
-            directOnly: request.profile.requireDirectFlights,
-            maxResults: plan.limits.maxFlightOffersPerRoute * plan.destinations.length,
-            ...(cursor ? { cursor } : {}),
-          },
-          requestOptions(plan, request.requestId, deps.flights.metadata),
-        ),
+  /*
+   * One call per route for a vendor that prices a single route at a time.
+   *
+   * Aviasales answers one origin and one destination per request. Handing it
+   * all sixteen destinations in one query meant it searched the first and
+   * silently ignored the other fifteen, so a globe priced by it showed a
+   * single country. Each route is its own call here, and each one still goes
+   * through the shared per-provider limiter inside `callProvider`: the fan-out
+   * is wrapped around leaf calls, never the other way round.
+   */
+  const perRoute = deps.flights.metadata.answersByMonth === true;
+  /*
+   * Per origin, with every destination in the one question. The adapter turns
+   * a many-destination question into a single "cheapest to everywhere" call,
+   * and a one-destination question into an exact route query, so the fan-out
+   * here is by departure airport only.
+   */
+  const routes = perRoute
+    ? plan.origins.map((origin) => ({ origins: [origin], destinations: plan.destinations }))
+    : [{ origins: plan.origins, destinations: plan.destinations }];
+
+  const perRouteResults = await Promise.all(
+    routes.map(async (route) => {
+      // Paged, because "one call returns everything" is false for every vendor
+      // evaluated. Each page is a separate provider call and takes its own slot.
+      const { result, error } = await collectPages<FlightOffer>(
+        async (cursor) => {
+          const page = await callProvider(context, issues, budget, () =>
+            deps.flights.searchFlights(
+              {
+                origins: route.origins,
+                destinations: route.destinations,
+                departureDate: window.departureDate,
+                returnDate: window.returnDate,
+                passengers: plan.passengers,
+                currency: plan.currency,
+                directOnly: request.profile.requireDirectFlights,
+                maxResults: perRoute
+                  ? 1000
+                  : plan.limits.maxFlightOffersPerRoute * plan.destinations.length,
+                ...(cursor ? { cursor } : {}),
+              },
+              requestOptions(plan, request.requestId, deps.flights.metadata),
+            ),
+          );
+
+          const screened = screen(flightOfferSchema, page, context, issues);
+
+          return screened ? ok(screened) : err(PAGE_FAILED);
+        },
+        {
+          maxItems: perRoute ? 1000 : wanted,
+          maxPages: plan.limits.maxPagesPerSearch,
+        },
       );
 
-      const screened = screen(flightOfferSchema, page, context, issues);
+      // `callProvider` already recorded the failure; nothing more to report here.
+      void error;
 
-      return screened ? ok(screened) : err(PAGE_FAILED);
-    },
-    { maxItems: wanted, maxPages: plan.limits.maxPagesPerSearch },
+      return result.items;
+    }),
   );
 
-  // `callProvider` already recorded the failure; nothing more to report here.
-  void error;
-
-  return result.items;
+  return perRouteResults.flat();
 }
 
 async function fetchHotels(
@@ -936,15 +974,77 @@ export async function runSearch(
   // One unit of work per date window: its flights, then its hotels. Every
   // window is started at once and the limiter paces the calls, so a slow window
   // holds up nothing but itself.
+  /*
+   * A vendor that answers a month at a time is asked for the months once, and
+   * the windows are then read off the days its flights actually fly. Asking it
+   * for exact day pairs finds almost nothing, because the cache seldom holds
+   * the pair. Every other vendor keeps the planned windows and is asked per
+   * window, as before.
+   */
+  let windows = plan.dateWindows;
+  let monthlyByDestination: Map<AirportCode, FlightOffer[]> | null = null;
+  let calendarFlights: readonly CalendarFlight[] | undefined;
+
+  if (deps.flights.metadata.answersByMonth) {
+    const monthsSeen = new Set<string>();
+    const representatives = plan.dateWindows.filter((window) => {
+      const key = `${window.departureDate.slice(0, 7)}|${window.returnDate.slice(0, 7)}`;
+      if (monthsSeen.has(key)) return false;
+      monthsSeen.add(key);
+      return true;
+    });
+
+    const fetched = await Promise.all(
+      representatives.map((window) =>
+        fetchFlightsForWindow(plan, deps, request, window, issues, budget),
+      ),
+    );
+
+    const byId = new Map<string, FlightOffer>();
+    for (const offer of fetched.flat()) byId.set(offer.id, offer);
+    const monthly = [...byId.values()];
+
+    monthlyByDestination = groupByArrival(monthly);
+    // What the same answer says about the days no trip is built for.
+    //
+    // Wider than the nights the traveller typed: a two-night or a five-night
+    // fare is often the cheaper one, and a calendar that only knows the
+    // minimum length says every day costs about the same. Choosing a day
+    // searches exactly those dates, and that search holds to what they asked.
+    calendarFlights = calendarFlightsFromOffers(monthly, {
+      minNights: CALENDAR_MIN_NIGHTS,
+      maxNights: Math.max(request.profile.maxNights, CALENDAR_MAX_NIGHTS),
+    });
+    // Asked about many places, the vendor gives each one its cheapest days, so
+    // every place needs its own window; asked about one, a couple of the
+    // cheapest day pairs are enough.
+    const many = plan.destinations.length > 1;
+    windows = windowsFromOffers(
+      monthly,
+      request.profile,
+      many ? 1 : 2,
+      many ? plan.destinations.length : plan.limits.maxDateWindows,
+      // Enough extra windows that the calendar has a price on most days, not
+      // only on the cheapest few. Each costs a hotel call only for the places
+      // that have a flight on exactly those days.
+      plan.limits.calendarCoverageDays,
+    );
+  }
+
   const perWindow = await Promise.all(
-    plan.dateWindows.map(async (window) => {
-      const flightsByDestination = groupByArrival(
-        await fetchFlightsForWindow(plan, deps, request, window, issues, budget),
-      );
+    windows.map(async (window) => {
+      const flightsByDestination =
+        monthlyByDestination ??
+        groupByArrival(await fetchFlightsForWindow(plan, deps, request, window, issues, budget));
 
       return Promise.all(
         plan.destinations.map(async (destination): Promise<TripCandidate[]> => {
-          const routeFlights = flightsByDestination.get(destination) ?? [];
+          // For a month-at-a-time vendor the offers cover the whole month, so
+          // keep only the flights that fly this window, before paying for a
+          // hotel call that nothing could use.
+          const routeFlights = (flightsByDestination.get(destination) ?? []).filter(
+            (offer) => !monthlyByDestination || flightMatchesWindow(offer, window),
+          );
           // No flights means no trip. Skipping the hotel call here is the
           // single biggest saving in the whole fan-out.
           if (routeFlights.length === 0) return [];
@@ -1052,8 +1152,14 @@ export async function runSearch(
   const eligible = ranked.filter((trip) => trip.eligibility.eligible).sort(compareRanked);
   const ineligible = ranked.filter((trip) => !trip.eligibility.eligible).sort(compareRanked);
 
+  // The windows that were actually priced. For a month-at-a-time vendor they
+  // are read off the flights, not the ones planned up front, and the date
+  // breakdown must be shown against the days that were really searched.
+  const reportedPlan: SearchPlan =
+    windows === plan.dateWindows ? plan : { ...plan, dateWindows: windows };
+
   const diagnostics: SearchDiagnostics = {
-    plan,
+    plan: reportedPlan,
     // Asked of the adapters that actually answered, rather than assumed from
     // configuration: a registry can be part live and part mock.
     provenance: combineProvenance(sources.map((source) => source.provenance)),
@@ -1107,6 +1213,7 @@ export async function runSearch(
     routeOffers: collectRouteOffers(unique, plan.limits.maxSwapOptionsPerRoute),
     // From every eligible trip, deliberately - not from the page above it.
     destinationSummaries: summariseDestinations(eligible),
+    ...(calendarFlights ? { calendarFlights } : {}),
     diagnostics,
   };
 }

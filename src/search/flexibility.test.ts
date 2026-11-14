@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dayOfWeek } from '@/core/dates';
 import {
   applyFlexibility,
+  DEFAULT_MIN_NIGHTS,
   detectFlexibility,
   FLEXIBILITY_HINTS,
   FLEXIBILITY_LABELS,
@@ -30,12 +31,13 @@ describe('flexibility presets', () => {
   });
 
   it('moves both ends and both lengths for a plus-or-minus preset', () => {
-    // Both ends move independently, so a 7-night trip may become 4 or 10.
-    // Saying so in the hint is the whole reason the hint exists.
+    // Both ends move independently, so a 7-night trip may become as long as 10
+    // - and as short as two nights, the default floor, because the cheapest
+    // trip is often a short one. Saying so in the hint is the reason it exists.
     expect(applyFlexibility('plus-minus-3', DEPARTURE, RETURN)).toEqual({
       earliestDeparture: '2026-06-03',
       latestReturn: '2026-06-16',
-      minNights: 4,
+      minNights: 2,
       maxNights: 10,
       departureDaysOfWeek: null,
       returnDaysOfWeek: null,
@@ -45,7 +47,18 @@ describe('flexibility presets', () => {
   it('never proposes a trip of nought nights', () => {
     const dates = applyFlexibility('plus-minus-7', DEPARTURE, '2026-06-08');
 
-    expect(dates.minNights).toBe(1);
+    // A two-night trip is as short as the default floor goes...
+    expect(dates.minNights).toBe(2);
+
+    // ...and a one-night trip typed in is never made longer, or shorter than one.
+    expect(applyFlexibility('plus-minus-7', DEPARTURE, '2026-06-07').minNights).toBe(1);
+  });
+
+  it('lets a flexible trip be as short as the default floor, whatever length was typed', () => {
+    // Typing seven nights and asking for some give used to mean four was the
+    // shortest the search would look at, so every "cheapest" was four nights.
+    expect(applyFlexibility('plus-minus-1', DEPARTURE, RETURN).minNights).toBe(DEFAULT_MIN_NIGHTS);
+    expect(applyFlexibility('plus-minus-7', DEPARTURE, RETURN).minNights).toBe(DEFAULT_MIN_NIGHTS);
   });
 
   it('treats an inverted range as a single night rather than throwing', () => {

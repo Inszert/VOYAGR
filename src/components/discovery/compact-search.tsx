@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button, DateRangeField, Field, Icon, Select } from '@/components/ui';
+import { Button, DateRangeField, Icon, NumberStepperField, Select } from '@/components/ui';
 import {
   BudgetFields,
   ExactWindowFields,
@@ -8,13 +8,14 @@ import {
   type SearchFormProps,
 } from '@/components/search/search-form';
 import { AirportInput } from '@/components/search/airport-input';
+import { FlexibilityChips } from '@/components/search/flexibility-chips';
 import { DISCOVERY_CATEGORIES } from '@/discovery/categories';
 import { categoryQuery } from '@/discovery/preset';
 import type { AirportSuggestion } from '@/search/destination-names';
-import { FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS } from '@/search/flexibility';
 import { LensSlider } from './lens-slider';
 import { SearchKindTabs } from '@/components/search/search-kind-tabs';
 import { AnywhereButton } from '@/components/search/anywhere-button';
+import { WORLD_REGIONS } from '@/search/world-region-list';
 import { SwapEndpoints } from './swap-endpoints';
 
 /**
@@ -87,6 +88,49 @@ function Cell({
     </div>
   );
 }
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/**
+ * The next twelve months, for choosing "anytime that month".
+ *
+ * Counted as whole months from today's, so no date is ever built from a `Date`.
+ * The current month starts today rather than on the 1st: a month that began
+ * last week is not one a person can still leave in.
+ */
+function monthOptions(today: string): { value: string; label: string }[] {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7)) - 1;
+
+  return Array.from({ length: 12 }, (_, offset) => {
+    const index = month + offset;
+    const y = year + Math.floor(index / 12);
+    const m = index % 12;
+
+    return {
+      value: offset === 0 ? today : `${y}-${String(m + 1).padStart(2, '0')}-01`,
+      label: `${MONTH_NAMES[m]} ${y}`,
+    };
+  });
+}
+
+const TRIP_NIGHTS = Array.from({ length: 20 }, (_, index) => ({
+  value: String(index + 2),
+  label: `${index + 2} nights`,
+}));
 
 export function CompactSearch({
   values,
@@ -237,7 +281,7 @@ export function CompactSearch({
                 a cell of its own: it is not a seventh question, it is the join
                 between two of them.
               */}
-              <div className="relative grid sm:grid-cols-3">
+              <div className="relative grid sm:grid-cols-[2fr_2fr_1.4fr]">
                 <Cell rule={false}>
                   <AirportInput
                     label="From"
@@ -268,25 +312,61 @@ export function CompactSearch({
                     bare
                     required
                   />
-                  {/*
-                    "Anywhere" is a real answer to "where to?".
-                    
-                    A search that only accepts three-letter codes serves
-                    people who already know where they are going, which is
-                    the opposite of what this product is for. The word
-                    expands to every destination we can actually price, so
-                    it is a promise we can keep rather than a wildcard.
-                  */}
-                  <p className="mt-1">
-                    <AnywhereButton targetName="destinations" />
-                  </p>
                 </Cell>
 
+                {/*
+                  "Anywhere" is a real answer to "where to?".
+
+                  A search that only accepts three-letter codes serves people
+                  who already know where they are going, which is the
+                  opposite of what this product is for. The word expands to
+                  every destination we can actually price, so it is a promise
+                  we can keep rather than a wildcard.
+
+                  Its own row under "To" rather than stacked inside that
+                  cell: the cell is for typing in, and two more controls
+                  wedged under the input they were fighting for its width.
+                  Regions open over the form rather than inside it, so seven
+                  links do not push every field below further down the card.
+                  Placed before Travellers in the markup so a phone, which
+                  has no columns to place it into, still reads From, To,
+                  Anywhere, Travellers in that order.
+                */}
+                <div className="border-hairline flex items-center gap-3 border-t px-2.5 py-2 sm:col-start-2 sm:border-t-0 sm:pl-6">
+                  <AnywhereButton targetName="destinations" />
+                  <details className="group relative">
+                    <summary className="border-hairline text-ink-muted hover:border-border-strong hover:text-ink focus-visible:outline-accent-to ease-standard duration-quick inline-flex cursor-pointer list-none items-center gap-1.5 rounded-(--radius-pill) border px-3 py-1.5 text-xs font-medium transition-colors select-none focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+                      Regions
+                      <Icon
+                        name="chevron-down"
+                        size={0.8}
+                        className="transition-transform group-open:rotate-180"
+                      />
+                    </summary>
+                    <div className="voyagr-popover absolute top-full left-0 z-20 mt-2 grid w-64 grid-cols-2 gap-1.5 p-2.5">
+                      {WORLD_REGIONS.map((region) => (
+                        <AnywhereButton
+                          key={region.id}
+                          targetName="destinations"
+                          value={region.id}
+                          label={region.label}
+                          className="text-left"
+                        />
+                      ))}
+                    </div>
+                  </details>
+                </div>
+
+                {/*
+                  A traveller count is two digits and a pair of arrows, not a
+                  third of the bar - the column it sits in is its own fifth
+                  rather than a third, so From and To keep the room that
+                  holds real text.
+                */}
                 <Cell>
-                  <Field
+                  <NumberStepperField
                     label="Travellers"
                     name="passengers"
-                    type="number"
                     min={1}
                     max={9}
                     defaultValue={form.value('passengers')}
@@ -296,15 +376,26 @@ export function CompactSearch({
                   />
                 </Cell>
 
-                {/* A third of the way across is exactly the first divider. */}
+                {/*
+                  2fr of 5.4fr: the swap control is centred on the rule
+                  between From and To, wherever that lands for the ratio
+                  above - recompute this if the ratio changes.
+                */}
                 <SwapEndpoints
                   from="origins"
                   to="destinations"
-                  className="bg-field border-hairline text-muted hover:text-text focus-visible:outline-accent-ink ease-standard duration-quick absolute top-1/2 left-1/3 z-10 hidden size-[30px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition-colors sm:grid"
+                  className="bg-field border-hairline text-muted hover:text-text focus-visible:outline-accent-ink ease-standard duration-quick absolute top-1/2 left-[37%] z-10 hidden size-[30px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition-colors sm:grid"
                 />
               </div>
 
-              <div className="border-hairline grid border-t sm:grid-cols-3">
+              {/*
+                "Anytime that month" swaps the two dates for a month and a trip
+                length. Done with the browser's own `:has()` on the chosen
+                option, so it needs no script and the form still works before
+                JavaScript arrives. Both pairs are submitted either way; the
+                server reads the month only when that preset is chosen.
+              */}
+              <div className="group border-hairline grid border-t sm:grid-cols-3">
                 {/*
                   The browser enforces the order. `min` on the departure stops
                   a trip being booked into the past and `min` on the return
@@ -313,7 +404,10 @@ export function CompactSearch({
                   client-side constraint is a convenience and never a
                   guarantee.
                 */}
-                <Cell rule={false} className="sm:col-span-2">
+                <Cell
+                  rule={false}
+                  className="group-has-[input[name=flexibility][value=month]:checked]:hidden sm:col-span-3"
+                >
                   <DateRangeField
                     startLabel="Leaving"
                     startName="departureDate"
@@ -328,22 +422,36 @@ export function CompactSearch({
                   />
                 </Cell>
 
-                <Cell>
+                <Cell
+                  rule={false}
+                  className="hidden grid-cols-2 gap-2 group-has-[input[name=flexibility][value=month]:checked]:grid sm:col-span-3"
+                >
                   <Select
-                    label="Dates"
-                    name="flexibility"
-                    defaultValue={form.value('flexibility')}
-                    hint="Widens the two dates beside this."
+                    label="Month"
+                    name="monthStart"
+                    defaultValue={values.monthStart ?? ''}
+                    options={monthOptions(today)}
                     bare
-                    options={[
-                      ...FLEXIBILITY_PRESETS.map((preset) => ({
-                        value: preset,
-                        label: FLEXIBILITY_LABELS[preset],
-                      })),
-                      { value: 'custom', label: 'Exact window' },
-                    ]}
+                  />
+                  <Select
+                    label="Trip length"
+                    name="tripNights"
+                    defaultValue={values.tripNights ?? '7'}
+                    options={TRIP_NIGHTS}
+                    bare
                   />
                 </Cell>
+
+                {/*
+                  How flexible the dates are, in view under them.
+
+                  Every preset the search understands as a chip, not a
+                  dropdown: "a weekend" and "anytime that month" are the first
+                  thing somebody flexible decides, and a closed list hid them.
+                */}
+                <div className="border-hairline min-w-0 border-t px-2.5 py-2.5 sm:col-span-3">
+                  <FlexibilityChips name="flexibility" defaultValue={form.value('flexibility')} />
+                </div>
               </div>
             </div>
 

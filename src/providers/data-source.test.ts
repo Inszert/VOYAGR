@@ -67,6 +67,14 @@ describe('dataSourceSwitchEnabled', () => {
     expect(dataSourceSwitchEnabled(env({ NODE_ENV: 'production' }))).toBe(false);
   });
 
+  it('is off when real flights are configured, so fixture flights are not one cookie away', () => {
+    expect(dataSourceSwitchEnabled(env({ FLIGHT_PROVIDER: 'aviasales' }))).toBe(false);
+    // ...but a person can still ask for it by name.
+    expect(
+      dataSourceSwitchEnabled(env({ FLIGHT_PROVIDER: 'aviasales', DATA_SOURCE_SWITCH: true })),
+    ).toBe(true);
+  });
+
   it('can be turned on or off explicitly', () => {
     expect(dataSourceSwitchEnabled(env({ NODE_ENV: 'production', DATA_SOURCE_SWITCH: true }))).toBe(
       true,

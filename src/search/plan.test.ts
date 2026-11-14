@@ -5,6 +5,7 @@ import { resolveEntitlements } from '@/core/entitlements';
 import { buildProfile } from '@/core/trip/test-support';
 import { AppError } from '@/lib/errors';
 import { buildSearchPlan, enumerateDateWindows, sampleEvenly } from './plan';
+import { DISCOVERY_LIMITS } from '@/discovery/snapshot';
 import { DEFAULT_SEARCH_LIMITS } from './types';
 
 const request = (overrides: Partial<Parameters<typeof buildSearchPlan>[0]> = {}) => ({
@@ -293,5 +294,23 @@ describe('day-of-week rules', () => {
       enumerateDateWindows({ ...profile, departureDaysOfWeek: null, returnDaysOfWeek: null })
         .length,
     );
+  });
+});
+
+describe('search limits', () => {
+  it('lets calendar coverage be switched off with zero', () => {
+    const plan = buildSearchPlan(request({ limits: { calendarCoverageDays: 0 } }));
+
+    expect(plan.limits.calendarCoverageDays).toBe(0);
+  });
+
+  it('still refuses a zero for a ceiling, which would be a search that finds nothing', () => {
+    expect(() => buildSearchPlan(request({ limits: { maxDateWindows: 0 } }))).toThrow(AppError);
+  });
+
+  it('accepts the limits the homepage snapshot actually runs with', () => {
+    // The snapshot turned coverage off with a zero this check used to refuse,
+    // and every homepage load then failed to price anything.
+    expect(() => buildSearchPlan(request({ limits: { ...DISCOVERY_LIMITS } }))).not.toThrow();
   });
 });

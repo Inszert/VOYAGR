@@ -38,6 +38,13 @@ import type { DestinationSummary } from './destinations';
 export interface SearchLimits {
   /** Departure/return pairs actually searched, sampled across the window. */
   readonly maxDateWindows: number;
+  /**
+   * Further windows priced, for a vendor that answers by the month, so the
+   * calendar has a price on most days rather than only on the cheapest few.
+   * Each costs a hotel call only for the places with a flight on those days.
+   * Zero prices just the cheapest pairs.
+   */
+  readonly calendarCoverageDays: number;
   readonly maxOrigins: number;
   readonly maxDestinations: number;
   /** Flight offers kept per destination, per date window, cheapest first. */
@@ -112,6 +119,7 @@ export interface SearchLimits {
  */
 export const DEFAULT_SEARCH_LIMITS: SearchLimits = {
   maxDateWindows: 8,
+  calendarCoverageDays: 14,
   maxOrigins: 4,
   maxDestinations: 6,
   maxFlightOffersPerRoute: 3,
@@ -280,6 +288,25 @@ export interface RouteOffers {
   readonly hotels: readonly HotelOffer[];
 }
 
+/**
+ * The cheapest flight on a day, for the days no whole trip was built for.
+ *
+ * A vendor that answers by the month returns far more dates than the search
+ * builds trips for - trips are only built inside the traveller's own window
+ * and nights, and each costs a hotel call. This is what that answer says about
+ * the other days, so the calendar can show a price on them. It is the flights
+ * alone, indicative, and is never counted in a trip total: choosing a day that
+ * has only this searches those dates for the whole trip.
+ */
+export interface CalendarFlight {
+  readonly departureDate: IsoDate;
+  readonly returnDate: IsoDate;
+  readonly nights: number;
+  /** The fare for everyone travelling, as the vendor quoted it. */
+  readonly price: Money;
+  readonly destination: AirportCode;
+}
+
 export interface SearchOutcome {
   /** Eligible trips, best first. */
   readonly results: readonly RankedTrip[];
@@ -306,5 +333,10 @@ export interface SearchOutcome {
    * the ones somebody browsing a map came for.
    */
   readonly destinationSummaries: readonly DestinationSummary[];
+  /**
+   * The cheapest flight on each day the vendor priced, trips or not. Only
+   * from a vendor that answers by the month; absent otherwise.
+   */
+  readonly calendarFlights?: readonly CalendarFlight[];
   readonly diagnostics: SearchDiagnostics;
 }

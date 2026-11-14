@@ -99,6 +99,12 @@ export interface FlightLeg {
   readonly segments: readonly FlightSegment[];
   /** Total travel time in minutes, including connections. */
   readonly durationMinutes: number;
+  /**
+   * Connections the provider counted but did not itemise. Absent when the
+   * segments are the whole story. Read through `connectionCount`, never by
+   * `segments.length - 1`.
+   */
+  readonly connectionsStated?: number;
   /*
    * These three are `boolean | null` rather than `boolean`, and the null is the
    * point. Not every provider reports a baggage allowance or says how a
@@ -262,6 +268,12 @@ export interface SearchProfile {
   readonly travelStyle: TravelStyle;
   readonly optimisationMode: OptimisationMode;
   readonly requireDirectFlights: boolean;
+  /**
+   * The most connections either leg may have. Null or absent means no limit.
+   * Optional so a profile saved before this existed - a Travel Watch - still
+   * means what it meant. 0 is direct, and is the same as `requireDirectFlights`.
+   */
+  readonly maxStops?: number | null;
   readonly requireCheckedBaggage: boolean;
   readonly requireFreeCancellation: boolean;
   readonly minHotelReviewScore: number | null;

@@ -170,4 +170,7 @@ and a flight-duration filter remain unimplemented, deferred by this review's own
 the Postgres connectivity issue and the Weather test's clock fragility are both pre-existing, both
 out of Flights' scope, and both already documented elsewhere.
 
-Nothing was committed or pushed. Awaiting your decision.
+At the time this review was written, nothing had been committed or pushed. Following approval,
+the reviewed changes were committed (`71848de`) and pushed to
+`origin/feat/voyagr-autonomous-product-completion` - see the closure commit for the final, exact
+file list.

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn';
-import { Container, Icon, ProvenanceBadge } from '@/components/ui';
-import type { DataProvenance } from '@/core/trip/provenance';
+import { Container, Icon, ProvenanceBreakdown } from '@/components/ui';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { Country } from '@/discovery/countries';
 import { MAP_MODE_LABELS, type DestinationPoint, type MapMode } from '@/discovery/map-model';
 import type { DiscoveryAssumptions } from '@/discovery/snapshot';
@@ -44,6 +44,8 @@ export interface DestinationRailProps {
   totalCount: number;
   mode: MapMode;
   provenance: DataProvenance;
+  /** Who supplied each part, so a card can badge flights and hotels separately. */
+  sources?: readonly SourceAttribution[];
   /** Present for the front page's snapshot; absent once a search has run. */
   assumptions?: DiscoveryAssumptions | null;
   /** The country the rail is narrowed to, if any. */
@@ -182,6 +184,7 @@ export function DestinationRail({
   totalCount,
   mode,
   provenance,
+  sources = [],
   assumptions = null,
   country = null,
   regionSummary = null,
@@ -282,7 +285,7 @@ export function DestinationRail({
                   : `${cards.length} ${cards.length === 1 ? 'place' : 'places'} priced in ${country.name}`
                 : totalCount === 0
                   ? 'Where you can go'
-                  : `${totalCount} destinations, ranked by ${MAP_MODE_LABELS[mode].toLowerCase()}`}
+                  : `${totalCount} ${totalCount === 1 ? 'destination' : 'destinations'}, ranked by ${MAP_MODE_LABELS[mode].toLowerCase()}`}
             </h2>
 
             <p className="text-muted mt-3 max-w-[420px] text-[14px] leading-[1.5]">
@@ -422,24 +425,15 @@ export function DestinationRail({
                       same card, which a footnote at the bottom of a scrolling
                       band would not have been.
                     */}
-                    <ProvenanceBadge
+                    <ProvenanceBreakdown
+                      sources={sources}
                       provenance={provenance}
-                      explain={false}
+                      className="absolute top-3 right-3 flex flex-col items-end gap-1"
                       // Its own darkness, because it sits on a photograph and
                       // a photograph can be any colour. A provenance badge
                       // that disappears over a bright sky is a provenance
                       // badge that is not doing its job.
-                      /*
-                        Solid, not glass.
-
-                        On the globe this badge sits over the planet and can
-                        be a pane of glass. On a card it sits over whatever a
-                        photograph happens to be, and `--dim` text on 5% white
-                        over a bright sky is an empty grey rectangle - which is
-                        exactly how it shipped. It carries its own darkness
-                        here, so the words are legible over any picture.
-                      */
-                      className="voyagr-demo bg-field/90 text-muted absolute top-3 right-3 backdrop-blur-sm"
+                      badgeClassName="voyagr-demo bg-field/90 text-muted backdrop-blur-sm"
                     />
                   </div>
 

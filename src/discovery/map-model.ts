@@ -253,14 +253,14 @@ export function toGeoJson(points: readonly DestinationPoint[], mode: MapMode) {
 }
 
 /**
- * The mode a query string asks for, defaulting to best value.
+ * The mode a query string asks for, defaulting to cheapest.
  *
- * Best value rather than cheapest, because the product's claim is that the
- * best trip is not usually the cheapest one - and a discovery surface that
- * opens on price teaches the opposite.
+ * Changed from best value on the owner's instruction: the globe and the cards
+ * lead with the lowest whole-trip price, and best value is one click away on
+ * the rank control. Every figure is still the engine's; only the order moved.
  */
 export function parseMapMode(raw: string | undefined): MapMode {
-  return MAP_MODES.includes(raw as MapMode) ? (raw as MapMode) : 'best-value';
+  return MAP_MODES.includes(raw as MapMode) ? (raw as MapMode) : 'cheapest';
 }
 
 /** A departure airport, placed. The other end of every route. */
@@ -283,6 +283,8 @@ export interface Route {
   readonly origin: AirportCode;
   readonly destination: AirportCode;
   readonly rank: number;
+  /** Fewest connections on the best trip there, or null when not known. */
+  readonly stops: number | null;
   readonly path: readonly (readonly LngLat[])[];
 }
 
@@ -306,6 +308,7 @@ export function buildRoutes(
         origin: origin.code,
         destination: point.destination,
         rank,
+        stops: point.fewestStops,
         path: greatCirclePath(origin.position, point.position),
       });
     }
@@ -328,6 +331,7 @@ export function routesToGeoJson(routes: readonly Route[], selected: AirportCode 
         origin: route.origin,
         destination: route.destination,
         rank: route.rank,
+        stops: route.stops,
         selected: route.destination === selected,
       },
     })),

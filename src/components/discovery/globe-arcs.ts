@@ -112,7 +112,7 @@ function measureSilhouette(
  * proportional to the great-circle angle, so a short route stays close to the
  * ground and only something crossing a hemisphere reaches the full height.
  */
-const LIFT = 0.18;
+const LIFT = 0.32;
 
 /** The angular distance, in radians, at which a route earns the full lift. */
 const LIFT_FULL = Math.PI / 2;
@@ -149,6 +149,8 @@ export interface ArcRun {
   /** How high this route rises, as a fraction of the radius. */
   readonly lift: number;
   readonly selected: boolean;
+  /** Connections on the best trip there; null when unknown. Colours the arc. */
+  readonly stops: number | null;
   /** Stable across renders, so a pulse keeps its phase. */
   readonly key: string;
 }
@@ -156,7 +158,163 @@ export interface ArcRun {
 /** Loosely typed: this is the GeoJSON the server built, and only read here. */
 interface RouteFeature {
   geometry?: { type?: string; coordinates?: unknown };
-  properties?: { destination?: string; rank?: number; selected?: boolean };
+  properties?: {
+    origin?: string;
+    destination?: string;
+    rank?: number;
+    selected?: boolean;
+    stops?: number | null;
+  };
+}
+
+type LngLat = readonly [number, number];
+
+/**
+ * Two destinations closer than this, as seen from the same origin, look like
+ * one place from far enough out - so they share an arc for most of the way.
+ */
+const BUNDLE_RADIUS = 10 * RADIANS;
+
+/**
+ * A branch has to be small next to the trunk it leaves. Two cities ten degrees
+ * apart are one landing area on a flight across an ocean, and two separate
+ * destinations on a hop to the next country.
+ */
+const BUNDLE_MAX_SHARE = 0.4;
+
+function toVector([lng, lat]: LngLat): [number, number, number] {
+  return [
+    Math.cos(lat * RADIANS) * Math.cos(lng * RADIANS),
+    Math.cos(lat * RADIANS) * Math.sin(lng * RADIANS),
+    Math.sin(lat * RADIANS),
+  ];
+}
+
+function angleBetween(a: LngLat, b: LngLat): number {
+  const [ax, ay, az] = toVector(a);
+  const [bx, by, bz] = toVector(b);
+
+  return Math.acos(Math.max(-1, Math.min(1, ax * bx + ay * by + az * bz)));
+}
+
+/** The point a fraction of the way along the great circle from `a` to `b`. */
+function along(a: LngLat, b: LngLat, t: number): LngLat {
+  const omega = angleBetween(a, b);
+  if (omega < 1e-9) return a;
+
+  const [ax, ay, az] = toVector(a);
+  const [bx, by, bz] = toVector(b);
+  const k = Math.sin(omega);
+  const wa = Math.sin((1 - t) * omega) / k;
+  const wb = Math.sin(t * omega) / k;
+  const x = ax * wa + bx * wb;
+  const y = ay * wa + by * wb;
+  const z = az * wa + bz * wb;
+
+  return [Math.atan2(y, x) / RADIANS, Math.asin(Math.max(-1, Math.min(1, z))) / RADIANS];
+}
+
+interface RouteEnds {
+  readonly feature: RouteFeature;
+  readonly origin: string;
+  readonly destination: string;
+  readonly rank: number;
+  readonly selected: boolean;
+  readonly stops: number | null;
+  readonly start: LngLat;
+  readonly end: LngLat;
+  readonly span: number;
+}
+
+function endsOf(feature: RouteFeature, index: number): RouteEnds | null {
+  const raw = feature.geometry?.coordinates;
+  if (feature.geometry?.type !== 'MultiLineString' || !Array.isArray(raw)) return null;
+
+  const segments = raw as LngLat[][];
+  const start = segments[0]?.[0];
+  const end = segments[segments.length - 1]?.slice(-1)[0];
+  if (!start || !end) return null;
+
+  return {
+    feature,
+    origin: String(feature.properties?.origin ?? ''),
+    destination: String(feature.properties?.destination ?? index),
+    rank: Number(feature.properties?.rank ?? 9),
+    selected: feature.properties?.selected === true,
+    stops: typeof feature.properties?.stops === 'number' ? feature.properties.stops : null,
+    start,
+    end,
+    span: angleBetween(start, end),
+  };
+}
+
+/**
+ * Which routes ride another route's arc, and where they leave it.
+ *
+ * Within one origin, the best-ranked route is a trunk and any other route to a
+ * place close to the trunk's end - and small next to the trunk's length - is a
+ * branch of it: one arc for the main flight, then short hops to each landing
+ * point. A selected destination is never folded in; the one somebody asked
+ * about keeps its own whole arc.
+ *
+ * Returns a run for every branch (starting where it leaves the trunk) and the
+ * destinations whose full routes are therefore not drawn separately.
+ */
+function bundle(ends: readonly RouteEnds[], maxPoints: number) {
+  const branches: ArcRun[] = [];
+  const folded = new Set<string>();
+  const trunks: RouteEnds[] = [];
+
+  for (const route of [...ends].sort((a, b) => a.rank - b.rank)) {
+    if (route.span < MINIMUM_SPAN) continue;
+
+    const trunk = route.selected
+      ? undefined
+      : trunks.find((candidate) => {
+          if (candidate.origin !== route.origin) return false;
+          const apart = angleBetween(candidate.end, route.end);
+          return (
+            apart >= MINIMUM_SPAN &&
+            apart <= BUNDLE_RADIUS &&
+            apart <= candidate.span * BUNDLE_MAX_SHARE
+          );
+        });
+
+    if (!trunk) {
+      trunks.push(route);
+      continue;
+    }
+
+    const apart = angleBetween(trunk.end, route.end);
+    // Leave the trunk late enough that the shared part is most of the journey,
+    // and early enough that the branch has room to be seen as a branch.
+    const leaves = Math.max(0.5, Math.min(0.92, 1 - (2.2 * apart) / trunk.span));
+    const from = along(trunk.start, trunk.end, leaves);
+    const count = Math.max(3, Math.min(maxPoints, Math.ceil(apart / (2 * RADIANS)) + 2));
+
+    const points: LngLat[] = [];
+    const fractions: number[] = [];
+
+    for (let i = 0; i < count; i += 1) {
+      const t = i / (count - 1);
+      points.push(i === count - 1 ? route.end : along(from, route.end, t));
+      fractions.push(leaves + (1 - leaves) * t);
+    }
+
+    branches.push({
+      points,
+      fractions,
+      rank: route.rank,
+      // Rises like the trunk it leaves, so the join has no step in it.
+      lift: LIFT * Math.min(1, trunk.span / LIFT_FULL),
+      selected: false,
+      stops: route.stops,
+      key: `${route.origin}-${route.destination}-branch`,
+    });
+    folded.add(`${route.origin}>${route.destination}`);
+  }
+
+  return { branches, folded };
 }
 
 /**
@@ -171,9 +329,22 @@ export function toArcRuns(routes: unknown, maxPoints = 30): ArcRun[] {
   const features = (routes as { features?: readonly RouteFeature[] } | null)?.features ?? [];
   const runs: ArcRun[] = [];
 
+  const ends = features.flatMap((feature, index) => endsOf(feature, index) ?? []);
+  const { branches, folded } = bundle(ends, maxPoints);
+  runs.push(...branches);
+
   for (const feature of features) {
     const raw = feature.geometry?.coordinates;
     if (feature.geometry?.type !== 'MultiLineString' || !Array.isArray(raw)) continue;
+
+    // Drawn as a branch of a nearby route's arc instead.
+    if (
+      folded.has(
+        `${String(feature.properties?.origin ?? '')}>${String(feature.properties?.destination ?? '')}`,
+      )
+    ) {
+      continue;
+    }
 
     const segments = raw as (readonly [number, number])[][];
     const total = segments.reduce((count, segment) => count + segment.length, 0);
@@ -181,6 +352,7 @@ export function toArcRuns(routes: unknown, maxPoints = 30): ArcRun[] {
 
     const rank = Number(feature.properties?.rank ?? 9);
     const selected = feature.properties?.selected === true;
+    const stops = typeof feature.properties?.stops === 'number' ? feature.properties.stops : null;
     const destination = String(feature.properties?.destination ?? runs.length);
 
     /*
@@ -234,7 +406,15 @@ export function toArcRuns(routes: unknown, maxPoints = 30): ArcRun[] {
       seen += segment.length;
 
       if (points.length > 1) {
-        runs.push({ points, fractions, rank, selected, lift, key: `${destination}-${index}` });
+        runs.push({
+          points,
+          fractions,
+          rank,
+          selected,
+          lift,
+          stops,
+          key: `${destination}-${index}`,
+        });
       }
     }
   }

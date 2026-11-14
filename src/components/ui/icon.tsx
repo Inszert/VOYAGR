@@ -33,6 +33,8 @@ export type IconName =
   | 'arrow-right'
   | 'chevron-left'
   | 'chevron-right'
+  | 'chevron-up'
+  | 'chevron-down'
   | 'sparkle'
   | 'globe'
   | 'pin'
@@ -58,7 +60,8 @@ export type IconName =
   | 'wind'
   | 'parking'
   | 'star'
-  | 'drop';
+  | 'drop'
+  | 'check';
 
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
   name: IconName;
@@ -156,6 +159,10 @@ const PATHS: Record<IconName, React.ReactNode> = {
   'chevron-left': <path d="m15 18-6-6 6-6" />,
   /** Lucide's `chevron-right`. */
   'chevron-right': <path d="m9 18 6-6-6-6" />,
+  /** Lucide's `chevron-up`. A stepper's increment button. */
+  'chevron-up': <path d="m18 15-6-6-6 6" />,
+  /** Lucide's `chevron-down`. A stepper's decrement button, and a combobox or select's own open indicator. */
+  'chevron-down': <path d="m6 9 6 6 6-6" />,
   sparkle: (
     <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
   ),
@@ -310,6 +317,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   drop: (
     <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z" />
   ),
+  /** Lucide's `check`. A selected option in a custom listbox. */
+  check: <path d="M20 6 9 17l-5-5" />,
 };
 
 export function Icon({ name, size = 1, className, ...props }: IconProps) {

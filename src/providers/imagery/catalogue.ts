@@ -9,8 +9,8 @@ import type { ImageryRef } from './types';
  * attached to the wrong place is the same class of error as a wrong price, and
  * this product does not make that class of error to save typing.
  *
- * Sixteen entries because the catalogue has sixteen destinations. When the
- * `destinations` table of specification section 21 exists, this column lives
+ * One entry for every destination the product can price, each chosen by hand.
+ * When the `destinations` table of specification section 21 exists, this column lives
  * there and this file goes away; a curated column in a real catalogue is the
  * same idea, stored properly.
  *
@@ -38,11 +38,11 @@ const ARTICLES: Readonly<Record<string, string>> = {
   BKK: 'Bangkok',
   NRT: 'Tokyo',
   CPT: 'Cape Town',
-  // The lead image here is a locator map rather than a photograph. Left as
-  // it is: a map of Bali is unambiguously about Bali, and swapping in a photo
-  // of Denpasar or Kuta would put a picture of one town under the name of the
-  // island it sits on.
-  DPS: 'Bali',
+  // Tanah Lot, because the article for the island leads with a locator map and
+  // the Maldives', Singapore's and Hong Kong's with a flag - none of them a
+  // picture of the place. The place names still find these entries: see
+  // `PLACE_ALIASES`.
+  DPS: 'Tanah Lot',
 
   // Stay destinations. A hotel search names a city rather than an airport, so
   // these are keyed by the airport a traveller would land at, and reached by
@@ -57,6 +57,129 @@ const ARTICLES: Readonly<Record<string, string>> = {
   PRG: 'Prague',
   BUD: 'Budapest',
   MAD: 'Madrid',
+  // Every other destination the product can price. Each title is the city's
+  // own article (the island's, where the airport is named for the island), not
+  // a search - the same rule as above. `scripts` that audit this can fetch each
+  // one; a title with no lead image simply gets the wash, as before.
+  FRA: 'Frankfurt',
+  IST: 'Istanbul',
+  WAW: 'Warsaw',
+  CPH: 'Copenhagen',
+  DUB: 'Dublin',
+  ZRH: 'Zürich',
+  MUC: 'Munich',
+  BER: 'Berlin',
+  MXP: 'Milan',
+  VCE: 'Venice',
+  NAP: 'Naples',
+  OPO: 'Porto',
+  AGP: 'Málaga',
+  ALC: 'Alicante',
+  TFS: 'Tenerife',
+  LPA: 'Gran Canaria',
+  DBV: 'Dubrovnik',
+  SKG: 'Thessaloniki',
+  HER: 'Heraklion',
+  RHO: 'Rhodes',
+  CFU: 'Corfu',
+  SOF: 'Sofia',
+  OTP: 'Bucharest',
+  RIX: 'Riga',
+  TLL: 'Tallinn',
+  VNO: 'Vilnius',
+  KRK: 'Kraków',
+  EDI: 'Edinburgh',
+  MAN: 'Manchester',
+  ARN: 'Stockholm',
+  OSL: 'Oslo',
+  HEL: 'Helsinki',
+  BRU: 'Brussels',
+  GVA: 'Geneva',
+  NCE: 'Nice',
+  LYS: 'Lyon',
+  CAI: 'Cairo',
+  SSH: 'Sharm El Sheikh',
+  HRG: 'Hurghada',
+  AUH: 'Abu Dhabi',
+  DOH: 'Doha',
+  TLV: 'Tel Aviv',
+  AMM: 'Amman',
+  LAX: 'Los Angeles',
+  MIA: 'Miami',
+  CUN: 'Cancún',
+  GRU: 'São Paulo',
+  MLE: 'Tourism in the Maldives',
+  SIN: 'Marina Bay, Singapore',
+  HKG: 'Tourism in Hong Kong',
+  DEL: 'Delhi',
+  BOM: 'Mumbai',
+  SYD: 'Sydney',
+  MEX: 'Mexico City',
+  YYZ: 'Toronto',
+  GIG: 'Rio de Janeiro',
+  BSB: 'Brasília',
+  EZE: 'Buenos Aires',
+  SCL: 'Santiago',
+  BOG: 'Bogotá',
+  LIM: 'Lima',
+  PTY: 'Panama City',
+  NBO: 'Nairobi',
+  JNB: 'Johannesburg',
+  CMN: 'Casablanca',
+  RAK: 'Marrakesh',
+  TUN: 'Tunis',
+  ADD: 'Addis Ababa',
+  ACC: 'Accra',
+  LOS: 'Lagos',
+  SGN: 'Ho Chi Minh City',
+  HAN: 'Hanoi',
+  KUL: 'Kuala Lumpur',
+  MNL: 'Manila',
+  PEK: 'Beijing',
+  PVG: 'Shanghai',
+  ICN: 'Seoul',
+  MEL: 'Melbourne',
+  AKL: 'Auckland',
+  JED: 'Jeddah',
+  RUH: 'Riyadh',
+  CMB: 'Colombo',
+  KTM: 'Kathmandu',
+  DAC: 'Dhaka',
+  HAV: 'Havana',
+  PUJ: 'Punta Cana',
+  SJU: 'San Juan, Puerto Rico',
+  MBJ: 'Montego Bay',
+  DEN: 'Denver',
+  SEA: 'Seattle',
+  ATL: 'Atlanta',
+  BOS: 'Boston',
+  IAD: 'Washington, D.C.',
+  YVR: 'Vancouver',
+  YUL: 'Montreal',
+  ORD: 'Chicago',
+  SFO: 'San Francisco',
+  LPB: 'La Paz',
+  VVI: 'Santa Cruz de la Sierra',
+  CBB: 'Cochabamba',
+  SRE: 'Sucre',
+  UIO: 'Quito',
+  ASU: 'Asunción',
+  MVD: 'Montevideo',
+  GYE: 'Guayaquil',
+  CUZ: 'Cusco',
+};
+
+/**
+ * Names that mean a destination whose article is titled for something more
+ * specific than the name - a flag is not a picture of Singapore, so the
+ * article is one that has a photograph, and the name still has to find it.
+ * Written out, never derived.
+ */
+const PLACE_ALIASES: Readonly<Record<string, string>> = {
+  bali: 'DPS',
+  singapore: 'SIN',
+  'hong kong': 'HKG',
+  maldives: 'MLE',
 };
 
 /** The lookup for a destination, or null when nobody has chosen one. */
@@ -79,6 +202,9 @@ export function imageryRefFor(code: string): ImageryRef | null {
 export function imageryCodeForPlace(place: string): string | null {
   const wanted = place.trim().toLowerCase();
   if (wanted.length === 0) return null;
+
+  const alias = PLACE_ALIASES[wanted];
+  if (alias) return alias;
 
   for (const [code, title] of Object.entries(ARTICLES)) {
     if (title.split(',')[0]!.trim().toLowerCase() === wanted) return code;

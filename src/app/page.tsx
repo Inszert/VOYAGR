@@ -7,6 +7,7 @@ import { TrustStrip } from '@/components/discovery/trust-strip';
 import { redirect } from 'next/navigation';
 import { firstValues, loadStagePage, wasSubmitted } from '@/discovery/load-stage';
 import { parseSearchForm } from '@/search/schema';
+import { resolveWorldRegion } from '@/search/world-regions';
 import { listPlaceableDestinations } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
 import {
@@ -57,7 +58,7 @@ export default async function DiscoverPage({
   if (
     wasSubmitted(values) &&
     values.edit !== '1' &&
-    parseSearchForm(values, listPlaceableDestinations()).ok
+    parseSearchForm(values, listPlaceableDestinations(), resolveWorldRegion).ok
   ) {
     redirect(
       `/explore?${new URLSearchParams(
@@ -135,6 +136,7 @@ export default async function DiscoverPage({
           seasonDate: page.season.date,
           regionsUrl: stage.regionsUrl,
           provenance: page.provenance,
+          sources: page.sources,
           countryCounts: stage.countryCounts,
           selectedCountry: stage.country
             ? { adm0: stage.country.adm0, name: stage.country.name, bbox: stage.country.bbox }
@@ -151,6 +153,7 @@ export default async function DiscoverPage({
         destinationsHint={page.destinationsHint}
         carry={page.carry}
         provenance={page.provenance}
+        sources={page.sources}
         season={page.season}
         airports={page.airports}
         featured={
@@ -176,6 +179,7 @@ export default async function DiscoverPage({
         totalCount={stage.points.length}
         mode={page.mode}
         provenance={page.provenance}
+        sources={page.sources}
         assumptions={page.assumptions}
         country={stage.country}
         regionSummary={stage.regionSummary}
@@ -213,6 +217,7 @@ export default async function DiscoverPage({
         tall={picture(1)}
         exploreHref={query ? `/explore?${query}` : '/explore'}
         provenance={page.provenance}
+        sources={page.sources}
       />
 
       <TrustStrip

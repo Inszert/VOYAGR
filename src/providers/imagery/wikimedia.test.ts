@@ -179,6 +179,12 @@ describe('the imagery catalogue', () => {
     expect(imageryCodeForPlace(' barcelona ')).toBe('BCN');
     expect(imageryCodeForPlace('Split')).toBe('SPU');
     expect(imageryCodeForPlace('Barc')).toBeNull();
+    // Named, not matched: their articles lead with a flag or a map, so the
+    // entries point at an article with a photograph and the name is an alias.
+    expect(imageryCodeForPlace('Bali')).toBe('DPS');
+    expect(imageryCodeForPlace('singapore')).toBe('SIN');
+    expect(imageryCodeForPlace('Hong Kong')).toBe('HKG');
+    expect(imageryCodeForPlace('Maldives')).toBe('MLE');
     expect(imageryCodeForPlace('')).toBeNull();
   });
 });

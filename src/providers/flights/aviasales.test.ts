@@ -116,12 +116,27 @@ describe('mapOffer', () => {
     expect(result.offer.outbound.selfTransfer).toBeNull();
   });
 
-  it('refuses a connecting flight rather than inventing the connection', () => {
+  it('keeps a connecting flight, stating its stops without inventing the connection', () => {
     // The response names the airline and the total duration but never the
     // connection airport or its times. A segment list filled in to cover that
-    // gap would be a fabricated itinerary shown to a traveller.
-    expect(map({ ...direct, transfers: 1 })).toEqual({ skipped: 'connecting' });
-    expect(map({ ...direct, return_transfers: 2 })).toEqual({ skipped: 'connecting' });
+    // gap would be a fabricated itinerary shown to a traveller, so the leg
+    // keeps one segment and carries the stop count the vendor did state.
+    const outbound = map({ ...direct, transfers: 1 });
+    const inbound = map({ ...direct, return_transfers: 2 });
+    if (!('offer' in outbound) || !('offer' in inbound)) throw new Error('expected offers');
+
+    expect(outbound.offer.outbound.connectionsStated).toBe(1);
+    expect(outbound.offer.outbound.segments).toHaveLength(1);
+    expect(outbound.offer.inbound.connectionsStated).toBeUndefined();
+    expect(inbound.offer.inbound.connectionsStated).toBe(2);
+    expect(inbound.offer.inbound.segments).toHaveLength(1);
+  });
+
+  it('leaves a direct flight with no stated connections', () => {
+    const result = map(direct);
+    if (!('offer' in result)) throw new Error('expected an offer');
+
+    expect(result.offer.outbound.connectionsStated).toBeUndefined();
   });
 
   it('refuses a price point missing a field the mapping depends on', () => {
@@ -145,7 +160,7 @@ describe('mapOffer', () => {
 });
 
 describe('searchFlights', () => {
-  it('sends the token and the marker, and asks only for direct flights', async () => {
+  it('sends the token and the marker, and does not exclude connecting flights', async () => {
     const { provider, seen } = providerWith({ success: true, currency: 'eur', data: [direct] });
 
     await provider.searchFlights(query);
@@ -154,9 +169,8 @@ describe('searchFlights', () => {
     expect(url.searchParams.get('token')).toBe(TOKEN);
     expect(url.searchParams.get('marker')).toBe('123456');
     expect(url.searchParams.get('origin')).toBe('VIE');
-    // Connecting results cannot be mapped, so there is no point paying for
-    // them in the response budget.
-    expect(url.searchParams.get('direct')).toBe('true');
+    // Connecting fares are mapped too, so they must not be filtered out.
+    expect(url.searchParams.get('direct')).toBe('false');
   });
 
   it('returns offers that pass boundary validation', async () => {
@@ -173,7 +187,7 @@ describe('searchFlights', () => {
     expect(result.value.nextCursor).toBeNull();
   });
 
-  it('keeps the good price points and drops the rest', async () => {
+  it('keeps the good price points and drops the malformed rest', async () => {
     const { provider } = providerWith({
       success: true,
       data: [direct, { ...direct, transfers: 1 }, { nonsense: true }],
@@ -182,7 +196,7 @@ describe('searchFlights', () => {
     const result = await provider.searchFlights(query);
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.items).toHaveLength(1);
+    if (result.ok) expect(result.value.items).toHaveLength(2);
   });
 
   it('reports a rate limit as unavailable rather than as a bad response', async () => {
@@ -290,18 +304,22 @@ describe('against the recorded Travelpayouts response', () => {
     expect(validateOffers(flightOfferSchema, offers).rejected).toEqual([]);
   });
 
-  it('refuses the connecting majority rather than inventing their segments', () => {
+  it('keeps the connecting majority with their stops stated, not their segments invented', () => {
     const connecting = body.data.filter(
       (row) => (row.transfers as number) > 0 || (row.return_transfers as number) > 0,
     );
 
-    // Most of what this endpoint returns cannot be represented honestly.
+    // Most of what this endpoint returns is a connecting fare.
     expect(connecting.length).toBeGreaterThan(0);
 
     for (const row of connecting) {
-      expect(mapOffer(row, 'EUR', '2026-09-22T13:46:18Z', 'aviasales')).toEqual({
-        skipped: 'connecting',
-      });
+      const result = mapOffer(row, 'EUR', '2026-09-22T13:46:18Z', 'aviasales');
+      if (!('offer' in result)) throw new Error('expected an offer');
+
+      expect(result.offer.outbound.connectionsStated ?? 0).toBe(row.transfers);
+      expect(result.offer.inbound.connectionsStated ?? 0).toBe(row.return_transfers);
+      expect(result.offer.outbound.segments).toHaveLength(1);
+      expect(result.offer.inbound.segments).toHaveLength(1);
     }
   });
 
@@ -377,7 +395,7 @@ describe('the experimental calendar window', () => {
     expect(url.searchParams.get('direct')).toBe('false');
   });
 
-  it('still refuses connecting rows in calendar mode', async () => {
+  it('keeps connecting rows in calendar mode too', async () => {
     const provider = new AviasalesFlightProvider({
       token: TOKEN,
       window: 'calendar',
@@ -387,6 +405,6 @@ describe('the experimental calendar window', () => {
     const result = await provider.searchFlights(query);
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.items).toHaveLength(1);
+    if (result.ok) expect(result.value.items).toHaveLength(2);
   });
 });

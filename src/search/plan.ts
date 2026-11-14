@@ -31,10 +31,16 @@ function requireValid(condition: boolean, message: string, publicMessage: string
 function resolveLimits(overrides: Partial<SearchLimits> | undefined): SearchLimits {
   const limits: SearchLimits = { ...DEFAULT_SEARCH_LIMITS, ...overrides };
 
+  // Limits that may be turned off with zero. Every other one is a ceiling, and
+  // a ceiling of zero is a search that can find nothing.
+  const MAY_BE_ZERO: ReadonlySet<string> = new Set(['calendarCoverageDays']);
+
   for (const [key, value] of Object.entries(limits)) {
+    const floor = MAY_BE_ZERO.has(key) ? 0 : 1;
+
     requireValid(
-      Number.isSafeInteger(value) && value > 0,
-      `Search limit ${key} must be a positive integer, received ${value}`,
+      Number.isSafeInteger(value) && value >= floor,
+      `Search limit ${key} must be ${floor === 0 ? 'a whole number, zero or more' : 'a positive integer'}, received ${value}`,
       'The search settings were not valid.',
     );
   }

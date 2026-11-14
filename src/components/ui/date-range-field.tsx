@@ -260,7 +260,7 @@ export function DateRangeField({
         </div>
       </PopoverAnchor>
 
-      <PopoverPanel align="start" className="w-[19rem] sm:w-[35rem]">
+      <PopoverPanel align="start" className="w-[20rem] sm:w-[40rem]">
         <div className="mb-2 flex items-center justify-between gap-2">
           <button
             type="button"

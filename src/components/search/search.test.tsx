@@ -160,11 +160,18 @@ describe('TripCard', () => {
     expect(overBudget.textContent).toContain(format(abs(trip.eligibility.budgetHeadroom)));
   });
 
-  it('warns that the price may have moved when the quote is stale', () => {
+  it('does not print a made-up "checked" time on a card whose quote is stale', () => {
+    // A cached-fare vendor says on what day a fare was last searched, never at
+    // what time, and that day is the vendor's search, not a check of ours. The
+    // card used to print it as "checked 30 Oct, 00:00 UTC", which claimed a
+    // moment nobody observed. The page-level notice still says some prices may
+    // have moved, and the source tag still says the price is indicative.
     const trip = buildRankedTrip({}, {}, 'stale');
     render(<TripCard trip={trip} rank={0} />);
 
-    expect(screen.getByText(/may have moved/i)).toBeInTheDocument();
+    // ("Checked bag" is a different sentence; this is the time stamp.)
+    expect(screen.queryByText(/checked \d+ \w+, \d\d:\d\d UTC/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/may have moved/i)).not.toBeInTheDocument();
   });
 
   it('says nothing about staleness for a fresh or unjudged quote', () => {
@@ -475,7 +482,7 @@ describe('the flexibility control', () => {
     render(<SearchForm values={{}} />);
 
     expect(
-      screen.getByRole('radio', { name: /three days either side, and three shorter or longer/i }),
+      screen.getByRole('radio', { name: /three days either side.*as short as two nights/i }),
     ).toBeTruthy();
   });
 
@@ -541,25 +548,40 @@ describe('what the dates are worth', () => {
     // money? A comparison the user has to do themselves has not answered it.
     await renderBreakdown([tripOn(WINDOWS[0]!, 90_000), tripOn(WINDOWS[1]!, 30_000)]);
 
-    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
 
-    expect(within(section).getByText(/saves/i).textContent).toContain(format(money(60_000, 'EUR')));
+    expect(within(section).getByText(/dates save/i).textContent).toContain(
+      format(money(60_000, 'EUR')),
+    );
   });
 
   it('says dates it found nothing for found nothing, not nothing to pay', async () => {
     await renderBreakdown([tripOn(WINDOWS[0]!, 30_000)]);
 
-    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
 
     expect(within(section).getByText('Nothing found')).toBeTruthy();
     // A zero would read as free, which is the one misreading that costs money.
     expect(within(section).queryByText(format(money(0, 'EUR')))).toBeNull();
   });
 
+  it('still shows the calendar, and the way to widen it, when only one set of dates was priced', async () => {
+    // A narrow search is the one that most needs the flexibility chips; hiding
+    // the section because there was nothing to compare hid the way out.
+    await renderBreakdown([tripOn(WINDOWS[0]!, 30_000)]);
+
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
+
+    expect(
+      within(section).getByRole('group', { name: 'How flexible are your dates' }),
+    ).toBeTruthy();
+    expect(within(section).getAllByRole('gridcell').length).toBeGreaterThan(0);
+  });
+
   it('admits it sampled the window rather than covering it', async () => {
     await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
 
-    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
 
     expect(within(section).getByText(/Priced 2 of the 165/)).toBeTruthy();
   });
@@ -567,8 +589,12 @@ describe('what the dates are worth', () => {
   it('narrows to a set of dates without re-running the search', async () => {
     await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
 
-    const section = screen.getByRole('region', { name: 'What the dates are worth' });
-    const link = within(section).getAllByRole('link')[0] as HTMLAnchorElement;
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
+    // The first links are the flexibility chips, which do search again; the
+    // dates are the ones that carry a `fDates` filter.
+    const link = within(section)
+      .getAllByRole('link')
+      .find((anchor) => anchor.getAttribute('href')?.includes('fDates=')) as HTMLAnchorElement;
 
     // A filter over trips already priced, carrying the search it narrows - not
     // a new search, which would cost provider calls and return different trips
@@ -582,7 +608,7 @@ describe('what the dates are worth', () => {
     // beats a control that silently matches everything.
     await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
 
-    const section = screen.getByRole('region', { name: 'What the dates are worth' });
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
 
     expect(within(section).getByText(/Events, public holidays and live availability/)).toBeTruthy();
   });

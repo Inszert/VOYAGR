@@ -1,10 +1,20 @@
+import type { ReactNode } from 'react';
 import { Badge, Button, DemoDataNotice, Disclosure } from '@/components/ui';
 import { explainTrip } from '@/search/explain';
-import { applyFilters, hasActiveFilters, type ResultFilters } from '@/search/filters';
+import {
+  anyArrivalKnown,
+  applyFilters,
+  hasActiveFilters,
+  parseSort,
+  RESULT_SORTS,
+  sortTrips,
+  type ResultFilters,
+} from '@/search/filters';
 import { EmptyState } from '@/components/ui';
 import { buildDateBreakdown } from '@/search/date-options';
 import { DateOptions } from './date-options';
 import { ResultFiltersPanel } from './result-filters';
+import { SortSelect } from './sort-select';
 import type { SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
 import type { DestinationImage } from '@/providers/imagery/types';
@@ -50,6 +60,13 @@ export interface SearchResultsProps {
   images?: ReadonlyMap<string, DestinationImage>;
   /** The page the results are on, for every link that narrows or rebuilds them. */
   basePath?: string;
+  /**
+   * The "keep looking" card for this search, rendered by the page because it
+   * needs the raw query string and the save action. Shown beside the results
+   * rather than above them, with the rest of what is said about the search
+   * itself rather than about any one trip in it.
+   */
+  saveSearch?: ReactNode;
 }
 
 /** The builder's parameters: which trip, and which flight and hotel in it. */
@@ -68,6 +85,7 @@ export function SearchResults({
   resultAgeMs = 0,
   images,
   basePath = '/explore',
+  saveSearch,
 }: SearchResultsProps) {
   const { nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
@@ -75,7 +93,11 @@ export function SearchResults({
 
   // Narrowed here rather than in the search: filters remove trips the search
   // already paid for, and re-running it per chip would cost provider calls.
-  const { trips: results, hidden } = applyFilters(outcome.results, filters);
+  const { trips: filteredTrips, hidden } = applyFilters(outcome.results, filters);
+  // Cheapest first unless the address says otherwise: the first thing a person
+  // comparing trips wants is the lowest total.
+  const sort = parseSort(searchValues.fSort);
+  const results = sortTrips(filteredTrips, sort);
   const filtered = hasActiveFilters(filters);
 
   /** This search, with some parameters changed and some removed. */
@@ -116,6 +138,18 @@ export function SearchResults({
 
   const noBuild = Object.fromEntries(BUILD_KEYS.map((key) => [key, null]));
 
+  /*
+   * Whether there is anything to say beside the results at all.
+   *
+   * Filters and date options only mean something once there is a match to
+   * narrow, but the "keep looking" card and the demo-data notice are true of
+   * the search itself and belong here even when nothing matched - so the
+   * column exists whenever any one of the three does, not only when the
+   * instruments do.
+   */
+  const hasSidebar =
+    diagnostics.eligibleCount > 0 || Boolean(saveSearch) || diagnostics.provenance === 'mock';
+
   return (
     <section aria-labelledby="results-heading" className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
@@ -147,37 +181,46 @@ export function SearchResults({
           whole trip's either way, and both figures are the engine's. Links,
           so the choice is part of the address like everything else here.
         */}
-        <nav
-          aria-label="Price shown"
-          className="border-border flex rounded-(--radius-pill) border p-1"
-        >
-          {(
-            [
-              ['trip', 'Whole trip'],
-              ['flight', 'Flights only'],
-            ] as const
-          ).map(([option, text]) => (
-            <a
-              key={option}
-              href={linkWith({ view: option })}
-              aria-current={view === option ? 'page' : undefined}
-              className={
-                view === option
-                  ? 'bg-tint-ink text-surface rounded-(--radius-pill) px-4 py-1.5 text-sm font-semibold'
-                  : 'text-ink-muted hover:text-ink rounded-(--radius-pill) px-4 py-1.5 text-sm transition-colors'
-              }
-            >
-              {text}
-            </a>
-          ))}
-        </nav>
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <SortSelect
+            value={sort}
+            action={basePath}
+            hidden={Object.fromEntries(
+              Object.entries(searchValues).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[1] === 'string' &&
+                  entry[1] !== '' &&
+                  entry[0] !== 'fSort' &&
+                  !(BUILD_KEYS as readonly string[]).includes(entry[0]),
+              ),
+            )}
+          />
+          <nav
+            aria-label="Price shown"
+            className="border-border flex rounded-(--radius-pill) border p-1"
+          >
+            {(
+              [
+                ['trip', 'Whole trip'],
+                ['flight', 'Flights only'],
+              ] as const
+            ).map(([option, text]) => (
+              <a
+                key={option}
+                href={linkWith({ view: option })}
+                aria-current={view === option ? 'page' : undefined}
+                className={
+                  view === option
+                    ? 'bg-tint-ink text-surface rounded-(--radius-pill) px-4 py-1.5 text-sm font-semibold'
+                    : 'text-ink-muted hover:text-ink rounded-(--radius-pill) px-4 py-1.5 text-sm transition-colors'
+                }
+              >
+                {text}
+              </a>
+            ))}
+          </nav>
+        </div>
       </div>
-
-      {/*
-        Before the results, not after them. A notice that everything below is
-        fictional is worthless underneath the fiction.
-      */}
-      {diagnostics.provenance === 'mock' ? <DemoDataNotice sources={diagnostics.sources} /> : null}
 
       {/*
         Quotes the vendor no longer stands behind, or observed too long ago.
@@ -223,6 +266,23 @@ export function SearchResults({
       ) : null}
 
       {/*
+        The dates, across the whole width.
+
+        A calendar with a price in every day is two months side by side on a
+        desktop, which does not fit in the narrow column beside the trips - and
+        it is the first thing to choose, so it comes before them.
+      */}
+      {diagnostics.eligibleCount > 0 ? (
+        <DateOptions
+          breakdown={buildDateBreakdown(outcome)}
+          searchValues={searchValues}
+          selected={filters.dates}
+          basePath={basePath}
+          sources={diagnostics.sources}
+        />
+      ) : null}
+
+      {/*
         Two columns once there is room: the instruments on the left, the
         trips on the right.
 
@@ -232,39 +292,50 @@ export function SearchResults({
         belongs: next to what it changes.
       */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 lg:grid-cols-[19rem_minmax(0,1fr)] xl:grid-cols-[21rem_minmax(0,1fr)]">
-        {diagnostics.eligibleCount > 0 ? (
-          <aside aria-label="Refine these results" className="flex flex-col gap-8">
-            <DateOptions
-              breakdown={buildDateBreakdown(outcome)}
-              searchValues={searchValues}
-              selected={filters.dates}
-              basePath={basePath}
-            />
-            <ResultFiltersPanel
-              filters={filters}
-              searchValues={searchValues}
-              hidden={hidden}
-              currency={profile.targetBudget.currency}
-              basePath={basePath}
-            />
-            <WhatIfPanel
-              steps={budgetWhatIf(outcome, profile)}
-              hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
-            />
-            <NearbyAirportsPanel
-              airports={nearbyOrigins(profile.origins).slice(0, 5)}
-              hrefFor={(code) =>
-                linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
-              }
-            />
+        {hasSidebar ? (
+          <aside aria-label="About this search" className="flex flex-col gap-8">
+            {saveSearch}
+
+            {/*
+              Said beside the results rather than above them, with the rest of
+              what this card already says about the search - but never later
+              than the first thing a reader sees of it, because a notice that
+              everything below is fictional is worthless underneath the
+              fiction.
+            */}
+            {diagnostics.provenance === 'mock' ? (
+              <DemoDataNotice sources={diagnostics.sources} />
+            ) : null}
+
+            {diagnostics.eligibleCount > 0 ? (
+              <>
+                <ResultFiltersPanel
+                  filters={filters}
+                  searchValues={searchValues}
+                  hidden={hidden}
+                  currency={profile.targetBudget.currency}
+                  basePath={basePath}
+                  origin={profile.origins.join(', ')}
+                  arrivalsKnown={anyArrivalKnown(outcome.results)}
+                />
+                <WhatIfPanel
+                  steps={budgetWhatIf(outcome, profile)}
+                  hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
+                />
+                <NearbyAirportsPanel
+                  airports={nearbyOrigins(profile.origins).slice(0, 5)}
+                  hrefFor={(code) =>
+                    linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
+                  }
+                />
+              </>
+            ) : null}
           </aside>
         ) : null}
 
         <div
           className={
-            diagnostics.eligibleCount > 0
-              ? 'flex min-w-0 flex-col gap-4'
-              : 'flex min-w-0 flex-col gap-4 lg:col-span-2'
+            hasSidebar ? 'flex min-w-0 flex-col gap-4' : 'flex min-w-0 flex-col gap-4 lg:col-span-2'
           }
         >
           {results.length === 0 && filtered ? (
@@ -295,6 +366,7 @@ export function SearchResults({
             <TripCard
               trip={built.trip}
               rank={results.includes(focus) ? 0 : -1}
+              lead={RESULT_SORTS.find((option) => option.value === sort)?.label}
               deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
               label={building ? 'Your trip' : undefined}
               view={view}
@@ -327,7 +399,11 @@ export function SearchResults({
               The rest of the results as rows: where, when, how and how much,
               and anything worth worrying about. Each opens in the builder.
             */
-            <ol className="border-border border-t">
+            <ol
+              tabIndex={0}
+              aria-label={`Other trips, ${others.length} more, scroll for the rest`}
+              className="border-border max-h-[44rem] overflow-y-auto overscroll-contain border-t"
+            >
               {others.map((trip, index) => (
                 <li key={trip.candidate.id}>
                   <TripRow

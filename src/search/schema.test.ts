@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseSearchForm, searchFormSchema, searchProfileToQuery, toSearchProfile } from './schema';
+import {
+  parseSearchForm,
+  searchFormSchema,
+  searchProfileToQuery,
+  toSearchProfile,
+  withMonthSelection,
+} from './schema';
 
 /**
  * The structured schema is the boundary every search crosses, whether it was
@@ -221,8 +227,10 @@ describe('flexibility presets in the form', () => {
 
     expect(profile.earliestDeparture).toBe('2026-06-03');
     expect(profile.latestReturn).toBe('2026-06-16');
-    // The window fields submitted alongside are ignored, not merged.
-    expect(profile.minNights).toBe(4);
+    // The window fields submitted alongside are ignored, not merged. A flexible
+    // trip may be as short as the default floor and as long as the span plus
+    // the give: seven nights, three either way, is two to ten.
+    expect(profile.minNights).toBe(2);
     expect(profile.maxNights).toBe(10);
   });
 
@@ -351,5 +359,34 @@ describe('anywhere as a destination', () => {
 
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.value.request.destinations).toEqual(['AYT', 'CHQ']);
+  });
+});
+
+describe('withMonthSelection', () => {
+  it('derives the two dates from a month and a trip length', () => {
+    expect(
+      withMonthSelection({
+        flexibility: 'month',
+        monthStart: '2026-12-01',
+        tripNights: '5',
+        departureDate: '2026-11-19',
+        returnDate: '2026-11-26',
+      }),
+    ).toMatchObject({ departureDate: '2026-12-01', returnDate: '2026-12-06' });
+  });
+
+  it('defaults the trip to a week when the length is missing or unreadable', () => {
+    expect(
+      withMonthSelection({ flexibility: 'month', monthStart: '2026-12-01', tripNights: 'lots' })
+        .returnDate,
+    ).toBe('2026-12-08');
+  });
+
+  it('leaves the typed dates alone for any other preset or a bad month', () => {
+    const typed = { flexibility: 'weekend', monthStart: '2026-12-01', departureDate: '2026-11-19' };
+    expect(withMonthSelection(typed)).toBe(typed);
+
+    const bad = { flexibility: 'month', monthStart: 'December', departureDate: '2026-11-19' };
+    expect(withMonthSelection(bad)).toBe(bad);
   });
 });

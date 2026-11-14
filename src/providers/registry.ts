@@ -167,6 +167,9 @@ function resolveFlightProvider(env: Env): FlightProvider {
 
     return createAviasalesFlightProvider({
       token: env.AVIASALES_API_TOKEN,
+      // A month at a time: the cache seldom holds an exact day pair, and the
+      // assembler keeps only the flights that fly each window's own days.
+      window: 'calendar',
       ...(env.AVIASALES_PARTNER_ID ? { partnerId: env.AVIASALES_PARTNER_ID } : {}),
     });
   }

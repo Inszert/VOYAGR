@@ -12,9 +12,11 @@ import {
   type MapMode,
   type OriginPoint,
 } from '@/discovery/map-model';
+import { skyConditionOf, type SkyCondition } from '@/discovery/sky-condition';
 import type { DiscoveryAssumptions } from '@/discovery/snapshot';
 import {
   listDestinationsInCountry,
+  listMainAirportsInCountry,
   resolveDestinationGeo,
   resolveOriginGeo,
 } from '@/search/destination-names';
@@ -102,6 +104,8 @@ export interface StageData {
     readonly actionLabel: string;
     readonly rank: number;
     readonly highlighted: boolean;
+    /** Rainy, dry, snowy or mild for the searched dates; null with no outlook. */
+    readonly condition: SkyCondition | null;
   }[];
   readonly routes: ReturnType<typeof routesToGeoJson>;
   readonly pointsGeoJson: ReturnType<typeof toGeoJson>;
@@ -144,7 +148,7 @@ export function buildStageData(input: StageDataInput): StageData {
     ]),
   );
 
-  const chips = points.map((point, rank) => ({
+  const pricedChips = points.map((point, rank) => ({
     destination: point.destination,
     name: point.name,
     country: point.country,
@@ -158,7 +162,41 @@ export function buildStageData(input: StageDataInput): StageData {
     highlighted:
       point.destination === input.selectedDestination ||
       (country !== null && point.adm0 === country.adm0),
+    condition: skyConditionOf(point.weather),
   }));
+
+  /*
+   * An opened country is the whole picture.
+   *
+   * Only that country's pins and flights are drawn - the rest of the world's
+   * were a tangle of arcs over somewhere nobody was looking at - and its main
+   * airports are there to pick even where nothing was priced. An unpriced
+   * airport is a pin and a link, never an arc: a line to a place the search
+   * found nothing for would claim a connection it did not make.
+   */
+  const scoped = country ? points.filter((point) => point.adm0 === country.adm0) : points;
+  const shown = new Set(scoped.map((point) => point.destination));
+
+  const airportChips = country
+    ? listMainAirportsInCountry(country.iso2, shown).map((airport, index) => ({
+        destination: airport.code,
+        name: airport.name,
+        country: country.name,
+        adm0: country.adm0 as string | null,
+        position: airport.position,
+        label: '',
+        reason: '',
+        href: input.hrefFor(airport.code),
+        actionLabel: input.actionLabel,
+        rank: points.length + index,
+        highlighted: true,
+        condition: null,
+      }))
+    : [];
+
+  const chips = country
+    ? [...pricedChips.filter((chip) => chip.adm0 === country.adm0), ...airportChips]
+    : pricedChips;
 
   const cards = visiblePoints.map((point) => ({
     point,
@@ -176,8 +214,8 @@ export function buildStageData(input: StageDataInput): StageData {
     countryCounts,
     labels,
     chips,
-    routes: routesToGeoJson(buildRoutes(points, originPoints), input.selectedDestination),
-    pointsGeoJson: toGeoJson(points, input.mode),
+    routes: routesToGeoJson(buildRoutes(scoped, originPoints), input.selectedDestination),
+    pointsGeoJson: toGeoJson(scoped, input.mode),
     originsGeoJson: originsToGeoJson(originPoints),
     cards,
     countryDestinations: country ? listDestinationsInCountry(country.adm0) : [],

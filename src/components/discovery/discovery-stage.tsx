@@ -1,5 +1,9 @@
 import { Container, Icon, type IconName } from '@/components/ui';
-import type { DataProvenance } from '@/core/trip/provenance';
+import {
+  demoDataSentence,
+  type DataProvenance,
+  type SourceAttribution,
+} from '@/core/trip/provenance';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import type { AirportSuggestion } from '@/search/destination-names';
 import type { SearchFormErrors } from '@/search/schema';
@@ -40,6 +44,8 @@ export interface DiscoveryStageProps {
   /** Query parameters the search carries through. */
   carry: Readonly<Record<string, string>>;
   provenance: DataProvenance;
+  /** Who supplied each part, so the caption can say which prices are real. */
+  sources?: readonly SourceAttribution[];
   /** What the globe is lit for, said in words beside it. */
   season: { readonly description: string; readonly month: string };
   /** Every airport the catalogue knows, for the search suggestions. */
@@ -105,6 +111,7 @@ export function DiscoveryStage({
   destinationsHint,
   carry,
   provenance,
+  sources = [],
   season,
   airports,
   featured = null,
@@ -342,7 +349,8 @@ export function DiscoveryStage({
               </span>
               <span>
                 {provenance === 'mock'
-                  ? 'Every price on the globe is demo data from fixtures, not a real offer.'
+                  ? (demoDataSentence(sources) ??
+                    'Every price on the globe is demo data from fixtures, not a real offer.')
                   : 'Prices are the cheapest whole trip the search found at each place.'}
               </span>
               <span aria-hidden="true">·</span>

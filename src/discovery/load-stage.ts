@@ -1,4 +1,5 @@
 import { ANYWHERE } from '@/search/schema';
+import { resolveWorldRegion } from '@/search/world-regions';
 import { addDays, daysBetween } from '@/core/dates';
 import { resolveEntitlements } from '@/core/entitlements';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
@@ -168,7 +169,7 @@ export async function loadStagePage(
 
   if (wasSubmitted(values)) {
     // `anywhere` in the destination expands to everything we can price.
-    const parsed = parseSearchForm(values, listPlaceableDestinations());
+    const parsed = parseSearchForm(values, listPlaceableDestinations(), resolveWorldRegion);
 
     if (parsed.ok) {
       // Anonymous visitors get the default plan's allowance, so the limit is

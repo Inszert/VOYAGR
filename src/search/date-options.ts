@@ -1,6 +1,6 @@
 import { lessThan, subtract, type Money } from '@/core/money';
 import type { AirportCode, IsoDate } from '@/core/trip/types';
-import type { DateWindow, RankedTrip, SearchOutcome } from './types';
+import type { CalendarFlight, DateWindow, RankedTrip, SearchOutcome } from './types';
 
 /**
  * What the dates are worth (1.10.1 section 8).
@@ -90,6 +90,12 @@ export interface DateBreakdown {
   /** True when the search sampled the window rather than covering it. */
   readonly sampled: boolean;
   readonly currency: string;
+  /**
+   * Days the vendor has a flight on but no whole trip was built for, cheapest
+   * flight on each. Flights alone and indicative: the calendar shows them
+   * apart from the trips and never counts them in a total or a saving.
+   */
+  readonly flightOnly: readonly CalendarFlight[];
 }
 
 /** Windows compare by their two dates; nights follow from them. */
@@ -207,6 +213,11 @@ export function buildDateBreakdown(outcome: SearchOutcome): DateBreakdown {
     windowsAllowed: plan.dateWindowsAvailable,
     sampled: plan.dateWindows.length < plan.dateWindowsAvailable,
     currency: plan.currency,
+    // A day that already has a whole trip does not also get a flight-only
+    // price: the trip is the better answer and the two would disagree.
+    flightOnly: (outcome.calendarFlights ?? []).filter(
+      (flight) => !priced.some((option) => option.window.departureDate === flight.departureDate),
+    ),
   };
 }
 

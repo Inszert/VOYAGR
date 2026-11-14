@@ -49,6 +49,8 @@ export interface DestinationDetail {
   readonly provenance: DataProvenance;
   /** Sources that did not answer, so the page can say it is incomplete. */
   readonly unavailable: readonly string[];
+  /** Which of this page's own sections are served by fixtures. */
+  readonly demoParts: readonly string[];
 }
 
 export interface DestinationDetailQuery {
@@ -118,6 +120,15 @@ export async function loadDestinationDetail(
       provenanceForProvider(registry.weather.metadata.isMock),
     ]),
     unavailable,
+    demoParts: (
+      [
+        ['places', registry.places],
+        ['transfers', registry.transfers],
+        ['weather', registry.weather],
+      ] as const
+    )
+      .filter(([, provider]) => provider.metadata.isMock)
+      .map(([name]) => name),
   };
 }
 

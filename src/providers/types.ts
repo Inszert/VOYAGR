@@ -77,6 +77,12 @@ export interface ProviderMetadata {
    */
   readonly mode?: ProviderMode;
   /**
+   * True when the vendor answers a whole month, not an exact pair of days.
+   * The search then asks for the months and derives its date windows from the
+   * days the returned flights actually fly. Absent means exact dates.
+   */
+  readonly answersByMonth?: boolean;
+  /**
    * Provider-declared rate limit, used by the scheduler to pace background
    * Travel Watch refreshes. `null` when the adapter has no meaningful limit.
    */

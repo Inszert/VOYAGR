@@ -155,9 +155,10 @@ export type SkipReason = 'connecting' | 'unparsable_time' | 'malformed';
 /**
  * One cached price point as a `FlightOffer`, or the reason it cannot be.
  *
- * Only direct flights survive. A connecting price point names the airline and
- * the total duration but never the connection, and a segment list invented to
- * fill that gap would be a fabricated itinerary shown to a traveller.
+ * A connecting price point names the airline and the total duration but never
+ * the connection. It becomes an offer whose leg states its connection count
+ * (`connectionsStated`) without a segment list invented to fill the gap - that
+ * would be a fabricated itinerary shown to a traveller.
  */
 /**
  * When this price was actually found, from the link the vendor built.
@@ -196,8 +197,6 @@ export function mapOffer(
 
   const price = parsed.data;
 
-  if (price.transfers > 0 || price.return_transfers > 0) return { skipped: 'connecting' };
-
   const departsAt = toLocalDateTime(price.departure_at);
   const returnsAt = toLocalDateTime(price.return_at);
   if (!departsAt || !returnsAt) return { skipped: 'unparsable_time' };
@@ -212,7 +211,20 @@ export function mapOffer(
    * left equal to the departure rather than computed wrongly, and the
    * duration is what every engine actually reads.
    */
-  const leg = (from: string, to: string, at: LocalDateTime, minutes: number) => ({
+  const leg = (
+    from: string,
+    to: string,
+    at: LocalDateTime,
+    minutes: number,
+    connections: number,
+  ) => ({
+    /*
+     * A connecting price point counts its stops but never names them, so the
+     * leg is one segment for the whole journey plus the stated count. No
+     * connection airport is invented; the card says "1 stop" and stops there.
+     * The flight number is the first flight's, which is all the vendor gives.
+     */
+    ...(connections > 0 ? { connectionsStated: connections } : {}),
     segments: [
       {
         origin: from,
@@ -239,8 +251,8 @@ export function mapOffer(
     offer: {
       id: `${providerId}:${from}-${to}:${price.departure_at}:${flightNumber}`,
       providerId,
-      outbound: leg(from, to, departsAt, price.duration_to),
-      inbound: leg(to, from, returnsAt, price.duration_back),
+      outbound: leg(from, to, departsAt, price.duration_to, price.transfers),
+      inbound: leg(to, from, returnsAt, price.duration_back, price.return_transfers),
       // `fromMajor`, never a float: the vendor quotes whole currency units.
       price: fromMajor(price.price, currency),
       observedAt: observedFromLink(price.link, observedAt),
@@ -251,31 +263,38 @@ export function mapOffer(
   };
 }
 
+const BASE_METADATA = {
+  id: 'aviasales',
+  kind: 'flights',
+  displayName: 'Aviasales (Travelpayouts)',
+  // Not a mock: these are real vendor prices. Also not `live` - see the
+  // module comment above - so `mode` is set explicitly rather than left to
+  // the registry's `isMock ? 'mock' : 'live'` fallback, which would label
+  // an always-stale cached price point "Live price".
+  isMock: false,
+  mode: 'indicative',
+  /*
+   * Measured, not guessed.
+   *
+   * The vendor sends `x-rate-limit: 600` with `x-rate-limit-remaining`
+   * counting down one per call and `x-rate-limit-reset` counting down in
+   * seconds; two recordings a minute apart put the window at sixty
+   * seconds. So: six hundred a minute.
+   *
+   * Note the spelling - `x-rate-limit`, not `x-ratelimit-limit`. The
+   * redactor's allow-list did not have it and stripped the value out of
+   * the first recording, which is why `redact.ts` now lists both.
+   */
+  rateLimitPerMinute: 600,
+} as const;
+
 export class AviasalesFlightProvider implements FlightProvider {
-  readonly metadata = {
-    id: 'aviasales',
-    kind: 'flights',
-    displayName: 'Aviasales (Travelpayouts)',
-    // Not a mock: these are real vendor prices. Also not `live` - see the
-    // module comment above - so `mode` is set explicitly rather than left to
-    // the registry's `isMock ? 'mock' : 'live'` fallback, which would label
-    // an always-stale cached price point "Live price".
-    isMock: false,
-    mode: 'indicative',
-    /*
-     * Measured, not guessed.
-     *
-     * The vendor sends `x-rate-limit: 600` with `x-rate-limit-remaining`
-     * counting down one per call and `x-rate-limit-reset` counting down in
-     * seconds; two recordings a minute apart put the window at sixty
-     * seconds. So: six hundred a minute.
-     *
-     * Note the spelling - `x-rate-limit`, not `x-ratelimit-limit`. The
-     * redactor's allow-list did not have it and stripped the value out of
-     * the first recording, which is why `redact.ts` now lists both.
-     */
-    rateLimitPerMinute: 600,
-  } as const;
+  /**
+   * Set in the constructor: whether the vendor is asked a month at a time is a
+   * property of how this instance was built, which a field initializer could
+   * not read yet.
+   */
+  readonly metadata: typeof BASE_METADATA & { readonly answersByMonth: boolean };
 
   private readonly token: string;
   private readonly window: AviasalesWindow;
@@ -290,6 +309,7 @@ export class AviasalesFlightProvider implements FlightProvider {
 
     this.token = options.token;
     this.window = options.window ?? 'dates';
+    this.metadata = { ...BASE_METADATA, answersByMonth: this.window === 'calendar' };
     this.partnerId = options.partnerId;
     this.fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
     this.now = options.now ?? (() => new Date());
@@ -324,7 +344,17 @@ export class AviasalesFlightProvider implements FlightProvider {
       );
     }
 
-    const url = this.buildUrl(origin, destination, query);
+    /*
+     * Several destinations in a month-at-a-time search are asked as one
+     * question: "the cheapest flight from here to everywhere". The vendor
+     * answers it with one row per destination - its cheapest, with the real
+     * days it flies - which is exactly what a map of prices needs, in one call
+     * instead of one per place. The rows are then kept to the destinations
+     * that were asked about.
+     */
+    const anywhere = this.window === 'calendar' && query.destinations.length > 1;
+    const wanted = new Set(query.destinations.map((code) => code.toUpperCase()));
+    const url = this.buildUrl(origin, anywhere ? null : destination, query);
 
     try {
       const response = await this.fetchImpl(url, {
@@ -366,8 +396,11 @@ export class AviasalesFlightProvider implements FlightProvider {
       for (const raw of body.data.data) {
         const mapped = mapOffer(raw, currency, observedAt, this.metadata.id);
 
-        if ('offer' in mapped) offers.push(mapped.offer);
-        else skipped[mapped.skipped] += 1;
+        if ('offer' in mapped) {
+          const arrival = mapped.offer.outbound.segments.at(-1)?.destination.toUpperCase();
+          if (anywhere && (!arrival || !wanted.has(arrival))) continue;
+          offers.push(mapped.offer);
+        } else skipped[mapped.skipped] += 1;
       }
 
       if (skipped.connecting > 0 || skipped.malformed > 0 || skipped.unparsable_time > 0) {
@@ -405,11 +438,13 @@ export class AviasalesFlightProvider implements FlightProvider {
   }
 
   /** The request URL. The token is a query parameter, as this API requires. */
-  private buildUrl(origin: string, destination: string, query: FlightSearchQuery): string {
+  private buildUrl(origin: string, destination: string | null, query: FlightSearchQuery): string {
     const url = new URL(BASE_URL);
 
     url.searchParams.set('origin', origin);
-    url.searchParams.set('destination', destination);
+    // No destination means "everywhere": one cheapest row per destination.
+    if (destination) url.searchParams.set('destination', destination);
+    else url.searchParams.set('unique', 'true');
 
     if (this.window === 'calendar') {
       /*
@@ -430,11 +465,16 @@ export class AviasalesFlightProvider implements FlightProvider {
       url.searchParams.set('return_at', query.returnDate satisfies IsoDate);
     }
     url.searchParams.set('currency', query.currency.toLowerCase());
-    url.searchParams.set('unique', 'false');
+    if (destination) url.searchParams.set('unique', 'false');
     url.searchParams.set('sorting', 'price');
-    url.searchParams.set('limit', String(Math.min(query.maxResults ?? 30, 1000)));
-    // Only direct results are mappable, so ask for only those when we can.
-    url.searchParams.set('direct', this.window === 'calendar' ? 'false' : 'true');
+    // A month holds many day pairs and the assembler keeps only those matching a
+    // window, so the cheapest few would crowd the right ones out. Ask for all.
+    url.searchParams.set(
+      'limit',
+      String(this.window === 'calendar' ? 1000 : Math.min(query.maxResults ?? 30, 1000)),
+    );
+    // Connecting fares are mapped too (see `mapOffer`), so do not exclude them.
+    url.searchParams.set('direct', 'false');
     url.searchParams.set('token', this.token);
 
     if (this.partnerId) url.searchParams.set('marker', this.partnerId);

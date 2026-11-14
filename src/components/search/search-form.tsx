@@ -5,6 +5,7 @@ import {
   DateField,
   Disclosure,
   Field,
+  NumberStepperField,
   RadioChip,
   Select,
 } from '@/components/ui';
@@ -55,7 +56,7 @@ export const SEARCH_FORM_DEFAULTS: Readonly<Record<string, string>> = {
   returnDate: '2026-06-13',
   earliestDeparture: '2026-06-01',
   latestReturn: '2026-06-30',
-  minNights: '4',
+  minNights: '2',
   maxNights: '7',
   passengers: '2',
   currency: 'EUR',
@@ -216,10 +217,9 @@ export function BudgetFields({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {has('passengers') ? (
-        <Field
+        <NumberStepperField
           label="Travellers"
           name="passengers"
-          type="number"
           min={1}
           max={9}
           defaultValue={form.value('passengers')}
@@ -303,6 +303,19 @@ export function PreferenceFields({ form, errors = {} }: FieldsetProps) {
             value: mode,
             label: OPTIMISATION_MODE_LABELS[mode],
           }))}
+        />
+        <Select
+          label="Most stops on a flight"
+          name="maxStops"
+          defaultValue={form.value('maxStops')}
+          error={errors.maxStops}
+          options={[
+            { value: '', label: 'Any number of stops' },
+            { value: '0', label: 'Direct only' },
+            { value: '1', label: 'Up to 1 stop' },
+            { value: '2', label: 'Up to 2 stops' },
+            { value: '3', label: 'Up to 3 stops' },
+          ]}
         />
         <Field
           label="Minimum hotel review score (optional)"

@@ -1,5 +1,6 @@
 import { ratio, type Money } from '../money';
 import type { TripCost } from './cost';
+import { connectionCount } from './legs';
 import { computeUsableTime, usableTimeEfficiency } from './usable-time';
 import type { OptimisationMode, SearchProfile, TravelStyle, TripCandidate } from './types';
 
@@ -178,7 +179,7 @@ export function scoreFlightQuality(candidate: TripCandidate): number {
     let leg_score = 1;
 
     // Connections cost convenience and add risk.
-    const connections = Math.max(0, leg.segments.length - 1);
+    const connections = connectionCount(leg);
     leg_score -= connections * 0.2;
 
     leg_score -= penalise(leg.selfTransfer, true, 0.25);

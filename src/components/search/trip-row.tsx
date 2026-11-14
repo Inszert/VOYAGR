@@ -2,6 +2,7 @@ import { abs, format } from '@/core/money';
 import { localHour, minutesIntoLocalDay } from '@/core/dates';
 import { Icon, Media, ProvenanceBadge } from '@/components/ui';
 import type { DataProvenance } from '@/core/trip/provenance';
+import { connectionCount } from '@/core/trip/legs';
 import type { FlightLeg } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
 import { shortDate } from '@/lib/display-date';
@@ -52,7 +53,7 @@ function legSummary(leg: FlightLeg): string | null {
   const last = leg.segments[leg.segments.length - 1];
   if (!first || !last) return null;
 
-  const stops = leg.segments.length - 1;
+  const stops = connectionCount(leg);
   return `${clock(first.departsAt)} → ${clock(last.arrivesAt)}, ${
     stops === 0 ? 'direct' : `${stops} stop${stops === 1 ? '' : 's'}`
   }`;

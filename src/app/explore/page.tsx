@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container, Icon } from '@/components/ui';
 import { format } from '@/core/money';
+import { demoDataSentence } from '@/core/trip/provenance';
 import { shortDate } from '@/lib/display-date';
 import { redirect } from 'next/navigation';
 import { wasSubmitted } from '@/discovery/load-stage';
@@ -139,9 +140,7 @@ export default async function ExplorePage({
               </h1>
               {/* Four pixels under a forty-pixel heading is not a gap. */}
               <p className="text-stage-ink-muted mt-3 max-w-xl text-sm">
-                {page.provenance === 'mock'
-                  ? 'Every price is demo data from fixtures, not a real offer. '
-                  : ''}
+                {page.provenance === 'mock' ? `${demoDataSentence(page.sources) ?? ''} ` : ''}
                 {page.outcome
                   ? 'Every trip below is also a chip on the globe. Narrow them, compare the dates, or open one and build it your way.'
                   : 'Click a country to look inside it. Drag to turn the globe, scroll to zoom.'}
@@ -216,6 +215,7 @@ export default async function ExplorePage({
               seasonDate={page.season.date}
               regionsUrl={stage.regionsUrl}
               provenance={page.provenance}
+              sources={page.sources}
               countryCounts={stage.countryCounts}
               selectedCountry={
                 stage.country
@@ -238,13 +238,6 @@ export default async function ExplorePage({
          */
         <section className="stage-scope bg-stage text-stage-ink">
           <Container size="wide" className="flex flex-col gap-6 pt-2 pb-12">
-            <SaveSearchForm
-              query={query}
-              suggestedName={suggestedSearchName(values)}
-              signedIn={page.signedIn}
-              action={saveSearchAction}
-            />
-
             <SearchResults
               outcome={page.outcome}
               profile={page.profile}
@@ -253,6 +246,14 @@ export default async function ExplorePage({
               resultAgeMs={page.resultAgeMs}
               images={images}
               basePath="/explore"
+              saveSearch={
+                <SaveSearchForm
+                  query={query}
+                  suggestedName={suggestedSearchName(values)}
+                  signedIn={page.signedIn}
+                  action={saveSearchAction}
+                />
+              }
             />
           </Container>
         </section>
@@ -263,6 +264,7 @@ export default async function ExplorePage({
         totalCount={stage.points.length}
         mode={page.mode}
         provenance={page.provenance}
+        sources={page.sources}
         assumptions={page.assumptions}
         country={stage.country}
         regionSummary={stage.regionSummary}

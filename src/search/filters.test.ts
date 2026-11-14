@@ -3,11 +3,14 @@ import { money } from '@/core/money';
 import { buildFlightOffer, buildHotelOffer, buildLeg } from '@/core/trip/test-support';
 import { buildRankedTrip } from '@/components/search/test-support';
 import {
+  anyArrivalKnown,
   applyFilters,
   hasActiveFilters,
   matchesFilters,
   NO_FILTERS,
   parseFilters,
+  parseSort,
+  sortTrips,
 } from './filters';
 
 /**
@@ -144,6 +147,64 @@ describe('flights', () => {
     expect(matchesFilters(trip, { ...NO_FILTERS, arriveBeforeHour: 11 })).toBe(false);
   });
 
+  it('bounds the outbound departure from above as well as below', () => {
+    const trip = buildRankedTrip();
+
+    // Departs 09:30, so "before 10" keeps it and "before 9" does not.
+    expect(matchesFilters(trip, { ...NO_FILTERS, departBeforeHour: 10 })).toBe(true);
+    expect(matchesFilters(trip, { ...NO_FILTERS, departBeforeHour: 9 })).toBe(false);
+  });
+
+  it('filters the return flight on the destination clock', () => {
+    const trip = buildRankedTrip({
+      flight: buildFlightOffer({
+        inbound: buildLeg({
+          segments: [
+            {
+              origin: 'AYT',
+              destination: 'VIE',
+              departsAt: '2026-06-15T18:20:00',
+              arrivesAt: '2026-06-15T20:05:00',
+              carrier: 'TK',
+              flightNumber: 'TK9',
+            },
+          ],
+        }),
+      }),
+    });
+
+    expect(matchesFilters(trip, { ...NO_FILTERS, returnAfterHour: 18 })).toBe(true);
+    expect(matchesFilters(trip, { ...NO_FILTERS, returnAfterHour: 19 })).toBe(false);
+    expect(matchesFilters(trip, { ...NO_FILTERS, returnBeforeHour: 19 })).toBe(true);
+    expect(matchesFilters(trip, { ...NO_FILTERS, returnBeforeHour: 18 })).toBe(false);
+  });
+
+  it('does not let an arrival filter remove a trip whose arrival was never stated', () => {
+    // A cached-fare vendor gives no arrival; the adapter leaves it equal to the
+    // departure. Filtering on that would be filtering on the departure hour
+    // and calling it an arrival.
+    const unstated = buildRankedTrip({
+      flight: buildFlightOffer({
+        outbound: buildLeg({
+          segments: [
+            {
+              origin: 'VIE',
+              destination: 'AYT',
+              departsAt: '2026-06-10T23:10:00',
+              arrivesAt: '2026-06-10T23:10:00',
+              carrier: 'TK',
+              flightNumber: 'TK1',
+            },
+          ],
+        }),
+      }),
+    });
+
+    expect(anyArrivalKnown([unstated])).toBe(false);
+    expect(matchesFilters(unstated, { ...NO_FILTERS, arriveBeforeHour: 18 })).toBe(true);
+    expect(anyArrivalKnown([buildRankedTrip()])).toBe(true);
+  });
+
   it('does not treat an unstated self-transfer as a confirmed no', () => {
     // The whole point of the null: silence is not safety.
     const unstated = buildRankedTrip({
@@ -274,5 +335,43 @@ describe('the destination filter', () => {
 
   it('counts as an active filter', () => {
     expect(hasActiveFilters({ ...NO_FILTERS, destination: 'AYT' })).toBe(true);
+  });
+});
+
+describe('sorting', () => {
+  const trip = (flightEuros: number, minutes: number) =>
+    buildRankedTrip({
+      flight: buildFlightOffer({
+        price: money(flightEuros * 100, 'EUR'),
+        outbound: buildLeg({ durationMinutes: minutes }),
+        inbound: buildLeg({ durationMinutes: minutes }),
+      }),
+    });
+
+  const dear = trip(400, 100);
+  const cheap = trip(100, 300);
+  const middle = trip(250, 200);
+
+  it('defaults to the cheapest first, and reads anything unknown as that', () => {
+    expect(parseSort(undefined)).toBe('cheapest');
+    expect(parseSort('nonsense')).toBe('cheapest');
+    expect(parseSort('fastest')).toBe('fastest');
+    expect(parseSort('best')).toBe('best');
+  });
+
+  it('orders by total, lowest first', () => {
+    expect(sortTrips([dear, cheap, middle], 'cheapest')).toEqual([cheap, middle, dear]);
+  });
+
+  it('orders by time in the air, shortest first', () => {
+    expect(sortTrips([cheap, dear, middle], 'fastest')).toEqual([dear, middle, cheap]);
+  });
+
+  it('keeps the engine order for "best match" and does not mutate its input', () => {
+    const input = [dear, cheap, middle];
+
+    expect(sortTrips(input, 'best')).toEqual([dear, cheap, middle]);
+    sortTrips(input, 'cheapest');
+    expect(input).toEqual([dear, cheap, middle]);
   });
 });

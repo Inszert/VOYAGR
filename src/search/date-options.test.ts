@@ -66,6 +66,57 @@ describe('buildDateBreakdown', () => {
     expect(breakdown.options[1]?.tripCount).toBe(0);
   });
 
+  it('lists the days that only have a flight, and not the days that already have a trip', () => {
+    const outcome = {
+      ...outcomeOf([tripOn(WINDOWS[0]!, 30_000)]),
+      calendarFlights: [
+        // The same departure as a priced trip: the trip is the better answer.
+        {
+          departureDate: '2026-06-10',
+          returnDate: '2026-06-15',
+          nights: 5,
+          price: money(9_000, 'EUR'),
+          destination: 'AYT',
+        },
+        {
+          departureDate: '2026-06-12',
+          returnDate: '2026-06-17',
+          nights: 5,
+          price: money(11_000, 'EUR'),
+          destination: 'AYT',
+        },
+      ],
+    } as unknown as SearchOutcome;
+
+    const breakdown = buildDateBreakdown(outcome);
+
+    expect(breakdown.flightOnly.map((flight) => flight.departureDate)).toEqual(['2026-06-12']);
+  });
+
+  it('never lets a flight-only day into the saving or the cheapest dates', () => {
+    const outcome = {
+      ...outcomeOf([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 90_000)]),
+      calendarFlights: [
+        {
+          departureDate: '2026-06-12',
+          returnDate: '2026-06-17',
+          nights: 5,
+          price: money(100, 'EUR'),
+          destination: 'AYT',
+        },
+      ],
+    } as unknown as SearchOutcome;
+
+    const without = buildDateBreakdown(
+      outcomeOf([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 90_000)]),
+    );
+    const withFlights = buildDateBreakdown(outcome);
+
+    // A €1 flight on another day must not become the cheapest dates.
+    expect(withFlights.saving).toEqual(without.saving);
+    expect(withFlights.cheapest?.window.departureDate).toBe('2026-06-10');
+  });
+
   it('states the saving between the cheapest and dearest priced dates', () => {
     const breakdown = buildDateBreakdown(
       outcomeOf([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 90_000)]),

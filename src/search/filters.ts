@@ -1,5 +1,6 @@
 import { fromMajor, greaterThan, lessThan, type Money } from '@/core/money';
 import { localHour } from '@/core/dates';
+import { connectionCount } from '@/core/trip/legs';
 import type { RankedTrip } from './types';
 
 /**
@@ -32,7 +33,22 @@ export interface ResultFilters {
   readonly maxStops: number | null;
   /** Earliest acceptable outbound departure hour, local at the origin. */
   readonly departAfterHour: number | null;
-  /** Latest acceptable arrival hour, local at the destination. */
+  /**
+   * The hour the outbound flight must leave *before*, local at the origin.
+   * 22 keeps flights up to 21:59. Null means no upper bound.
+   */
+  readonly departBeforeHour: number | null;
+  /** Earliest acceptable hour for the return flight to leave, local at the destination. */
+  readonly returnAfterHour: number | null;
+  /** The hour the return flight must leave before, local at the destination. */
+  readonly returnBeforeHour: number | null;
+  /**
+   * Latest acceptable arrival hour, local at the destination.
+   *
+   * Only meaningful where the provider states an arrival time - a cached-fare
+   * vendor does not, and `anyArrivalKnown` is how the page knows whether to
+   * offer this at all.
+   */
   readonly arriveBeforeHour: number | null;
   readonly freeCancellationOnly: boolean;
   readonly minReviewScore: number | null;
@@ -66,6 +82,9 @@ export const NO_FILTERS: ResultFilters = {
   directOnly: false,
   maxStops: null,
   departAfterHour: null,
+  departBeforeHour: null,
+  returnAfterHour: null,
+  returnBeforeHour: null,
   arriveBeforeHour: null,
   freeCancellationOnly: false,
   minReviewScore: null,
@@ -82,6 +101,9 @@ export const FILTER_KEYS = [
   'fDirect',
   'fMaxStops',
   'fDepartAfter',
+  'fDepartBefore',
+  'fReturnAfter',
+  'fReturnBefore',
   'fArriveBefore',
   'fFreeCancel',
   'fMinReview',
@@ -126,6 +148,9 @@ export function parseFilters(
     directOnly: isOn(params.fDirect),
     maxStops: numberOrNull(params.fMaxStops),
     departAfterHour: numberOrNull(params.fDepartAfter),
+    departBeforeHour: numberOrNull(params.fDepartBefore),
+    returnAfterHour: numberOrNull(params.fReturnAfter),
+    returnBeforeHour: numberOrNull(params.fReturnBefore),
     arriveBeforeHour: numberOrNull(params.fArriveBefore),
     freeCancellationOnly: isOn(params.fFreeCancel),
     minReviewScore: numberOrNull(params.fMinReview),
@@ -145,6 +170,9 @@ export function hasActiveFilters(filters: ResultFilters): boolean {
     filters.directOnly ||
     filters.maxStops !== null ||
     filters.departAfterHour !== null ||
+    filters.departBeforeHour !== null ||
+    filters.returnAfterHour !== null ||
+    filters.returnBeforeHour !== null ||
     filters.arriveBeforeHour !== null ||
     filters.freeCancellationOnly ||
     filters.minReviewScore !== null ||
@@ -155,11 +183,32 @@ export function hasActiveFilters(filters: ResultFilters): boolean {
   );
 }
 
+/**
+ * Whether this trip's outbound flight states when it lands.
+ *
+ * A cached-fare vendor gives a departure and a duration and no arrival, so the
+ * adapter leaves the arrival equal to the departure rather than computing a
+ * wall-clock sum across two time zones. Equal and a single segment is how that
+ * looks; a real flight never lands the minute it leaves.
+ */
+export function arrivalKnown(trip: RankedTrip): boolean {
+  const { segments } = trip.candidate.flight.outbound;
+  const first = segments[0];
+  const last = segments.at(-1);
+
+  return Boolean(first && last && last.arrivesAt !== first.departsAt);
+}
+
+/** Whether any trip in the set states an arrival, i.e. whether "lands by" means anything. */
+export function anyArrivalKnown(trips: readonly RankedTrip[]): boolean {
+  return trips.some(arrivalKnown);
+}
+
 /** Connections on the busier leg: what "two stops" means to a traveller. */
 function stopsOf(trip: RankedTrip): number {
   const { outbound, inbound } = trip.candidate.flight;
 
-  return Math.max(outbound.segments.length - 1, inbound.segments.length - 1);
+  return Math.max(connectionCount(outbound), connectionCount(inbound));
 }
 
 /**
@@ -186,7 +235,26 @@ export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolea
     if (!departsAt || localHour(departsAt) < filters.departAfterHour) return false;
   }
 
-  if (filters.arriveBeforeHour !== null) {
+  if (filters.departBeforeHour !== null) {
+    const departsAt = outbound.segments[0]?.departsAt;
+    if (!departsAt || localHour(departsAt) >= filters.departBeforeHour) return false;
+  }
+
+  // The return flight leaves the destination, so its hour is that airport's.
+  if (filters.returnAfterHour !== null) {
+    const departsAt = inbound.segments[0]?.departsAt;
+    if (!departsAt || localHour(departsAt) < filters.returnAfterHour) return false;
+  }
+
+  if (filters.returnBeforeHour !== null) {
+    const departsAt = inbound.segments[0]?.departsAt;
+    if (!departsAt || localHour(departsAt) >= filters.returnBeforeHour) return false;
+  }
+
+  // A provider that did not state when the flight lands has not said it lands
+  // late, so an arrival filter cannot remove its trips - and the control is
+  // not offered for it. See `anyArrivalKnown`.
+  if (filters.arriveBeforeHour !== null && arrivalKnown(trip)) {
     const arrivesAt = outbound.segments.at(-1)?.arrivesAt;
     if (!arrivesAt || localHour(arrivesAt) > filters.arriveBeforeHour) return false;
   }
@@ -233,4 +301,47 @@ export function applyFilters(
   const kept = trips.filter((trip) => matchesFilters(trip, filters));
 
   return { trips: kept, hidden: trips.length - kept.length };
+}
+
+/**
+ * How the trips are ordered on the page.
+ *
+ * Not a filter: it drops nothing, so it is not in `ResultFilters` and does not
+ * count towards "your filters hid every trip". `cheapest` is the default
+ * because the first thing a person comparing trips wants is the lowest total;
+ * `best` is the engine's own score order and `fastest` is the shortest time in
+ * the air. Each reads a figure the engines already computed.
+ */
+export type ResultSort = 'cheapest' | 'best' | 'fastest';
+
+export const RESULT_SORTS: readonly { value: ResultSort; label: string }[] = [
+  { value: 'cheapest', label: 'Cheapest' },
+  { value: 'best', label: 'Best match' },
+  { value: 'fastest', label: 'Fastest' },
+];
+
+export function parseSort(raw: string | undefined): ResultSort {
+  return raw === 'best' || raw === 'fastest' || raw === 'cheapest' ? raw : 'cheapest';
+}
+
+/** A new array, stable: trips that tie keep the order the engine gave them. */
+export function sortTrips(trips: readonly RankedTrip[], sort: ResultSort): RankedTrip[] {
+  const indexed = trips.map((trip, index) => ({ trip, index }));
+
+  const minutes = (trip: RankedTrip) =>
+    trip.candidate.flight.outbound.durationMinutes + trip.candidate.flight.inbound.durationMinutes;
+
+  const compare = (a: RankedTrip, b: RankedTrip): number => {
+    if (sort === 'cheapest') {
+      return lessThan(a.cost.total, b.cost.total)
+        ? -1
+        : lessThan(b.cost.total, a.cost.total)
+          ? 1
+          : 0;
+    }
+    if (sort === 'fastest') return minutes(a) - minutes(b);
+    return 0;
+  };
+
+  return indexed.sort((x, y) => compare(x.trip, y.trip) || x.index - y.index).map((e) => e.trip);
 }

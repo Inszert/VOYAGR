@@ -1,4 +1,5 @@
 import { abs, format } from '@/core/money';
+import { connectionCount } from '@/core/trip/legs';
 import {
   Badge,
   Button,
@@ -94,29 +95,6 @@ function nightsLabel(nights: number) {
   return `${nights} ${nights === 1 ? 'night' : 'nights'}`;
 }
 
-/**
- * "4 Nov, 22:10 UTC", read directly off the ISO string rather than through a
- * `Date` or `Intl.DateTimeFormat`.
- *
- * Deliberately not locale-aware: a server and a browser can disagree about
- * the default locale, which is a classic source of a hydration mismatch for
- * exactly this kind of timestamp. An `IsoDateTime` is already UTC
- * (`src/core/freshness.ts`), so slicing it is the whole job - no parsing, no
- * timezone math, nothing that could render one value on the server and
- * another after hydration.
- */
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function formatObservedAt(observedAt: string | null): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(observedAt ?? '');
-  if (!match) return 'at an unknown time';
-
-  const [, , month, day, hour, minute] = match;
-  const label = MONTHS[Number(month) - 1];
-
-  return label ? `${Number(day)} ${label}, ${hour}:${minute} UTC` : 'at an unknown time';
-}
-
 function hoursLabel(minutes: number) {
   return `${Math.round(minutes / 60)} hours`;
 }
@@ -124,8 +102,8 @@ function hoursLabel(minutes: number) {
 /** Stops on the busier leg: what a traveller means by "one stop". */
 function stopsLabel(candidate: RankedTrip['candidate']): string {
   const stops = Math.max(
-    candidate.flight.outbound.segments.length - 1,
-    candidate.flight.inbound.segments.length - 1,
+    connectionCount(candidate.flight.outbound),
+    connectionCount(candidate.flight.inbound),
   );
 
   if (stops === 0) return 'direct';
@@ -193,6 +171,8 @@ export interface TripCardProps {
   view?: 'trip' | 'flight';
   /** Opens this trip in the builder. For the cards that are not already in it. */
   buildHref?: string;
+  /** What the top trip is called when it leads on a sort, e.g. "Cheapest". */
+  lead?: string;
   /** Replaces the rank as the eyebrow, e.g. "Your trip". */
   label?: string;
   /** How this trip compares with the typical one to the same place. */
@@ -209,6 +189,7 @@ export interface TripCardProps {
 export function TripCard({
   trip,
   rank,
+  lead,
   provenance = 'unavailable',
   sources = [],
   reasons = [],
@@ -294,7 +275,7 @@ export function TripCard({
 
   const flightLink = buildFlightHandoff(candidate.flight, { candidateId: candidate.id });
   const hotelLink = buildHotelHandoff(candidate.hotel, { candidateId: candidate.id });
-  const rankLabel = label ?? RANK_LABEL[rank];
+  const rankLabel = label ?? (rank === 0 ? (lead ?? RANK_LABEL[0]) : RANK_LABEL[rank]);
 
   /*
    * Three densities, which is what stops the page being one long column of
@@ -436,11 +417,6 @@ export function TripCard({
                 */}
                 <DealNote deal={deal} onImage />
                 <SourceStrip sources={sources} className="justify-end" />
-                {trip.quoteFreshness === 'stale' ? (
-                  <p className="text-caution-ink text-right text-xs" role="status">
-                    May have moved - checked {formatObservedAt(candidate.flight.observedAt)}
-                  </p>
-                ) : null}
               </div>
             }
           />
@@ -483,6 +459,21 @@ export function TripCard({
       ) : null}
 
       {/*
+        The breakdown, closed until somebody asks for it.
+
+        The header above already says what the trip is and what it costs; the
+        legs, the four parts, the reasons, the warnings and the builder are the
+        working behind that, for a person who wants to check it. Open by
+        default only while a trip is being built, so a swapped flight does not
+        collapse the panel it was chosen in.
+      */}
+      <Disclosure
+        summary="Open the breakdown"
+        defaultOpen={label !== undefined || Boolean(builder?.built.customised)}
+        className="overflow-hidden rounded-(--radius-card)"
+      >
+        <div className="flex flex-col gap-4">
+          {/*
         The journey, drawn the way the globe draws it.
 
         Two lines rather than a sentence about stops: the shape of a flight -
@@ -495,27 +486,27 @@ export function TripCard({
         a pair; stacked on anything narrower. One rule between them either way,
         not a box around each.
       */}
-      <div
-        role="group"
-        aria-label="Flights"
-        className={cn(
-          'border-border divide-border flex flex-col divide-y border-y lg:flex-row lg:divide-x lg:divide-y-0',
-          compact ? 'py-1' : 'py-2',
-        )}
-      >
-        <RouteLine
-          leg={candidate.flight.outbound}
-          label="Outbound"
-          className="py-3 lg:flex-1 lg:py-2 lg:pr-6"
-        />
-        <RouteLine
-          leg={candidate.flight.inbound}
-          label="Return"
-          className="py-3 lg:flex-1 lg:py-2 lg:pl-6"
-        />
-      </div>
+          <div
+            role="group"
+            aria-label="Flights"
+            className={cn(
+              'border-border divide-border flex flex-col divide-y border-y lg:flex-row lg:divide-x lg:divide-y-0',
+              compact ? 'py-1' : 'py-2',
+            )}
+          >
+            <RouteLine
+              leg={candidate.flight.outbound}
+              label="Outbound"
+              className="py-3 lg:flex-1 lg:py-2 lg:pr-6"
+            />
+            <RouteLine
+              leg={candidate.flight.inbound}
+              label="Return"
+              className="py-3 lg:flex-1 lg:py-2 lg:pl-6"
+            />
+          </div>
 
-      {/*
+          {/*
         The four things the total is made of, each in its own tile.
 
         Tiles rather than a run of label-and-value pairs, because these are the
@@ -523,7 +514,7 @@ export function TripCard({
         print is not something anybody compares. The icons are decoration:
         every tile says its own name beside one.
       */}
-      {/*
+          {/*
         The four things the total is made of, as one panel.
 
         They were four separately bordered, separately filled tiles, which is
@@ -532,20 +523,20 @@ export function TripCard({
         them - and the same treatment as the disclosure panel further down,
         so the card is two grouped regions instead of nine rectangles.
       */}
-      <FactGrid facts={facts} columns={4} />
+          <FactGrid facts={facts} columns={4} />
 
-      {/*
+          {/*
         Section 9: explain the ranking in human terms and do not expose
         meaningless technical scoring. Every figure in this sentence comes from
         the engines; the factor breakdown is still there, one disclosure down,
         for anyone who wants it.
       */}
-      <div>
-        <h4 id={scoreId} className="text-ink text-sm font-medium">
-          Why this trip?
-        </h4>
+          <div>
+            <h4 id={scoreId} className="text-ink text-sm font-medium">
+              Why this trip?
+            </h4>
 
-        {/*
+            {/*
           The reasons as separate things, because that is what they are.
 
           `summariseReasons` joins them into one sentence, which reads well
@@ -557,65 +548,65 @@ export function TripCard({
           Every phrase comes from `src/search/explain.ts`, which derives them
           from computed factors. Nothing on this card is written here.
         */}
-        {reasons.length > 0 ? (
-          <>
-            <p className="sr-only">{summariseReasons(reasons)}</p>
-            <ul aria-hidden="true" className="mt-2 flex flex-wrap gap-x-2 gap-y-1.5">
-              {reasons.map((reason) => (
-                <li
-                  key={reason.source}
-                  className="border-border bg-surface-sunken text-ink inline-flex items-center rounded-(--radius-pill) border px-3 py-1 text-sm"
-                >
-                  {sentenceCase(reason.text)}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : compact /*
+            {reasons.length > 0 ? (
+              <>
+                <p className="sr-only">{summariseReasons(reasons)}</p>
+                <ul aria-hidden="true" className="mt-2 flex flex-wrap gap-x-2 gap-y-1.5">
+                  {reasons.map((reason) => (
+                    <li
+                      key={reason.source}
+                      className="border-border bg-surface-sunken text-ink inline-flex items-center rounded-(--radius-pill) border px-3 py-1 text-sm"
+                    >
+                      {sentenceCase(reason.text)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : compact /*
             Nothing, on a near miss.
             
             "This trip fits what you asked for" is false here by definition -
             the box directly below says what ruled it out - and a reassuring
             sentence above a rejection is the worst kind of wrong copy.
           */ ? null : (
-          <p className="text-ink-muted mt-1 text-sm">
-            This trip fits what you asked for; nothing about it stood out either way.
-          </p>
-        )}
+              <p className="text-ink-muted mt-1 text-sm">
+                This trip fits what you asked for; nothing about it stood out either way.
+              </p>
+            )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge tone="neutral" srPrefix="Trip score">
-            Score {score.score} of 100
-          </Badge>
-          <Badge tone="neutral" srPrefix="Usable holiday time">
-            {hoursLabel(usableTime.totalMinutes)} at the destination
-          </Badge>
-        </div>
-      </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge tone="neutral" srPrefix="Trip score">
+                Score {score.score} of 100
+              </Badge>
+              <Badge tone="neutral" srPrefix="Usable holiday time">
+                {hoursLabel(usableTime.totalMinutes)} at the destination
+              </Badge>
+            </div>
+          </div>
 
-      {eligibility.violations.length > 0 ? (
-        <div className="border-critical-500/30 bg-critical-500/10 rounded-(--radius-control) border p-3">
-          <h4 className="text-critical-ink text-sm font-medium">Outside what you asked for</h4>
-          <ul className="mt-1 flex flex-col gap-1">
-            {eligibility.violations.map((violation) => (
-              <li key={violation.code} className="text-ink text-sm">
-                {violation.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+          {eligibility.violations.length > 0 ? (
+            <div className="border-critical-500/30 bg-critical-500/10 rounded-(--radius-control) border p-3">
+              <h4 className="text-critical-ink text-sm font-medium">Outside what you asked for</h4>
+              <ul className="mt-1 flex flex-col gap-1">
+                {eligibility.violations.map((violation) => (
+                  <li key={violation.code} className="text-ink text-sm">
+                    {violation.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-      <div>
-        <h4 id={warningsId} className="text-ink text-sm font-medium">
-          Before you book
-        </h4>
-        <div className="mt-2">
-          <WarningList warnings={warnings} headingId={warningsId} />
-        </div>
-      </div>
+          <div>
+            <h4 id={warningsId} className="text-ink text-sm font-medium">
+              Before you book
+            </h4>
+            <div className="mt-2">
+              <WarningList warnings={warnings} headingId={warningsId} />
+            </div>
+          </div>
 
-      {/*
+          {/*
         Build it your way.
 
         The one thing on the card a person can *do* before booking, so it is
@@ -625,51 +616,51 @@ export function TripCard({
         every option is a link that rebuilds the trip; without one, the rows
         compare and the card's last line opens this trip in the builder.
       */}
-      {builder || flightAlternatives.length > 1 || hotelAlternatives.length > 1 ? (
-        <section
-          aria-labelledby={`${headingId}-build`}
-          className="border-tint/30 from-tint/[0.14] relative overflow-hidden rounded-(--radius-surface) border bg-gradient-to-br via-transparent to-transparent p-4 sm:p-5"
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h4 id={`${headingId}-build`} className="font-display text-ink text-xl">
-              Build it your way
-            </h4>
-            <p className="text-ink-muted text-xs">
-              Swap any part. Every price is for the whole trip.
-            </p>
-          </div>
-          <div className="mt-4 flex flex-col gap-2">
-            <SwapPanel
-              heading="Change the flight"
-              icon="plane"
-              alternatives={builder ? builder.built.flights : flightAlternatives}
-              currency={cost.total.currency}
-              {...(builder ? { hrefFor: (option) => builder.flightHref(option.offerId) } : {})}
-              className={BUILD_ROW}
-            />
+          {builder || flightAlternatives.length > 1 || hotelAlternatives.length > 1 ? (
+            <section
+              aria-labelledby={`${headingId}-build`}
+              className="border-tint/30 from-tint/[0.14] relative overflow-hidden rounded-(--radius-surface) border bg-gradient-to-br via-transparent to-transparent p-4 sm:p-5"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h4 id={`${headingId}-build`} className="font-display text-ink text-xl">
+                  Build it your way
+                </h4>
+                <p className="text-ink-muted text-xs">
+                  Swap any part. Every price is for the whole trip.
+                </p>
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                <SwapPanel
+                  heading="Change the flight"
+                  icon="plane"
+                  alternatives={builder ? builder.built.flights : flightAlternatives}
+                  currency={cost.total.currency}
+                  {...(builder ? { hrefFor: (option) => builder.flightHref(option.offerId) } : {})}
+                  className={BUILD_ROW}
+                />
 
-            <SwapPanel
-              heading="Change the hotel"
-              icon="bed"
-              alternatives={builder ? builder.built.hotels : hotelAlternatives}
-              currency={cost.total.currency}
-              {...(builder ? { hrefFor: (option) => builder.hotelHref(option.offerId) } : {})}
-              className={BUILD_ROW}
-            />
+                <SwapPanel
+                  heading="Change the hotel"
+                  icon="bed"
+                  alternatives={builder ? builder.built.hotels : hotelAlternatives}
+                  currency={cost.total.currency}
+                  {...(builder ? { hrefFor: (option) => builder.hotelHref(option.offerId) } : {})}
+                  className={BUILD_ROW}
+                />
 
-            {builder ? (
-              <DateSwapPanel
-                choices={builder.built.dates}
-                hrefFor={builder.dateHref}
-                now={`${shortDate(candidate.dates.departureDate)} to ${shortDate(candidate.dates.returnDate)}, ${nightsLabel(candidate.dates.nights)}`}
-                className={BUILD_ROW}
-              />
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+                {builder ? (
+                  <DateSwapPanel
+                    choices={builder.built.dates}
+                    hrefFor={builder.dateHref}
+                    now={`${shortDate(candidate.dates.departureDate)} to ${shortDate(candidate.dates.returnDate)}, ${nightsLabel(candidate.dates.nights)}`}
+                    className={BUILD_ROW}
+                  />
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
-      {/*
+          {/*
         Everything that can be opened, as one panel rather than five.
 
         Five separately bordered bars stacked down a card read as leftover
@@ -677,52 +668,54 @@ export function TripCard({
         same disclosures, the same markup and the same behaviour - the
         browser still supplies all of it - and it looks like part of the card.
       */}
-      <div className="border-border divide-border divide-y overflow-hidden rounded-(--radius-card) border">
-        <Disclosure summary="Full cost breakdown" className={ROW}>
-          <CostBreakdown
-            cost={cost}
-            passengers={candidate.passengers}
-            nights={candidate.dates.nights}
-            rooms={candidate.hotel.rooms ?? null}
-          />
-        </Disclosure>
+          <div className="border-border divide-border divide-y overflow-hidden rounded-(--radius-card) border">
+            <Disclosure summary="Full cost breakdown" className={ROW}>
+              <CostBreakdown
+                cost={cost}
+                passengers={candidate.passengers}
+                nights={candidate.dates.nights}
+                rooms={candidate.hotel.rooms ?? null}
+              />
+            </Disclosure>
 
-        <Disclosure summary={`How the score of ${score.score} was calculated`} className={ROW}>
-          <ScoreExplanation score={score} headingId={scoreId} />
-        </Disclosure>
+            <Disclosure summary={`How the score of ${score.score} was calculated`} className={ROW}>
+              <ScoreExplanation score={score} headingId={scoreId} />
+            </Disclosure>
 
-        <Disclosure summary="Flight and hotel details" className={ROW}>
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-ink font-medium">Flights</dt>
-              <dd className="text-ink-muted">
-                {candidate.flight.outbound.segments
-                  .map((segment) => `${segment.origin}→${segment.destination}`)
-                  .join(' · ')}{' '}
-                out, {candidate.flight.outbound.durationMinutes} min.
-                <br />
-                {candidate.flight.inbound.segments
-                  .map((segment) => `${segment.origin}→${segment.destination}`)
-                  .join(' · ')}{' '}
-                back, {candidate.flight.inbound.durationMinutes} min.
-              </dd>
-            </div>
-            <div>
-              <dt className="text-ink font-medium">Hotel</dt>
-              <dd className="text-ink-muted">
-                {candidate.hotel.name}
-                {candidate.hotel.starRating === null ? '' : `, ${candidate.hotel.starRating} star`}
-                {candidate.hotel.reviewScore === null
-                  ? ''
-                  : `, guests rate it ${candidate.hotel.reviewScore} from ${candidate.hotel.reviewCount} reviews`}
-                .
-              </dd>
-            </div>
-          </dl>
-        </Disclosure>
-      </div>
+            <Disclosure summary="Flight and hotel details" className={ROW}>
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-ink font-medium">Flights</dt>
+                  <dd className="text-ink-muted">
+                    {candidate.flight.outbound.segments
+                      .map((segment) => `${segment.origin}→${segment.destination}`)
+                      .join(' · ')}{' '}
+                    out, {candidate.flight.outbound.durationMinutes} min.
+                    <br />
+                    {candidate.flight.inbound.segments
+                      .map((segment) => `${segment.origin}→${segment.destination}`)
+                      .join(' · ')}{' '}
+                    back, {candidate.flight.inbound.durationMinutes} min.
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-ink font-medium">Hotel</dt>
+                  <dd className="text-ink-muted">
+                    {candidate.hotel.name}
+                    {candidate.hotel.starRating === null
+                      ? ''
+                      : `, ${candidate.hotel.starRating} star`}
+                    {candidate.hotel.reviewScore === null
+                      ? ''
+                      : `, guests rate it ${candidate.hotel.reviewScore} from ${candidate.hotel.reviewCount} reviews`}
+                    .
+                  </dd>
+                </div>
+              </dl>
+            </Disclosure>
+          </div>
 
-      {/*
+          {/*
         Where the card finishes.
 
         These were two underlined sentences at the bottom of a long card, and
@@ -731,15 +724,17 @@ export function TripCard({
         pretending the second does not exist - and neither is a claim about
         booking, because both hand off to the provider that quoted the price.
       */}
-      {buildHref ? (
-        <a
-          href={buildHref}
-          className="text-tint-ink -mt-1 inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
-        >
-          Change the flight, hotel or dates of this trip
-          <Icon name="arrow-right" size={0.9} />
-        </a>
-      ) : null}
+          {buildHref ? (
+            <a
+              href={buildHref}
+              className="text-tint-ink -mt-1 inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Change the flight, hotel or dates of this trip
+              <Icon name="arrow-right" size={0.9} />
+            </a>
+          ) : null}
+        </div>
+      </Disclosure>
 
       {flightLink || hotelLink ? (
         <div className="border-border flex flex-wrap items-center gap-3 border-t pt-4">

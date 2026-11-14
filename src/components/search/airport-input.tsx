@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Label } from 'radix-ui';
 import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/icon';
 import type { AirportSuggestion } from '@/search/destination-names';
 
 /**
@@ -60,16 +61,38 @@ function matches(
 
   const byCode: AirportSuggestion[] = [];
   const byName: AirportSuggestion[] = [];
+  const byWord: AirportSuggestion[] = [];
+  const byAnywhere: AirportSuggestion[] = [];
 
   for (const airport of airports) {
     // A code prefix first, because somebody typing "BU" is nearly always
     // typing a code; a name match after, because somebody typing "buda" is
     // not, and both should find Budapest.
-    if (airport.code.startsWith(needle)) byCode.push(airport);
-    else if (airport.name.toUpperCase().startsWith(needle)) byName.push(airport);
+    if (airport.code.startsWith(needle)) {
+      byCode.push(airport);
+      continue;
+    }
+
+    const name = airport.name.toUpperCase();
+    if (name.startsWith(needle)) {
+      byName.push(airport);
+      continue;
+    }
+
+    /*
+     * Then any word of the airport's own name or its country.
+     *
+     * "Sur" finds Tenerife Sur, "Canary" is not in any name but "Santa Cruz"
+     * and "Reina Sofia" are, and "Bolivia" finds La Paz. Matching only the
+     * start of the city name meant an island airport whose city name is the
+     * island's - and whose airport name is the useful part - was unreachable.
+     */
+    const haystack = `${name} ${(airport.detail ?? '').toUpperCase()} ${airport.country.toUpperCase()}`;
+    if (haystack.split(/[\s/,.()-]+/).some((word) => word.startsWith(needle))) byWord.push(airport);
+    else if (needle.length >= 3 && haystack.includes(needle)) byAnywhere.push(airport);
   }
 
-  return [...byCode, ...byName].slice(0, limit);
+  return [...byCode, ...byName, ...byWord, ...byAnywhere].slice(0, limit);
 }
 
 export function AirportInput({
@@ -80,7 +103,7 @@ export function AirportInput({
   error,
   required,
   airports,
-  limit = 7,
+  limit = 8,
   bare = false,
 }: AirportInputProps) {
   const id = React.useId();
@@ -188,52 +211,70 @@ export function AirportInput({
         ) : null}
       </Label.Root>
 
-      <input
-        ref={inputRef}
-        id={id}
-        name={name}
-        value={value}
-        required={required}
-        autoComplete="off"
-        spellCheck={false}
-        role="combobox"
-        aria-expanded={open && suggestions.length > 0}
-        aria-controls={listId}
-        aria-autocomplete="list"
-        aria-activedescendant={open && suggestions.length > 0 ? `${listId}-${active}` : undefined}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
-        onChange={(event) => {
-          setValue(event.target.value);
-          const token = activeToken(event.target.value, event.target.selectionStart ?? 0);
-          setTerm(token.text);
-          setActive(0);
-          setOpen(token.text.length > 0);
-        }}
-        onKeyDown={onKeyDown}
-        // A blur that lands on a suggestion must not close the list before
-        // the click registers, so the close waits a frame.
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-        className={cn(
-          'text-text w-full min-w-0 text-[16px] sm:text-[14px]',
-          'placeholder:text-dim',
-          /*
-           * An ellipsis, not a guillotine.
-           *
-           * The destinations field defaults to every airport the catalogue
-           * can price, and a fixed-width cell used to cut that list off
-           * mid-code - "AYT, CHQ, LCA" with no sign there was more. The
-           * value is unchanged and still submits in full; what changed is
-           * that the field now says out loud that it is showing part of it.
-           */
-          bare
-            ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
-            : cn(
-                'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
-                error ? 'border-critical-500' : 'border-border-strong',
-              ),
-        )}
-      />
+      <div className="relative">
+        <input
+          ref={inputRef}
+          id={id}
+          name={name}
+          value={value}
+          required={required}
+          autoComplete="off"
+          spellCheck={false}
+          role="combobox"
+          aria-expanded={open && suggestions.length > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && suggestions.length > 0 ? `${listId}-${active}` : undefined}
+          aria-describedby={describedBy}
+          aria-invalid={error ? true : undefined}
+          onChange={(event) => {
+            setValue(event.target.value);
+            const token = activeToken(event.target.value, event.target.selectionStart ?? 0);
+            setTerm(token.text);
+            setActive(0);
+            setOpen(token.text.length > 0);
+          }}
+          onKeyDown={onKeyDown}
+          // A blur that lands on a suggestion must not close the list before
+          // the click registers, so the close waits a frame.
+          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          className={cn(
+            'text-text w-full min-w-0 text-[16px] sm:text-[14px]',
+            'placeholder:text-dim',
+            /*
+             * An ellipsis, not a guillotine.
+             *
+             * The destinations field defaults to every airport the catalogue
+             * can price, and a fixed-width cell used to cut that list off
+             * mid-code - "AYT, CHQ, LCA" with no sign there was more. The
+             * value is unchanged and still submits in full; what changed is
+             * that the field now says out loud that it is showing part of it.
+             */
+            bare
+              ? 'h-7 truncate border-0 bg-transparent p-0 pr-4 focus:outline-none'
+              : cn(
+                  'bg-surface-raised h-11 rounded-(--radius-control) border py-3 pr-9 pl-3',
+                  error ? 'border-critical-500' : 'border-border-strong',
+                ),
+          )}
+        />
+
+        {/*
+          Says, without a word, that this field offers suggestions rather than
+          only accepting free text - the one thing that told a reader apart
+          from a plain field before was typing into it and watching a list
+          appear. Decorative: `Icon` is already `aria-hidden`, and the
+          combobox role and `aria-expanded` on the input are what actually
+          carry this to assistive technology.
+        */}
+        <Icon
+          name="chevron-down"
+          className={cn(
+            'text-dim pointer-events-none absolute top-1/2 right-0 -translate-y-1/2',
+            bare ? 'size-3' : 'mr-3 size-4',
+          )}
+        />
+      </div>
 
       {hint ? (
         <p id={hintId} className={cn(bare ? 'sr-only' : 'text-ink-muted text-sm')}>
@@ -286,7 +327,11 @@ export function AirportInput({
           >
             <span className="text-ink font-semibold tabular-nums">{airport.code}</span>
             <span className="text-ink">{airport.name}</span>
-            <span className="text-ink-muted ml-auto text-xs">{airport.country}</span>
+            {/* The airport's own name, which is what separates two airports in one place. */}
+            {airport.detail && airport.detail !== airport.name ? (
+              <span className="text-ink-muted min-w-0 truncate text-xs">{airport.detail}</span>
+            ) : null}
+            <span className="text-ink-muted ml-auto shrink-0 text-xs">{airport.country}</span>
           </li>
         ))}
       </ul>

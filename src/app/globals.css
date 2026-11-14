@@ -294,6 +294,9 @@
   --color-stage-accent-deep: #5a5ce0;
   /* The lavender a flight path is drawn in. */
   --color-stage-route: var(--color-biome-ink);
+  /* A route that changes planes, and one that changes twice or more. */
+  --color-stage-route-1: oklch(0.82 0.15 78);
+  --color-stage-route-2: oklch(0.72 0.19 30);
   --color-stage-origin: #f2c46a;
   /*
    * A price chip is a pane of the night, not a sticker on it.
@@ -304,6 +307,10 @@
    * 4.5:1 over every part of the globe it can be drawn on - the light half
    * included, because the chip carries its own darkness.
    */
+  /* The light on a place, by what its sky does on the searched dates. */
+  --color-stage-sky-rain: oklch(0.72 0.14 250);
+  --color-stage-sky-snow: oklch(0.95 0.03 240);
+  --color-stage-sky-dry: oklch(0.82 0.15 85);
   --color-stage-chip: rgba(12, 16, 27, 0.78);
   --color-stage-chip-ink: var(--color-text);
 
@@ -1109,7 +1116,12 @@
     isolation: isolate;
     padding: 0.25rem 0.5rem;
     line-height: 1.25;
-    text-shadow: 0 1px 2px rgba(3, 5, 10, 0.9);
+    /* A map label's halo: tight and dark, then a wide soft one behind it. */
+    text-shadow:
+      0 0 2px rgba(3, 5, 10, 0.95),
+      0 1px 3px rgba(3, 5, 10, 0.9),
+      0 0 10px rgba(3, 5, 10, 0.8),
+      0 0 22px rgba(3, 5, 10, 0.55);
   }
 
   /*
@@ -1124,15 +1136,25 @@
   .voyagr-chip::before {
     content: '';
     position: absolute;
-    inset: 0 0 0 0.75rem;
+    inset: -0.5rem -0.75rem -0.5rem 0.25rem;
     z-index: -1;
-    border-radius: 0.5rem;
-    background: rgba(5, 7, 14, 0.55);
-    backdrop-filter: blur(8px);
+    /*
+     * No edge at all. It was a rounded pane with a blur, which read as a box
+     * drawn on the planet. A feathered shadow fades to nothing before it
+     * reaches the element's bounds, so there is darkness under the words and
+     * no outline anywhere.
+     */
+    background: radial-gradient(
+      ellipse at center,
+      rgba(5, 7, 14, 0.6) 0%,
+      rgba(5, 7, 14, 0.35) 45%,
+      transparent 72%
+    );
+    pointer-events: none;
   }
 
   .voyagr-chip-left::before {
-    inset: 0 0.75rem 0 0;
+    inset: -0.5rem 0.25rem -0.5rem -0.75rem;
   }
 
   .voyagr-chip-dot {
@@ -1145,6 +1167,64 @@
     box-shadow:
       0 0 0 2px rgba(3, 5, 10, 0.6),
       0 0 10px 2px color-mix(in oklab, var(--color-stage-accent) 85%, transparent);
+  }
+
+  /*
+   * The sky on the searched dates, shown as the air around the place - never
+   * written beside it. A haze sits behind the dot: a cool one with faint
+   * streaks for rain, white with flecks for snow, a warm glow for dry. It is
+   * decoration (aria-hidden by being a pseudo-element); screen readers get the
+   * same fact as hidden text on the chip, and the rail states the figures.
+   */
+  .voyagr-chip[data-sky] .voyagr-chip-dot {
+    position: relative;
+  }
+
+  .voyagr-chip[data-sky] .voyagr-chip-dot::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 11rem;
+    height: 11rem;
+    translate: -50% -50%;
+    border-radius: 50%;
+    z-index: -2;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(circle, #000 15%, transparent 68%);
+    mask-image: radial-gradient(circle, #000 15%, transparent 68%);
+  }
+
+  .voyagr-chip[data-sky='rainy'] .voyagr-chip-dot::before {
+    /* A cool, soft haze. No streaks: hard stripes read as a rendering glitch. */
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-stage-sky-rain) 55%, transparent),
+      transparent 70%
+    );
+  }
+
+  .voyagr-chip[data-sky='snowy'] .voyagr-chip-dot::before {
+    background:
+      radial-gradient(
+          circle,
+          color-mix(in oklab, var(--color-stage-sky-snow) 90%, transparent) 0 1px,
+          transparent 1.6px
+        )
+        0 0 / 11px 13px,
+      radial-gradient(
+        circle,
+        color-mix(in oklab, var(--color-stage-sky-snow) 55%, transparent),
+        transparent 70%
+      );
+  }
+
+  .voyagr-chip[data-sky='dry'] .voyagr-chip-dot::before {
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-stage-sky-dry) 55%, transparent),
+      transparent 70%
+    );
   }
 
   /* Inside the country that is open. Brighter, and larger than its own ring. */
@@ -1210,7 +1290,15 @@
       0 1px 0 0 color-mix(in oklab, var(--color-text) 6%, transparent) inset,
       0 18px 48px -12px rgb(0 0 0 / 0.75),
       0 2px 8px -2px rgb(0 0 0 / 0.5);
-    transform-origin: var(--radix-popover-content-transform-origin);
+    /*
+     * Read off whichever Radix primitive opened this panel. A plain popover
+     * sets only its own var; a listbox built on `Select` sets its own
+     * instead, so the second is the fallback rather than the default.
+     */
+    transform-origin: var(
+      --radix-popover-content-transform-origin,
+      var(--radix-select-content-transform-origin)
+    );
   }
 
   /*
@@ -1370,6 +1458,41 @@
   }
 
   /*
+   * An option in a custom listbox, such as the date flexibility panel.
+   *
+   * `data-highlighted` is Radix's, set on hover and on arrow-key navigation
+   * alike, which is why one rule covers both rather than a `:hover` that a
+   * keyboard user would never trigger.
+   */
+  .voyagr-select-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 9px;
+    color: var(--color-text);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+  }
+
+  .voyagr-select-item[data-highlighted] {
+    background-color: color-mix(in oklab, var(--color-text) 8%, transparent);
+  }
+
+  .voyagr-select-item[data-state='checked'] {
+    color: var(--color-accent-300);
+    font-weight: 500;
+  }
+
+  .voyagr-select-item[data-disabled] {
+    color: var(--color-dim);
+    cursor: not-allowed;
+  }
+
+  /*
    * One day in the grid.
    *
    * Tall enough to be a target on a phone - the whole cell is the button, not
@@ -1380,8 +1503,8 @@
   .voyagr-day {
     display: grid;
     place-items: center;
-    height: 2.25rem;
-    border-radius: 9px;
+    height: 2.75rem;
+    border-radius: 10px;
     color: var(--color-text);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
@@ -1725,4 +1848,33 @@
 
 .voyagr-stage .maplibregl-ctrl-attrib a {
   color: var(--color-stage-ink-muted);
+}
+
+/*
+ * The flat map has no edge.
+ *
+ * Zoomed past a globe, or switched to the flat map, the canvas is a rectangle
+ * of tiles. Its edges fade out rather than stopping: the prices and arcs near
+ * the border dissolve with it instead of being sliced off square. Off while it
+ * is a globe, where the planet is meant to bleed past the box.
+ */
+.voyagr-stage[data-flat='true'] .voyagr-map {
+  /*
+   * Eased in with how flat the planet is, not switched on at the end. The fade
+   * used to start only once the globe was completely flat, so at the zoom in
+   * between - a ball bigger than its box - the canvas was still a square
+   * with a hard edge. `--globe-shown` is 1 for a whole globe and 0 for a map.
+   */
+  -webkit-mask-image: radial-gradient(
+    ellipse farthest-side at center,
+    #000 calc(58% + 42% * var(--globe-shown, 0)),
+    rgb(0 0 0 / 0.55) calc(80% + 20% * var(--globe-shown, 0)),
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse farthest-side at center,
+    #000 calc(58% + 42% * var(--globe-shown, 0)),
+    rgb(0 0 0 / 0.55) calc(80% + 20% * var(--globe-shown, 0)),
+    transparent 100%
+  );
 }

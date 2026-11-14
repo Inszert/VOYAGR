@@ -1,6 +1,6 @@
 import { format } from '@/core/money';
-import { Button, Container, Icon, Media, ProvenanceBadge } from '@/components/ui';
-import type { DataProvenance } from '@/core/trip/provenance';
+import { Button, Container, Icon, Media, ProvenanceBreakdown } from '@/components/ui';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import type { RankedTrip } from '@/search/types';
@@ -39,6 +39,8 @@ export interface NextTripBandProps {
   tall: BandPicture | null;
   exploreHref: string;
   provenance: DataProvenance;
+  /** Who supplied each part, so the badge can say which price is real. */
+  sources?: readonly SourceAttribution[];
 }
 
 /**
@@ -82,6 +84,7 @@ export function NextTripBand({
   tall,
   exploreHref,
   provenance,
+  sources = [],
 }: NextTripBandProps) {
   return (
     <section
@@ -186,7 +189,11 @@ export function NextTripBand({
                 </ul>
 
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-                  <ProvenanceBadge provenance={provenance} explain={false} />
+                  <ProvenanceBreakdown
+                    sources={sources}
+                    provenance={provenance}
+                    className="flex flex-wrap gap-1"
+                  />
                   <a
                     href={tripHref}
                     className="text-stage-ink hover:text-stage-accent ease-standard duration-quick inline-flex items-center gap-1.5 text-sm font-medium transition-colors"

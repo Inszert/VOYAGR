@@ -1,5 +1,5 @@
 import { toMajor } from '@/core/money';
-import { Button, Field, Select, ToggleChip } from '@/components/ui';
+import { Button, Field, Select, TimeRangeField, ToggleChip } from '@/components/ui';
 import { FILTER_KEYS, hasActiveFilters, type ResultFilters } from '@/search/filters';
 
 /**
@@ -31,13 +31,29 @@ export interface ResultFiltersPanelProps {
   currency: string;
   /** The page the results are on. */
   basePath?: string;
+  /** Where the outbound flight leaves from, named on its time control. */
+  origin?: string;
+  /**
+   * Whether any trip states when its flight lands. A cached-fare provider does
+   * not, and a "lands by" control over data with no landing time would be a
+   * control that does nothing.
+   */
+  arrivalsKnown?: boolean;
 }
 
-const DEPARTURE_OPTIONS = [
-  { value: '', label: 'Any time' },
-  { value: '6', label: 'After 06:00' },
-  { value: '9', label: 'After 09:00' },
-  { value: '12', label: 'After 12:00' },
+/**
+ * How many connections a person will put up with, per leg.
+ *
+ * Cheap flights to the far side of the world usually change planes, so this is
+ * a choice and not a ban: "Any" shows everything, and each step down hides the
+ * trips with more. The vendor's own stop counts are what it is compared with.
+ */
+const STOP_OPTIONS = [
+  { value: '', label: 'Any number of stops' },
+  { value: '0', label: 'Direct only' },
+  { value: '1', label: 'Up to 1 stop' },
+  { value: '2', label: 'Up to 2 stops' },
+  { value: '3', label: 'Up to 3 stops' },
 ];
 
 const ARRIVAL_OPTIONS = [
@@ -53,6 +69,8 @@ export function ResultFiltersPanel({
   hidden,
   currency,
   basePath = '/explore',
+  origin = 'your airport',
+  arrivalsKnown = false,
 }: ResultFiltersPanelProps) {
   /*
    * The same search with every filter key dropped.
@@ -114,21 +132,42 @@ export function ResultFiltersPanel({
             />
           </div>
 
+          <Select
+            label="Stops"
+            name="fMaxStops"
+            defaultValue={filters.maxStops === null ? '' : String(filters.maxStops)}
+            options={STOP_OPTIONS}
+            className="w-full"
+          />
+
           {/*
-            Compact, because "Any time" does not need half the width of a
-            result card to say so. A supporting control that is as large as
-            the thing it supports is a control competing with it.
+            When the flights leave, one range for each way.
+
+            Each says which flight it is and from where, because "leaves
+            06:00 - 14:00" under a pair of cities is otherwise a guess about
+            whether it means the way there or the way back. The return leaves
+            the destination, so its hours are that airport's clock.
           */}
-          <div className="grid grid-cols-2 gap-3">
+          <TimeRangeField
+            label="Outbound flight"
+            place={origin}
+            nameFrom="fDepartAfter"
+            nameTo="fDepartBefore"
+            defaultFrom={filters.departAfterHour}
+            defaultTo={filters.departBeforeHour}
+          />
+          <TimeRangeField
+            label="Return flight"
+            place="the destination"
+            nameFrom="fReturnAfter"
+            nameTo="fReturnBefore"
+            defaultFrom={filters.returnAfterHour}
+            defaultTo={filters.returnBeforeHour}
+          />
+
+          {arrivalsKnown ? (
             <Select
-              label="Leaves"
-              name="fDepartAfter"
-              defaultValue={filters.departAfterHour === null ? '' : String(filters.departAfterHour)}
-              options={DEPARTURE_OPTIONS}
-              className="w-full"
-            />
-            <Select
-              label="Lands"
+              label="Outbound lands"
               name="fArriveBefore"
               defaultValue={
                 filters.arriveBeforeHour === null ? '' : String(filters.arriveBeforeHour)
@@ -136,7 +175,7 @@ export function ResultFiltersPanel({
               options={ARRIVAL_OPTIONS}
               className="w-full"
             />
-          </div>
+          ) : null}
         </fieldset>
 
         <fieldset className="flex flex-col gap-3">

@@ -135,6 +135,24 @@ describe('explicit user requirements', () => {
     );
   });
 
+  it('rejects a flight with more stops than the traveller allowed', () => {
+    // A cached-price vendor counts connections without naming them.
+    const twoStops = buildLeg({ connectionsStated: 2 });
+    const candidate = buildCandidate({ flight: buildFlightOffer({ outbound: twoStops }) });
+
+    expect(codesOf(candidate, buildProfile({ maxStops: 1 }))).toContain('TOO_MANY_STOPS');
+    expect(codesOf(candidate, buildProfile({ maxStops: 2 }))).not.toContain('TOO_MANY_STOPS');
+  });
+
+  it('puts no limit on stops when none was set', () => {
+    const candidate = buildCandidate({
+      flight: buildFlightOffer({ outbound: buildLeg({ connectionsStated: 3 }) }),
+    });
+
+    expect(codesOf(candidate, buildProfile({ maxStops: null }))).not.toContain('TOO_MANY_STOPS');
+    expect(codesOf(candidate, buildProfile())).not.toContain('TOO_MANY_STOPS');
+  });
+
   it('rejects cabin-baggage-only fares when checked baggage was required', () => {
     const candidate = buildCandidate({
       flight: buildFlightOffer({ outbound: buildLeg({ checkedBaggageIncluded: false }) }),

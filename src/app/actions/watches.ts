@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/auth/current-user';
 import { listPlaceableDestinations } from '@/search/destination-names';
 import { parseSearchForm } from '@/search/schema';
+import { resolveWorldRegion } from '@/search/world-regions';
 import { WatchService } from '@/watches/service';
 import { refreshWatch } from '@/watches/refresh';
 import { getRepositories } from '@/db';
@@ -74,7 +75,7 @@ async function saveAndWatch(
   invalid: string,
 ): Promise<WatchFormState> {
   // A saved watch may equally have been "anywhere".
-  const parsed = parseSearchForm(values, listPlaceableDestinations());
+  const parsed = parseSearchForm(values, listPlaceableDestinations(), resolveWorldRegion);
   if (!parsed.ok) return { error: invalid };
 
   try {

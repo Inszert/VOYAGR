@@ -42,7 +42,12 @@ function submission(form: HTMLFormElement): Record<string, string> {
   for (const element of Array.from(form.elements)) {
     const control = element as HTMLInputElement | HTMLSelectElement;
     if (!control.name) continue;
-    if (control instanceof HTMLInputElement && control.type === 'checkbox' && !control.checked) {
+    // A browser sends a checkbox or a radio only when it is checked.
+    if (
+      control instanceof HTMLInputElement &&
+      (control.type === 'checkbox' || control.type === 'radio') &&
+      !control.checked
+    ) {
       continue;
     }
     values[control.name] = control.value;

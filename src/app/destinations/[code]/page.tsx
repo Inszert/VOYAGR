@@ -133,7 +133,7 @@ export default async function DestinationPage({ params, searchParams }: PageProp
           Before the content, as everywhere else. A notice that what follows is
           fictional is worthless underneath the fiction.
         */}
-        {detail.provenance === 'mock' ? <DemoDataNotice /> : null}
+        {detail.provenance === 'mock' ? <DemoDataNotice parts={detail.demoParts} /> : null}
 
         <DestinationDetailView detail={detail} />
 

@@ -1,4 +1,5 @@
 import { lessThan, type Money } from '@/core/money';
+import { connectionCount } from '@/core/trip/legs';
 import type { AirportCode } from '@/core/trip/types';
 import type { DateWeather } from './date-options';
 import type { RankedTrip } from './types';
@@ -41,7 +42,7 @@ export interface DestinationSummary {
 
 function stopsOf(trip: RankedTrip): number {
   const { outbound, inbound } = trip.candidate.flight;
-  return Math.max(outbound.segments.length - 1, inbound.segments.length - 1);
+  return Math.max(connectionCount(outbound), connectionCount(inbound));
 }
 
 function minutesOf(trip: RankedTrip): number {

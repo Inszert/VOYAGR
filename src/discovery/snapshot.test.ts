@@ -23,11 +23,11 @@ import {
 const TODAY = '2026-09-20';
 
 describe('buildDiscoveryQuery', () => {
-  it('prices the next two months, a week out, four to seven nights', () => {
+  it('prices the next ten weeks, a week out, four to fourteen nights', () => {
     const query = buildDiscoveryQuery({ today: TODAY });
 
     expect(query.earliestDeparture).toBe('2026-09-27');
-    expect(query.latestReturn).toBe('2026-11-26');
+    expect(query.latestReturn).toBe('2026-12-11');
     expect(query.minNights).toBe(String(DISCOVERY_WINDOW.minNights));
     expect(query.maxNights).toBe(String(DISCOVERY_WINDOW.maxNights));
     expect(query.flexibility).toBe('custom');
@@ -86,9 +86,9 @@ describe('buildDiscoveryRequest', () => {
       passengers: 3,
       currency: 'EUR',
       earliestDeparture: '2026-09-27',
-      latestReturn: '2026-11-26',
+      latestReturn: '2026-12-11',
       minNights: 4,
-      maxNights: 7,
+      maxNights: 14,
     });
   });
 });

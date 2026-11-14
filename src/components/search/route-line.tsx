@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { daysBetween, localDate, localHour, minutesIntoLocalDay } from '@/core/dates';
+import { connectionCount, connectionsUnitemised } from '@/core/trip/legs';
 import type { FlightLeg } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
@@ -67,7 +68,7 @@ export function RouteLine({ leg, label, className }: RouteLineProps) {
 
   if (!first || !last) return null;
 
-  const stops = leg.segments.length - 1;
+  const stops = connectionCount(leg);
   const connections = leg.segments.slice(0, -1).map((segment) => segment.destination);
   const carriers = [...new Set(leg.segments.map((segment) => segment.carrier))];
 
@@ -140,7 +141,9 @@ export function RouteLine({ leg, label, className }: RouteLineProps) {
             {' · '}
             {stops === 0
               ? 'direct'
-              : `${stops} stop${stops === 1 ? '' : 's'} in ${connections.join(', ')}`}
+              : `${stops} stop${stops === 1 ? '' : 's'}${
+                  connectionsUnitemised(leg) ? '' : ` in ${connections.join(', ')}`
+                }`}
           </p>
         </div>
 

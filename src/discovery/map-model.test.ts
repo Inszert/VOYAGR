@@ -170,11 +170,12 @@ describe('toGeoJson', () => {
 });
 
 describe('parseMapMode', () => {
-  it('opens on best value rather than on price', () => {
-    // The product's claim is that the best trip is not usually the cheapest;
-    // a discovery surface that opens on price teaches the opposite.
-    expect(parseMapMode(undefined)).toBe('best-value');
-    expect(parseMapMode('nonsense')).toBe('best-value');
+  it('opens on the cheapest, and reads anything unknown as that', () => {
+    // The owner asked for the lowest whole-trip price first; best value is one
+    // click away on the rank control.
+    expect(parseMapMode(undefined)).toBe('cheapest');
+    expect(parseMapMode('nonsense')).toBe('cheapest');
+    expect(parseMapMode('best-value')).toBe('best-value');
   });
 
   it('accepts every mode it offers', () => {

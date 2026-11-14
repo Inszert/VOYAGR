@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, Marker } from 'maplibre-gl';
 import { cn } from '@/lib/cn';
-import { Icon, ProvenanceBadge } from '@/components/ui';
-import type { DataProvenance } from '@/core/trip/provenance';
+import { Icon, ProvenanceBreakdown } from '@/components/ui';
+import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import { bandFor, sunLatitude, type SurfaceKind } from '@/discovery/seasons';
+import { SKY_LABEL, type SkyCondition } from '@/discovery/sky-condition';
 import {
   routeDashPattern,
   buildGlobeStyle,
@@ -83,6 +84,8 @@ export interface StageChip {
   readonly rank: number;
   /** True when the chip is inside the selected country, or is the selected destination. */
   readonly highlighted: boolean;
+  /** What the sky does there on the searched dates. Absent or null: no outlook. */
+  readonly condition?: SkyCondition | null;
 }
 
 export interface StageOrigin {
@@ -140,6 +143,8 @@ export interface GlobeStageProps {
    */
   regionsUrl: string | null;
   provenance: DataProvenance;
+  /** Who supplied each part, so a chip can badge flights and hotels separately. */
+  sources?: readonly SourceAttribution[];
   /** Priced destinations per country key, for the hover tooltip. */
   countryCounts: Readonly<Record<string, number>>;
   selectedCountry: {
@@ -187,6 +192,46 @@ function whenStyleReady(map: MapLibreMap, run: () => void, attempt = 0): void {
 
 /** How long the map has to draw something before it is treated as broken. */
 const LOAD_TIMEOUT_MS = 8_000;
+
+/**
+ * Room to leave round an opened country so all of it is in view.
+ *
+ * Even padding put the bottom of a country under the card the stage floats
+ * over the globe, and the top under the controls, so the country looked cut
+ * off though the camera had framed all of it. More room below than above,
+ * scaled to the container so a short mobile globe does not ask for more
+ * padding than it has pixels.
+ */
+function countryPadding(map: MapLibreMap): {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+} {
+  const { clientWidth: width, clientHeight: height } = map.getContainer();
+
+  return {
+    top: Math.round(Math.min(70, height * 0.1)),
+    bottom: Math.round(Math.min(150, height * 0.24)),
+    left: Math.round(Math.min(70, width * 0.08)),
+    right: Math.round(Math.min(70, width * 0.08)),
+  };
+}
+
+/**
+ * The colour an arc is drawn in, by how many times its best trip changes planes.
+ *
+ * Direct keeps the route colour, one change is amber and two or more is coral.
+ * Colour is never the only signal: the legend names each, the card for the
+ * place says "1 stop" in words, and the chip's accessible name carries it too.
+ */
+function routeStroke(stops: number | null): string {
+  if (stops === null || stops <= 0) return 'var(--color-stage-route)';
+  return stops === 1 ? 'var(--color-stage-route-1)' : 'var(--color-stage-route-2)';
+}
+
+/** Airplanes flying each arc. Two, half a journey apart. */
+const PLANES_PER_ARC = 2;
 
 /** Degrees of longitude per frame while idle. Slow enough to read a chip. */
 const IDLE_SPIN_PER_FRAME = 0.035;
@@ -339,6 +384,7 @@ export function GlobeStage({
   seasonDate,
   regionsUrl,
   provenance,
+  sources = [],
   countryCounts,
   selectedCountry,
   navigation,
@@ -401,6 +447,7 @@ export function GlobeStage({
     let cancelled = false;
     let stopSpin: (() => void) | null = null;
     let detailAdded = false;
+    let stopResizing: (() => void) | null = null;
 
     const build = async () => {
       try {
@@ -637,7 +684,11 @@ export function GlobeStage({
                 [bounds[0]!, bounds[1]!],
                 [bounds[2]!, bounds[3]!],
               ],
-              { padding: 80, maxZoom: 4.5, duration: prefersReducedMotion() ? 0 : 1200 },
+              {
+                padding: countryPadding(map),
+                maxZoom: 4.5,
+                duration: prefersReducedMotion() ? 0 : 1200,
+              },
             );
           }
 
@@ -737,9 +788,25 @@ export function GlobeStage({
             ...(scope?.querySelectorAll('[data-globe-overlay]') ?? []),
           ].map((overlay) => overlay.getBoundingClientRect());
 
+          /*
+           * Written only when the answer changes.
+           *
+           * This used to clear the class on every chip, measure it, and add it
+           * back: two style invalidations per chip per pass, and the clear
+           * before a measurement forced a synchronous style recalculation each
+           * time - about a thousand a second across eighty chips, which kept
+           * the main thread busy enough to halve the frame rate. Hiding a chip
+           * is `visibility`, which does not change its box, so measuring it
+           * hidden or not gives the same rectangle.
+           */
+          const setCollided = (chip: HTMLElement, on: boolean) => {
+            if (chip.classList.contains('voyagr-chip-collided') !== on) {
+              chip.classList.toggle('voyagr-chip-collided', on);
+            }
+          };
+
           for (const [, marker] of ordered) {
             const chipElement = marker.getElement();
-            chipElement.classList.remove('voyagr-chip-collided');
 
             // Behind the planet: MapLibre has hidden it already.
             if (chipElement.classList.contains('maplibregl-marker-covered')) continue;
@@ -777,7 +844,7 @@ export function GlobeStage({
              * beside the globe still lists it.
              */
             if (rect.left < box.left - 8) {
-              chipElement.classList.add('voyagr-chip-collided');
+              setCollided(chipElement, true);
               continue;
             }
 
@@ -789,8 +856,8 @@ export function GlobeStage({
                 rect.bottom > other.top - 4,
             );
 
-            if (collides) chipElement.classList.add('voyagr-chip-collided');
-            else placed.push(rect);
+            setCollided(chipElement, collides);
+            if (!collides) placed.push(rect);
           }
         };
 
@@ -848,6 +915,40 @@ export function GlobeStage({
           // view belongs here, because it needs the container's real size.
           map.jumpTo(overview(element, origins, initial.chips));
 
+          /*
+           * Follows the box.
+           *
+           * MapLibre only listens for the *window* resizing, and the opening
+           * zoom is worked out from the box once, so changing the window while
+           * the page was open left a globe sized for the old box, clipped or
+           * floating in the new one. The container is observed instead, which
+           * also catches a sidebar opening or a layout reflow. The sphere is
+           * refitted only while it is still at its resting size: somebody who
+           * has zoomed in keeps the view they chose, and only the canvas is
+           * resized under it.
+           */
+          let restingZoom = map.getZoom();
+          let frame = 0;
+          const observer = new ResizeObserver(() => {
+            window.cancelAnimationFrame(frame);
+            frame = window.requestAnimationFrame(() => {
+              if (cancelled) return;
+              map.resize();
+
+              const fitted = overview(element, origins, latest.current.chips);
+              if (Math.abs(map.getZoom() - restingZoom) < 0.05) {
+                map.jumpTo({ zoom: fitted.zoom });
+                restingZoom = fitted.zoom;
+              }
+              layoutRef.current?.();
+            });
+          });
+          observer.observe(element);
+          stopResizing = () => {
+            window.cancelAnimationFrame(frame);
+            observer.disconnect();
+          };
+
           if (initial.selectedCountry) {
             const [w, s, e, n] = initial.selectedCountry.bbox;
             setCountryState(initial.selectedCountry.adm0, { selected: true });
@@ -857,7 +958,7 @@ export function GlobeStage({
                 [w!, s!],
                 [e!, n!],
               ],
-              { padding: 80, maxZoom: 4.5, duration: 0 },
+              { padding: countryPadding(map), maxZoom: 4.5, duration: 0 },
             );
           } else {
             startSpin();
@@ -921,6 +1022,7 @@ export function GlobeStage({
       cancelled = true;
       cancelBuild();
       stopSpin?.();
+      stopResizing?.();
       for (const marker of markers.values()) marker.remove();
       markers.clear();
       mapRef.current?.remove();
@@ -960,6 +1062,9 @@ export function GlobeStage({
     let frame = 0;
     // The dash position last written, so an unchanged frame writes nothing.
     let lastDash = -1;
+    let lastShimmer = Number.NaN;
+    let lastSandX = Number.NaN;
+    let lastSandY = Number.NaN;
     let last = 0;
 
     const step = (now: number) => {
@@ -990,30 +1095,42 @@ export function GlobeStage({
           // A slow glitter, around the band's own strength rather than
           // instead of it: the ice is where the model says it is, and this
           // only changes how brightly it catches the light.
-          const shimmer = 1 + Math.sin(seconds * 0.7) * 0.13;
-          // The same shape the style declares: `zoom` at the top, the band's
-          // own strength multiplied in at each stop. Without the ramp the
-          // first frame of the weather flattens the texture back to full
-          // strength at globe zoom, where it reads as hatching; with the
-          // multiply on the outside it is not a valid expression at all.
-          map.setPaintProperty('snow-texture', 'fill-opacity', [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            0,
-            ['*', ['get', 'strength'], 0.3 * shimmer],
-            3,
-            ['*', ['get', 'strength'], 0.9 * shimmer],
-          ] as never);
+          //
+          // Quantised to steps of 0.026 (five levels either side). Every
+          // `setPaintProperty` restyles and repaints the whole globe, and the
+          // eye cannot tell 1.039 from 1.04, so a step that did not change is
+          // not written. That cut the writes from ten a second to about two.
+          const shimmer = 1 + Math.round((Math.sin(seconds * 0.7) * 0.13) / 0.026) * 0.026;
+          if (shimmer !== lastShimmer) {
+            lastShimmer = shimmer;
+            // The same shape the style declares: `zoom` at the top, the band's
+            // own strength multiplied in at each stop. Without the ramp the
+            // first frame of the weather flattens the texture back to full
+            // strength at globe zoom, where it reads as hatching; with the
+            // multiply on the outside it is not a valid expression at all.
+            map.setPaintProperty('snow-texture', 'fill-opacity', [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              0,
+              ['*', ['get', 'strength'], 0.3 * shimmer],
+              3,
+              ['*', ['get', 'strength'], 0.9 * shimmer],
+            ] as never);
+          }
         }
 
         if (map.getLayer('desert-texture')) {
           // Sand moving across a sand sea. Pixels, not degrees: nothing about
-          // where the desert is has changed.
-          map.setPaintProperty('desert-texture', 'fill-translate', [
-            Math.sin(seconds * 0.24) * 4,
-            Math.cos(seconds * 0.17) * 3,
-          ] as never);
+          // where the desert is has changed. Whole pixels, and only written
+          // when the pixel changes, for the same reason as the snow.
+          const sandX = Math.round(Math.sin(seconds * 0.24) * 4);
+          const sandY = Math.round(Math.cos(seconds * 0.17) * 3);
+          if (sandX !== lastSandX || sandY !== lastSandY) {
+            lastSandX = sandX;
+            lastSandY = sandY;
+            map.setPaintProperty('desert-texture', 'fill-translate', [sandX, sandY] as never);
+          }
         }
 
         if (map.getLayer('routes-flow')) {
@@ -1141,37 +1258,50 @@ export function GlobeStage({
     const drawn = runs.map((run) => {
       const glow = document.createElementNS(NS, 'path');
       const line = document.createElementNS(NS, 'path');
-      const pulse = moving ? document.createElementNS(NS, 'circle') : null;
+      // Airplanes, not dots: a light on a line says nothing about what travels
+      // it. Drawn pointing along +x and turned to the arc each frame. Two to an
+      // arc, half a journey apart, so a busy route looks like one.
+      const pulses = moving
+        ? Array.from({ length: PLANES_PER_ARC }, () => document.createElementNS(NS, 'path'))
+        : [];
 
       // One pixel. A route is a thread over a planet, not a pipe.
       const width = run.selected ? 1.5 : 1;
 
       glow.setAttribute('fill', 'none');
-      glow.setAttribute('stroke', 'var(--color-stage-route)');
+      glow.setAttribute('stroke', routeStroke(run.stops));
       glow.setAttribute('stroke-width', String(width * 6));
       glow.setAttribute('stroke-linecap', 'round');
       glow.setAttribute('stroke-opacity', '0.12');
 
       line.setAttribute('fill', 'none');
-      line.setAttribute('stroke', 'var(--color-stage-route)');
+      line.setAttribute('stroke', routeStroke(run.stops));
       line.setAttribute('stroke-width', String(width));
       line.setAttribute('stroke-linecap', 'round');
       line.setAttribute('stroke-opacity', run.selected ? '0.9' : '0.6');
 
       svg.append(glow, line);
 
-      if (pulse) {
-        pulse.setAttribute('r', String(width * 1.6));
+      for (const pulse of pulses) {
+        pulse.setAttribute(
+          'd',
+          'M6 0 L-1 -1.2 L-3.5 -5 L-4.8 -5 L-3.2 -1 L-6 -0.8 L-6.6 -2.2 L-7.4 -2.2 L-7 0 L-7.4 2.2 L-6.6 2.2 L-6 0.8 L-3.2 1 L-4.8 5 L-3.5 5 L-1 1.2 Z',
+        );
         pulse.setAttribute('fill', 'var(--color-stage-chip-ink)');
+        pulse.setAttribute('stroke', 'rgba(3, 5, 10, 0.7)');
+        pulse.setAttribute('stroke-width', '0.6');
         svg.append(pulse);
       }
 
-      return { run, glow, line, pulse };
+      return { run, glow, line, pulses };
     });
 
     let frame = 0;
     let last = 0;
     let signature = '';
+    // Whether the ground-track layers are currently hidden. Starts unknown so
+    // the first frame always writes it.
+    let groundTrackHidden: boolean | null = null;
     const arcs = new Map<string, ProjectedArc>();
     const started = performance.now();
 
@@ -1233,6 +1363,37 @@ export function GlobeStage({
 
       write('--globe-diameter', `${sphere.diameter.toFixed(1)}px`);
       write('--globe-shown', sphere.shown.toFixed(3));
+
+      /*
+       * Once the planet has flattened into a map, the map has edges.
+       *
+       * A rectangle of tiles on a dark page reads as a box pasted on it, and it
+       * cut the arcs and the labels off square. The flag lets CSS feather those
+       * edges away (`.voyagr-map`). A flag rather than the number, because a
+       * mask over a WebGL canvas costs a composite every frame and should be
+       * on only while it is needed.
+       */
+      const flat = sphere.shown < 1 ? 'true' : 'false';
+      if (root.dataset.flat !== flat) root.dataset.flat = flat;
+
+      /*
+       * One line per journey while the arcs are drawn.
+       *
+       * The map style also draws each route on the ground under its arc - a
+       * faint copy, a dashed twin and the selected one - and with the arc
+       * lifted above it that read as a second, stray line under the plane.
+       * They are hidden while the arcs carry the route and come back on the
+       * flat map, where there is no arc and they are the only drawing of it.
+       */
+      const arcsCarryRoutes = sphere.shown > 0.5;
+      if (groundTrackHidden !== arcsCarryRoutes) {
+        groundTrackHidden = arcsCarryRoutes;
+        for (const id of ['routes', 'routes-flow', 'routes-selected']) {
+          if (map.getLayer(id)) {
+            map.setLayoutProperty(id, 'visibility', arcsCarryRoutes ? 'none' : 'visible');
+          }
+        }
+      }
 
       if (sphere.shown === 0) return;
 
@@ -1303,21 +1464,33 @@ export function GlobeStage({
 
       const seconds = (now - started) / 1000;
 
-      for (const [index, { run, pulse }] of drawn.entries()) {
-        if (!pulse) continue;
-
+      for (const [index, { run, pulses }] of drawn.entries()) {
         const arc = arcs.get(run.key);
-        // Staggered, so eight lights do not leave the same airport in step.
-        const at = arc ? pointAt(arc, (seconds * 0.16 + index * 0.17) % 1) : null;
 
-        if (!at) {
-          pulse.setAttribute('fill-opacity', '0');
-          continue;
+        for (const [plane, pulse] of pulses.entries()) {
+          // Staggered between arcs, so eight lights do not leave the same
+          // airport in step, and half a journey apart on the same arc.
+          const fraction = (seconds * 0.16 + index * 0.17 + plane / PLANES_PER_ARC) % 1;
+          const at = arc ? pointAt(arc, fraction) : null;
+
+          if (!arc || !at) {
+            pulse.setAttribute('fill-opacity', '0');
+            pulse.setAttribute('stroke-opacity', '0');
+            continue;
+          }
+
+          // Heading from the next point along the same arc, so the nose leads.
+          const ahead = pointAt(arc, Math.min(0.9999, fraction + 0.02)) ?? at;
+          const heading = (Math.atan2(ahead.y - at.y, ahead.x - at.x) * 180) / Math.PI;
+          const size = run.selected ? 1.25 : 1;
+
+          pulse.setAttribute(
+            'transform',
+            `translate(${at.x.toFixed(1)} ${at.y.toFixed(1)}) rotate(${heading.toFixed(0)}) scale(${size})`,
+          );
+          pulse.setAttribute('fill-opacity', '0.95');
+          pulse.setAttribute('stroke-opacity', '1');
         }
-
-        pulse.setAttribute('cx', at.x.toFixed(1));
-        pulse.setAttribute('cy', at.y.toFixed(1));
-        pulse.setAttribute('fill-opacity', '0.9');
       }
     };
 
@@ -1339,10 +1512,10 @@ export function GlobeStage({
     return () => {
       window.clearTimeout(begin);
       window.cancelAnimationFrame(frame);
-      for (const { glow, line, pulse } of drawn) {
+      for (const { glow, line, pulses } of drawn) {
         glow.remove();
         line.remove();
-        pulse?.remove();
+        for (const pulse of pulses) pulse.remove();
       }
     };
   }, [routes, status, projection]);
@@ -1889,7 +2062,11 @@ export function GlobeStage({
             [w!, s!],
             [e!, n!],
           ],
-          { padding: 80, maxZoom: 4.5, duration: prefersReducedMotion() ? 0 : 1200 },
+          {
+            padding: countryPadding(map),
+            maxZoom: 4.5,
+            duration: prefersReducedMotion() ? 0 : 1200,
+          },
         );
       }
     } else if (previous) {
@@ -2054,7 +2231,7 @@ export function GlobeStage({
       <div
         ref={container}
         className={cn(
-          'h-full w-full transition-opacity duration-500',
+          'voyagr-map h-full w-full transition-opacity duration-500',
           status === 'ready' ? 'opacity-100' : 'opacity-0',
         )}
       />
@@ -2091,6 +2268,35 @@ export function GlobeStage({
       {/* Zoom and recentre. Ordinary buttons, outside the canvas. */}
       {status === 'ready' ? (
         <>
+          {/*
+            What the colours of the flights mean, in words as well as colour.
+            Only when there are flights to colour: a key to nothing is noise.
+          */}
+          {routes.features.length > 0 ? (
+            <ul
+              aria-label="Colour of the flights"
+              data-globe-overlay
+              className="stage-scope text-stage-ink-muted absolute top-4 left-0 z-[5] flex flex-wrap gap-x-3 gap-y-1 text-[11px]"
+            >
+              {(
+                [
+                  ['Direct', 'var(--color-stage-route)'],
+                  ['1 stop', 'var(--color-stage-route-1)'],
+                  ['2+ stops', 'var(--color-stage-route-2)'],
+                ] as const
+              ).map(([label, colour]) => (
+                <li key={label} className="flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-0.5 w-4 rounded-full"
+                    style={{ background: colour }}
+                  />
+                  {label}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
           <div
             role="group"
             aria-label="Globe controls"
@@ -2188,6 +2394,7 @@ export function GlobeStage({
             href={chip.href}
             data-destination={chip.destination}
             data-highlighted={chip.highlighted ? 'true' : undefined}
+            data-sky={chip.condition ?? undefined}
             className={cn(
               // `stage-scope` so the provenance badge inside picks up the
               // glass palette; a badge drawn for a page is unreadable here.
@@ -2210,6 +2417,14 @@ export function GlobeStage({
               <span className="sr-only">{chip.actionLabel} </span>
               <span className="text-[13px] font-medium">{chip.name}</span>
               {/*
+                The sky there on the searched dates is shown, not written: a
+                haze around the place (see `data-sky` in `globals.css`). Screen
+                readers get it in words, because they cannot see the haze.
+              */}
+              {chip.condition ? (
+                <span className="sr-only">Expected weather: {SKY_LABEL[chip.condition]}</span>
+              ) : null}
+              {/*
                 No price, no price line. A destination's own page knows the
                 place but not what a trip there costs, and a chip carrying an
                 empty figure beside a provenance badge would imply one.
@@ -2217,10 +2432,12 @@ export function GlobeStage({
               {chip.label ? (
                 <span className="text-muted flex items-center gap-1.5 text-[13px]">
                   <span className="tabular-nums">{chip.label}</span>
-                  <ProvenanceBadge
+                  <ProvenanceBreakdown
+                    compact
+                    sources={sources}
                     provenance={provenance}
-                    explain={false}
-                    className="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
+                    className="flex flex-col gap-0.5"
+                    badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
                   />
                 </span>
               ) : null}

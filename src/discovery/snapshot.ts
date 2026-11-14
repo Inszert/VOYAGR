@@ -47,9 +47,12 @@ export const DISCOVERY_TTL_MS = 60 * 60 * 1000;
  */
 export const DISCOVERY_WINDOW = {
   startsInDays: 7,
-  lengthDays: 60,
+  lengthDays: 75,
   minNights: 4,
-  maxNights: 7,
+  // Two weeks, not one: the cheapest flight to the far side of the world is
+  // seldom a week long, and a globe that only knew week-long trips would leave
+  // Brazil, Argentina and most of Asia blank.
+  maxNights: 14,
 } as const;
 
 /**
@@ -65,12 +68,16 @@ export const DISCOVERY_WINDOW = {
  */
 export const DISCOVERY_LIMITS = {
   maxOrigins: 2,
-  maxDestinations: 24,
+  maxDestinations: 400,
   maxDateWindows: 4,
+  // The globe needs one honest figure per place, not a priced calendar.
+  calendarCoverageDays: 0,
   maxFlightOffersPerRoute: 2,
   maxHotelOffersPerDestination: 3,
   maxCandidatesPerRoute: 6,
   maxResults: 10,
+  // Every place, each with a weather call, a transfer call and a hotel call.
+  maxProviderCalls: 2000,
 } as const;
 
 /**

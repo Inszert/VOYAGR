@@ -196,3 +196,77 @@ export interface SourceAttribution {
   readonly displayName: string;
   readonly provenance: DataProvenance;
 }
+
+/**
+ * One sentence saying which parts of a trip are demo data and which are not.
+ *
+ * Built from the sources that actually answered, never from configuration, so
+ * it cannot claim a flight is real when the adapter that served it was a
+ * fixture. Returns null when nothing is demo, because then there is nothing to
+ * disclose. The total of a trip that contains any demo part still cannot be
+ * booked, and the sentence says so.
+ */
+export function demoDataSentence(sources: readonly SourceAttribution[]): string | null {
+  const noun = (part: SourceAttribution['part']) => part;
+  const parts = (provenance: 'demo' | 'real') => [
+    ...new Set(
+      sources
+        .filter((source) => (source.provenance === 'mock') === (provenance === 'demo'))
+        .map((source) => noun(source.part)),
+    ),
+  ];
+  const join = (words: readonly string[]) =>
+    words.length <= 1
+      ? (words[0] ?? 'data')
+      : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
+
+  const demo = parts('demo');
+  const real = parts('real');
+
+  if (demo.length === 0) return null;
+  if (real.length === 0) return 'Every price here is demo data from fixtures, not a real offer.';
+
+  const verb = demo.length === 1 ? 'is' : 'are';
+  return `The ${join(real)} come from a real provider, as it last saw them. The ${join(demo)} ${verb} demo data, so no trip total can be booked.`;
+}
+
+const PART_NAME: Record<SourceAttribution['part'], string> = {
+  flights: 'Flights',
+  hotels: 'Hotels',
+  stays: 'Stays',
+  transfers: 'Transfers',
+};
+
+/**
+ * The badges a trip carries: one per distinct claim, naming the parts it covers.
+ *
+ * "Flights: Indicative price" and "Hotels and transfers: Demo data" say what a
+ * single weakest-wins badge hides - that the flight is a real price and the
+ * rest is not. With no sources to read it falls back to the one combined claim
+ * and names no part, so it can never describe a part nobody reported on.
+ */
+export function provenanceBreakdown(
+  sources: readonly SourceAttribution[],
+  combined: DataProvenance,
+): readonly { provenance: DataProvenance; part: string | null }[] {
+  if (sources.length === 0) return [{ provenance: combined, part: null }];
+
+  const groups = new Map<DataProvenance, string[]>();
+  for (const source of sources) {
+    const parts = groups.get(source.provenance) ?? [];
+    if (!parts.includes(PART_NAME[source.part])) parts.push(PART_NAME[source.part]);
+    groups.set(source.provenance, parts);
+  }
+
+  return [...groups.entries()].map(([provenance, parts]) => {
+    // "Hotels and transfers": only the first word is capitalised.
+    const [first = '', ...rest] = parts;
+    const names = [first, ...rest.map((name) => name.toLowerCase())];
+    const last = names.pop();
+
+    return {
+      provenance,
+      part: names.length > 0 ? `${names.join(', ')} and ${last}` : (last ?? null),
+    };
+  });
+}

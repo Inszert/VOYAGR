@@ -92,6 +92,8 @@ const leg = z
   .object({
     segments: z.array(segment).min(1, 'a leg with no segments is not a journey'),
     durationMinutes: z.number().int().positive().finite(),
+    // Connections counted but not itemised. Absent when the segments say it all.
+    connectionsStated: z.number().int().positive().optional(),
     // Nullable and required: see the note at the top of this file.
     cabinBaggageIncluded: z.boolean().nullable(),
     checkedBaggageIncluded: z.boolean().nullable(),

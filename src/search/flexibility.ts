@@ -58,11 +58,24 @@ export const FLEXIBILITY_LABELS: Record<FlexibilityPreset, string> = {
  * could shift the trip, stretch it, or both - and a user who cannot tell which
  * cannot tell whether the answer is the one they asked for.
  */
+/**
+ * The shortest trip a flexible search will consider unless a minimum was set.
+ *
+ * A floor under the flexible presets rather than "the trip you typed, less the
+ * flexibility": the cheapest trip is very often a shorter one, and a search
+ * that could never go below four nights said every "cheapest" was a
+ * four-night trip. A minimum typed under "More options" still applies on top.
+ */
+export const DEFAULT_MIN_NIGHTS = 2;
+
 export const FLEXIBILITY_HINTS: Record<FlexibilityPreset, string> = {
   exact: 'Only these dates.',
-  'plus-minus-1': 'Up to a day either side, and a day shorter or longer.',
-  'plus-minus-3': 'Up to three days either side, and three shorter or longer.',
-  'plus-minus-7': 'Up to a week either side, and a week shorter or longer.',
+  'plus-minus-1':
+    'Up to a day either side; the trip can be as short as two nights or a night longer.',
+  'plus-minus-3':
+    'Up to three days either side; the trip can be as short as two nights or three nights longer.',
+  'plus-minus-7':
+    'Up to a week either side; the trip can be as short as two nights or a week longer.',
   weekend: 'Friday or Saturday out, Sunday back, over the next six weeks.',
   'long-weekend': 'Thursday or Friday out, Sunday or Monday back, over the next six weeks.',
   month: 'Any dates that month, keeping the same trip length.',
@@ -131,9 +144,11 @@ export function applyFlexibility(
   const shifted = (days: number): DateFlexibility => ({
     earliestDeparture: addDays(departureDate, -days),
     latestReturn: addDays(returnDate, days),
-    // Both ends move, so the trip may also be shorter or longer. Clamped at
-    // one night: a zero-night trip is not a shorter holiday, it is no holiday.
-    minNights: Math.max(1, span - days),
+    // Both ends move, so the trip may also be shorter or longer. It may go as
+    // short as `DEFAULT_MIN_NIGHTS` whatever the span - the cheapest trip is
+    // often the shorter one - but never below one night, and never above the
+    // span itself: a one-night trip typed in is not made longer by this.
+    minNights: Math.min(span, DEFAULT_MIN_NIGHTS),
     maxNights: span + days,
     departureDaysOfWeek: null,
     returnDaysOfWeek: null,

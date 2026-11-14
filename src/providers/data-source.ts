@@ -60,5 +60,13 @@ export function configuredDataSource(env: Env): DataSource {
  * what keeps this removable later without touching anything else.
  */
 export function dataSourceSwitchEnabled(env: Env): boolean {
-  return env.DATA_SOURCE_SWITCH ?? env.NODE_ENV !== 'production';
+  /*
+   * Off whenever real flights are configured, unless somebody turns it on by
+   * name. With a real flight provider the switch's only other position is
+   * fixture flights, which is exactly what a person who set that provider up
+   * does not want to be one click, or one leftover cookie, away from.
+   */
+  return (
+    env.DATA_SOURCE_SWITCH ?? (env.NODE_ENV !== 'production' && env.FLIGHT_PROVIDER === 'mock')
+  );
 }

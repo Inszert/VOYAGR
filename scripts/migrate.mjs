@@ -92,7 +92,9 @@ async function main() {
 
 try {
   await main();
-} catch {
+} catch (error) {
+  console.error('Migration failed.');
+  console.error(error instanceof Error ? (error.stack ?? error.message) : error);
   process.exitCode = 1;
 } finally {
   await pool.end();

@@ -46,6 +46,7 @@ export {
 export { FactGrid, type Fact, type FactGridProps } from './fact-grid';
 export { Icon, type IconName, type IconProps } from './icon';
 export { Media, washFor, type MediaImage, type MediaProps, type MediaScrim } from './media';
+export { NumberStepperField, type NumberStepperFieldProps } from './number-stepper-field';
 export { Price, type PriceProps, type PriceSize } from './price';
 export {
   RadioChip,
@@ -56,7 +57,13 @@ export {
   type TagTone,
   type ToggleChipProps,
 } from './tag';
-export { DemoDataNotice, ProvenanceBadge, type ProvenanceBadgeProps } from './provenance-badge';
+export {
+  DemoDataNotice,
+  ProvenanceBadge,
+  ProvenanceBreakdown,
+  type ProvenanceBadgeProps,
+} from './provenance-badge';
 export { Select, type SelectOption, type SelectProps } from './select';
 export { SkipLink, type SkipLinkProps } from './skip-link';
 export { SourceStrip, SourceTag, type SourceStripProps } from './source-strip';
+export { TimeRangeField, type TimeRangeFieldProps } from './time-range-field';

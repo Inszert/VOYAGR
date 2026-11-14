@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fromMajor, toMajor } from '@/core/money';
-import { isIsoDate } from '@/core/dates';
+import { addDays, isIsoDate } from '@/core/dates';
 import type { OptimisationMode, SearchProfile, TravelStyle } from '@/core/trip/types';
 import { err, ok, type Result } from '@/lib/result';
 import type { SearchRequest } from './types';
@@ -204,6 +204,7 @@ export const searchFormSchema = z.object({
     error: 'Choose one of the listed ways to rank trips.',
   }),
   requireDirectFlights: checkbox,
+  maxStops: optionalNumber('Choose how many stops are acceptable.'),
   requireCheckedBaggage: checkbox,
   requireFreeCancellation: checkbox,
   minHotelReviewScore: optionalNumber('Enter a review score between 0 and 10.'),
@@ -266,6 +267,13 @@ function checkCrossFieldRules(values: SearchFormValues): SearchFormErrors {
     errors.minHotelReviewScore = 'Review scores run from 0 to 10.';
   }
 
+  if (
+    values.maxStops !== null &&
+    (!Number.isInteger(values.maxStops) || values.maxStops < 0 || values.maxStops > 3)
+  ) {
+    errors.maxStops = 'Choose between direct and three stops.';
+  }
+
   if (values.maxBeachDistanceMetres !== null && values.maxBeachDistanceMetres < 0) {
     errors.maxBeachDistanceMetres = 'A distance cannot be negative.';
   }
@@ -289,6 +297,9 @@ export function resolveDateFlexibility(values: SearchFormValues): DateFlexibilit
     values.departureDate !== null &&
     values.returnDate !== null
   ) {
+    // The window fields submitted alongside are ignored, not merged: the home
+    // form posts its own discovery window as hidden fields, and treating those
+    // as a minimum somebody chose would pin every flexible search at four nights.
     return applyFlexibility(
       values.flexibility as FlexibilityPreset,
       values.departureDate,
@@ -325,6 +336,7 @@ export function toSearchProfile(values: SearchFormValues): SearchProfile {
     travelStyle: values.travelStyle,
     optimisationMode: values.optimisationMode,
     requireDirectFlights: values.requireDirectFlights,
+    maxStops: values.maxStops,
     requireCheckedBaggage: values.requireCheckedBaggage,
     requireFreeCancellation: values.requireFreeCancellation,
     minHotelReviewScore: values.minHotelReviewScore,
@@ -339,6 +351,28 @@ export function toSearchProfile(values: SearchFormValues): SearchProfile {
  * outcome the page re-renders with messages beside the offending fields, not an
  * exception.
  */
+/**
+ * "Anytime that month" is chosen with a month and a trip length, not two dates.
+ *
+ * The form sends `monthStart` (the first day of the month, or today for the
+ * current one) and `tripNights`; the two dates the month preset works from are
+ * derived here, so the person never has to type days they do not care about.
+ * Anything missing or unreadable leaves the typed dates alone.
+ */
+export function withMonthSelection(
+  input: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string | undefined>> {
+  if (input.flexibility !== 'month') return input;
+
+  const start = input.monthStart;
+  if (typeof start !== 'string' || !isIsoDate(start)) return input;
+
+  const parsed = Number(input.tripNights);
+  const nights = Number.isInteger(parsed) && parsed >= 1 && parsed <= 30 ? parsed : 7;
+
+  return { ...input, departureDate: start, returnDate: addDays(start, nights) };
+}
+
 export function parseSearchForm(
   input: Readonly<Record<string, string | undefined>>,
   /**
@@ -349,6 +383,11 @@ export function parseSearchForm(
    * looks like, not to know where the product currently flies.
    */
   anywhere: readonly string[] = [],
+  /**
+   * Turns a region word ("oceania") into its destination codes, or null if the
+   * word is not one. Injected for the same reason `anywhere` is.
+   */
+  resolveRegion?: (value: string | undefined) => readonly string[] | null,
 ): Result<{ request: SearchRequest; values: SearchFormValues }, SearchFormErrors> {
   /*
    * `anywhere` becomes a list before validation, not after.
@@ -357,10 +396,16 @@ export function parseSearchForm(
    * the fan-out bounds, the diagnostics - deals in codes and has no idea the
    * word was ever typed. The alternative is a special case in each of them.
    */
+  const base = withMonthSelection(input);
+  const region = resolveRegion?.(base.destinations) ?? null;
   const expanded =
-    isAnywhere(input.destinations) && anywhere.length > 0
-      ? { ...input, destinations: anywhere.join(', ') }
-      : input;
+    isAnywhere(base.destinations) && anywhere.length > 0
+      ? { ...base, destinations: anywhere.join(', ') }
+      : // A region the catalogue has nothing in stays as typed, so the form
+        // says it is not a destination rather than searching the wrong place.
+        region && region.length > 0
+        ? { ...base, destinations: region.join(', ') }
+        : base;
 
   const parsed = searchFormSchema.safeParse(expanded);
 
@@ -444,6 +489,9 @@ export function searchProfileToQuery(
   }
 
   // An unchecked box submits nothing, so only a true requirement is written.
+  if (profile.maxStops !== null && profile.maxStops !== undefined) {
+    params.maxStops = String(profile.maxStops);
+  }
   if (profile.requireDirectFlights) params.requireDirectFlights = 'on';
   if (profile.requireCheckedBaggage) params.requireCheckedBaggage = 'on';
   if (profile.requireFreeCancellation) params.requireFreeCancellation = 'on';
