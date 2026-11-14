@@ -74,7 +74,8 @@ if (POSTGRES_URL) {
         // a test must not inherit the previous one's rows.
         await query(
           `TRUNCATE users, user_credentials, sessions, user_preferences, trip_searches,
-                  travel_watches, price_history, notifications, push_subscriptions
+                  travel_watches, price_history, notifications, push_subscriptions,
+                  trips, trip_members, plan_items, trip_expenses, emergency_contacts
          RESTART IDENTITY CASCADE`,
         );
       },
@@ -1043,6 +1044,205 @@ describe.each(backends)('$name repository contract', (backend) => {
 
       expect(await repositories.priceHistory.findLowest(watchId, 'trip_total', 'EUR')).toBeNull();
       expect(await repositories.priceHistory.listForWatch(watchId)).toEqual([]);
+    });
+  });
+
+  describe('trip hub', () => {
+    async function aTrip(ownerId: string) {
+      return repositories.trips.create(
+        {
+          ownerId,
+          name: 'Lisbon in spring',
+          destination: 'Lisbon',
+          destinationCountry: 'PT',
+          startDate: '2026-04-10',
+          endDate: null,
+        },
+        'Owner',
+      );
+    }
+
+    it('creates a trip with its owner as the first member, and lists it for them', async () => {
+      const owner = await aUser();
+      const trip = await aTrip(owner.id);
+
+      expect(trip.startDate).toBe('2026-04-10');
+      expect(trip.endDate).toBeNull();
+      expect(await repositories.trips.findById(trip.id)).toEqual(trip);
+
+      const members = await repositories.trips.listMembers(trip.id);
+      expect(members.map((m) => [m.userId, m.name])).toEqual([[owner.id, 'Owner']]);
+      expect((await repositories.trips.listForUser(owner.id)).map((t) => t.id)).toEqual([trip.id]);
+    });
+
+    it('lists a trip for a linked member and not for a stranger', async () => {
+      const owner = await aUser();
+      const friend = await aUser();
+      const stranger = await aUser();
+      const trip = await aTrip(owner.id);
+      await repositories.trips.addMember({ tripId: trip.id, userId: friend.id, name: 'Friend' });
+
+      expect((await repositories.trips.listForUser(friend.id)).map((t) => t.id)).toEqual([trip.id]);
+      expect(await repositories.trips.listForUser(stranger.id)).toEqual([]);
+    });
+
+    it('updates a trip and can clear a date', async () => {
+      const owner = await aUser();
+      const trip = await aTrip(owner.id);
+
+      const updated = await repositories.trips.update(trip.id, { name: 'Porto', startDate: null });
+      expect(updated.name).toBe('Porto');
+      expect(updated.startDate).toBeNull();
+      expect(updated.destination).toBe('Lisbon');
+    });
+
+    it('round-trips a plan item with a price in minor units', async () => {
+      const owner = await aUser();
+      const trip = await aTrip(owner.id);
+
+      const item = await repositories.planItems.create({
+        tripId: trip.id,
+        kind: 'transfer',
+        title: 'Airport pickup',
+        date: '2026-04-10',
+        startsAt: '2026-04-10T14:30',
+        price: money(4250, 'EUR'),
+        partnerOfferId: 'intui-transfer',
+        outboundUrl: 'https://intui.tpk.lv/x',
+        status: 'idea',
+      });
+
+      expect(await repositories.planItems.findById(item.id)).toEqual(item);
+      expect(item.price).toEqual(money(4250, 'EUR'));
+
+      const booked = await repositories.planItems.update(item.id, {
+        status: 'booked',
+        price: null,
+      });
+      expect(booked.status).toBe('booked');
+      expect(booked.price).toBeNull();
+      expect(booked.title).toBe('Airport pickup');
+    });
+
+    it('round-trips every split kind on an expense', async () => {
+      const owner = await aUser();
+      const trip = await aTrip(owner.id);
+      const friend = await repositories.trips.addMember({
+        tripId: trip.id,
+        userId: null,
+        name: 'Friend',
+      });
+      const [self] = await repositories.trips.listMembers(trip.id);
+      const ids = [self!.id, friend.id];
+
+      for (const split of [
+        { kind: 'equal' as const, memberIds: ids },
+        {
+          kind: 'shares' as const,
+          weights: ids.map((memberId, i) => ({ memberId, weight: i + 1 })),
+        },
+        {
+          kind: 'exact' as const,
+          amounts: ids.map((memberId, i) => ({
+            memberId,
+            amount: money(i === 0 ? 600 : 400, 'EUR'),
+          })),
+        },
+      ]) {
+        const saved = await repositories.tripExpenses.create({
+          tripId: trip.id,
+          paidBy: self!.id,
+          amount: money(1000, 'EUR'),
+          description: 'Dinner',
+          date: '2026-04-11',
+          split,
+        });
+        expect(saved.split).toEqual(split);
+        expect(await repositories.tripExpenses.findById(saved.id)).toEqual(saved);
+      }
+
+      expect(await repositories.tripExpenses.listByTrip(trip.id)).toHaveLength(3);
+    });
+
+    it('deletes a trip together with its plan and expenses', async () => {
+      const owner = await aUser();
+      const trip = await aTrip(owner.id);
+      const [self] = await repositories.trips.listMembers(trip.id);
+      const item = await repositories.planItems.create({
+        tripId: trip.id,
+        kind: 'other',
+        title: 'x',
+        date: null,
+        startsAt: null,
+        price: null,
+        partnerOfferId: null,
+        outboundUrl: null,
+        status: 'idea',
+      });
+      const expense = await repositories.tripExpenses.create({
+        tripId: trip.id,
+        paidBy: self!.id,
+        amount: money(100, 'EUR'),
+        description: 'x',
+        date: '2026-04-11',
+        split: { kind: 'equal', memberIds: [self!.id] },
+      });
+
+      await repositories.trips.delete(trip.id);
+
+      expect(await repositories.trips.findById(trip.id)).toBeNull();
+      expect(await repositories.trips.listMembers(trip.id)).toEqual([]);
+      expect(await repositories.planItems.findById(item.id)).toBeNull();
+      expect(await repositories.tripExpenses.findById(expense.id)).toBeNull();
+    });
+
+    it('keeps emergency contacts per user', async () => {
+      const one = await aUser();
+      const two = await aUser();
+      const contact = await repositories.emergencyContacts.create({
+        userId: one.id,
+        name: 'Mum',
+        phone: '+44 20 7946 0000',
+        relation: 'Parent',
+      });
+
+      expect((await repositories.emergencyContacts.listByUser(one.id)).map((c) => c.id)).toEqual([
+        contact.id,
+      ]);
+      expect(await repositories.emergencyContacts.listByUser(two.id)).toEqual([]);
+
+      await repositories.emergencyContacts.delete(contact.id);
+      expect(await repositories.emergencyContacts.findById(contact.id)).toBeNull();
+    });
+
+    it('erases an account: its trips and contacts go, its seat on another trip loses the name', async () => {
+      const leaver = await aUser();
+      const host = await aUser();
+      const own = await aTrip(leaver.id);
+      const hosted = await aTrip(host.id);
+      await repositories.trips.addMember({
+        tripId: hosted.id,
+        userId: leaver.id,
+        name: 'Leaver Name',
+      });
+      await repositories.emergencyContacts.create({
+        userId: leaver.id,
+        name: 'Mum',
+        phone: '+44 20 7946 0000',
+        relation: 'Parent',
+      });
+
+      const summary = await repositories.users.erase(leaver.id);
+
+      expect(summary.trips).toBe(1);
+      expect(summary.emergencyContacts).toBe(1);
+      expect(await repositories.trips.findById(own.id)).toBeNull();
+      expect(await repositories.emergencyContacts.listByUser(leaver.id)).toEqual([]);
+
+      const seats = await repositories.trips.listMembers(hosted.id);
+      expect(seats.map((s) => s.name)).not.toContain('Leaver Name');
+      expect(seats.some((s) => s.userId === leaver.id)).toBe(false);
+      expect(await repositories.trips.findById(hosted.id)).not.toBeNull();
     });
   });
 });

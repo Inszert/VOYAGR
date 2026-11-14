@@ -1,5 +1,7 @@
 import type { Money } from '@/core/money';
-import type { IsoDate, IsoDateTime, SearchProfile } from '@/core/trip/types';
+import type { Expense } from '@/core/expenses';
+import type { IsoDate, IsoDateTime, LocalDateTime, SearchProfile } from '@/core/trip/types';
+import type { PlanItemKind, PlanItemStatus } from '@/trip-hub/types';
 
 /**
  * Repository interfaces.
@@ -228,6 +230,66 @@ export interface PushSubscriptionRecord {
   readonly createdAt: IsoDateTime;
 }
 
+// --- Trip hub --------------------------------------------------------------
+
+export interface TripRecord {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly name: string;
+  /** What the traveller calls the place: "Lisbon", "the Amalfi coast". */
+  readonly destination: string;
+  /** ISO 3166-1 alpha-2, when the destination is a country we know. Keys the emergency numbers. */
+  readonly destinationCountry: string | null;
+  readonly startDate: IsoDate | null;
+  readonly endDate: IsoDate | null;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * One person on a trip. `userId` is null for a friend without an account:
+ * they can be paid back and owe, but they cannot sign in to read anything.
+ */
+export interface TripMemberRecord {
+  readonly id: string;
+  readonly tripId: string;
+  readonly userId: string | null;
+  readonly name: string;
+  readonly createdAt: IsoDateTime;
+}
+
+export interface PlanItemRecord {
+  readonly id: string;
+  readonly tripId: string;
+  readonly kind: PlanItemKind;
+  readonly title: string;
+  readonly date: IsoDate | null;
+  /** The wall-clock moment where it happens. When set, `date` is its date. */
+  readonly startsAt: LocalDateTime | null;
+  /** What the user says it costs. Entered by hand, never read from a partner. */
+  readonly price: Money | null;
+  readonly partnerOfferId: string | null;
+  readonly outboundUrl: string | null;
+  readonly status: PlanItemStatus;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+export type TripExpenseRecord = Expense & {
+  readonly tripId: string;
+  readonly createdAt: IsoDateTime;
+};
+
+/** A person to call if something goes wrong. Personal data of the user who stored it. */
+export interface EmergencyContactRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly name: string;
+  readonly phone: string;
+  readonly relation: string;
+  readonly createdAt: IsoDateTime;
+}
+
 // --- Repository contracts --------------------------------------------------
 
 export interface UserRepository {
@@ -292,6 +354,9 @@ export interface ErasureSummary {
   readonly emailVerificationTokens: number;
   readonly passwordResetTokens: number;
   readonly emailChangeTokens: number;
+  /** Trips this user owned, which go with the account. */
+  readonly trips: number;
+  readonly emergencyContacts: number;
 }
 
 export interface UserCredentialRepository {
@@ -432,6 +497,52 @@ export interface PushSubscriptionRepository {
 
 /** The complete persistence surface, handed to feature code as one object. */
 /** How one provider call ended, as the `provider_requests` table records it. */
+export type TripInput = Omit<TripRecord, 'id' | 'createdAt' | 'updatedAt'>;
+
+export interface TripRepository {
+  findById(id: string): Promise<TripRecord | null>;
+  /** Trips the user owns or is a member of, newest first. */
+  listForUser(userId: string): Promise<TripRecord[]>;
+  /** Creates the trip and its owner's member row together, or neither. */
+  create(input: TripInput, ownerName: string): Promise<TripRecord>;
+  update(
+    id: string,
+    patch: Partial<
+      Pick<TripRecord, 'name' | 'destination' | 'destinationCountry' | 'startDate' | 'endDate'>
+    >,
+  ): Promise<TripRecord>;
+  /** Takes the trip's members, plan and expenses with it. */
+  delete(id: string): Promise<void>;
+  listMembers(tripId: string): Promise<TripMemberRecord[]>;
+  addMember(input: Omit<TripMemberRecord, 'id' | 'createdAt'>): Promise<TripMemberRecord>;
+  removeMember(tripId: string, memberId: string): Promise<void>;
+}
+
+export type PlanItemInput = Omit<PlanItemRecord, 'id' | 'createdAt' | 'updatedAt'>;
+
+export interface PlanItemRepository {
+  findById(id: string): Promise<PlanItemRecord | null>;
+  listByTrip(tripId: string): Promise<PlanItemRecord[]>;
+  create(input: PlanItemInput): Promise<PlanItemRecord>;
+  update(id: string, patch: Partial<Omit<PlanItemInput, 'tripId'>>): Promise<PlanItemRecord>;
+  delete(id: string): Promise<void>;
+}
+
+export interface TripExpenseRepository {
+  findById(id: string): Promise<TripExpenseRecord | null>;
+  /** Oldest first by expense date, then by creation. */
+  listByTrip(tripId: string): Promise<TripExpenseRecord[]>;
+  create(input: Omit<TripExpenseRecord, 'id' | 'createdAt'>): Promise<TripExpenseRecord>;
+  delete(id: string): Promise<void>;
+}
+
+export interface EmergencyContactRepository {
+  findById(id: string): Promise<EmergencyContactRecord | null>;
+  listByUser(userId: string): Promise<EmergencyContactRecord[]>;
+  create(input: Omit<EmergencyContactRecord, 'id' | 'createdAt'>): Promise<EmergencyContactRecord>;
+  delete(id: string): Promise<void>;
+}
+
 export type ProviderCallStatus = 'ok' | 'error' | 'timeout' | 'rate_limited';
 
 export interface ProviderRequestRecord {
@@ -486,6 +597,10 @@ export interface Repositories {
   readonly notifications: NotificationRepository;
   readonly pushSubscriptions: PushSubscriptionRepository;
   readonly providerRequests: ProviderRequestRepository;
+  readonly trips: TripRepository;
+  readonly planItems: PlanItemRepository;
+  readonly tripExpenses: TripExpenseRepository;
+  readonly emergencyContacts: EmergencyContactRepository;
   /** Identifies the active backend, for diagnostics. */
   readonly backend: 'memory' | 'postgres';
 }

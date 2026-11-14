@@ -81,11 +81,14 @@ describe('Button', () => {
     // in the links list and behaves as users expect.
     render(
       <Button asChild>
-        <a href="/trips">Browse trips</a>
+        <a href="/somewhere">Browse trips</a>
       </Button>,
     );
 
-    expect(screen.getByRole('link', { name: 'Browse trips' })).toHaveAttribute('href', '/trips');
+    expect(screen.getByRole('link', { name: 'Browse trips' })).toHaveAttribute(
+      'href',
+      '/somewhere',
+    );
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

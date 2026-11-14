@@ -11,10 +11,15 @@ import type {
   ErasureSummary,
   EmailChangeRepository,
   EmailChangeTokenRecord,
+  EmergencyContactRecord,
+  EmergencyContactRepository,
   NotificationRecord,
   NotificationRepository,
   PasswordResetRepository,
   PasswordResetTokenRecord,
+  PlanItemInput,
+  PlanItemRecord,
+  PlanItemRepository,
   PriceHistoryRepository,
   PriceObservationRecord,
   PushSubscriptionRecord,
@@ -27,6 +32,12 @@ import type {
   SessionRepository,
   TravelWatchRecord,
   TravelWatchRepository,
+  TripExpenseRecord,
+  TripExpenseRepository,
+  TripInput,
+  TripMemberRecord,
+  TripRecord,
+  TripRepository,
   TripSearchRecord,
   TripSearchRepository,
   UserCredentialRecord,
@@ -37,6 +48,7 @@ import type {
   UserRepository,
 } from './repository';
 import type { IsoDateTime } from '@/core/trip/types';
+import { splitFromJson, splitToJson } from '@/trip-hub/split-json';
 
 /**
  * PostgreSQL repository implementation.
@@ -241,7 +253,15 @@ class PostgresUserRepository implements UserRepository {
         emailChangeTokens: await countOf(
           'SELECT count(*) FROM email_change_tokens WHERE user_id = $1',
         ),
+        trips: await countOf('SELECT count(*) FROM trips WHERE owner_id = $1'),
+        emergencyContacts: await countOf(
+          'SELECT count(*) FROM emergency_contacts WHERE user_id = $1',
+        ),
       };
+
+      // A seat on somebody else's trip outlives the account, because their
+      // ledger needs it; the name does not. The foreign key then nulls user_id.
+      await client.query("UPDATE trip_members SET name = 'Former member' WHERE user_id = $1", [id]);
 
       const deleted = await client.query('DELETE FROM users WHERE id = $1', [id]);
 
@@ -1097,6 +1117,407 @@ class PostgresPushSubscriptionRepository implements PushSubscriptionRepository {
   }
 }
 
+// --- Trip hub --------------------------------------------------------------
+
+interface TripRow {
+  id: string;
+  owner_id: string;
+  name: string;
+  destination: string;
+  destination_country: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Dates are read as text so a calendar day cannot shift with the server's timezone.
+const TRIP_COLUMNS = `id, owner_id, name, destination, destination_country,
+  to_char(start_date, 'YYYY-MM-DD') AS start_date,
+  to_char(end_date, 'YYYY-MM-DD') AS end_date,
+  created_at, updated_at`;
+
+function toTrip(row: TripRow): TripRecord {
+  return {
+    id: row.id,
+    ownerId: row.owner_id,
+    name: row.name,
+    destination: row.destination,
+    destinationCountry: row.destination_country,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+interface TripMemberRow {
+  id: string;
+  trip_id: string;
+  user_id: string | null;
+  name: string;
+  created_at: Date;
+}
+
+const MEMBER_COLUMNS = 'id, trip_id, user_id, name, created_at';
+
+function toTripMember(row: TripMemberRow): TripMemberRecord {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    userId: row.user_id,
+    name: row.name,
+    createdAt: toIso(row.created_at),
+  };
+}
+
+class PostgresTripRepository implements TripRepository {
+  async findById(id: string): Promise<TripRecord | null> {
+    const rows = await query<TripRow>(`SELECT ${TRIP_COLUMNS} FROM trips WHERE id = $1`, [id]);
+    return rows[0] ? toTrip(rows[0]) : null;
+  }
+
+  async listForUser(userId: string): Promise<TripRecord[]> {
+    const rows = await query<TripRow>(
+      `SELECT ${TRIP_COLUMNS}
+         FROM trips
+        WHERE owner_id = $1
+           OR id IN (SELECT trip_id FROM trip_members WHERE user_id = $1)
+        ORDER BY created_at DESC, id`,
+      [userId],
+    );
+    return rows.map(toTrip);
+  }
+
+  async create(input: TripInput, ownerName: string): Promise<TripRecord> {
+    return withTransaction(async (client) => {
+      const inserted = await client.query<TripRow>(
+        `INSERT INTO trips (owner_id, name, destination, destination_country, start_date, end_date)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING ${TRIP_COLUMNS}`,
+        [
+          input.ownerId,
+          input.name,
+          input.destination,
+          input.destinationCountry,
+          input.startDate,
+          input.endDate,
+        ],
+      );
+      const row = requireRow(inserted.rows[0], 'trip', input.name);
+      await client.query('INSERT INTO trip_members (trip_id, user_id, name) VALUES ($1, $2, $3)', [
+        row.id,
+        input.ownerId,
+        ownerName,
+      ]);
+      return toTrip(row);
+    });
+  }
+
+  async update(
+    id: string,
+    patch: Partial<
+      Pick<TripRecord, 'name' | 'destination' | 'destinationCountry' | 'startDate' | 'endDate'>
+    >,
+  ): Promise<TripRecord> {
+    // COALESCE would make a date impossible to clear, so each column says
+    // whether it was supplied.
+    const rows = await query<TripRow>(
+      `UPDATE trips
+          SET name = CASE WHEN $2::boolean THEN $3 ELSE name END,
+              destination = CASE WHEN $4::boolean THEN $5 ELSE destination END,
+              destination_country = CASE WHEN $6::boolean THEN $7 ELSE destination_country END,
+              start_date = CASE WHEN $8::boolean THEN $9::date ELSE start_date END,
+              end_date = CASE WHEN $10::boolean THEN $11::date ELSE end_date END,
+              updated_at = now()
+        WHERE id = $1
+        RETURNING ${TRIP_COLUMNS}`,
+      [
+        id,
+        patch.name !== undefined,
+        patch.name ?? null,
+        patch.destination !== undefined,
+        patch.destination ?? null,
+        patch.destinationCountry !== undefined,
+        patch.destinationCountry ?? null,
+        patch.startDate !== undefined,
+        patch.startDate ?? null,
+        patch.endDate !== undefined,
+        patch.endDate ?? null,
+      ],
+    );
+    return toTrip(requireRow(rows[0], 'trip', id));
+  }
+
+  async delete(id: string): Promise<void> {
+    // Members, plan items and expenses go with it: all reference this row
+    // with ON DELETE CASCADE (0009_trip_hub.sql).
+    await query('DELETE FROM trips WHERE id = $1', [id]);
+  }
+
+  async listMembers(tripId: string): Promise<TripMemberRecord[]> {
+    const rows = await query<TripMemberRow>(
+      `SELECT ${MEMBER_COLUMNS} FROM trip_members WHERE trip_id = $1 ORDER BY created_at, id`,
+      [tripId],
+    );
+    return rows.map(toTripMember);
+  }
+
+  async addMember(input: Omit<TripMemberRecord, 'id' | 'createdAt'>): Promise<TripMemberRecord> {
+    const rows = await query<TripMemberRow>(
+      `INSERT INTO trip_members (trip_id, user_id, name) VALUES ($1, $2, $3)
+       RETURNING ${MEMBER_COLUMNS}`,
+      [input.tripId, input.userId, input.name],
+    );
+    return toTripMember(requireRow(rows[0], 'trip member', input.name));
+  }
+
+  async removeMember(tripId: string, memberId: string): Promise<void> {
+    await query('DELETE FROM trip_members WHERE trip_id = $1 AND id = $2', [tripId, memberId]);
+  }
+}
+
+interface PlanItemRow {
+  id: string;
+  trip_id: string;
+  kind: PlanItemRecord['kind'];
+  title: string;
+  item_date: string | null;
+  starts_at: string | null;
+  price_amount: string | null;
+  price_currency: string | null;
+  partner_offer_id: string | null;
+  outbound_url: string | null;
+  status: PlanItemRecord['status'];
+  created_at: Date;
+  updated_at: Date;
+}
+
+const PLAN_ITEM_COLUMNS = `id, trip_id, kind, title,
+  to_char(item_date, 'YYYY-MM-DD') AS item_date,
+  starts_at, price_amount, price_currency, partner_offer_id, outbound_url, status,
+  created_at, updated_at`;
+
+function toPlanItem(row: PlanItemRow): PlanItemRecord {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    kind: row.kind,
+    title: row.title,
+    date: row.item_date,
+    startsAt: row.starts_at,
+    price: toMoney(row.price_amount, row.price_currency),
+    partnerOfferId: row.partner_offer_id,
+    outboundUrl: row.outbound_url,
+    status: row.status,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+class PostgresPlanItemRepository implements PlanItemRepository {
+  async findById(id: string): Promise<PlanItemRecord | null> {
+    const rows = await query<PlanItemRow>(
+      `SELECT ${PLAN_ITEM_COLUMNS} FROM plan_items WHERE id = $1`,
+      [id],
+    );
+    return rows[0] ? toPlanItem(rows[0]) : null;
+  }
+
+  async listByTrip(tripId: string): Promise<PlanItemRecord[]> {
+    const rows = await query<PlanItemRow>(
+      `SELECT ${PLAN_ITEM_COLUMNS} FROM plan_items WHERE trip_id = $1 ORDER BY created_at, id`,
+      [tripId],
+    );
+    return rows.map(toPlanItem);
+  }
+
+  async create(input: PlanItemInput): Promise<PlanItemRecord> {
+    const rows = await query<PlanItemRow>(
+      `INSERT INTO plan_items
+         (trip_id, kind, title, item_date, starts_at, price_amount, price_currency,
+          partner_offer_id, outbound_url, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING ${PLAN_ITEM_COLUMNS}`,
+      [
+        input.tripId,
+        input.kind,
+        input.title,
+        input.date,
+        input.startsAt,
+        input.price?.amount ?? null,
+        input.price?.currency ?? null,
+        input.partnerOfferId,
+        input.outboundUrl,
+        input.status,
+      ],
+    );
+    return toPlanItem(requireRow(rows[0], 'plan item', input.title));
+  }
+
+  async update(id: string, patch: Partial<Omit<PlanItemInput, 'tripId'>>): Promise<PlanItemRecord> {
+    // Read-merge-write: a plan item is small, and one UPDATE with every
+    // column explicit is clearer than a flag per column for ten of them.
+    const existing = requireRow(await this.findById(id), 'plan item', id);
+    const next = { ...existing, ...patch };
+
+    const rows = await query<PlanItemRow>(
+      `UPDATE plan_items
+          SET kind = $2, title = $3, item_date = $4, starts_at = $5,
+              price_amount = $6, price_currency = $7, partner_offer_id = $8,
+              outbound_url = $9, status = $10, updated_at = now()
+        WHERE id = $1
+        RETURNING ${PLAN_ITEM_COLUMNS}`,
+      [
+        id,
+        next.kind,
+        next.title,
+        next.date,
+        next.startsAt,
+        next.price?.amount ?? null,
+        next.price?.currency ?? null,
+        next.partnerOfferId,
+        next.outboundUrl,
+        next.status,
+      ],
+    );
+    return toPlanItem(requireRow(rows[0], 'plan item', id));
+  }
+
+  async delete(id: string): Promise<void> {
+    await query('DELETE FROM plan_items WHERE id = $1', [id]);
+  }
+}
+
+interface TripExpenseRow {
+  id: string;
+  trip_id: string;
+  paid_by: string;
+  amount: string;
+  currency: string;
+  description: string;
+  expense_date: string;
+  split: unknown;
+  created_at: Date;
+}
+
+const EXPENSE_COLUMNS = `id, trip_id, paid_by, amount, currency, description,
+  to_char(expense_date, 'YYYY-MM-DD') AS expense_date, split, created_at`;
+
+function toTripExpense(row: TripExpenseRow): TripExpenseRecord {
+  const amount = toMoney(row.amount, row.currency);
+  if (!amount) throw new AppError('INTERNAL_ERROR', 'Expense row has no amount');
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    paidBy: row.paid_by,
+    amount,
+    description: row.description,
+    date: row.expense_date,
+    split: splitFromJson(row.split, row.currency),
+    createdAt: toIso(row.created_at),
+  };
+}
+
+class PostgresTripExpenseRepository implements TripExpenseRepository {
+  async findById(id: string): Promise<TripExpenseRecord | null> {
+    const rows = await query<TripExpenseRow>(
+      `SELECT ${EXPENSE_COLUMNS} FROM trip_expenses WHERE id = $1`,
+      [id],
+    );
+    return rows[0] ? toTripExpense(rows[0]) : null;
+  }
+
+  async listByTrip(tripId: string): Promise<TripExpenseRecord[]> {
+    const rows = await query<TripExpenseRow>(
+      `SELECT ${EXPENSE_COLUMNS} FROM trip_expenses
+        WHERE trip_id = $1 ORDER BY expense_date, created_at, id`,
+      [tripId],
+    );
+    return rows.map(toTripExpense);
+  }
+
+  async create(input: Omit<TripExpenseRecord, 'id' | 'createdAt'>): Promise<TripExpenseRecord> {
+    const rows = await query<TripExpenseRow>(
+      `INSERT INTO trip_expenses
+         (trip_id, paid_by, amount, currency, description, expense_date, split)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+       RETURNING ${EXPENSE_COLUMNS}`,
+      [
+        input.tripId,
+        input.paidBy,
+        input.amount.amount,
+        input.amount.currency,
+        input.description,
+        input.date,
+        JSON.stringify(splitToJson(input.split)),
+      ],
+    );
+    return toTripExpense(requireRow(rows[0], 'expense', input.description));
+  }
+
+  async delete(id: string): Promise<void> {
+    await query('DELETE FROM trip_expenses WHERE id = $1', [id]);
+  }
+}
+
+interface EmergencyContactRow {
+  id: string;
+  user_id: string;
+  name: string;
+  phone: string;
+  relation: string;
+  created_at: Date;
+}
+
+const CONTACT_COLUMNS = 'id, user_id, name, phone, relation, created_at';
+
+function toEmergencyContact(row: EmergencyContactRow): EmergencyContactRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    phone: row.phone,
+    relation: row.relation,
+    createdAt: toIso(row.created_at),
+  };
+}
+
+class PostgresEmergencyContactRepository implements EmergencyContactRepository {
+  async findById(id: string): Promise<EmergencyContactRecord | null> {
+    const rows = await query<EmergencyContactRow>(
+      `SELECT ${CONTACT_COLUMNS} FROM emergency_contacts WHERE id = $1`,
+      [id],
+    );
+    return rows[0] ? toEmergencyContact(rows[0]) : null;
+  }
+
+  async listByUser(userId: string): Promise<EmergencyContactRecord[]> {
+    const rows = await query<EmergencyContactRow>(
+      `SELECT ${CONTACT_COLUMNS} FROM emergency_contacts
+        WHERE user_id = $1 ORDER BY created_at, id`,
+      [userId],
+    );
+    return rows.map(toEmergencyContact);
+  }
+
+  async create(
+    input: Omit<EmergencyContactRecord, 'id' | 'createdAt'>,
+  ): Promise<EmergencyContactRecord> {
+    const rows = await query<EmergencyContactRow>(
+      `INSERT INTO emergency_contacts (user_id, name, phone, relation)
+       VALUES ($1, $2, $3, $4)
+       RETURNING ${CONTACT_COLUMNS}`,
+      [input.userId, input.name, input.phone, input.relation],
+    );
+    return toEmergencyContact(requireRow(rows[0], 'emergency contact', input.userId));
+  }
+
+  async delete(id: string): Promise<void> {
+    await query('DELETE FROM emergency_contacts WHERE id = $1', [id]);
+  }
+}
+
 class PostgresProviderRequestRepository implements ProviderRequestRepository {
   async record(entry: Omit<ProviderRequestRecord, 'createdAt'>): Promise<void> {
     await query(
@@ -1172,6 +1593,10 @@ export function createPostgresRepositories(): Repositories {
     notifications: new PostgresNotificationRepository(),
     pushSubscriptions: new PostgresPushSubscriptionRepository(),
     providerRequests: new PostgresProviderRequestRepository(),
+    trips: new PostgresTripRepository(),
+    planItems: new PostgresPlanItemRepository(),
+    tripExpenses: new PostgresTripExpenseRepository(),
+    emergencyContacts: new PostgresEmergencyContactRepository(),
     backend: 'postgres',
   };
 }

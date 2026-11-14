@@ -125,6 +125,10 @@ As in the brief; plus the honesty caveat from D1/D2 — real priced hotels need 
      FX only through `src/core/fx.ts`), deterministic and tested.
   3. **Emergency contacts per destination**: emergency numbers and embassy details from an open,
      citable dataset, schema-checked, dated, with the source shown. Never model-written.
+     *Built:* `src/core/expenses/`, `src/trip-hub/`, migration 0009, `/trips` and `/trips/[id]`. Emergency numbers
+     come from Wikidata P2852 (CC0), numbers read from P1329, retrieved 2026-11-14, written by
+     `node scripts/build-emergency.mjs` to `src/trip-hub/emergency.generated.json`. A country with no entry
+     shows "No verified number on file"; nothing is guessed. Which service a number reaches is not claimed.
   4. **Promo codes**: a partner offer may carry a code and an expiry; expired codes are not shown.
 - **D18 — Native partner components** replace default Travelpayouts widgets (owner design brief):
   search forms, offer cards, booking buttons, price displays and promo banners built from our

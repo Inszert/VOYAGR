@@ -10,7 +10,7 @@ import { getEnv } from './env';
  * is a credential that has leaked.
  */
 
-const REDACTED_PATHS = [
+export const REDACTED_PATHS = [
   'password',
   '*.password',
   'apiKey',
@@ -34,6 +34,16 @@ const REDACTED_PATHS = [
   'RESEND_API_KEY',
   'subscription.keys',
   '*.subscription.keys',
+  // Personal data from the trip hub: a phone number is how someone is reached
+  // on the worst day of a trip, and it has no business in a log line.
+  'phone',
+  '*.phone',
+  'emergencyContact',
+  '*.emergencyContact',
+  'emergencyContacts',
+  '*.emergencyContacts',
+  'contact.name',
+  'contact.relation',
 ];
 
 function createRootLogger(): Logger {

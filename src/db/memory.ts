@@ -7,10 +7,15 @@ import type {
   EmailChangeTokenRecord,
   EmailVerificationRepository,
   EmailVerificationTokenRecord,
+  EmergencyContactRecord,
+  EmergencyContactRepository,
   ErasureSummary,
   NotificationRecord,
   NotificationRepository,
   PasswordResetRepository,
+  PlanItemInput,
+  PlanItemRecord,
+  PlanItemRepository,
   PasswordResetTokenRecord,
   PriceHistoryRepository,
   PriceObservationRecord,
@@ -24,6 +29,12 @@ import type {
   SessionRepository,
   TravelWatchRecord,
   TravelWatchRepository,
+  TripExpenseRecord,
+  TripExpenseRepository,
+  TripInput,
+  TripMemberRecord,
+  TripRecord,
+  TripRepository,
   TripSearchRecord,
   TripSearchRepository,
   UserCredentialRecord,
@@ -134,6 +145,8 @@ class MemoryUserRepository implements UserRepository {
       emailVerificationTokens: 0,
       passwordResetTokens: 0,
       emailChangeTokens: 0,
+      trips: 0,
+      emergencyContacts: 0,
     };
 
     return { userExisted, ...removed };
@@ -707,6 +720,210 @@ class MemoryProviderRequestRepository implements ProviderRequestRepository {
   }
 }
 
+/** What a trip's own tables do when it goes. Wired in `createMemoryRepositories`. */
+type TripCascade = (tripId: string) => void;
+
+class MemoryTripRepository implements TripRepository {
+  private readonly trips = new Map<string, TripRecord>();
+  private readonly members = new Map<string, TripMemberRecord>();
+  cascade: TripCascade | null = null;
+
+  async findById(id: string): Promise<TripRecord | null> {
+    return this.trips.get(id) ?? null;
+  }
+
+  async listForUser(userId: string): Promise<TripRecord[]> {
+    const joined = new Set(
+      [...this.members.values()]
+        .filter((member) => member.userId === userId)
+        .map((member) => member.tripId),
+    );
+    return [...this.trips.values()]
+      .filter((trip) => trip.ownerId === userId || joined.has(trip.id))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+  }
+
+  async create(input: TripInput, ownerName: string): Promise<TripRecord> {
+    const stamp = now();
+    const trip: TripRecord = { ...input, id: randomUUID(), createdAt: stamp, updatedAt: stamp };
+    this.trips.set(trip.id, trip);
+    const owner: TripMemberRecord = {
+      id: randomUUID(),
+      tripId: trip.id,
+      userId: input.ownerId,
+      name: ownerName,
+      createdAt: stamp,
+    };
+    this.members.set(owner.id, owner);
+    return trip;
+  }
+
+  async update(
+    id: string,
+    patch: Partial<
+      Pick<TripRecord, 'name' | 'destination' | 'destinationCountry' | 'startDate' | 'endDate'>
+    >,
+  ): Promise<TripRecord> {
+    const existing = this.trips.get(id);
+    if (!existing) throw new AppError('NOT_FOUND', `No trip with id ${id}`);
+    const updated = { ...existing, ...patch, updatedAt: now() };
+    this.trips.set(id, updated);
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.removeTrip(id);
+  }
+
+  private removeTrip(id: string): void {
+    this.trips.delete(id);
+    for (const [memberId, member] of this.members) {
+      if (member.tripId === id) this.members.delete(memberId);
+    }
+    this.cascade?.(id);
+  }
+
+  async listMembers(tripId: string): Promise<TripMemberRecord[]> {
+    return [...this.members.values()]
+      .filter((member) => member.tripId === tripId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  }
+
+  async addMember(input: Omit<TripMemberRecord, 'id' | 'createdAt'>): Promise<TripMemberRecord> {
+    const member: TripMemberRecord = { ...input, id: randomUUID(), createdAt: now() };
+    this.members.set(member.id, member);
+    return member;
+  }
+
+  async removeMember(tripId: string, memberId: string): Promise<void> {
+    if (this.members.get(memberId)?.tripId === tripId) this.members.delete(memberId);
+  }
+
+  /** The user's trips go; their seat on anyone else's stays, without their name. */
+  eraseUser(userId: string): number {
+    const owned = [...this.trips.values()].filter((trip) => trip.ownerId === userId);
+    for (const trip of owned) this.removeTrip(trip.id);
+
+    for (const [id, member] of this.members) {
+      if (member.userId === userId) {
+        this.members.set(id, { ...member, userId: null, name: 'Former member' });
+      }
+    }
+    return owned.length;
+  }
+}
+
+class MemoryPlanItemRepository implements PlanItemRepository {
+  private readonly byId = new Map<string, PlanItemRecord>();
+
+  async findById(id: string): Promise<PlanItemRecord | null> {
+    return this.byId.get(id) ?? null;
+  }
+
+  async listByTrip(tripId: string): Promise<PlanItemRecord[]> {
+    return [...this.byId.values()]
+      .filter((item) => item.tripId === tripId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  }
+
+  async create(input: PlanItemInput): Promise<PlanItemRecord> {
+    const stamp = now();
+    const item: PlanItemRecord = { ...input, id: randomUUID(), createdAt: stamp, updatedAt: stamp };
+    this.byId.set(item.id, item);
+    return item;
+  }
+
+  async update(id: string, patch: Partial<Omit<PlanItemInput, 'tripId'>>): Promise<PlanItemRecord> {
+    const existing = this.byId.get(id);
+    if (!existing) throw new AppError('NOT_FOUND', `No plan item with id ${id}`);
+    const updated = { ...existing, ...patch, updatedAt: now() };
+    this.byId.set(id, updated);
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  eraseTrip(tripId: string): void {
+    for (const [id, item] of this.byId) {
+      if (item.tripId === tripId) this.byId.delete(id);
+    }
+  }
+}
+
+class MemoryTripExpenseRepository implements TripExpenseRepository {
+  private readonly byId = new Map<string, TripExpenseRecord>();
+
+  async findById(id: string): Promise<TripExpenseRecord | null> {
+    return this.byId.get(id) ?? null;
+  }
+
+  async listByTrip(tripId: string): Promise<TripExpenseRecord[]> {
+    return [...this.byId.values()]
+      .filter((expense) => expense.tripId === tripId)
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.createdAt.localeCompare(b.createdAt) ||
+          a.id.localeCompare(b.id),
+      );
+  }
+
+  async create(input: Omit<TripExpenseRecord, 'id' | 'createdAt'>): Promise<TripExpenseRecord> {
+    const record: TripExpenseRecord = { ...input, id: randomUUID(), createdAt: now() };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  eraseTrip(tripId: string): void {
+    for (const [id, expense] of this.byId) {
+      if (expense.tripId === tripId) this.byId.delete(id);
+    }
+  }
+}
+
+class MemoryEmergencyContactRepository implements EmergencyContactRepository {
+  private readonly byId = new Map<string, EmergencyContactRecord>();
+
+  async findById(id: string): Promise<EmergencyContactRecord | null> {
+    return this.byId.get(id) ?? null;
+  }
+
+  async listByUser(userId: string): Promise<EmergencyContactRecord[]> {
+    return [...this.byId.values()]
+      .filter((contact) => contact.userId === userId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  }
+
+  async create(
+    input: Omit<EmergencyContactRecord, 'id' | 'createdAt'>,
+  ): Promise<EmergencyContactRecord> {
+    const record: EmergencyContactRecord = { ...input, id: randomUUID(), createdAt: now() };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+
+  eraseUser(userId: string): number {
+    let removed = 0;
+    for (const [id, contact] of this.byId) {
+      if (contact.userId === userId) {
+        this.byId.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+}
+
 /** Build a complete, isolated set of in-memory repositories. */
 export function createMemoryRepositories(): Repositories {
   const users = new MemoryUserRepository();
@@ -723,6 +940,10 @@ export function createMemoryRepositories(): Repositories {
   const notifications = new MemoryNotificationRepository();
   const pushSubscriptions = new MemoryPushSubscriptionRepository();
   const providerRequests = new MemoryProviderRequestRepository();
+  const trips = new MemoryTripRepository();
+  const planItems = new MemoryPlanItemRepository();
+  const tripExpenses = new MemoryTripExpenseRepository();
+  const emergencyContacts = new MemoryEmergencyContactRepository();
 
   /*
    * The cascade, in dependence order.
@@ -736,6 +957,12 @@ export function createMemoryRepositories(): Repositories {
   // as `ON DELETE CASCADE` does in Postgres.
   tripSearches.cascade = (searchId) => {
     priceHistory.eraseWatches(travelWatches.eraseSearch(searchId));
+  };
+
+  // A trip takes its plan and its expenses with it.
+  trips.cascade = (tripId) => {
+    planItems.eraseTrip(tripId);
+    tripExpenses.eraseTrip(tripId);
   };
 
   users.cascade = (userId) => {
@@ -756,6 +983,8 @@ export function createMemoryRepositories(): Repositories {
       emailVerificationTokens: emailVerification.eraseUser(userId),
       passwordResetTokens: passwordReset.eraseUser(userId),
       emailChangeTokens: emailChange.eraseUser(userId),
+      trips: trips.eraseUser(userId),
+      emergencyContacts: emergencyContacts.eraseUser(userId),
     };
   };
 
@@ -774,6 +1003,10 @@ export function createMemoryRepositories(): Repositories {
     notifications,
     pushSubscriptions,
     providerRequests,
+    trips,
+    planItems,
+    tripExpenses,
+    emergencyContacts,
     backend: 'memory',
   };
 }

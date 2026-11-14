@@ -34,6 +34,10 @@ export interface PersonalExport {
   readonly travelWatches: readonly unknown[];
   readonly priceObservations: readonly unknown[];
   readonly notifications: readonly unknown[];
+  /** Trips this person owns or sits on. See `buildPersonalExport` for what each carries. */
+  readonly trips: readonly unknown[];
+  /** Phone numbers and names of people they would want called. */
+  readonly emergencyContacts: readonly unknown[];
 }
 
 /**
@@ -62,6 +66,33 @@ export async function buildPersonalExport(
     await Promise.all(watches.map((watch) => repositories.priceHistory.listForWatch(watch.id)))
   ).flat();
 
+  const trips = await Promise.all(
+    (await repositories.trips.listForUser(userId)).map(async (trip) => {
+      const members = await repositories.trips.listMembers(trip.id);
+      const owned = trip.ownerId === userId;
+
+      /*
+       * What a trip adds to this person's file depends on whose trip it is.
+       *
+       * On one they own: everything, because they made it - the plan, the
+       * expenses and the names they typed for the others. On one they were
+       * only added to: the trip, their own seat and the expenses they paid.
+       * Other members' names stay out; they are those people's data, and the
+       * owner's export is where they belong.
+       */
+      const expenses = await repositories.tripExpenses.listByTrip(trip.id);
+      const self = members.find((member) => member.userId === userId);
+
+      return {
+        trip,
+        role: owned ? 'owner' : 'member',
+        members: owned ? members : self ? [self] : [],
+        planItems: owned ? await repositories.planItems.listByTrip(trip.id) : [],
+        expenses: owned ? expenses : expenses.filter((expense) => expense.paidBy === self?.id),
+      };
+    }),
+  );
+
   return {
     meta: {
       format: 'voyagr.personal-export',
@@ -81,5 +112,7 @@ export async function buildPersonalExport(
     travelWatches: watches,
     priceObservations: observations,
     notifications: await repositories.notifications.listByUser(userId),
+    trips,
+    emergencyContacts: await repositories.emergencyContacts.listByUser(userId),
   };
 }

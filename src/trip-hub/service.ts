@@ -1,0 +1,364 @@
+import { balances, settleUp, validateExpense, ExpenseError } from '@/core/expenses';
+import type { CurrencyBalances, Member, Transfer } from '@/core/expenses';
+import { PARTNER_OFFERS, type PartnerCategory, type PartnerOffer } from '@/booking/partners';
+import type {
+  EmergencyContactRecord,
+  PlanItemRecord,
+  Repositories,
+  TripExpenseRecord,
+  TripInput,
+  TripMemberRecord,
+  TripRecord,
+} from '@/db/repository';
+import { AppError } from '@/lib/errors';
+import type { ContactFormInput, ExpenseFormInput, PlanItemFormInput, TripFormInput } from './parse';
+import type { PlanItemKind, PlanItemStatus } from './types';
+
+/**
+ * The trip hub's rules, and the one place access to a trip is decided.
+ *
+ * **Authorisation lives here, not in the pages.** An action is an endpoint and
+ * anyone can post to it, so every method takes the acting user's id (always
+ * from the verified session, never from the request) and starts by proving
+ * they sit on the trip. Someone who does not gets NOT_FOUND, the same answer
+ * as for a trip that does not exist, so ids cannot be probed.
+ *
+ * Owner-only: deleting the trip and changing who is on it. Everything else is
+ * open to any member, because a shared trip that only one person can edit is
+ * not shared.
+ */
+
+const CATEGORY_TO_KIND: Readonly<Partial<Record<PartnerCategory, PlanItemKind>>> = {
+  transfer: 'transfer',
+  esim: 'esim',
+  insurance: 'insurance',
+  activities: 'activity',
+  stay: 'stay',
+};
+
+export interface TripAccess {
+  readonly trip: TripRecord;
+  readonly members: readonly TripMemberRecord[];
+  readonly isOwner: boolean;
+  /** The viewer's own seat. */
+  readonly self: TripMemberRecord;
+}
+
+export interface Ledger {
+  readonly expenses: readonly TripExpenseRecord[];
+  readonly members: readonly Member[];
+  readonly balances: readonly CurrencyBalances[];
+  readonly settlements: readonly { readonly currency: string; readonly transfers: Transfer[] }[];
+}
+
+export interface TripHubServiceOptions {
+  readonly repositories: Repositories;
+}
+
+export class TripHubService {
+  private readonly repositories: Repositories;
+
+  constructor(options: TripHubServiceOptions) {
+    this.repositories = options.repositories;
+  }
+
+  // --- Access ----------------------------------------------------------------
+
+  /** The trip, if and only if `userId` owns it or sits on it. */
+  async access(userId: string, tripId: string): Promise<TripAccess> {
+    const notFound = () =>
+      new AppError('NOT_FOUND', 'Trip not found or not accessible', {
+        publicMessage: 'That trip could not be found.',
+      });
+
+    const trip = await this.repositories.trips.findById(tripId);
+    if (!trip) throw notFound();
+
+    const members = await this.repositories.trips.listMembers(tripId);
+    const self = members.find((member) => member.userId === userId);
+    if (!self) throw notFound();
+
+    return { trip, members, isOwner: trip.ownerId === userId, self };
+  }
+
+  private async requireOwner(userId: string, tripId: string): Promise<TripAccess> {
+    const access = await this.access(userId, tripId);
+    if (!access.isOwner) {
+      throw new AppError('FORBIDDEN', 'Only the trip owner can do this', {
+        publicMessage: 'Only the person who created the trip can do that.',
+      });
+    }
+    return access;
+  }
+
+  // --- Trips -------------------------------------------------------------------
+
+  listTrips(userId: string): Promise<TripRecord[]> {
+    return this.repositories.trips.listForUser(userId);
+  }
+
+  createTrip(userId: string, input: TripFormInput): Promise<TripRecord> {
+    const { ownerName, ...fields } = input;
+    const record: TripInput = { ownerId: userId, ...fields };
+    return this.repositories.trips.create(record, ownerName);
+  }
+
+  async deleteTrip(userId: string, tripId: string): Promise<void> {
+    await this.requireOwner(userId, tripId);
+    await this.repositories.trips.delete(tripId);
+  }
+
+  /**
+   * Add a person to the trip.
+   *
+   * With an account email the person is linked and can then open the trip;
+   * without one, or when no account has that email, they are a name on the
+   * ledger only. The result is the same either way, so this cannot be used to
+   * find out whether an address has an account.
+   */
+  async addMember(
+    userId: string,
+    tripId: string,
+    input: { name: string; accountEmail: string | null },
+  ): Promise<void> {
+    const { members } = await this.requireOwner(userId, tripId);
+
+    const name = input.name.trim();
+    if (name === '' || name.length > 80) {
+      throw new AppError('VALIDATION_ERROR', 'Member name invalid', {
+        publicMessage: 'Enter a name of up to 80 characters.',
+      });
+    }
+
+    let linkedUserId: string | null = null;
+    const email = input.accountEmail?.trim().toLowerCase();
+    if (email) {
+      const found = await this.repositories.users.findByEmail(email);
+      if (found && !members.some((member) => member.userId === found.id)) {
+        linkedUserId = found.id;
+      }
+    }
+
+    await this.repositories.trips.addMember({ tripId, userId: linkedUserId, name });
+  }
+
+  async removeMember(userId: string, tripId: string, memberId: string): Promise<void> {
+    const { trip, members } = await this.requireOwner(userId, tripId);
+    const target = members.find((member) => member.id === memberId);
+    if (!target) return;
+
+    if (target.userId === trip.ownerId) {
+      throw new AppError('CONFLICT', 'The owner cannot be removed', {
+        publicMessage: 'The person who created the trip cannot be removed from it.',
+      });
+    }
+
+    // A member in the ledger stays: removing them would leave an expense that
+    // names someone who is not there, and balances that no longer add up.
+    const expenses = await this.repositories.tripExpenses.listByTrip(tripId);
+    const inLedger = expenses.some(
+      (expense) => expense.paidBy === memberId || splitMembers(expense).includes(memberId),
+    );
+    if (inLedger) {
+      throw new AppError('CONFLICT', 'Member is part of recorded expenses', {
+        publicMessage: 'They are part of recorded expenses, so they cannot be removed.',
+      });
+    }
+
+    await this.repositories.trips.removeMember(tripId, memberId);
+  }
+
+  // --- Plan --------------------------------------------------------------------
+
+  async listPlan(userId: string, tripId: string): Promise<PlanItemRecord[]> {
+    await this.access(userId, tripId);
+    return this.repositories.planItems.listByTrip(tripId);
+  }
+
+  async addPlanItem(
+    userId: string,
+    tripId: string,
+    input: PlanItemFormInput,
+  ): Promise<PlanItemRecord> {
+    await this.access(userId, tripId);
+    return this.repositories.planItems.create({
+      tripId,
+      ...input,
+      partnerOfferId: null,
+      outboundUrl: null,
+    });
+  }
+
+  async updatePlanItem(
+    userId: string,
+    tripId: string,
+    itemId: string,
+    input: PlanItemFormInput,
+  ): Promise<PlanItemRecord> {
+    await this.access(userId, tripId);
+    await this.requireItem(tripId, itemId);
+    // The partner link is not editable here: it came from the registry.
+    return this.repositories.planItems.update(itemId, input);
+  }
+
+  /** The one-click "I have booked this", which only ever comes from the traveller. */
+  async setPlanItemStatus(
+    userId: string,
+    tripId: string,
+    itemId: string,
+    status: PlanItemStatus,
+  ): Promise<PlanItemRecord> {
+    await this.access(userId, tripId);
+    await this.requireItem(tripId, itemId);
+    return this.repositories.planItems.update(itemId, { status });
+  }
+
+  async removePlanItem(userId: string, tripId: string, itemId: string): Promise<void> {
+    await this.access(userId, tripId);
+    await this.requireItem(tripId, itemId);
+    await this.repositories.planItems.delete(itemId);
+  }
+
+  /**
+   * Save a partner offer to a trip as an idea.
+   *
+   * Always `idea`. We cannot see what happens on the partner's site, so a click
+   * is not a booking and nothing here promotes it to one; the traveller marks
+   * it booked themselves. The title and link come from the registry, never from
+   * the request.
+   */
+  async addPartnerOfferToPlan(
+    userId: string,
+    tripId: string,
+    offerId: string,
+    offers: readonly PartnerOffer[] = PARTNER_OFFERS,
+  ): Promise<PlanItemRecord> {
+    await this.access(userId, tripId);
+
+    const offer = offers.find((candidate) => candidate.id === offerId);
+    if (!offer) {
+      throw new AppError('NOT_FOUND', `No partner offer ${offerId}`, {
+        publicMessage: 'That offer is no longer available.',
+      });
+    }
+
+    return this.repositories.planItems.create({
+      tripId,
+      kind: CATEGORY_TO_KIND[offer.category] ?? 'other',
+      title: `${offer.partner}: ${offer.description}`.slice(0, 140),
+      date: null,
+      startsAt: null,
+      price: null,
+      partnerOfferId: offer.id,
+      outboundUrl: offer.url,
+      status: 'idea',
+    });
+  }
+
+  private async requireItem(tripId: string, itemId: string): Promise<PlanItemRecord> {
+    const item = await this.repositories.planItems.findById(itemId);
+    // An item of another trip is "not found" here: the id is only a claim.
+    if (!item || item.tripId !== tripId) {
+      throw new AppError('NOT_FOUND', 'Plan item not found', {
+        publicMessage: 'That item could not be found.',
+      });
+    }
+    return item;
+  }
+
+  // --- Expenses ----------------------------------------------------------------
+
+  async addExpense(
+    userId: string,
+    tripId: string,
+    input: ExpenseFormInput,
+  ): Promise<TripExpenseRecord> {
+    const { members } = await this.access(userId, tripId);
+    const known = new Set(members.map((member) => member.id));
+
+    const candidate = { id: 'new', ...input };
+    try {
+      validateExpense(candidate);
+    } catch (error) {
+      if (error instanceof ExpenseError) {
+        throw new AppError('VALIDATION_ERROR', error.message, { publicMessage: error.message });
+      }
+      throw error;
+    }
+
+    const named = [input.paidBy, ...splitMembers(candidate)];
+    if (named.some((id) => !known.has(id))) {
+      throw new AppError('VALIDATION_ERROR', 'Expense names someone outside the trip', {
+        publicMessage: 'Everyone in an expense must be on the trip.',
+      });
+    }
+
+    return this.repositories.tripExpenses.create({ tripId, ...input });
+  }
+
+  async removeExpense(userId: string, tripId: string, expenseId: string): Promise<void> {
+    await this.access(userId, tripId);
+    const expense = await this.repositories.tripExpenses.findById(expenseId);
+    if (!expense || expense.tripId !== tripId) {
+      throw new AppError('NOT_FOUND', 'Expense not found', {
+        publicMessage: 'That expense could not be found.',
+      });
+    }
+    await this.repositories.tripExpenses.delete(expenseId);
+  }
+
+  /** Every figure on the Expenses tab comes from here, which comes from `src/core/expenses`. */
+  async ledger(userId: string, tripId: string): Promise<Ledger> {
+    const { members } = await this.access(userId, tripId);
+    const expenses = await this.repositories.tripExpenses.listByTrip(tripId);
+    const people = members.map((member) => ({ id: member.id, name: member.name }));
+    const groups = balances(people, expenses);
+
+    return {
+      expenses,
+      members: people,
+      balances: groups,
+      settlements: groups.map((group) => ({
+        currency: group.currency,
+        transfers: settleUp(group),
+      })),
+    };
+  }
+
+  // --- Emergency contacts -----------------------------------------------------
+
+  /**
+   * The viewer's own contacts, and only on a trip they sit on.
+   *
+   * Contacts belong to one person, not to a trip. Another member of the trip
+   * does not see them: being on the same trip is not consent to share a
+   * parent's phone number.
+   */
+  async contactsFor(userId: string, tripId: string): Promise<EmergencyContactRecord[]> {
+    await this.access(userId, tripId);
+    return this.repositories.emergencyContacts.listByUser(userId);
+  }
+
+  addContact(userId: string, input: ContactFormInput): Promise<EmergencyContactRecord> {
+    return this.repositories.emergencyContacts.create({ userId, ...input });
+  }
+
+  async removeContact(userId: string, contactId: string): Promise<void> {
+    const contact = await this.repositories.emergencyContacts.findById(contactId);
+    // Not yours is not found, and nothing is deleted.
+    if (!contact || contact.userId !== userId) return;
+    await this.repositories.emergencyContacts.delete(contactId);
+  }
+}
+
+function splitMembers(expense: { split: TripExpenseRecord['split'] }): string[] {
+  const { split } = expense;
+  switch (split.kind) {
+    case 'equal':
+      return [...split.memberIds];
+    case 'shares':
+      return split.weights.map((entry) => entry.memberId);
+    case 'exact':
+      return split.amounts.map((entry) => entry.memberId);
+  }
+}

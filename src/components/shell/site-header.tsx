@@ -36,6 +36,7 @@ const PRIMARY = [
   // site that only offers flights until you find a link is a flight site.
   { href: '/stays', label: 'Stays' },
   { href: '/watches', label: 'Watches' },
+  { href: '/trips', label: 'Trips' },
 ] as const;
 
 export interface SiteHeaderProps {
