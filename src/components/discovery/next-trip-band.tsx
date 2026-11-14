@@ -1,5 +1,5 @@
 import { format } from '@/core/money';
-import { Button, Container, Icon, Media, ProvenanceBreakdown } from '@/components/ui';
+import { Button, Container, Icon, Media } from '@/components/ui';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { imageryUrlFor } from '@/providers/imagery/url';
@@ -83,8 +83,6 @@ export function NextTripBand({
   wide,
   tall,
   exploreHref,
-  provenance,
-  sources = [],
 }: NextTripBandProps) {
   return (
     <section
@@ -189,11 +187,6 @@ export function NextTripBand({
                 </ul>
 
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-                  <ProvenanceBreakdown
-                    sources={sources}
-                    provenance={provenance}
-                    className="flex flex-wrap gap-1"
-                  />
                   <a
                     href={tripHref}
                     className="text-stage-ink hover:text-stage-accent ease-standard duration-quick inline-flex items-center gap-1.5 text-sm font-medium transition-colors"

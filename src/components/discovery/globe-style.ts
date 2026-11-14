@@ -788,6 +788,9 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
         id: 'city-lights-bloom',
         type: 'circle',
         source: 'city-lights',
+        // Nothing above 78 degrees: the composite's top rows are glare, and a row of
+        // 'lights' at one latitude is a glowing ring round the pole.
+        filter: ['<', ['abs', ['get', 'lat']], 78],
         paint: {
           'circle-color': lightColour(colors),
           'circle-radius': ['interpolate', ['linear'], ['get', 'i'], 0, 2, 1, 6],
@@ -801,6 +804,9 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
         id: 'city-lights',
         type: 'circle',
         source: 'city-lights',
+        // Nothing above 78 degrees: the composite's top rows are glare, and a row of
+        // 'lights' at one latitude is a glowing ring round the pole.
+        filter: ['<', ['abs', ['get', 'lat']], 78],
         paint: {
           'circle-color': lightColour(colors),
           'circle-radius': ['interpolate', ['linear'], ['get', 'i'], 0, 0.6, 1, 2],
@@ -838,12 +844,13 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
         source: 'places',
         filter: ['==', ['get', 'kind'], 'airport'],
         paint: {
-          'circle-color': colors.accent,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 3.4, 1.4, 6, 2.6, 9, 3.6],
-          'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3.4, 0, 4.4, 0.85],
-          'circle-stroke-color': colors.night,
-          'circle-stroke-width': 0.6,
-          'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3.4, 0, 4.4, 0.6],
+          // Real places, preloaded: small dim dots from the first frame, so the
+          // globe shows somewhere to go on every side before any price arrives.
+          // A priced place wears a pin instead (the stage filters those out).
+          'circle-color': colors.chip,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1.1, 3.4, 1.6, 6, 2.6, 9, 3.6],
+          'circle-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 3.4, 0.6, 4.4, 0.85],
+          'circle-stroke-width': 0,
         },
       },
       {

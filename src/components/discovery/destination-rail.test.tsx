@@ -89,7 +89,7 @@ describe('DestinationRail', () => {
     ).toBeInTheDocument();
   });
 
-  it('puts the provenance beside the price and explains the ranking', () => {
+  it('shows the price with its "from" and explains the ranking, with no badge on the card', () => {
     render(<DestinationRail cards={[card()]} totalCount={1} mode="cheapest" provenance="mock" />);
 
     // The prefix and the figure are separate elements so "from" can sit back
@@ -100,7 +100,9 @@ describe('DestinationRail', () => {
         (_, element) => element?.textContent === 'from EUR 401.00' && element.tagName === 'SPAN',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Demo data')).toBeInTheDocument();
+    // The owner asked for the per-card badge to go; honesty is in the words
+    // around the cards ("from", the line under the hero, the updated-ago line).
+    expect(screen.queryByText('Demo data')).not.toBeInTheDocument();
     expect(screen.getByText('Cheapest trip found here, all in.')).toBeInTheDocument();
   });
 

@@ -134,3 +134,20 @@ describe('arc lift', () => {
     expect(run!.lift).toBeLessThanOrEqual(0.08 + 1e-9);
   });
 });
+
+describe('toArcRuns without bundling', () => {
+  it('draws a nearby destination as its own whole arc from the home airport', () => {
+    const runs = toArcRuns(
+      collection(route('VIE', 'JFK', VIE, JFK, 0), route('VIE', 'BOS', VIE, BOS, 1)),
+      30,
+      { bundle: false },
+    );
+
+    expect(runs.some((run) => run.key.endsWith('-branch'))).toBe(false);
+    const own = runs.find((run) => run.key.startsWith('BOS-'));
+    expect(own).toBeDefined();
+    // One run from the airport to the destination, with no corner in it.
+    expect(own!.points[0]).toEqual(VIE);
+    expect(own!.points[own!.points.length - 1]).toEqual(BOS);
+  });
+});

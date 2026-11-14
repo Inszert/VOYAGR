@@ -756,7 +756,7 @@ function BarSearch({
 
           {/* The bar itself. 64px on a desktop. */}
           <div className="flex shrink-0 flex-col lg:h-16 lg:flex-row lg:items-center lg:pr-2.5">
-            <div className="relative flex min-w-0 flex-col lg:grid lg:flex-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,2.6fr)_minmax(0,0.9fr)] lg:items-center">
+            <div className="relative flex min-w-0 flex-col lg:grid lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2.35fr)_minmax(0,1.15fr)] lg:items-center">
               <div className={cell}>
                 <AirportInput
                   label="From"
@@ -818,7 +818,7 @@ function BarSearch({
               <SwapEndpoints
                 from="origins"
                 to="destinations"
-                className="bg-field border-hairline text-muted hover:text-text focus-visible:outline-accent-ink ease-standard duration-quick absolute top-1/2 left-[19.3%] z-10 hidden size-[30px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition-colors lg:grid"
+                className="bg-field border-hairline text-muted hover:text-text focus-visible:outline-accent-ink ease-standard duration-quick absolute top-1/2 left-[18.6%] z-10 hidden size-[30px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition-colors lg:grid"
               />
             </div>
 

@@ -993,9 +993,9 @@
       circle at 50% 50%,
       transparent 0%,
       transparent 90%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 14%, transparent) 95%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 46%, transparent) 99%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 78%, transparent) 100%
+      color-mix(in oklab, var(--color-stage-atmosphere) 18%, transparent) 95%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 58%, transparent) 99%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 97%, transparent) 100%
     );
     /*
      * A bright electric-blue rim hugging the limb, and a soft halo about six
@@ -1005,9 +1005,9 @@
      */
     box-shadow:
       0 0 calc(var(--globe-diameter, 0px) * 0.014) calc(var(--globe-diameter, 0px) * 0.002)
-        color-mix(in oklab, var(--color-stage-atmosphere) 80%, transparent),
+        color-mix(in oklab, var(--color-stage-atmosphere) 100%, transparent),
       0 0 calc(var(--globe-diameter, 0px) * 0.06) calc(var(--globe-diameter, 0px) * 0.01)
-        color-mix(in oklab, var(--color-stage-atmosphere) 38%, transparent),
+        color-mix(in oklab, var(--color-stage-atmosphere) 48%, transparent),
       0 0 calc(var(--globe-diameter, 0px) * 0.2) calc(var(--globe-diameter, 0px) * 0.02)
         color-mix(in oklab, var(--color-stage-atmosphere-outer) 14%, transparent);
     mix-blend-mode: screen;
@@ -1026,9 +1026,9 @@
       circle at 50% 50%,
       transparent 0%,
       transparent 90%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 8%, transparent) 95%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 24%, transparent) 99%,
-      color-mix(in oklab, var(--color-stage-atmosphere) 40%, transparent) 100%
+      color-mix(in oklab, var(--color-stage-atmosphere) 10%, transparent) 95%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 30%, transparent) 99%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 50%, transparent) 100%
     );
     box-shadow: 0 0 calc(var(--globe-diameter, 0px) * 0.03) calc(var(--globe-diameter, 0px) * 0.006)
       color-mix(in oklab, var(--color-stage-atmosphere) 40%, transparent);

@@ -11,7 +11,9 @@ import {
   changedPins,
   cubicBezier,
   heroDiameter,
+  insideBox,
   labelFlips,
+  labelShown,
   labelLimit,
   arcTargetOpacity,
   spinFactor,
@@ -108,6 +110,37 @@ describe('labelFlips', () => {
 
   it('measures against the viewport when the box is wider than it', () => {
     expect(labelFlips({ ...base, boxRight: 600, anchorX: 300 })).toBe(true);
+  });
+});
+
+describe('labelFlips away from the arc', () => {
+  const base = { boxLeft: 0, boxRight: 1000, viewportWidth: 1000, labelWidth: 120 };
+
+  it('goes to the left of the pin when the home airport is to its right', () => {
+    expect(labelFlips({ ...base, anchorX: 500, preferLeft: true })).toBe(true);
+  });
+
+  it('still stays on the right when there is no room on the left', () => {
+    expect(labelFlips({ ...base, anchorX: 60, preferLeft: true })).toBe(false);
+  });
+});
+
+describe('labelShown', () => {
+  it('is all or nothing', () => {
+    expect(labelShown(0.9)).toBe(true);
+    expect(labelShown(0.25)).toBe(true);
+    expect(labelShown(0.249)).toBe(false);
+    expect(labelShown(-1)).toBe(false);
+  });
+});
+
+describe('insideBox', () => {
+  const stage = { left: 0, right: 100, top: 0, bottom: 100 };
+
+  it('is true only when the whole box is inside', () => {
+    expect(insideBox({ left: 10, right: 50, top: 10, bottom: 40 }, stage)).toBe(true);
+    expect(insideBox({ left: 10, right: 50, top: 80, bottom: 101 }, stage)).toBe(false);
+    expect(insideBox({ left: -1, right: 50, top: 10, bottom: 40 }, stage)).toBe(false);
   });
 });
 

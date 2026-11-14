@@ -1,4 +1,4 @@
-import { Icon, ProvenanceBreakdown } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import { initials } from './initials';
 
@@ -86,11 +86,12 @@ export function HeroThumb({
 
 export interface HeroRailProps {
   items: readonly HeroRailItem[];
-  provenance: DataProvenance;
+  /** Kept so callers need not change; no badge is drawn from it. */
+  provenance?: DataProvenance;
   sources?: readonly SourceAttribution[];
 }
 
-export function HeroRail({ items, provenance, sources = [] }: HeroRailProps) {
+export function HeroRail({ items }: HeroRailProps) {
   if (items.length === 0) return null;
 
   return (
@@ -99,17 +100,6 @@ export function HeroRail({ items, provenance, sources = [] }: HeroRailProps) {
         <h2 id="hero-rail-heading" className="font-display text-display-sm text-stage-ink">
           Live destinations
         </h2>
-
-        {/* Said here, once, for a real source; a demo's is in the line below. */}
-        {provenance === 'mock' ? null : (
-          <ProvenanceBreakdown
-            compact
-            sources={sources}
-            provenance={provenance}
-            className="flex flex-col gap-0.5"
-            badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
-          />
-        )}
       </div>
 
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">

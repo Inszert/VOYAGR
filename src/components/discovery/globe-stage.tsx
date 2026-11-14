@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, Marker } from 'maplibre-gl';
 import { cn } from '@/lib/cn';
-import { Icon, ProvenanceBreakdown } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import { bandFor, sunLatitude, type SurfaceKind } from '@/discovery/seasons';
 import { SKY_LABEL, type SkyCondition } from '@/discovery/sky-condition';
@@ -28,9 +28,9 @@ import {
   type SunPosition,
 } from '@/discovery/terminator';
 import { GLOBE_TEXTURES } from './globe-textures';
+import { restingCentre } from './globe-camera';
 import {
   facing,
-  limbFade,
   pointAt,
   projectArc,
   readSphere,
@@ -56,8 +56,10 @@ import {
   arcLightOpacity,
   ARC_FADE_MS,
   arcTargetOpacity,
+  insideBox,
   labelFlips,
   labelLimit,
+  labelShown,
   changedPins,
   heroDiameter,
   WIDE_MIN_WIDTH,
@@ -290,7 +292,7 @@ function stagePadding(width: number): { top: number; right: number; bottom: numb
     top: 0,
     right: 0,
     bottom: 0,
-    left: width >= WIDE_MIN_WIDTH ? Math.round(width * 0.32) : 0,
+    left: width >= WIDE_MIN_WIDTH ? Math.round(width * 0.36) : 0,
   };
 }
 
@@ -396,6 +398,7 @@ function overview(
   origins: readonly StageOrigin[],
   chips: readonly StageChip[],
   stage = false,
+  seasonDate?: string,
 ): { center: [number, number]; zoom: number } {
   const anchor = origins[0]?.position ?? chips[0]?.position ?? [16, 40];
   /*
@@ -426,8 +429,21 @@ function overview(
    */
   const zoom = Math.log2((side * 1.02) / (512 / Math.PI));
 
+  /*
+   * On the front page the opening view is turned towards the sun where that
+   * can be done without losing the home airport (see `globe-camera.ts`). The
+   * terminator itself is the real one; only which half is on screen is chosen.
+   */
+  const center: [number, number] =
+    stage && seasonDate
+      ? restingCentre({
+          home: { lng: anchor[0], lat: anchor[1] },
+          sun: sunPosition(seasonDate as Parameters<typeof sunPosition>[0], minutesIntoUtcDay()),
+        })
+      : [anchor[0], Math.max(-30, Math.min(30, anchor[1] - 12))];
+
   return {
-    center: [anchor[0], Math.max(-30, Math.min(30, anchor[1] - 12))],
+    center,
     zoom: Math.max(-1, Math.min(zoom, stage ? 3 : 2.6)),
   };
 }
@@ -454,7 +470,6 @@ export function GlobeStage({
   seasonDate,
   regionsUrl,
   provenance,
-  sources = [],
   countryCounts,
   selectedCountry,
   navigation,
@@ -1005,6 +1020,13 @@ export function GlobeStage({
           const view = { lng: centre.lng, lat: centre.lat } as SphereFrame;
           let shown = 0;
 
+          // Which side the home airport is on, so a label can stand away from its arc.
+          const homeAt = origins[0]
+            ? map.project([...origins[0].position] as [number, number])
+            : null;
+          const homeX = homeAt ? box.left + homeAt.x : null;
+          const stageBox = (element.closest('[data-hero]') ?? element).getBoundingClientRect();
+
           for (const [, marker] of ordered) {
             const chipElement = marker.getElement();
 
@@ -1020,13 +1042,11 @@ export function GlobeStage({
              * it is gone it takes no part in the collision pass.
              */
             const at = marker.getLngLat();
-            const fade = limbFade(facing(at.lng, at.lat, view));
+            const cosine = facing(at.lng, at.lat, view);
             const face = chipElement.firstElementChild as HTMLElement | null;
-            if (face) {
-              const value = fade.toFixed(2);
-              if (face.style.opacity !== value) face.style.opacity = value;
-            }
-            if (fade < 0.05) {
+            // All or nothing: a label is fully there or it is hidden.
+            if (face && face.style.opacity !== '') face.style.opacity = '';
+            if (!labelShown(cosine)) {
               setCollided(chipElement, true);
               continue;
             }
@@ -1053,6 +1073,7 @@ export function GlobeStage({
                   boxLeft: box.left,
                   boxRight: box.right,
                   viewportWidth: window.innerWidth,
+                  preferLeft: homeX !== null && homeX > anchor,
                 })
               : anchor > box.left + box.width * 0.6;
 
@@ -1072,6 +1093,18 @@ export function GlobeStage({
              * beside the globe still lists it.
              */
             if (rect.left < box.left - 8) {
+              setCollided(chipElement, true);
+              continue;
+            }
+
+            // A label cut by the edge of the stage is hidden, not shown cut.
+            if (
+              stage &&
+              !insideBox(rect, {
+                ...stageBox.toJSON(),
+                right: Math.min(stageBox.right, window.innerWidth),
+              })
+            ) {
               setCollided(chipElement, true);
               continue;
             }
@@ -1147,7 +1180,7 @@ export function GlobeStage({
           // below, which runs as soon as this sets `ready`. Only the opening
           // view belongs here, because it needs the container's real size.
           if (variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
-          map.jumpTo(overview(element, origins, initial.chips, variant === 'stage'));
+          map.jumpTo(overview(element, origins, initial.chips, variant === 'stage', seasonDate));
 
           /*
            * Follows the box.
@@ -1170,7 +1203,13 @@ export function GlobeStage({
               map.resize();
               if (variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
 
-              const fitted = overview(element, origins, latest.current.chips, variant === 'stage');
+              const fitted = overview(
+                element,
+                origins,
+                latest.current.chips,
+                variant === 'stage',
+                seasonDate,
+              );
               if (Math.abs(map.getZoom() - restingZoom) < 0.05) {
                 map.jumpTo({ zoom: fitted.zoom });
                 restingZoom = fitted.zoom;
@@ -1483,8 +1522,14 @@ export function GlobeStage({
     if (!map || !root || !svg || status !== 'ready') return;
 
     const NS = 'http://www.w3.org/2000/svg';
-    // Best-ranked last in the list, so the six that survive are the six best.
-    const runs = toArcRuns(routes).slice(-MAX_ARCS);
+    /*
+     * Every route, each as one smooth curve from the home airport.
+     *
+     * No bundling (a near destination drawn as a hop off another arc has a
+     * corner in it). Which six are shown is decided every pass, from what is
+     * on the near side: the six best-ranked of the routes you can see.
+     */
+    const runs = toArcRuns(routes, 30, { bundle: false });
     const moving = !prefersReducedMotion();
 
     /*
@@ -1510,7 +1555,8 @@ export function GlobeStage({
       const group = document.createElementNS(NS, 'g');
       const glow = document.createElementNS(NS, 'path');
       const line = document.createElementNS(NS, 'path');
-      const ends = [0, 1].map(() => {
+      const destination = run.points[run.points.length - 1]!;
+      const dest = (() => {
         const halo = document.createElementNS(NS, 'circle');
         const core = document.createElementNS(NS, 'circle');
         for (const circle of [halo, core]) circle.setAttribute('fill', 'var(--color-stage-arc)');
@@ -1518,8 +1564,9 @@ export function GlobeStage({
         halo.setAttribute('fill-opacity', '0.28');
         core.setAttribute('r', '2.6');
         core.setAttribute('fill-opacity', '1');
+        core.setAttribute('data-lnglat', `${destination[0]},${destination[1]}`);
         return { halo, core };
-      });
+      })();
       // One light per route: 6px across, travelling the arc once per 4s.
       const light = moving ? document.createElementNS(NS, 'circle') : null;
 
@@ -1544,7 +1591,7 @@ export function GlobeStage({
       line.setAttribute('stroke-opacity', '0.7');
 
       group.append(glow, line);
-      for (const { halo, core } of ends) group.append(halo, core);
+      group.append(dest.halo, dest.core);
 
       if (light) {
         light.setAttribute('r', '3');
@@ -1565,12 +1612,32 @@ export function GlobeStage({
         glow,
         line,
         light,
-        ends,
+        dest,
+        allowed: false,
         shown: 1,
         written: -1,
         drawnAt: null as number | null,
       };
     });
+
+    /*
+     * One shared, brighter node at the home airport. Every route leaves from
+     * the same place, so it is drawn once rather than once per arc.
+     */
+    const home = (() => {
+      const halo = document.createElementNS(NS, 'circle');
+      const core = document.createElementNS(NS, 'circle');
+      for (const circle of [halo, core]) circle.setAttribute('fill', 'var(--color-stage-arc)');
+      halo.setAttribute('r', '11');
+      halo.setAttribute('fill-opacity', '0.34');
+      core.setAttribute('r', '3.6');
+      core.setAttribute('fill', '#ffffff');
+      const first = runs[0]?.points[0];
+      if (first) core.setAttribute('data-lnglat', `${first[0]},${first[1]}`);
+      for (const circle of [halo, core]) circle.setAttribute('visibility', 'hidden');
+      svg.append(halo, core);
+      return { halo, core };
+    })();
 
     /** Starts a route's 900ms draw the first time it has a path to draw. */
     const startDraw = (entry: (typeof drawn)[number], index: number, now: number) => {
@@ -1593,7 +1660,7 @@ export function GlobeStage({
     };
 
     let frame = 0;
-    let last = 0;
+    let lastDraw = -1;
     let signature = '';
     // Whether the ground-track layers are currently hidden. Starts unknown so
     // the first frame always writes it.
@@ -1623,6 +1690,8 @@ export function GlobeStage({
       // A hidden tab still gets frames in some engines, and projecting a
       // planet nobody is looking at is the definition of wasted battery.
       if (document.hidden) return;
+      // The map's own render already did this frame's pass.
+      if (lastDraw >= 0 && now - lastDraw < 4) return;
 
       try {
         draw(now);
@@ -1650,9 +1719,11 @@ export function GlobeStage({
        * is two multiplies, and doing that every frame is the difference
        * between traffic and a strobe.
        */
-      const heavy = now - last >= 40;
-      if (!heavy && (!moving || signature === '')) return;
-      if (heavy) last = now;
+      lastDraw = now;
+      // Every call is a full pass: the projection runs inside MapLibre's own
+      // `render` event, in the frame the map moved in, so the strings cannot
+      // lag the planet. The signature below is what keeps a still globe free.
+      const heavy = true;
 
       const globe = projection === 'globe';
       const sphere = readSphere(map, globe);
@@ -1697,18 +1768,6 @@ export function GlobeStage({
       if (sphere.shown === 0) return;
 
       /*
-       * Nothing is projected until the globe has finished arriving.
-       *
-       * The same rule the weather follows, for the same reason: opening a
-       * country adds a megabyte of finer coastline and that country's own
-       * regions, and a projection pass every frame competes with the work
-       * that settles the style. On a throttled phone that showed up as
-       * detail taking seconds longer to appear. Decoration waits for the
-       * map, never the other way round.
-       */
-      if (!map.isStyleLoaded()) return;
-
-      /*
        * The projection is only redone when the view has moved.
        *
        * The centre and the zoom are the whole of what decides where a point
@@ -1744,17 +1803,15 @@ export function GlobeStage({
         }
 
         for (const entry of drawn) {
-          const { run, glow, line, ends } = entry;
+          const { run, glow, line, dest } = entry;
           const arc = projectArc(map, run, sphere);
 
           if (!arc) {
             arcs.delete(run.key);
             glow.removeAttribute('d');
             line.removeAttribute('d');
-            for (const { halo, core } of ends) {
-              halo.setAttribute('visibility', 'hidden');
-              core.setAttribute('visibility', 'hidden');
-            }
+            dest.halo.setAttribute('visibility', 'hidden');
+            dest.core.setAttribute('visibility', 'hidden');
             continue;
           }
 
@@ -1762,19 +1819,36 @@ export function GlobeStage({
           glow.setAttribute('d', arc.d);
           line.setAttribute('d', arc.d);
 
-          const first = arc.points[0]!;
           const last = arc.points[arc.points.length - 1]!;
-          for (const [which, { halo, core }] of ends.entries()) {
-            const at = which === 0 ? first : last;
-            const visible = which === 0 ? arc.startVisible : arc.endVisible;
-            for (const circle of [halo, core]) {
-              circle.setAttribute('cx', at.x.toFixed(1));
-              circle.setAttribute('cy', at.y.toFixed(1));
-              circle.setAttribute('visibility', visible ? 'visible' : 'hidden');
-            }
+          for (const circle of [dest.halo, dest.core]) {
+            circle.setAttribute('cx', last.x.toFixed(1));
+            circle.setAttribute('cy', last.y.toFixed(1));
+            circle.setAttribute('visibility', arc.endVisible ? 'visible' : 'hidden');
           }
+        }
 
-          startDraw(entry, drawn.indexOf(entry), now);
+        /*
+         * Which six: the best-ranked of the routes whose far end is on the
+         * near side. A route that turns away is replaced by the next one
+         * round, rather than the globe thinning out as it turns.
+         */
+        const shown = drawn
+          .filter((entry) => (arcs.get(entry.run.key)?.fade ?? 0) > 0)
+          .sort((a, b) => a.run.rank - b.run.rank)
+          .slice(0, MAX_ARCS);
+
+        for (const entry of drawn) entry.allowed = shown.includes(entry);
+        for (const [index, entry] of shown.entries()) startDraw(entry, index, now);
+
+        // The shared home node, on whichever shown arc leaves the planet's face.
+        const lead = shown.find((entry) => arcs.get(entry.run.key)?.startVisible);
+        const leadArc = lead ? arcs.get(lead.run.key) : undefined;
+        for (const circle of [home.halo, home.core]) {
+          if (leadArc) {
+            circle.setAttribute('cx', leadArc.points[0]!.x.toFixed(1));
+            circle.setAttribute('cy', leadArc.points[0]!.y.toFixed(1));
+          }
+          circle.setAttribute('visibility', leadArc ? 'visible' : 'hidden');
         }
       }
 
@@ -1790,7 +1864,9 @@ export function GlobeStage({
       previousFrame = now;
 
       for (const entry of drawn) {
-        const target = arcTargetOpacity(keys, entry.run.key, focusedRef.current);
+        const target = entry.allowed
+          ? arcTargetOpacity(keys, entry.run.key, focusedRef.current)
+          : 0;
         entry.shown = moving
           ? entry.shown +
             Math.sign(target - entry.shown) *
@@ -1849,10 +1925,33 @@ export function GlobeStage({
       frame = window.requestAnimationFrame(step);
     }, 800);
 
+    /*
+     * Re-projected in the frame the map moved in.
+     *
+     * Dragging used to look like the strings trailing the planet because they
+     * were redone on a 40ms timer, a frame or two behind the canvas. MapLibre's
+     * `render` fires as each frame is drawn, and this runs synchronously inside
+     * it, so the SVG and the canvas are updated in the same task and painted
+     * together. The animation loop above still runs for the lights, and skips
+     * a frame this has already done.
+     */
+    const onRender = () => {
+      if (document.hidden) return;
+      try {
+        draw(performance.now());
+      } catch {
+        // A dropped frame, as in `step`.
+      }
+    };
+    map.on('render', onRender);
+
     return () => {
       window.clearTimeout(begin);
       window.cancelAnimationFrame(frame);
+      map.off('render', onRender);
       for (const { group } of drawn) group.remove();
+      home.halo.remove();
+      home.core.remove();
     };
   }, [routes, status, projection]);
 
@@ -1918,7 +2017,7 @@ export function GlobeStage({
       });
     } else if (!selectedCountry) {
       map.easeTo({
-        ...overview(map.getContainer(), origins, chips, stage),
+        ...overview(map.getContainer(), origins, chips, stage, seasonDate),
         pitch: 0,
         duration: prefersReducedMotion() ? 0 : 600,
       });
@@ -1931,6 +2030,54 @@ export function GlobeStage({
   /* ------------------------------------------------------------------ */
   /* Data updates, in place.                                             */
   /* ------------------------------------------------------------------ */
+  /*
+   * A place with a price wears a pin; every other place is a dim dot.
+   *
+   * The dots are a MapLibre circle layer, which costs paint and no DOM, so
+   * hundreds of them are free. A destination that has a pin is taken out of
+   * the dots so the two are never drawn on top of each other.
+   */
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready' || !map.getLayer('airport-dots')) return;
+
+    map.setFilter('airport-dots', [
+      'all',
+      ['==', ['get', 'kind'], 'airport'],
+      ['!', ['in', ['get', 'iata'], ['literal', chips.map((chip) => chip.destination)]]],
+    ] as never);
+  }, [chips, status]);
+
+  /*
+   * A new home airport eases the camera to it; it never snaps.
+   *
+   * Changing where you are leaving from used to leave the planet looking at
+   * the old airport until something else moved it. Not on the first view, and
+   * not while a country or a pin owns the camera.
+   */
+  const homeCode = origins[0]?.code ?? null;
+  const previousHome = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+
+    if (
+      previousHome.current !== null &&
+      previousHome.current !== homeCode &&
+      !selectedCountry &&
+      !flownRef.current
+    ) {
+      map.easeTo({
+        ...overview(map.getContainer(), origins, chips, stage, seasonDate),
+        duration: prefersReducedMotion() ? 0 : 1200,
+        easing: EASE_OUT_EXPO,
+      });
+    }
+    previousHome.current = homeCode;
+    // Only a change of airport moves the camera; the rest is read when it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeCode, status]);
+
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready') return;
@@ -2418,7 +2565,13 @@ export function GlobeStage({
 
       flownRef.current = true;
       focusedRef.current = code ?? null;
-      const resting = overview(map.getContainer(), origins, latest.current.chips, stage);
+      const resting = overview(
+        map.getContainer(),
+        origins,
+        latest.current.chips,
+        stage,
+        seasonDate,
+      );
 
       map.easeTo({
         center: [chip.position[0], chip.position[1]],
@@ -2433,7 +2586,9 @@ export function GlobeStage({
       if (!flownRef.current) return;
       flownRef.current = false;
       focusedRef.current = null;
-      map.easeTo(returnTo(overview(map.getContainer(), origins, latest.current.chips, stage)));
+      map.easeTo(
+        returnTo(overview(map.getContainer(), origins, latest.current.chips, stage, seasonDate)),
+      );
     };
 
     window.addEventListener(GLOBE_FOCUS_EVENT, onFocus);
@@ -2443,7 +2598,7 @@ export function GlobeStage({
       window.removeEventListener(GLOBE_FOCUS_EVENT, onFocus);
       window.removeEventListener(GLOBE_RELEASE_EVENT, onRelease);
     };
-  }, [status, origins, stage]);
+  }, [status, origins, stage, seasonDate]);
 
   /*
    * A pin whose price changed since you last looked pulses once.
@@ -2517,11 +2672,11 @@ export function GlobeStage({
         );
       }
     } else if (previous) {
-      map.easeTo(returnTo(overview(map.getContainer(), origins, chips, stage)));
+      map.easeTo(returnTo(overview(map.getContainer(), origins, chips, stage, seasonDate)));
     }
 
     selectedRef.current = nextKey;
-  }, [selectedCountry, status, chips, origins, stage]);
+  }, [selectedCountry, status, chips, origins, stage, seasonDate]);
 
   /*
    * The states and provinces of the open country.
@@ -2619,7 +2774,7 @@ export function GlobeStage({
     const map = mapRef.current;
     if (!map) return;
     flownRef.current = false;
-    map.easeTo(returnTo(overview(map.getContainer(), origins, chips, stage)));
+    map.easeTo(returnTo(overview(map.getContainer(), origins, chips, stage, seasonDate)));
   };
 
   /** Every control on the globe wears the same pane of glass. */
@@ -2855,24 +3010,12 @@ export function GlobeStage({
                 <span className="flex items-center gap-1.5 text-[14px] leading-tight text-white">
                   <span className="tabular-nums">{chip.label}</span>
                   {/*
-                    Said once on the page, not on every pin.
-
-                    A demo price carries its provenance in the line under the
-                    hero, and a long tag on each of sixteen pins made the globe
-                    unreadable. A real source keeps its badge here, exactly as
-                    before, and a demo pin still says so to a screen reader.
+                    No badge on a pin. Honesty is in the words around the
+                    globe: "from" in front of every price, the line under the
+                    hero, and the updated-ago line. A demo pin still says so
+                    to a screen reader.
                   */}
-                  {provenance === 'mock' ? (
-                    <span className="sr-only"> (demo data)</span>
-                  ) : (
-                    <ProvenanceBreakdown
-                      compact
-                      sources={sources}
-                      provenance={provenance}
-                      className="flex flex-col gap-0.5"
-                      badgeClassName="voyagr-demo text-dim bg-white/5 backdrop-blur-sm"
-                    />
-                  )}
+                  {provenance === 'mock' ? <span className="sr-only"> (demo data)</span> : null}
                 </span>
               ) : null}
             </span>

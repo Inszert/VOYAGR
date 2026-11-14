@@ -389,6 +389,27 @@ everything it computes.
   snow bands are hidden under it, so the polar caps are NASA's, not the
   selected date's.
 
+## The sixth pass: strings, camera and places
+
+- **Arcs are re-projected inside MapLibre's `render` event**, in the frame the
+  map moved in, so the SVG and the canvas paint together. They were redone on
+  a 40ms timer, which read as the strings trailing the planet while dragging.
+- **One smooth curve per route.** The hero turns bundling off
+  (`toArcRuns(routes, 30, { bundle: false })`): a nearby destination used to be
+  drawn as a branch off another arc, which has a corner in it. Six routes show
+  at once - the six best-ranked whose far end is on the near side - from one
+  shared home node.
+- **Opening camera.** `globe-camera.ts` turns the planet towards the real sun
+  along the longitude, as far as keeps the home airport within 55 degrees of
+  the middle, when that makes most of the visible disc daylit. The terminator
+  is still the real one; when the home airport is in night the view stays on it.
+- **Preloaded places.** The 367 airports already in `places.v2.json` are drawn
+  as dim dots from the first frame, a circle layer with no DOM cost. A place
+  with a price wears a pin instead. Each dot has a visually hidden link
+  ("See prices for ...") that opens the search with that airport filled in.
+  There is no city or country name on them yet: the file carries the airport's
+  name only.
+
 ## What the map does not claim
 
 Section 13 asks for transport filters: flights, trains, buses, cars, ferries, mixed. Only flights

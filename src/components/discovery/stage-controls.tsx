@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import { COUNTRIES, type Country } from '@/discovery/countries';
 import { MAP_MODES, MAP_MODE_LABELS, type MapMode } from '@/discovery/map-model';
@@ -61,8 +62,9 @@ export function StageControls({
         <ul className="-mx-1 flex [scrollbar-width:none] gap-1.5 overflow-x-auto [mask-image:linear-gradient(to_right,black_94%,transparent)] px-1 py-1">
           {MAP_MODES.map((option) => (
             <li key={option} className="shrink-0">
-              <a
+              <Link
                 href={modeHref(option)}
+                scroll={false}
                 aria-current={option === mode ? 'true' : undefined}
                 className={[
                   'ease-standard duration-quick inline-flex rounded-(--radius-pill) px-3 py-1.5 text-[13px] transition-colors',
@@ -71,7 +73,7 @@ export function StageControls({
                 ].join(' ')}
               >
                 {MAP_MODE_LABELS[option]}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>

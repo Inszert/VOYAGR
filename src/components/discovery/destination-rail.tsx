@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { Container, Icon, ProvenanceBreakdown } from '@/components/ui';
+import { Container, Icon } from '@/components/ui';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { Country } from '@/discovery/countries';
 import { MAP_MODE_LABELS, type DestinationPoint, type MapMode } from '@/discovery/map-model';
@@ -183,8 +183,6 @@ export function DestinationRail({
   cards,
   totalCount,
   mode,
-  provenance,
-  sources = [],
   assumptions = null,
   country = null,
   regionSummary = null,
@@ -418,23 +416,7 @@ export function DestinationRail({
                       </span>
                     ) : null}
 
-                    {/*
-                      Where the figure came from, on the picture, at the same
-                      glance as the picture. Section 4 wants it beside the
-                      number; the number is two lines below and this is the
-                      same card, which a footnote at the bottom of a scrolling
-                      band would not have been.
-                    */}
-                    <ProvenanceBreakdown
-                      sources={sources}
-                      provenance={provenance}
-                      className="absolute top-3 right-3 flex flex-col items-end gap-1"
-                      // Its own darkness, because it sits on a photograph and
-                      // a photograph can be any colour. A provenance badge
-                      // that disappears over a bright sky is a provenance
-                      // badge that is not doing its job.
-                      badgeClassName="voyagr-demo bg-field/90 text-muted backdrop-blur-sm"
-                    />
+                    {/* No provenance badge on the picture; the figure keeps its "from". */}
                   </div>
 
                   <div className="@container flex flex-1 flex-col px-4 pt-3.5 pb-4">

@@ -355,12 +355,25 @@ function bundle(ends: readonly RouteEnds[], maxPoints: number) {
  * points of a great circle are thinned, because the bow is smooth and every
  * point kept is a matrix multiply per frame.
  */
-export function toArcRuns(routes: unknown, maxPoints = 30): ArcRun[] {
+export function toArcRuns(
+  routes: unknown,
+  maxPoints = 30,
+  options: { readonly bundle?: boolean } = {},
+): ArcRun[] {
   const features = (routes as { features?: readonly RouteFeature[] } | null)?.features ?? [];
   const runs: ArcRun[] = [];
 
   const ends = features.flatMap((feature, index) => endsOf(feature, index) ?? []);
-  const { branches, folded } = bundle(ends, maxPoints);
+  /*
+   * Bundling is on unless asked off. The front page asks it off: a destination
+   * near another is drawn as a branch leaving the trunk, which is a hop with a
+   * corner in it - Split off the arc to Tbilisi. The hero wants every route as
+   * its own smooth curve from the home airport.
+   */
+  const { branches, folded } =
+    options.bundle === false
+      ? { branches: [] as ArcRun[], folded: new Set<string>() }
+      : bundle(ends, maxPoints);
   runs.push(...branches);
 
   for (const feature of features) {

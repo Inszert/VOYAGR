@@ -11,6 +11,7 @@ import { GlobeStage, type GlobeStageProps } from './globe-stage';
 import { FeaturedCard } from './featured-card';
 import { HeroMetrics } from './hero-metrics';
 import { HeroRail, type HeroRailItem } from './hero-rail';
+import { MorePlaces } from './more-places';
 
 /**
  * The stage: the first screen of the product.
@@ -173,7 +174,7 @@ export function DiscoveryStage({
         >
           <div
             data-globe-overlay
-            className="ease-out-quart duration-settled flex max-w-[44rem] flex-col gap-4 pt-4 transition-[opacity,translate] group-has-[[aria-haspopup=dialog][aria-expanded=true]]/hero:-translate-y-2 group-has-[[aria-haspopup=dialog][aria-expanded=true]]/hero:opacity-0 max-sm:group-has-[#hero-search-open:checked]/hero:opacity-0 sm:pb-8"
+            className="ease-out-quart duration-settled flex max-w-[44rem] flex-col gap-4 pt-4 transition-[opacity,translate] group-has-[[aria-haspopup=dialog][aria-expanded=true]]/hero:-translate-y-2 group-has-[[aria-haspopup=dialog][aria-expanded=true]]/hero:opacity-0 max-sm:group-has-[#hero-search-open:checked]/hero:opacity-0 sm:pb-8 lg:max-w-[400px] 2xl:max-w-[460px]"
           >
             <p
               className="stage-rise text-muted text-[11px] font-medium tracking-[0.16em] uppercase"
@@ -188,7 +189,7 @@ export function DiscoveryStage({
             */}
             <h1
               id="stage-heading"
-              className="stage-rise 2xl:text-display-xl max-w-[15ch] text-[2.75rem] leading-none tracking-[-0.03em] text-balance sm:text-[3.5rem]"
+              className="stage-rise max-w-[15ch] text-[2.75rem] leading-none tracking-[-0.03em] text-balance sm:text-[3.5rem] lg:max-w-[400px] lg:text-[3rem] 2xl:max-w-[460px] 2xl:text-[3.5rem]"
               style={{ '--stage-delay': '40ms' } as React.CSSProperties}
             >
               {searched ? (
@@ -203,7 +204,7 @@ export function DiscoveryStage({
               )}
             </h1>
             <p
-              className="stage-rise text-muted max-w-[520px] text-[16px] leading-[1.6] max-sm:hidden"
+              className="stage-rise text-muted max-w-[520px] text-[16px] leading-[1.6] max-sm:hidden lg:max-w-[400px]"
               style={{ '--stage-delay': '80ms' } as React.CSSProperties}
             >
               {INTRO}
@@ -213,7 +214,7 @@ export function DiscoveryStage({
           {/* The one bar. Expands in place, upward. */}
           <div
             data-globe-overlay
-            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-5 max-sm:w-auto lg:max-w-[60rem]"
+            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-5 max-sm:w-auto lg:max-w-[920px]"
             style={{ '--stage-delay': '120ms' } as React.CSSProperties}
           >
             <CompactSearch
@@ -294,6 +295,7 @@ export function DiscoveryStage({
           <span>Imagery: NASA Earth Observatory / Blue Marble</span>
         </p>
       </Container>
+      <MorePlaces />
     </section>
   );
 }

@@ -154,6 +154,11 @@ export function labelFlips(input: {
   readonly boxRight: number;
   readonly viewportWidth: number;
   readonly margin?: number;
+  /**
+   * The home airport is to the right of this pin, so its arc leaves to the
+   * right: the label goes on the other side of the pin, away from the arc.
+   */
+  readonly preferLeft?: boolean;
 }): boolean {
   const margin = input.margin ?? 8;
   const right = Math.min(input.boxRight, input.viewportWidth) - margin;
@@ -162,7 +167,42 @@ export function labelFlips(input: {
   const overflowsRight = input.anchorX + input.labelWidth > right;
   const fitsLeft = input.anchorX - input.labelWidth >= left;
 
-  return overflowsRight && fitsLeft;
+  // Away from the arc when there is room, and always off the edge of the screen.
+  return (input.preferLeft === true || overflowsRight) && fitsLeft;
+}
+
+/**
+ * Whether a price label is shown: all of it or none of it.
+ *
+ * A label near the limb used to fade, and half-faded labels read as ghosts. It
+ * is fully there while its place faces the viewer squarely enough, and gone
+ * the moment it does not.
+ */
+export function labelShown(cosine: number): boolean {
+  return cosine >= 0.25;
+}
+
+/** Whether a box lies wholly inside another, so a label is never cut by an edge. */
+export function insideBox(
+  inner: {
+    readonly left: number;
+    readonly right: number;
+    readonly top: number;
+    readonly bottom: number;
+  },
+  outer: {
+    readonly left: number;
+    readonly right: number;
+    readonly top: number;
+    readonly bottom: number;
+  },
+): boolean {
+  return (
+    inner.left >= outer.left &&
+    inner.right <= outer.right &&
+    inner.top >= outer.top &&
+    inner.bottom <= outer.bottom
+  );
 }
 
 /** Whether an arc's key belongs to a destination: its own arc, or its branch of a trunk. */
