@@ -184,6 +184,68 @@ are narrow and specific:
 Registration is skipped in development, where a cached shell only produces confusing stale-content
 bugs.
 
+### 3.11 Caching and refresh
+
+Pages must not call Aviasales per request. Prices are read from a cache the worker keeps warm.
+
+**Two tiers.** L1 is in-process (`MemoryCacheStore`, on `globalThis`); L2 is Redis
+(`RedisCacheStore`, over `ioredis`, imported only when used). `src/cache/index.ts` picks Redis when
+`REDIS_URL` is set and memory otherwise, so dev and CI need nothing. Unlike the queue, a missing
+Redis is not an error - a cache is an optimisation. A Redis that is down is a miss, not an outage.
+Without Redis the worker's refreshes land in the worker's own memory and no page sees them; the
+worker logs a warning saying so.
+
+**Entries are observations.** A `CacheStore` returns `{ value, observedAt }`, and `observedAt` is the
+instant the value was loaded. `readThrough` reads it through `src/core/freshness.ts`, so an undated
+entry is `unknown` - served and refreshed, never called fresh or stale.
+
+**`readThrough` is stale-while-revalidate:**
+
+| Entry age              | What happens                                                          |
+| ---------------------- | --------------------------------------------------------------------- |
+| `<= freshMs`           | Returned.                                                             |
+| `<= freshMs + staleMs` | Returned at once; ONE background refresh per key, however many reads. |
+| older, or missing      | Loaded, stored, returned. Concurrent misses share one load.           |
+| load fails             | Any entry left is served, labelled stale; otherwise a null value and  |
+|                        | the error on the result. It never throws.                             |
+
+**Keys:** `voyagr:v1:<kind>:<first 128 bits of SHA-256 of the key-sorted JSON of the query>`. `v1` is
+the stored shape; bump it when that changes. The data source (`api` / `mock`) is part of the query,
+so one is never served under the other's label.
+
+| Kind        | Query                      | Fresh  | Stale window | Written by          |
+| ----------- | -------------------------- | ------ | ------------ | ------------------- |
+| `discovery` | discovery request + source | 60 min | 24 h         | page (miss), worker |
+| `search`    | search request + source    | 5 min  | none         | page only           |
+
+Explicit user searches stay live: remembered for five minutes by query key, with no stale window,
+because a search is a question about now. The old in-process `SearchCache` is no longer on the page
+path (`load-stage.ts` and `snapshot.ts` use `readThrough`); the class remains for its key helper.
+
+**The refresh.** The worker enqueues one `cache.refresh` job per target every `PRICE_REFRESH_MINUTES`
+(default 30), spread evenly across the interval and deduplicated by target id. The target list is
+code - `src/cache/targets.ts`: the recommended/globe snapshot, "cheap flights from X" for
+`POPULAR_ORIGINS`, and the themed `COLLECTIONS`. A failed refresh throws so the queue retries with
+backoff; the entry it was meant to replace keeps being served meanwhile. `HOTEL_REFRESH_MINUTES`
+(default 360) is reserved for stays and read by nothing yet.
+
+**Quota maths.** Calls per hour = sum of target call ceilings x 60 / `PRICE_REFRESH_MINUTES`. A
+ceiling is the most a refresh can spend, not a forecast: `maxProviderCalls` (2000) for the full
+snapshot and each origin, and `destinations x (date windows + 3) x origins` for a collection.
+
+| Item                                | Value                                     |
+| ----------------------------------- | ----------------------------------------- |
+| Targets                             | 1 recommended + 5 origins + 3 collections |
+| Ceiling per round                   | about 12,400 calls                        |
+| At 30 min                           | about 24,800 calls/hour                   |
+| Aviasales limit (600/min, measured) | 36,000 calls/hour                         |
+| Headroom                            | about 31%, before user searches           |
+
+Halving the interval doubles the ceiling and takes it over the limit, so `PRICE_REFRESH_MINUTES`
+below about 21 needs fewer or smaller targets. A test (`src/cache/refresh.test.ts`) asserts the
+default stays inside the limit. User searches spend from the same per-provider limiter and are not
+in this figure.
+
 ---
 
 ## 4. Cross-cutting concerns

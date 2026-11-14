@@ -32,6 +32,18 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1).optional(),
   QUEUE_DRIVER: z.enum(['memory', 'bullmq']).default('memory'),
 
+  /*
+   * How often the worker re-prices what the front pages show, in minutes.
+   *
+   * Together with the target list in `src/cache/targets.ts` this is the whole
+   * of the provider quota the background refresh spends; the arithmetic is in
+   * `docs/architecture.md`, "Caching and refresh". `HOTEL_REFRESH_MINUTES` is
+   * reserved for stays, which have no live provider yet and so nothing to
+   * refresh.
+   */
+  PRICE_REFRESH_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
+  HOTEL_REFRESH_MINUTES: z.coerce.number().int().min(1).max(10080).default(360),
+
   // AI — `mock` needs no credentials.
   AI_PROVIDER: z.enum(['mock', 'anthropic']).default('mock'),
   AI_MODEL: z.string().min(1).default('claude-sonnet-5'),

@@ -4,6 +4,7 @@ import { DiscoveryStage } from '@/components/discovery/discovery-stage';
 import { NextTripBand, type BandPicture } from '@/components/discovery/next-trip-band';
 import { StageControls } from '@/components/discovery/stage-controls';
 import { TrustStrip } from '@/components/discovery/trust-strip';
+import { Container, UpdatedAgo } from '@/components/ui';
 import { redirect } from 'next/navigation';
 import { firstValues, loadStagePage, wasSubmitted } from '@/discovery/load-stage';
 import { parseSearchForm } from '@/search/schema';
@@ -219,6 +220,10 @@ export default async function DiscoverPage({
         provenance={page.provenance}
         sources={page.sources}
       />
+
+      <Container size="wide" className="py-3">
+        <UpdatedAgo ageMs={page.updatedAgeMs} />
+      </Container>
 
       <TrustStrip
         provenance={page.provenance}

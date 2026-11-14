@@ -3,14 +3,16 @@ import { resolveWorldRegion } from '@/search/world-regions';
 import { addDays, daysBetween } from '@/core/dates';
 import { resolveEntitlements } from '@/core/entitlements';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
-import type { IsoDate, SearchProfile } from '@/core/trip/types';
+import type { IsoDate, IsoDateTime, SearchProfile } from '@/core/trip/types';
 import { getCurrentUser } from '@/auth/current-user';
 import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
 import { SEARCH_FORM_DEFAULTS } from '@/components/search/search-form';
 import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
-import { getSearchCache } from '@/search/cache';
+import { cacheKey, getCacheStore, readThrough } from '@/cache';
+import { ageOf } from '@/core/freshness';
+import { DEFAULT_SEARCH_TTL_MS } from '@/search/cache';
 import {
   listAirports,
   listPlaceableDestinations,
@@ -75,6 +77,11 @@ export interface StagePage {
   readonly profile: SearchProfile | null;
   readonly filters: ResultFilters | null;
   readonly resultAgeMs: number;
+  /**
+   * How long ago what the stage shows was observed, or null when it is not
+   * dated. For "Updated 12 min ago"; the stage and a search both report it.
+   */
+  readonly updatedAgeMs: number | null;
   readonly errors: SearchFormErrors;
   readonly assumptions: DiscoveryAssumptions | null;
   /**
@@ -165,6 +172,7 @@ export async function loadStagePage(
   let outcome: SearchOutcome | null = null;
   let profile: SearchProfile | null = null;
   let resultAgeMs = 0;
+  let observedAt: IsoDateTime | null = null;
   let errors: SearchFormErrors = {};
 
   if (wasSubmitted(values)) {
@@ -192,14 +200,28 @@ export async function loadStagePage(
 
       try {
         // Cached at the page, never inside `runSearch`: a Travel Watch
-        // refresh exists to find out whether the price moved.
-        const cached = await getSearchCache().run(
-          request,
-          () => runSearch(request, dependenciesFor(dataSource.effective)),
-          dataSource.effective,
+        // refresh exists to find out whether the price moved. Live, but
+        // remembered for five minutes by query key, with no stale window -
+        // an explicit search is a question about now.
+        const cached = await readThrough(
+          getCacheStore(),
+          cacheKey('search', { request, source: dataSource.effective }),
+          {
+            freshMs: DEFAULT_SEARCH_TTL_MS,
+            staleMs: 0,
+            load: () => runSearch(request, dependenciesFor(dataSource.effective)),
+          },
         );
-        outcome = cached.outcome;
-        resultAgeMs = cached.ageMs;
+
+        // No value means the run failed and nothing was cached: report it the
+        // way a thrown search always was.
+        if (cached.value === null) {
+          throw cached.error instanceof Error ? cached.error : new Error('search failed');
+        }
+
+        outcome = cached.value;
+        resultAgeMs = cached.ageMs ?? 0;
+        observedAt = cached.observedAt;
       } catch (error) {
         log.warn({ err: error }, 'search could not be run');
         errors = {
@@ -220,6 +242,7 @@ export async function loadStagePage(
     ? null
     : await getDiscoverySource().load({ today, defaults, source: dataSource.effective });
   const stageOutcome = outcome ?? snapshot?.outcome ?? null;
+  const stageObservedAt = outcome ? observedAt : (snapshot?.observedAt ?? null);
   const provenance = stageOutcome?.diagnostics.provenance ?? 'unavailable';
   const sources = stageOutcome?.diagnostics.sources ?? [];
 
@@ -333,6 +356,9 @@ export async function loadStagePage(
     profile,
     filters,
     resultAgeMs,
+    // Read against the same instant `today` came from, so "updated N min ago"
+    // and the dates on the page agree. Null stays null: undated is not old.
+    updatedAgeMs: ageOf(stageObservedAt, Date.now()),
     errors,
     assumptions: snapshot?.assumptions ?? null,
     season: {

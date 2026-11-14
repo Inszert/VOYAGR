@@ -1,8 +1,9 @@
+import { cacheKey, getCacheStore, loadAndStore, readThrough, type CacheStore } from '@/cache';
 import { addDays } from '@/core/dates';
-import type { IsoDate } from '@/core/trip/types';
+import type { Freshness } from '@/core/freshness';
+import type { IsoDate, IsoDateTime } from '@/core/trip/types';
 import { SEARCH_FORM_DEFAULTS } from '@/components/search/search-form';
 import { getLogger } from '@/lib/logger';
-import { SearchCache } from '@/search/cache';
 import { listPlaceableDestinations, resolveDestinationNames } from '@/search/destination-names';
 import { runSearch } from '@/search/orchestrator';
 import { dependenciesFor } from '@/search/dependencies';
@@ -35,8 +36,21 @@ import type { SearchOutcome, SearchRequest } from '@/search/types';
 
 const log = getLogger('discovery.snapshot');
 
-/** An hour. Prices on the front page are a picture, not a quote. */
+/**
+ * An hour. Prices on the front page are a picture, not a quote.
+ *
+ * Twice the default `PRICE_REFRESH_MINUTES`, so with the worker running a page
+ * always finds a fresh entry and only a stopped worker lets one age.
+ */
 export const DISCOVERY_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * How much longer an expired snapshot is served while a refresh runs.
+ *
+ * A day: an old globe, labelled with its age, beats a blank one or a visitor
+ * waiting on a full-catalogue search.
+ */
+export const DISCOVERY_STALE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The window the snapshot prices, relative to today.
@@ -112,6 +126,12 @@ export interface DiscoveryInput {
    * of them must not be served under the other's label.
    */
   readonly source?: DataSource;
+  /**
+   * Price these places instead of the whole catalogue.
+   *
+   * For the themed collections the worker keeps warm; the globe never sets it.
+   */
+  readonly destinations?: readonly string[];
 }
 
 /** What the prices were made under, for the rail to state in words. */
@@ -130,6 +150,9 @@ export interface DiscoverySnapshot {
   readonly outcome: SearchOutcome;
   /** How long ago the prices were observed. Zero for a fresh run. */
   readonly ageMs: number;
+  /** When they were observed. Null when the cache could not say. */
+  readonly observedAt: IsoDateTime | null;
+  readonly freshness: Freshness;
   readonly assumptions: DiscoveryAssumptions;
 }
 
@@ -137,6 +160,8 @@ export interface DiscoverySnapshot {
 export interface DiscoverySource {
   /** Null when no snapshot could be made; the globe then shows places without prices. */
   load(input: DiscoveryInput): Promise<DiscoverySnapshot | null>;
+  /** Re-price and store, for the worker. False when the input made no valid search. */
+  refresh(input: DiscoveryInput): Promise<boolean>;
 }
 
 /**
@@ -158,7 +183,7 @@ export function buildDiscoveryQuery(input: DiscoveryInput): Record<string, strin
   values.latestReturn = addDays(earliestDeparture, DISCOVERY_WINDOW.lengthDays);
   values.minNights = String(DISCOVERY_WINDOW.minNights);
   values.maxNights = String(DISCOVERY_WINDOW.maxNights);
-  values.destinations = listPlaceableDestinations().join(', ');
+  values.destinations = (input.destinations ?? listPlaceableDestinations()).join(', ');
   values.maxBudget = String(Math.ceil(Number(values.targetBudget) * CEILING_MULTIPLIER));
 
   return values;
@@ -193,17 +218,43 @@ export function describeAssumptions(request: SearchRequest): DiscoveryAssumption
 }
 
 export interface SearchDiscoverySourceOptions {
-  readonly cache?: SearchCache;
+  /** Defaults to the shared store: Redis when configured, memory otherwise. */
+  readonly store?: CacheStore;
   readonly run?: (request: SearchRequest, source: DataSource) => Promise<SearchOutcome>;
+  readonly now?: () => number;
+}
+
+/**
+ * The key a snapshot is cached under.
+ *
+ * The data source is part of it for the reason `searchCacheKey` gives: the same
+ * globe priced from fixtures and from the API is two globes. Exported so the
+ * worker's refresh writes exactly the entry the page reads.
+ */
+export function discoveryCacheKey(request: SearchRequest, source: DataSource): string {
+  return cacheKey('discovery', { request, source });
 }
 
 export class SearchDiscoverySource implements DiscoverySource {
-  private readonly cache: SearchCache;
+  private readonly store: CacheStore | undefined;
   private readonly run: (request: SearchRequest, source: DataSource) => Promise<SearchOutcome>;
+  private readonly now: () => number;
 
   constructor(options: SearchDiscoverySourceOptions = {}) {
-    this.cache = options.cache ?? new SearchCache({ ttlMs: DISCOVERY_TTL_MS, maxEntries: 50 });
+    // Resolved per call when not given, so a test that resets the shared store
+    // is not left holding the old one.
+    this.store = options.store;
+    this.now = options.now ?? Date.now;
     this.run = options.run ?? ((request, source) => runSearch(request, dependenciesFor(source)));
+  }
+
+  private cacheOptions(request: SearchRequest, source: DataSource) {
+    return {
+      freshMs: DISCOVERY_TTL_MS,
+      staleMs: DISCOVERY_STALE_MS,
+      load: () => this.run(request, source),
+      now: this.now,
+    };
   }
 
   async load(input: DiscoveryInput): Promise<DiscoverySnapshot | null> {
@@ -212,21 +263,50 @@ export class SearchDiscoverySource implements DiscoverySource {
 
     const source = input.source ?? 'api';
 
-    try {
-      const cached = await this.cache.run(request, () => this.run(request, source), source);
+    // `readThrough` does not throw: with nothing cached and the search failing
+    // the value is null. The globe without prices is a globe; the page must
+    // not fail because the picture on it could not be priced.
+    const cached = await readThrough(
+      this.store ?? getCacheStore(),
+      discoveryCacheKey(request, source),
+      this.cacheOptions(request, source),
+    );
 
-      return {
-        request,
-        outcome: cached.outcome,
-        ageMs: cached.ageMs,
-        assumptions: describeAssumptions(request),
-      };
-    } catch (error) {
-      // The globe without prices is a globe; the page must not fail because
-      // the picture on it could not be priced.
-      log.warn({ err: error }, 'discovery snapshot could not be built');
+    if (cached.value === null) {
+      log.warn({ err: cached.error }, 'discovery snapshot could not be built');
       return null;
     }
+
+    return {
+      request,
+      outcome: cached.value,
+      ageMs: cached.ageMs ?? 0,
+      observedAt: cached.observedAt,
+      freshness: cached.freshness,
+      assumptions: describeAssumptions(request),
+    };
+  }
+
+  /**
+   * Price the snapshot now and store it, whatever is already there.
+   *
+   * The worker's entry point: it exists to replace a value before a visitor
+   * has to wait for one. Throws on failure, so the job can retry and the old
+   * entry keeps being served meanwhile.
+   */
+  async refresh(input: DiscoveryInput): Promise<boolean> {
+    const request = buildDiscoveryRequest(input);
+    if (!request) return false;
+
+    const source = input.source ?? 'api';
+
+    await loadAndStore(
+      this.store ?? getCacheStore(),
+      discoveryCacheKey(request, source),
+      this.cacheOptions(request, source),
+    );
+
+    return true;
   }
 }
 

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Container, Icon } from '@/components/ui';
+import { Container, Icon, UpdatedAgo } from '@/components/ui';
 import { format } from '@/core/money';
 import { demoDataSentence } from '@/core/trip/provenance';
 import { shortDate } from '@/lib/display-date';
@@ -145,6 +145,7 @@ export default async function ExplorePage({
                   ? 'Every trip below is also a chip on the globe. Narrow them, compare the dates, or open one and build it your way.'
                   : 'Click a country to look inside it. Drag to turn the globe, scroll to zoom.'}
               </p>
+              <UpdatedAgo ageMs={page.updatedAgeMs} className="text-stage-ink-muted mt-2" />
             </div>
 
             {/*

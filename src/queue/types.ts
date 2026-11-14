@@ -21,6 +21,8 @@ export const JOB_NAMES = [
   'notification.deliver',
   /** Probe every provider and record health. */
   'provider.health-check',
+  /** Re-price one cache target and store the result, so pages read instead of call. */
+  'cache.refresh',
 ] as const;
 
 export type JobName = (typeof JOB_NAMES)[number];
@@ -32,6 +34,7 @@ export interface JobPayloads {
   'deal.detect': { watchId: string; candidateId: string };
   'notification.deliver': { notificationId: string };
   'provider.health-check': Record<string, never>;
+  'cache.refresh': { targetId: string };
 }
 
 export interface Job<TName extends JobName = JobName> {

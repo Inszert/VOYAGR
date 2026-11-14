@@ -2,6 +2,7 @@ import { getEnv } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import { getRepositories } from '@/db';
 import { createQueueDriver } from '@/queue';
+import { createCacheRefreshHandler, startCacheRefresh } from '@/cache/refresh';
 import { createRefreshHandler } from '@/watches/refresh';
 import { createDeliveryHandler } from '@/notifications/deliver';
 import { startScheduler, sweepDueWatches, type SchedulerHandle } from '@/watches/scheduler';
@@ -44,6 +45,7 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
 
   queue.register('travel-watch.refresh', createRefreshHandler({ repositories, queue }));
   queue.register('notification.deliver', createDeliveryHandler({ repositories }));
+  queue.register('cache.refresh', createCacheRefreshHandler());
 
   await queue.start();
 
@@ -64,6 +66,16 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
   // ran once per instance, or not at all on a serverless one.
   const maintenance = startMaintenance({ repositories }, options.maintenance);
 
+  // Re-prices what the front pages show, so a page reads instead of calling.
+  const cacheRefresh = startCacheRefresh(queue, getEnv().PRICE_REFRESH_MINUTES, {
+    runOnStart: options.sweepOnStart,
+  });
+
+  if (!getEnv().REDIS_URL) {
+    // Without Redis the worker fills its own memory and no page ever sees it.
+    log.warn('REDIS_URL is not set: cache refreshes are not shared with the web server.');
+  }
+
   log.info({ queue: queue.name, backend: repositories.backend }, 'worker started');
 
   return {
@@ -72,6 +84,7 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     maintenance,
     async stop() {
       scheduler.stop();
+      cacheRefresh.stop();
       maintenance.stop();
       await queue.stop();
       log.info('worker stopped');

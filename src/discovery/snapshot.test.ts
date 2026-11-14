@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SearchCache } from '@/search/cache';
+import { MemoryCacheStore } from '@/cache/memory';
 import { DESTINATION_FIXTURES } from '@/providers/fixtures/destinations';
 import type { SearchOutcome } from '@/search/types';
 import {
@@ -98,7 +98,7 @@ describe('SearchDiscoverySource', () => {
 
   it('runs the search once for repeated loads of the same day', async () => {
     const run = vi.fn(async () => outcome);
-    const source = new SearchDiscoverySource({ run, cache: new SearchCache() });
+    const source = new SearchDiscoverySource({ run, store: new MemoryCacheStore() });
 
     const first = await source.load({ today: TODAY });
     const second = await source.load({ today: TODAY });
@@ -113,7 +113,7 @@ describe('SearchDiscoverySource', () => {
       .fn<() => Promise<SearchOutcome>>()
       .mockRejectedValueOnce(new Error('provider down'))
       .mockResolvedValueOnce(outcome);
-    const source = new SearchDiscoverySource({ run, cache: new SearchCache() });
+    const source = new SearchDiscoverySource({ run, store: new MemoryCacheStore() });
 
     expect(await source.load({ today: TODAY })).toBeNull();
     expect((await source.load({ today: TODAY }))?.outcome).toBe(outcome);
