@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { ROUTE_DASH_STEPS, routeDashPattern } from './globe-style';
+import { ROUTE_DASH_STEPS, routeDashPattern, warmEdge } from './globe-style';
+
+describe('warmEdge', () => {
+  it('tints the night towards the twilight and stays dark', () => {
+    expect(warmEdge('#060914', '#f0a35c')).toBe('rgb(39, 31, 30)');
+  });
+
+  it('returns the night untouched when a colour cannot be read', () => {
+    expect(warmEdge('#060914', 'oklch(0.78 0.14 58)')).toBe('#060914');
+  });
+});
 
 /**
  * The marching route dash.

@@ -4,19 +4,21 @@ import {
   type DataProvenance,
   type SourceAttribution,
 } from '@/core/trip/provenance';
-import { imageryUrlFor } from '@/providers/imagery/url';
 import type { AirportSuggestion } from '@/search/destination-names';
 import type { SearchFormErrors } from '@/search/schema';
 import { CompactSearch } from './compact-search';
 import { GlobeStage, type GlobeStageProps } from './globe-stage';
+import { HeroRail, type HeroRailItem } from './hero-rail';
 
 /**
  * The stage: the first screen of the product.
  *
- * Composition, not behaviour. The headline and the search on the left, the
- * planet on the right, and one card floating over it. Every piece here is
- * server-rendered except the globe, and every piece is a form or a link, so
- * the stage is fully operable before the globe draws.
+ * Composition, not behaviour. The planet is centred and large behind the
+ * headline, the search is one glass bar pinned to the bottom, and a rail of
+ * live destinations runs down the right edge. Every piece here is
+ * server-rendered except the globe and the rail's conversation with it, and
+ * every piece is a form or a link, so the stage is fully operable before the
+ * globe draws.
  *
  * The page is night from here to the footer - see the tokens in
  * `globals.css`. What the stage adds on top of that is the sky the planet
@@ -51,23 +53,10 @@ export interface DiscoveryStageProps {
   /** Every airport the catalogue knows, for the search suggestions. */
   airports: readonly AirportSuggestion[];
   /**
-   * One destination, over the globe.
-   *
-   * The best-placed card in the rail, shown here as well, because the space
-   * under a round picture in a rectangular column is otherwise dead. It is
-   * the same link to the same search - not an editorial pick, which would be
-   * a claim nobody computed.
+   * Up to five live destinations for the right-edge rail, each tied to its pin.
+   * The same places, figures and links as the rail below the hero.
    */
-  featured?: {
-    readonly code: string;
-    readonly name: string;
-    readonly country: string;
-    readonly label: string;
-    readonly reason: string;
-    readonly href: string;
-    readonly actionLabel: string;
-    readonly hasImage: boolean;
-  } | null;
+  rail?: readonly HeroRailItem[];
   /** True when the stage sits above results, so the copy can be shorter. */
   searched: boolean;
   action: '/' | '/explore';
@@ -86,18 +75,8 @@ const PROMISES: readonly (readonly [IconName, string, string])[] = [
   ['bell', 'It keeps looking', 'Re-prices after you leave'],
 ];
 
-/**
- * The wash under the featured thumbnail, from the destination's own code -
- * the same derivation the rail's cards use, so one place keeps one colour
- * wherever it appears.
- */
-function washFor(code: string): React.CSSProperties {
-  const hue = [...code].reduce((total, character) => total + character.charCodeAt(0), 0) % 360;
-
-  return {
-    backgroundImage: `linear-gradient(140deg, oklch(0.55 0.14 ${hue}) 0%, oklch(0.3 0.1 ${(hue + 40) % 360}) 100%)`,
-  };
-}
+const INTRO =
+  'Flights, a hotel and the ride from the airport, priced together and ranked by what the whole trip is worth to you. Voyagr keeps looking after you close the tab, and tells you when a better one appears.';
 
 export function DiscoveryStage({
   globe,
@@ -114,7 +93,7 @@ export function DiscoveryStage({
   sources = [],
   season,
   airports,
-  featured = null,
+  rail = [],
   searched,
   action,
 }: DiscoveryStageProps) {
@@ -122,242 +101,186 @@ export function DiscoveryStage({
     /*
       `overflow-x-clip`, not `overflow-hidden`.
 
-      The planet is meant to run off the right of the viewport and carry on
-      under the band below - the one thing it must never look like is a
+      The planet is meant to run off the sides of the viewport and carry on
+      under whatever is below - the one thing it must never look like is a
       picture in a frame. Clipping only the horizontal axis stops a globe that
       bleeds sideways from adding a horizontal scrollbar, while leaving it free
-      to overflow downwards. `overflow-hidden` did both, and cut the sphere and
-      its atmosphere off square on all four sides.
+      to overflow downwards.
     */
     <section
       aria-labelledby="stage-heading"
-      className="bg-bg text-text relative -mt-[72px] overflow-x-clip pt-[72px]"
+      className="bg-bg text-text relative -mt-[72px] overflow-x-clip"
     >
       {/*
-        Space, and the light the planet is sitting in.
-
-        Three washes and a fall to the deepest value at the bottom, so the sky
-        is darkest where the page continues rather than ending on a seam. The
-        middle one is the important one: it is centred where the globe hangs,
-        and it is the glow that used to be a bright ring drawn around the
-        sphere. A ring has an edge and reads as an outline; ambient light does
-        not, and this has no edge anywhere - it is simply the sky being
-        brighter near the planet, which is what a sky near a planet is.
-
-        No imagery and no gradient panel: this is one paint.
+        Space, and the light the planet is sitting in: ambient, no edge. The
+        glow is centred where the globe hangs - the middle of the hero.
       */}
       <div
         aria-hidden="true"
         className="voyagr-sky pointer-events-none absolute inset-0 -z-10"
-        style={{ '--sky-x': '73%', '--sky-y': '47%' } as React.CSSProperties}
+        style={{ '--sky-x': '50%', '--sky-y': '48%' } as React.CSSProperties}
       />
 
       {/* The ruled field, for the dark to be a surface rather than an absence. */}
       <div aria-hidden="true" className="voyagr-grid pointer-events-none absolute inset-0 -z-10" />
 
-      <Container size="wide" className="pt-10 pb-12 lg:pt-14 lg:pb-16">
+      {/*
+        The stage: one screen. The planet is the page - centred and large
+        behind the words, and the words sit on the dark limb at the bottom
+        left. `data-hero` is what the globe measures its visibility against:
+        the idle turn and the arcs' light stop when less than a fifth of it
+        is on screen.
+      */}
+      <div
+        data-hero
+        className="group/hero relative h-[calc(100svh-56px)] min-h-[40rem] pt-[72px] sm:h-[100svh] sm:min-h-[44rem]"
+      >
         {/*
-          46% and the rest, and `minmax(0, …)` on both.
+          The planet.
 
-          Without an explicit zero minimum the lens row's unwrappable chips set
-          the left column's width and the globe beside them grows to nine
-          hundred pixels on a phone.
+          On a phone (where the header wraps to 128px, so the hero starts 56px
+          higher than the header's 72px implies) the box starts at 38% of the screen and is as tall as the
+          sphere is wide (118vw); anywhere wider it is everything under the
+          header, and the sphere is sized to the window by `heroDiameter`.
+          Behind everything else, and the content layer lets pointers through
+          wherever it is empty, so the globe can still be dragged.
         */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,46%)_minmax(0,1fr)] lg:items-start lg:gap-8">
-          <div className="flex flex-col gap-8">
-            <div className="flex flex-col gap-4">
-              <p
-                className="stage-rise text-muted flex items-center gap-2.5 text-[11px] font-medium tracking-[0.16em] uppercase"
-                style={{ '--stage-delay': '0ms' } as React.CSSProperties}
-              >
-                <Icon name="sparkle" size={1} className="size-[14px]" />
-                Explore · Discover · Go further
-              </p>
-              {/*
-                Three lines at 62px, and no full stop.
+        <GlobeStage
+          {...globe}
+          variant="stage"
+          className="absolute inset-x-0 top-[calc(38svh-56px)] z-0 h-[118vw] sm:top-[72px] sm:bottom-0 sm:h-auto"
+        />
 
-                A display serif at this size is a shape before it is a
-                sentence, and a period hanging off the end of the third line
-                is a mark with nothing after it. The copy is unchanged; only
-                the punctuation that was doing no work has gone.
-              */}
-              <h1
-                id="stage-heading"
-                className="stage-rise max-w-[13ch] text-[44px] leading-[1.05] tracking-[-0.02em] text-balance sm:text-[62px]"
-                style={{ '--stage-delay': '40ms' } as React.CSSProperties}
-              >
-                {searched ? (
-                  <>
-                    Your trips, <span className="text-accent-ink">on the map</span>
-                  </>
-                ) : (
-                  <>
-                    See where you can go, priced as a{' '}
-                    <span className="text-accent-ink">whole trip</span>
-                  </>
-                )}
-              </h1>
-              <p
-                className="stage-rise text-muted max-w-[520px] text-[16px] leading-[1.6]"
-                style={{ '--stage-delay': '80ms' } as React.CSSProperties}
-              >
-                Flights, a hotel and the ride from the airport, priced together and ranked by what
-                the whole trip is worth to you. Voyagr keeps looking after you close the tab, and
-                tells you when a better one appears.
-              </p>
-            </div>
+        {/* Legibility for the headline over the lit land: a scrim, not a panel. */}
+        <div
+          aria-hidden="true"
+          className="voyagr-hero-scrim pointer-events-none absolute inset-0 z-[1]"
+        />
 
-            <div className="stage-rise" style={{ '--stage-delay': '120ms' } as React.CSSProperties}>
-              <CompactSearch
-                key={formKey}
-                values={values}
-                defaults={defaults}
-                errors={errors}
-                action={action}
-                here="/"
-                destinationsDefault={destinationsDefault}
-                destinationsHint={destinationsHint}
-                carry={carry}
-                airports={airports}
-                today={today}
-                lensDefaults={lensDefaults}
-              />
-            </div>
-
-            {/*
-              One row of four, with the chip above the words rather than
-              beside them. At the width of a 46% column, four items with the
-              icon inline leave eighty pixels for a description, which is
-              four lines of orphaned words; stacked, each one gets the whole
-              cell and none of them runs past two.
-            */}
-            <ul
-              className="stage-rise grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4"
-              style={{ '--stage-delay': '160ms' } as React.CSSProperties}
+        <Container
+          size="wide"
+          className="pointer-events-none relative z-10 flex h-full flex-col justify-between pb-5 sm:justify-end sm:pb-6"
+        >
+          <div
+            data-globe-overlay
+            className="ease-out-quart duration-settled flex max-w-[44rem] flex-col gap-4 pt-4 transition-[opacity,translate] group-has-[[aria-haspopup=dialog][aria-expanded=true]]/hero:-translate-y-2 group-has-[[aria-haspopup=dialog][aria-expanded=true]]/hero:opacity-0 max-sm:group-has-[#hero-search-open:checked]/hero:opacity-0 sm:pb-8"
+          >
+            <p
+              className="stage-rise text-muted text-[11px] font-medium tracking-[0.16em] uppercase"
+              style={{ '--stage-delay': '0ms' } as React.CSSProperties}
             >
-              {PROMISES.map(([icon, title, detail]) => (
-                <li key={title} className="flex min-w-0 flex-col gap-2.5">
-                  <span
-                    aria-hidden="true"
-                    className="voyagr-tile text-muted grid size-[34px] place-items-center rounded-[10px]"
-                  >
-                    <Icon name={icon} size={1} className="size-[17px]" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="text-text block text-[12px] font-medium">{title}</span>
-                    <span className="text-dim mt-0.5 block text-[12px] leading-[1.35]">
-                      {detail}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/*
-            The planet is not in a box.
-
-            The column runs past the container's right gutter and off the edge
-            of the viewport, and past the bottom of the hero, so the sphere is
-            cropped by the window the way a photograph of the Earth is cropped
-            by a window - not by a frame drawn around it. The section clips
-            only horizontally, so this costs no scrollbar.
-
-            Only the planet runs past the column. The caption under it stays
-            inside, or a sentence about the season ends up off-screen.
-          */}
-          <div className="flex flex-col gap-4">
-            <div className="relative flex min-h-[22rem] flex-col gap-4 lg:-mt-10 lg:-mr-[9vw] lg:h-[42rem] xl:-mr-[7vw]">
-              <GlobeStage {...globe} className="min-h-[22rem] flex-1" />
-
-              {featured ? (
-                /*
-                  On the planet, not under it.
-
-                  A card floating over the globe is the one piece of the
-                  reference that is not decoration: it is the same link to
-                  the same search the rail carries, put where somebody
-                  looking at the world is already looking. It only floats
-                  where there is room - on a phone it is an ordinary card
-                  below the globe, because a card over a globe that is barely
-                  wider than the card is just a card.
-                */
-                <a
-                  href={featured.href}
-                  data-globe-overlay
-                  className="voyagr-panel ease-standard duration-settled focus-visible:outline-stage-accent group flex items-center gap-3 overflow-hidden rounded-[12px] p-2.5 transition-[border-color,transform] hover:border-(--color-stage-accent) motion-safe:hover:-translate-y-0.5 lg:absolute lg:bottom-6 lg:left-6 lg:z-10 lg:w-[19.5rem]"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="relative size-[46px] shrink-0 overflow-hidden rounded-[10px]"
-                    style={washFor(featured.code)}
-                  >
-                    {featured.hasImage ? (
-                      <img
-                        src={imageryUrlFor(featured.code)}
-                        alt=""
-                        loading="eager"
-                        decoding="async"
-                        className="absolute inset-0 size-full object-cover"
-                      />
-                    ) : null}
-                  </span>
-
-                  <span className="min-w-0 flex-1">
-                    <span className="text-text block text-[14px] font-medium">
-                      <span className="sr-only">{featured.actionLabel}</span> {featured.name},{' '}
-                      {featured.country}
-                    </span>
-                    <span className="text-muted line-clamp-2 block text-[12px] leading-[1.35]">
-                      {featured.reason}
-                    </span>
-                    <span className="text-text mt-1 block text-[12px] font-medium tabular-nums">
-                      {featured.label}
-                    </span>
-                  </span>
-
-                  <span
-                    aria-hidden="true"
-                    className="text-muted ease-standard duration-quick mr-1 shrink-0 transition-colors group-hover:text-(--color-accent-ink)"
-                  >
-                    <Icon name="arrow-right" size={1} className="size-[16px]" />
-                  </span>
-                </a>
-              ) : null}
-            </div>
-
+              Explore · Discover · Go further
+            </p>
             {/*
-              One line, at the weight of a caption.
-
-              This was two paragraphs, and the second of them - where the sun
-              stands this month, and which hemisphere therefore has the ice -
-              read as debug output printed under the picture. It is still
-              here, because it is what the globe is lit for and somebody
-              looking at a white Arctic deserves to be able to find out why.
-              It is just not shouted: it hangs off the globe glyph, as its
-              title for a pointer and in the accessibility tree for everyone
-              else, which is where an aside belongs.
+              Three lines at most, and no full stop. A display serif at this
+              size is a shape before it is a sentence; the headline sits over
+              the dark limb, bottom left, and the sphere stays clear of it.
             */}
-            <p className="text-dim flex flex-wrap items-center gap-x-2 text-[11px]">
-              <span
-                tabIndex={0}
-                title={season.description}
-                className="focus-visible:outline-accent-ink inline-flex rounded-full"
-              >
-                <Icon name="globe" size={1} className="size-[13px]" />
-                <span className="sr-only">{season.description}</span>
-              </span>
-              <span>
-                {provenance === 'mock'
-                  ? (demoDataSentence(sources) ??
-                    'Every price on the globe is demo data from fixtures, not a real offer.')
-                  : 'Prices are the cheapest whole trip the search found at each place.'}
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>Drag to turn it.</span>
+            <h1
+              id="stage-heading"
+              className="stage-rise lg:text-display-xl max-w-[15ch] text-[2.75rem] leading-none tracking-[-0.03em] text-balance sm:text-[3.5rem]"
+              style={{ '--stage-delay': '40ms' } as React.CSSProperties}
+            >
+              {searched ? (
+                <>
+                  Your trips, <span className="text-accent-ink">on the map</span>
+                </>
+              ) : (
+                <>
+                  See where you can go, priced as a{' '}
+                  <span className="text-accent-ink">whole trip</span>
+                </>
+              )}
+            </h1>
+            <p
+              className="stage-rise text-muted max-w-[520px] text-[16px] leading-[1.6] max-sm:hidden"
+              style={{ '--stage-delay': '80ms' } as React.CSSProperties}
+            >
+              {INTRO}
             </p>
           </div>
-        </div>
+
+          {/* The one bar. Expands in place, upward. */}
+          <div
+            data-globe-overlay
+            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-5 max-sm:w-auto lg:max-w-[64rem]"
+            style={{ '--stage-delay': '120ms' } as React.CSSProperties}
+          >
+            <CompactSearch
+              key={formKey}
+              variant="bar"
+              values={values}
+              defaults={defaults}
+              errors={errors}
+              action={action}
+              here="/"
+              destinationsDefault={destinationsDefault}
+              destinationsHint={destinationsHint}
+              carry={carry}
+              airports={airports}
+              today={today}
+              lensDefaults={lensDefaults}
+            />
+          </div>
+
+          {/* The right-edge rail: live destinations, tied to their pins. */}
+          {rail.length > 0 ? (
+            <div className="pointer-events-auto absolute inset-y-0 right-4 hidden items-center lg:flex xl:right-6">
+              <div className="mt-6">
+                <HeroRail items={rail} provenance={provenance} sources={sources} />
+              </div>
+            </div>
+          ) : null}
+        </Container>
+      </div>
+
+      <Container size="wide" className="flex flex-col gap-6 pt-8 pb-12 lg:pb-16">
+        <p className="text-muted max-w-[520px] text-[15px] leading-[1.6] sm:hidden">{INTRO}</p>
+
+        {/*
+          One row of four, with the chip above the words rather than beside
+          them, so none of them runs past two lines.
+        */}
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4">
+          {PROMISES.map(([icon, title, detail]) => (
+            <li key={title} className="flex min-w-0 flex-col gap-2.5">
+              <span
+                aria-hidden="true"
+                className="voyagr-tile text-muted grid size-[34px] place-items-center rounded-[10px]"
+              >
+                <Icon name={icon} size={1} className="size-[17px]" />
+              </span>
+              <span className="min-w-0">
+                <span className="text-text block text-[12px] font-medium">{title}</span>
+                <span className="text-dim mt-0.5 block text-[12px] leading-[1.35]">{detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {/*
+          One line, at the weight of a caption. Where the sun stands this month
+          hangs off the globe glyph, as its title for a pointer and in the
+          accessibility tree for everyone else.
+        */}
+        <p className="text-dim flex flex-wrap items-center gap-x-2 text-[11px]">
+          <span
+            tabIndex={0}
+            title={season.description}
+            className="focus-visible:outline-accent-ink inline-flex rounded-full"
+          >
+            <Icon name="globe" size={1} className="size-[13px]" />
+            <span className="sr-only">{season.description}</span>
+          </span>
+          <span>
+            {provenance === 'mock'
+              ? (demoDataSentence(sources) ??
+                'Every price on the globe is demo data from fixtures, not a real offer.')
+              : 'Prices are the cheapest whole trip the search found at each place.'}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>Drag to turn it.</span>
+        </p>
       </Container>
     </section>
   );

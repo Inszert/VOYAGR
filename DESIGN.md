@@ -80,6 +80,9 @@ leading by accident:
 | `--text-display-sm` | 1.75rem | 1.15        | -0.015em |
 | `--text-display-md` | 2.5rem  | 1.08        | -0.02em  |
 | `--text-display-lg` | 3.5rem  | 1.02        | -0.025em |
+| `--text-display-xl` | 4.5rem  | 1           | -0.03em  |
+
+`--text-display-xl` is the front page's headline only; it is 2.75rem on a phone.
 
 **Tabular figures are not optional on a price.** Ten results in a column with proportional digits
 do not line up, and a column of prices that does not line up cannot be scanned. `Price` handles it;
@@ -154,15 +157,22 @@ product where any component can invent its own depth has no hierarchy, just a lo
 
 ## Motion
 
-Three durations and two curves, so every transition in the product agrees with the others.
+Four durations and four curves, so every transition in the product agrees with the others. Nothing
+overshoots: `--ease-emphasis` (overshoot 1.2) is retired in favour of `--ease-out-quart`.
 
-| Token                   | Value                      | Use                                        |
-| ----------------------- | -------------------------- | ------------------------------------------ |
-| `--duration-quick`      | 120ms                      | A small state change                       |
-| `--duration-settled`    | 220ms                      | A normal interaction                       |
-| `--duration-deliberate` | 420ms                      | A major transition                         |
-| `--ease-standard`       | `cubic-bezier(.2,0,0,1)`   | Everything                                 |
-| `--ease-emphasis`       | `cubic-bezier(.2,0,0,1.2)` | A panel arriving; overshoots very slightly |
+| Token                   | Value                            | Use                                 |
+| ----------------------- | -------------------------------- | ----------------------------------- |
+| `--duration-quick`      | 120ms                            | Press, hover                        |
+| `--duration-settled`    | 220ms                            | Popovers, chips                     |
+| `--duration-deliberate` | 420ms                            | Sheets, view transitions            |
+| `--duration-cinematic`  | 900ms                            | Arc draw, reveal steps              |
+| `--ease-standard`       | `cubic-bezier(.2,0,0,1)`         | Everything not listed below         |
+| `--ease-out-quart`      | `cubic-bezier(0.25, 1, 0.5, 1)`  | Default enter                       |
+| `--ease-out-expo`       | `cubic-bezier(0.16, 1, 0.3, 1)`  | Camera, large surfaces              |
+| `--ease-in-out-soft`    | `cubic-bezier(0.65, 0, 0.35, 1)` | Things that move and stay on screen |
+
+The globe's camera, idle turn, arcs and pin pulse take their numbers from
+`src/components/discovery/globe-motion.ts`, which holds the same values for script.
 
 **Reduced motion is handled once, in the base layer.** `prefers-reduced-motion: reduce` shortens
 every animation and transition to 0.01ms rather than removing it, so state changes stay perceptible

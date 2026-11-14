@@ -11,6 +11,9 @@ import { parseSearchForm } from '@/search/schema';
 import { resolveWorldRegion } from '@/search/world-regions';
 import { listPlaceableDestinations } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
+import { imageryUrlFor } from '@/providers/imagery/url';
+import type { HeroRailItem } from '@/components/discovery/hero-rail';
+import destinationImages from '../../public/img/destinations/manifest.json';
 import {
   COUNTRIES_DETAIL_URL,
   COUNTRIES_URL,
@@ -87,6 +90,34 @@ export default async function DiscoverPage({
     image: images.get(card.point.destination) ?? null,
   }));
 
+  /*
+   * The right-edge rail: the five best-placed cards, as the rail below them
+   * has them. A photograph from the generated set when this airport has one,
+   * otherwise whatever the imagery provider found, otherwise a wash.
+   */
+  const localImages = destinationImages as Record<string, { blur: string }>;
+  const rail: HeroRailItem[] = railCards.slice(0, 5).map((card) => {
+    const code = card.point.destination;
+    const local = localImages[code];
+
+    return {
+      code,
+      name: card.point.name,
+      country: card.point.country,
+      label: card.label,
+      href: card.href,
+      actionLabel: card.actionLabel,
+      weather: card.point.weather
+        ? { maxC: card.point.weather.maxC, wet: card.point.weather.rainChance >= 0.4 }
+        : null,
+      image: local
+        ? { kind: 'local', blur: local.blur }
+        : card.image
+          ? { kind: 'remote', src: imageryUrlFor(code) }
+          : null,
+    };
+  });
+
   const picture = (index: number): BandPicture | null => {
     const card = railCards[index];
     if (!card) return null;
@@ -143,7 +174,7 @@ export default async function DiscoverPage({
             ? { adm0: stage.country.adm0, name: stage.country.name, bbox: stage.country.bbox }
             : null,
           navigation: page.navigation,
-          variant: 'hero',
+          variant: 'stage',
         }}
         today={page.today}
         values={values}
@@ -157,20 +188,7 @@ export default async function DiscoverPage({
         sources={page.sources}
         season={page.season}
         airports={page.airports}
-        featured={
-          railCards[0]
-            ? {
-                code: railCards[0].point.destination,
-                name: railCards[0].point.name,
-                country: railCards[0].point.country,
-                label: railCards[0].label,
-                reason: railCards[0].point.reason,
-                href: railCards[0].href,
-                actionLabel: railCards[0].actionLabel,
-                hasImage: railCards[0].image !== null,
-              }
-            : null
-        }
+        rail={rail}
         searched={false}
         action="/explore"
       />

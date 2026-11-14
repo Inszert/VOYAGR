@@ -147,9 +147,40 @@ export function cityLightOpacity(solar: GlobeStyleOptions['solar']) {
  * north of India and the Ruhr were single flat shapes.
  */
 export const CITY_LIGHT_LAYERS = [
-  ['city-lights', 0.3],
-  ['city-lights-bloom', 0.05],
+  // 15% brighter than the shipped 0.3 and 0.05 (design-direction section 3).
+  ['city-lights', 0.345],
+  ['city-lights-bloom', 0.0575],
 ] as const;
+
+/**
+ * The colour of the dusk edge: the night, with a little of the twilight in it.
+ *
+ * The terminator ramp is a dark line, and a dark line that is pure night reads
+ * as a shadow. Warming it a few per cent towards the twilight token makes the
+ * day dim into amber-brown rather than into grey. It stays a dark colour at a
+ * low opacity - a warm *bright* line here was tried and drew a seam across the
+ * planet, so this only tints. Falls back to the night colour if either input is
+ * not one it can read.
+ */
+export function warmEdge(night: string, twilight: string, amount = 0.14): string {
+  const read = (value: string): [number, number, number] | null => {
+    const hex = /^#([0-9a-f]{6})$/i.exec(value.trim());
+    if (hex) {
+      const n = parseInt(hex[1]!, 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(value.trim());
+    return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
+  };
+
+  const a = read(night);
+  const b = read(twilight);
+  if (!a || !b) return night;
+
+  const mixed = a.map((channel, index) => Math.round(channel + (b[index]! - channel) * amount));
+  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
+}
 
 /** One light layer's opacity: its own share, scaled by brightness and by the sun. */
 export function cityLightPaint(factor: number, solar: GlobeStyleOptions['solar']) {
@@ -594,7 +625,7 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
         filter: ['==', ['get', 'kind'], 'terminator'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': colors.night,
+          'line-color': warmEdge(colors.night, colors.twilight),
           /*
            * Wide enough that the cap's own edge cannot be found.
            *

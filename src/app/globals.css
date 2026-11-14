@@ -342,16 +342,23 @@
   /*
    * Motion.
    *
-   * Three durations and two curves, so transitions across the product agree
-   * with each other. `emphasis` overshoots very slightly, which is what makes
-   * a panel feel like it arrived rather than appeared. Every one of these is
-   * neutralised under `prefers-reduced-motion` in the base layer below.
+   * Four durations and four curves (design-direction section 5). Nothing
+   * overshoots: the old `--ease-emphasis` bounced and is retired in favour of
+   * `--ease-out-quart`. Every one of these is neutralised under
+   * `prefers-reduced-motion` in the base layer below.
+   *
+   *   quart       default enter
+   *   expo        the camera, large surfaces
+   *   in-out-soft things that move and stay on screen
    */
   --duration-quick: 120ms;
   --duration-settled: 220ms;
   --duration-deliberate: 420ms;
+  --duration-cinematic: 900ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-emphasis: cubic-bezier(0.2, 0, 0, 1.2);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
 
   /*
    * Inter for everything, Playfair Display for headings.
@@ -387,6 +394,10 @@
   --text-display-lg: 3.5rem;
   --text-display-lg--line-height: 1.02;
   --text-display-lg--letter-spacing: -0.025em;
+  /* The front page's headline. 2.75rem on a phone is set where it is used. */
+  --text-display-xl: 4.5rem;
+  --text-display-xl--line-height: 1;
+  --text-display-xl--letter-spacing: -0.03em;
 }
 
 /*
@@ -764,7 +775,7 @@
  * last of them still fading while the reader has started reading.
  */
 @utility stage-rise {
-  animation: stage-rise var(--duration-settled) var(--ease-emphasis) both;
+  animation: stage-rise var(--duration-settled) var(--ease-out-quart) both;
   animation-delay: var(--stage-delay, 0ms);
 }
 
@@ -1013,6 +1024,42 @@
   }
 
   /*
+   * The rim, brighter on the lit side.
+   *
+   * The same Fresnel curve as the air above at half as strong again, masked to
+   * the part of the disc facing the sun, so the atmosphere reads 1.5 times
+   * stronger where it is lit and unchanged on the night side. It follows the
+   * same `--globe-sun-*` variables the sheen does, and fades out with them.
+   */
+  .voyagr-orb-rim {
+    background: radial-gradient(
+      circle at 50% 50%,
+      transparent 0%,
+      transparent 88%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 5%, transparent) 95%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 15%, transparent) 99.5%,
+      color-mix(in oklab, var(--color-stage-atmosphere) 19%, transparent) 100%
+    );
+    box-shadow: 0 0 calc(var(--globe-diameter, 0px) * 0.035)
+      calc(var(--globe-diameter, 0px) * 0.004)
+      color-mix(in oklab, var(--color-stage-atmosphere) 21%, transparent);
+    -webkit-mask-image: radial-gradient(
+      circle at var(--globe-sun-x, 50%) var(--globe-sun-y, 40%),
+      #000 0%,
+      rgb(0 0 0 / 0.6) 55%,
+      transparent 110%
+    );
+    mask-image: radial-gradient(
+      circle at var(--globe-sun-x, 50%) var(--globe-sun-y, 40%),
+      #000 0%,
+      rgb(0 0 0 / 0.6) 55%,
+      transparent 110%
+    );
+    mix-blend-mode: screen;
+    opacity: calc(var(--globe-shown, 0) * var(--globe-sun-lit, 0));
+  }
+
+  /*
    * The flight arcs.
    *
    * Drawn in SVG over the canvas because they leave the sphere: a route lifts
@@ -1133,6 +1180,81 @@
    * sixty per cent, with no border - it reads as the label being closer to
    * you than the planet rather than as a box drawn on it.
    */
+  /*
+   * Hover and focus lift the label 2px and deepen its halo. The destination
+   * rail sets `data-lift` on the pin it is pointing at, so a rail row and its
+   * pin answer together.
+   */
+  .voyagr-chip {
+    transition:
+      transform var(--duration-quick) var(--ease-out-quart),
+      text-shadow var(--duration-quick) var(--ease-out-quart);
+  }
+
+  .voyagr-chip:hover,
+  .voyagr-chip:focus-visible,
+  .voyagr-chip[data-lift='true'] {
+    transform: translateY(-2px);
+    text-shadow:
+      0 0 2px rgba(3, 5, 10, 1),
+      0 1px 3px rgba(3, 5, 10, 1),
+      0 0 12px rgba(3, 5, 10, 0.95),
+      0 0 26px rgba(3, 5, 10, 0.75);
+  }
+
+  .voyagr-chip:active {
+    transform: translateY(-2px) scale(0.97);
+  }
+
+  /* A price that changed since you last looked: once, then still. */
+  .voyagr-chip-dot {
+    position: relative;
+  }
+
+  .voyagr-chip[data-pulse='true'] .voyagr-chip-dot {
+    animation: voyagr-pin-pulse 600ms var(--ease-out-quart) 1;
+  }
+
+  .voyagr-chip[data-pulse='true'] .voyagr-chip-dot::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-stage-accent);
+    opacity: 0;
+    animation: voyagr-pin-ring var(--duration-cinematic) var(--ease-out-quart) 1;
+    pointer-events: none;
+  }
+
+  @keyframes voyagr-pin-pulse {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.35);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes voyagr-pin-ring {
+    from {
+      opacity: 0.5;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(3.2);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .voyagr-chip[data-pulse='true'] .voyagr-chip-dot::after {
+      display: none;
+    }
+  }
+
   .voyagr-chip::before {
     content: '';
     position: absolute;
@@ -1877,4 +1999,49 @@
     rgb(0 0 0 / 0.55) calc(80% + 20% * var(--globe-shown, 0)),
     transparent 100%
   );
+}
+
+/*
+ * A row of the hero's destination rail: one pane of glass, lit when its pin
+ * is hovered or focused and when it is. Outside every layer, with the other
+ * stage rules, so a utility cannot quietly outrank it.
+ */
+.voyagr-rail-row {
+  background: var(--color-stage-glass);
+  border: 1px solid var(--color-stage-glass-border);
+  backdrop-filter: blur(var(--blur-glass));
+  transition:
+    border-color var(--duration-quick) var(--ease-out-quart),
+    transform var(--duration-quick) var(--ease-out-quart);
+}
+
+.voyagr-rail-row:hover,
+.voyagr-rail-row[data-active] {
+  border-color: var(--color-stage-accent);
+}
+
+.voyagr-rail-row:active {
+  transform: scale(0.97);
+}
+
+/*
+ * The dark under the hero headline.
+ *
+ * The headline sits bottom left over whatever the planet is showing, and a
+ * sunlit desert is not a dark limb. This is ambient shade, no edge: a wide
+ * ellipse of the deepest stage colour, strongest behind the words and gone
+ * well before it could be mistaken for a panel.
+ */
+.voyagr-hero-scrim {
+  background: radial-gradient(
+    ellipse 62% 52% at 24% 80%,
+    color-mix(in oklab, var(--color-stage-deep) 88%, transparent) 0%,
+    color-mix(in oklab, var(--color-stage-deep) 60%, transparent) 45%,
+    transparent 78%
+  );
+}
+
+/* An open search is a surface to read and fill in: nearly opaque over the planet. */
+.voyagr-search:has(#hero-search-open:checked) {
+  background: color-mix(in oklab, var(--color-stage-deep) 96%, transparent);
 }

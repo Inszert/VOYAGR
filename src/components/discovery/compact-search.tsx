@@ -17,6 +17,7 @@ import { SearchKindTabs } from '@/components/search/search-kind-tabs';
 import { AnywhereButton } from '@/components/search/anywhere-button';
 import { WORLD_REGIONS } from '@/search/world-region-list';
 import { SwapEndpoints } from './swap-endpoints';
+import { shortDate } from '@/lib/display-date';
 
 /**
  * The search, as it appears on the stage.
@@ -60,6 +61,12 @@ export interface CompactSearchProps extends SearchFormProps {
    * between flights and the whole trip before searching stays here.
    */
   here?: '/' | '/explore';
+  /**
+   * `panel` is the full card; `bar` is the front page's one 64px glass bar,
+   * pinned to the bottom of the hero, that expands in place. Same form, same
+   * field names, same submission.
+   */
+  variant?: 'panel' | 'bar';
 }
 
 /**
@@ -144,11 +151,32 @@ export function CompactSearch({
   today,
   lensDefaults,
   here = action,
+  variant = 'panel',
 }: CompactSearchProps) {
   const form = readForm(values, { ...defaults, destinations: destinationsDefault });
   // The whole trip unless flights alone were asked for: the unit is the trip.
   const view = values.view === 'flight' ? 'flight' : 'trip';
   const style = form.value('travelStyle');
+
+  if (variant === 'bar') {
+    return (
+      <BarSearch
+        values={values}
+        errors={errors}
+        action={action}
+        destinationsHint={destinationsHint}
+        carry={carry}
+        airports={airports}
+        today={today}
+        lensDefaults={lensDefaults}
+        here={here}
+        defaults={defaults}
+        form={form}
+        view={view}
+        style={style}
+      />
+    );
+  }
 
   return (
     <section aria-labelledby="compact-search-heading" className="stage-scope">
@@ -519,6 +547,308 @@ export function CompactSearch({
               </div>
             </div>
           </details>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+/*
+ * The bar.
+ *
+ * One glass row, 64px tall on a desktop: From, To, the dates, travellers, an
+ * Options toggle and the action. Everything else - the kind of trip, flights
+ * or the whole trip, how flexible the dates are, the folded fields - lives in a
+ * panel that opens upward from the bar, because the bar is pinned to the
+ * bottom of the hero and there is nowhere else for it to grow.
+ *
+ * **The toggle is a checkbox.** A visually hidden, still focusable checkbox
+ * with a real label, and CSS `:has()` on the container does the rest. That
+ * keeps the bar a server component, keeps every control in the form whether or
+ * not it is open, and keeps it working before JavaScript. On a phone the same
+ * toggle also reveals the four fields, and the bar shows a one-line summary of
+ * them instead.
+ *
+ * The calendar is the ordinary popover. It opens upward from its trigger and
+ * the hero hides the headline while it is open (see `DiscoveryStage`), so it
+ * can never be drawn over the words.
+ */
+function BarSearch({
+  values,
+  errors,
+  action,
+  destinationsHint,
+  carry,
+  airports,
+  today,
+  lensDefaults,
+  here,
+  defaults,
+  form,
+  view,
+  style,
+}: {
+  values: CompactSearchProps['values'];
+  errors: NonNullable<CompactSearchProps['errors']>;
+  action: '/' | '/explore';
+  destinationsHint: string;
+  carry: Readonly<Record<string, string>>;
+  airports: readonly AirportSuggestion[];
+  today: string;
+  lensDefaults?: Readonly<Record<string, string>>;
+  here: '/' | '/explore';
+  defaults: Readonly<Record<string, string>>;
+  form: ReturnType<typeof readForm>;
+  view: 'flight' | 'trip';
+  style: string;
+}) {
+  const departure = form.value('departureDate');
+  const back = form.value('returnDate');
+  const travellers = Number(form.value('passengers')) || 1;
+  const summary = [
+    form.value('origins').split(',')[0]?.trim(),
+    departure && back ? `${shortDate(departure)} to ${shortDate(back)}` : null,
+    `${travellers} ${travellers === 1 ? 'traveller' : 'travellers'}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const cell =
+    'min-w-0 px-3 py-2 max-lg:hidden max-lg:group-has-[#hero-search-open:checked]/s:block lg:border-hairline lg:border-l lg:first:border-l-0';
+
+  return (
+    <section aria-labelledby="compact-search-heading" className="stage-scope">
+      <h2 id="compact-search-heading" className="sr-only">
+        Search for a trip
+      </h2>
+
+      <div className="voyagr-search group/s relative flex max-h-[calc(100svh-10.5rem)] flex-col rounded-[20px]">
+        <input
+          id="hero-search-open"
+          type="checkbox"
+          className="sr-only"
+          aria-label="Show every search option"
+        />
+
+        {errors.form ? (
+          <p role="alert" className="text-critical-ink px-4 pt-3 text-[13px]">
+            {errors.form}
+          </p>
+        ) : null}
+
+        {/* The kind of trip, and flights or the whole trip: only when open. */}
+        <div className="border-hairline hidden shrink-0 flex-col gap-2 border-b px-3 py-3 group-has-[#hero-search-open:checked]/s:flex">
+          <nav aria-label="Kind of trip">
+            <LensSlider>
+              <ul className="flex gap-1.5 px-1 py-0.5">
+                {DISCOVERY_CATEGORIES.map((category) => {
+                  const active = style === category.travelStyle;
+
+                  return (
+                    <li key={category.id} className="shrink-0">
+                      <span id={`lens-${category.id}-description`} className="sr-only">
+                        {category.description}
+                      </span>
+                      <Link
+                        href={`${action}?${categoryQuery({ category, today, defaults: lensDefaults ?? defaults })}`}
+                        aria-current={active ? 'true' : undefined}
+                        aria-describedby={`lens-${category.id}-description`}
+                        title={category.description}
+                        className={[
+                          'ease-standard duration-quick inline-flex min-h-11 items-center rounded-(--radius-pill) px-3.5 py-2 text-[13px] whitespace-nowrap transition-colors',
+                          'focus-visible:outline-accent-ink',
+                          active
+                            ? 'bg-field border-hairline text-text border font-medium'
+                            : 'text-muted hover:text-text border border-transparent',
+                        ].join(' ')}
+                      >
+                        {category.title}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </LensSlider>
+          </nav>
+
+          <SearchKindTabs
+            active={view === 'flight' ? 'flights' : 'both'}
+            hrefFor={(kind) => {
+              if (kind === 'stays') return '/stays';
+              const next = new URLSearchParams(
+                Object.entries(values).filter(
+                  (entry): entry is [string, string] =>
+                    typeof entry[1] === 'string' && entry[0] !== 'view',
+                ),
+              );
+              next.set('view', kind === 'flights' ? 'flight' : 'trip');
+              return `${values.origins ? action : here}?${next.toString()}`;
+            }}
+            className="px-1"
+          />
+        </div>
+
+        <form method="get" action={action} className="group/form flex min-h-0 flex-1 flex-col">
+          <input type="hidden" name="view" value={view} />
+          {Object.entries(carry).map(([name, value]) => (
+            <input key={name} type="hidden" name={name} value={value} />
+          ))}
+
+          {/* How flexible, and the folded fields: only when open. */}
+          <div className="border-hairline hidden min-h-0 flex-col gap-3 overflow-y-auto border-b px-3 py-3 group-has-[#hero-search-open:checked]/s:flex">
+            <div className="hidden grid-cols-2 gap-2 group-has-[input[name=flexibility][value=month]:checked]/form:grid">
+              <Select
+                label="Month"
+                name="monthStart"
+                defaultValue={values.monthStart ?? ''}
+                options={monthOptions(today)}
+                bare
+              />
+              <Select
+                label="Trip length"
+                name="tripNights"
+                defaultValue={values.tripNights ?? '7'}
+                options={TRIP_NIGHTS}
+                bare
+              />
+            </div>
+
+            <FlexibilityChips name="flexibility" defaultValue={form.value('flexibility')} />
+
+            <details className="group/more">
+              <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
+                <Icon
+                  name="plus"
+                  size={1}
+                  className="ease-standard duration-settled size-[14px] transition-transform group-open/more:rotate-45"
+                />
+                More options
+              </summary>
+
+              <div className="border-hairline bg-field mt-2.5 max-h-[40vh] overflow-auto rounded-[14px] border p-5">
+                <div className="flex flex-col gap-6 pt-2">
+                  <fieldset className="flex flex-col gap-3">
+                    <legend className="text-text text-sm font-medium">Exact travel window</legend>
+                    <p className="text-muted text-sm">
+                      Used when the dates are set to &ldquo;Exact window&rdquo;. A window plus a
+                      trip length says &ldquo;four to seven nights, any time in June&rdquo;.
+                    </p>
+                    <ExactWindowFields form={form} errors={errors} />
+                  </fieldset>
+
+                  <fieldset className="flex flex-col gap-3">
+                    <legend className="text-text text-sm font-medium">Budget</legend>
+                    <BudgetFields
+                      form={form}
+                      errors={errors}
+                      include={['currency', 'targetBudget', 'maxBudget', 'reserveBudget']}
+                    />
+                  </fieldset>
+
+                  <fieldset className="flex flex-col gap-3">
+                    <legend className="text-text text-sm font-medium">What matters to you</legend>
+                    <PreferenceFields form={form} errors={errors} />
+                  </fieldset>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          {/* The bar itself. 64px on a desktop. */}
+          <div className="flex shrink-0 flex-col lg:h-16 lg:flex-row lg:items-center lg:pr-2.5">
+            <div className="relative flex min-w-0 flex-col lg:grid lg:flex-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,2.6fr)_minmax(0,0.9fr)] lg:items-center">
+              <div className={cell}>
+                <AirportInput
+                  label="From"
+                  name="origins"
+                  defaultValue={form.value('origins')}
+                  hint="Type a code or a city."
+                  error={errors.origins}
+                  airports={airports}
+                  bare
+                  dropUp
+                  required
+                />
+              </div>
+
+              <div className={`${cell} lg:pl-6`}>
+                <AirportInput
+                  label="To"
+                  name="destinations"
+                  defaultValue={form.value('destinations')}
+                  hint={destinationsHint}
+                  error={errors.destinations}
+                  airports={airports}
+                  bare
+                  dropUp
+                  required
+                />
+              </div>
+
+              <div className={cell}>
+                <div className="group-has-[input[name=flexibility][value=month]:checked]/form:hidden">
+                  <DateRangeField
+                    startLabel="Leaving"
+                    startName="departureDate"
+                    startValue={form.value('departureDate')}
+                    startError={errors.departureDate}
+                    endLabel="Back"
+                    endName="returnDate"
+                    endValue={form.value('returnDate')}
+                    endError={errors.returnDate}
+                    min={today}
+                    bare
+                  />
+                </div>
+              </div>
+
+              <div className={cell}>
+                <NumberStepperField
+                  label="Travellers"
+                  name="passengers"
+                  min={1}
+                  max={9}
+                  defaultValue={form.value('passengers')}
+                  error={errors.passengers}
+                  bare
+                  required
+                />
+              </div>
+
+              <SwapEndpoints
+                from="origins"
+                to="destinations"
+                className="bg-field border-hairline text-muted hover:text-text focus-visible:outline-accent-ink ease-standard duration-quick absolute top-1/2 left-[19.3%] z-10 hidden size-[30px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition-colors lg:grid"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 p-2 lg:p-0 lg:pl-2">
+              <label
+                htmlFor="hero-search-open"
+                className={`text-muted hover:text-text border-hairline ease-standard duration-quick inline-flex min-h-11 min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-(--radius-pill) border px-3.5 text-[13px] transition-colors group-has-[#hero-search-open:focus-visible]/s:outline-2 group-has-[#hero-search-open:focus-visible]/s:outline-offset-2 group-has-[#hero-search-open:focus-visible]/s:outline-(--color-brand-500) lg:flex-none`}
+              >
+                <span className="truncate lg:hidden">{summary}</span>
+                <span className="font-medium whitespace-nowrap">
+                  <span className="lg:hidden">Edit</span>
+                  <span className="max-lg:hidden">Options</span>
+                </span>
+                <Icon
+                  name="chevron-down"
+                  size={0.8}
+                  className={`ease-standard duration-settled shrink-0 transition-transform group-has-[#hero-search-open:checked]/s:rotate-180`}
+                />
+              </label>
+
+              <Button
+                type="submit"
+                variant="cta"
+                className="h-12 shrink-0 rounded-(--radius-pill) px-5 text-[14px] font-medium"
+              >
+                Search trips
+                <Icon name="arrow-right" size={1} className="size-[16px]" />
+              </Button>
+            </div>
+          </div>
         </form>
       </div>
     </section>

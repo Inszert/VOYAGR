@@ -36,6 +36,28 @@ import {
   toArcRuns,
   type ProjectedArc,
 } from './globe-arcs';
+import {
+  ARC_DRAW_MS,
+  EASE_OUT_EXPO,
+  EASE_OUT_QUART_CSS,
+  FLY_MS,
+  FLY_PITCH,
+  FLY_ZOOM,
+  GLOBE_FOCUS_EVENT,
+  GLOBE_RELEASE_EVENT,
+  MAX_ARCS,
+  RETURN_MS,
+  SPIN_DEGREES_PER_SECOND,
+  SPIN_RESUME_DELAY_MS,
+  arcLightFraction,
+  arcLightOpacity,
+  changedPins,
+  heroDiameter,
+  spinFactor,
+} from './globe-motion';
+
+/** Where the last-seen prices are kept, to know which pin to pulse. */
+const PIN_PRICES_KEY = 'voyagr.pin-prices';
 
 /**
  * The globe (1.10.1 sections 11 and 12, second pass).
@@ -154,8 +176,12 @@ export interface GlobeStageProps {
   } | null;
   /** The path and query a country selection is written into. */
   navigation: { readonly path: string; readonly query: string };
-  /** `hero` sits beside the headline; `explorer` fills a page. */
-  variant?: 'hero' | 'explorer';
+  /**
+   * `hero` sits beside the headline; `explorer` fills a page; `stage` is the
+   * front page's: a box the parent positions, with the planet sized to the
+   * viewport rather than to the box (`heroDiameter`).
+   */
+  variant?: 'hero' | 'explorer' | 'stage';
   className?: string;
 }
 
@@ -219,6 +245,31 @@ function countryPadding(map: MapLibreMap): {
 }
 
 /**
+ * How the camera flies to a selection: 1400ms on `--ease-out-expo`, tilting
+ * to 18 degrees. A 0ms jump under `prefers-reduced-motion`; the view it lands
+ * on is the same.
+ */
+function flightTo(map: MapLibreMap) {
+  return {
+    padding: countryPadding(map),
+    maxZoom: 4.5,
+    pitch: FLY_PITCH,
+    duration: prefersReducedMotion() ? 0 : FLY_MS,
+    easing: EASE_OUT_EXPO,
+  };
+}
+
+/** The way back: 900ms on the same curve, level again. */
+function returnTo(view: { center: [number, number]; zoom: number }) {
+  return {
+    ...view,
+    pitch: 0,
+    duration: prefersReducedMotion() ? 0 : RETURN_MS,
+    easing: EASE_OUT_EXPO,
+  };
+}
+
+/**
  * The colour an arc is drawn in, by how many times its best trip changes planes.
  *
  * Direct keeps the route colour, one change is amber and two or more is coral.
@@ -230,11 +281,8 @@ function routeStroke(stops: number | null): string {
   return stops === 1 ? 'var(--color-stage-route-1)' : 'var(--color-stage-route-2)';
 }
 
-/** Airplanes flying each arc. Two, half a journey apart. */
-const PLANES_PER_ARC = 2;
-
-/** Degrees of longitude per frame while idle. Slow enough to read a chip. */
-const IDLE_SPIN_PER_FRAME = 0.035;
+/** The painted sphere is measured at about 0.855 of the side `overview` is given. */
+const STAGE_FIT = 1.17;
 
 /** Where the world opens when there is nothing to fit to: Europe and the Mediterranean. */
 const FALLBACK_VIEW = { center: [18, 38] as [number, number], zoom: 1.8 };
@@ -334,9 +382,18 @@ function overview(
   container: HTMLElement,
   origins: readonly StageOrigin[],
   chips: readonly StageChip[],
+  stage = false,
 ): { center: [number, number]; zoom: number } {
   const anchor = origins[0]?.position ?? chips[0]?.position ?? [16, 40];
-  const side = Math.min(container.clientWidth, container.clientHeight);
+  /*
+   * On the front page the planet is sized to the window, not to its box: the
+   * box is the whole hero and the sphere bleeds past its sides on a phone.
+   */
+  const side = stage
+    ? // The painted disc is about 0.855 of `side` (see the note below), so ask
+      // for the diameter the design wants divided by that.
+      heroDiameter(container.clientWidth, window.innerHeight) * STAGE_FIT
+    : Math.min(container.clientWidth, container.clientHeight);
   // MapLibre draws the globe with the mercator world's width as its
   // circumference: 512px at zoom zero, doubling per level. So its diameter
   // is 512 · 2^zoom / π, about 163px at zoom zero.
@@ -404,6 +461,16 @@ export function GlobeStage({
   const hoveredRef = React.useRef<string | null>(null);
   const selectedRef = React.useRef<string | null>(null);
   const spinningRef = React.useRef(false);
+  /**
+   * Whether the hero is on screen enough to be worth animating: at least a
+   * fifth of it. Every loop that only decorates reads this and stands down.
+   */
+  const visibleRef = React.useRef(true);
+  /** True while the camera is parked on a destination the rail pointed at. */
+  const flownRef = React.useRef(false);
+  /** Which projection the camera is in, readable from the creation effect. */
+  const projectionRef = React.useRef<'globe' | 'mercator'>('globe');
+  const stage = variant === 'stage';
   /** Re-runs the chip collision pass. Assigned once the map exists. */
   const layoutRef = React.useRef<() => void>(() => {});
   /** Lights a country on every outline source. Assigned once the map exists. */
@@ -433,6 +500,35 @@ export function GlobeStage({
    * carried it would be telling the recipient how to look.
    */
   const [projection, setProjection] = React.useState<'globe' | 'mercator'>('globe');
+  /** The prices already compared against what was last seen, so it happens once. */
+  const comparedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    projectionRef.current = projection;
+  }, [projection]);
+
+  /*
+   * Is the hero on screen?
+   *
+   * Idle rotation, the arcs' travelling light and the weather all stop when
+   * less than a fifth of the hero is visible. Nobody is looking, and a WebGL
+   * repaint is the most expensive thing on the page.
+   */
+  React.useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof IntersectionObserver === 'undefined') return;
+
+    const target = root.closest('[data-hero]') ?? root.closest('section') ?? root;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visibleRef.current = (entry?.intersectionRatio ?? 1) >= 0.2;
+      },
+      { threshold: [0, 0.1, 0.2, 0.3, 0.5, 1] },
+    );
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, []);
 
   /* ------------------------------------------------------------------ */
   /* Creation, once.                                                     */
@@ -684,11 +780,7 @@ export function GlobeStage({
                 [bounds[0]!, bounds[1]!],
                 [bounds[2]!, bounds[3]!],
               ],
-              {
-                padding: countryPadding(map),
-                maxZoom: 4.5,
-                duration: prefersReducedMotion() ? 0 : 1200,
-              },
+              flightTo(map),
             );
           }
 
@@ -718,40 +810,127 @@ export function GlobeStage({
         /*
          * Idle rotation.
          *
-         * The globe turns slowly until somebody touches it, and then it is
-         * theirs. Off entirely under reduced motion, and off while a country
-         * is selected, because a selected country that drifts away is a
-         * selection the interface is disagreeing with.
+         * One full turn in 240 seconds, measured in time rather than in frames
+         * so a 120Hz screen does not turn twice as fast. It pauses on a press,
+         * while a chip is hovered, while focus is anywhere in the hero, while
+         * the tab is hidden or the hero is mostly off screen, and while a
+         * country is selected or the camera is flying - a selection that
+         * drifts away is the interface disagreeing with itself. It resumes
+         * three seconds after the last interaction and ramps up over 1200ms
+         * rather than lurching. Off entirely under reduced motion.
          */
         const startSpin = () => {
           if (prefersReducedMotion() || spinningRef.current) return;
           spinningRef.current = true;
 
-          let frame = 0;
-          const step = () => {
-            if (!spinningRef.current) return;
-            if (!latest.current.selectedCountry && !map.isMoving()) {
-              const center = map.getCenter();
-              map.jumpTo({ center: [center.lng + IDLE_SPIN_PER_FRAME, center.lat] });
+          const holds = { pointer: false, chip: false, focus: false };
+          const scope = element.closest('[data-hero]') ?? element.closest('section') ?? element;
+          // Quiet already, so the first ramp starts as soon as the globe is up.
+          let lastTouch = performance.now() - SPIN_RESUME_DELAY_MS;
+          const touch = () => {
+            lastTouch = performance.now();
+          };
+
+          const onDown = () => {
+            holds.pointer = true;
+            touch();
+          };
+          const onUp = () => {
+            holds.pointer = false;
+            touch();
+          };
+          const onOver = (event: Event) => {
+            if ((event.target as Element | null)?.closest?.('.voyagr-chip')) holds.chip = true;
+          };
+          const onOut = (event: Event) => {
+            if ((event.target as Element | null)?.closest?.('.voyagr-chip')) {
+              holds.chip = false;
+              touch();
             }
+          };
+          const onFocusIn = () => {
+            holds.focus = true;
+            touch();
+          };
+          const onFocusOut = (event: FocusEvent) => {
+            if (!scope.contains(event.relatedTarget as Node | null)) {
+              holds.focus = false;
+              touch();
+            }
+          };
+
+          for (const type of ['mousedown', 'touchstart'] as const) {
+            canvas.addEventListener(type, onDown, { passive: true });
+          }
+          for (const type of ['mouseup', 'touchend', 'touchcancel'] as const) {
+            window.addEventListener(type, onUp, { passive: true });
+          }
+          for (const type of ['wheel', 'keydown'] as const) {
+            canvas.addEventListener(type, touch, { passive: true });
+          }
+          element.addEventListener('mouseover', onOver);
+          element.addEventListener('mouseout', onOut);
+          scope.addEventListener('focusin', onFocusIn);
+          scope.addEventListener('focusout', onFocusOut as EventListener);
+
+          let frame = 0;
+          let previous = performance.now();
+
+          const step = (now: number) => {
             frame = window.requestAnimationFrame(step);
+
+            // Capped, so a tab that was asleep does not turn the planet a
+            // quarter of the way round on waking.
+            const seconds = Math.min(0.1, (now - previous) / 1000);
+            previous = now;
+
+            if (holds.pointer || holds.chip || holds.focus) {
+              touch();
+              return;
+            }
+
+            const standingDown =
+              document.hidden ||
+              !visibleRef.current ||
+              flownRef.current ||
+              projectionRef.current !== 'globe' ||
+              latest.current.selectedCountry !== null ||
+              map.isMoving();
+
+            if (standingDown) {
+              // Not an interaction, so no three-second wait - only the ramp.
+              lastTouch = now - SPIN_RESUME_DELAY_MS;
+              return;
+            }
+
+            const factor = spinFactor(now - lastTouch);
+            if (factor <= 0) return;
+
+            const center = map.getCenter();
+            map.jumpTo({
+              center: [center.lng + SPIN_DEGREES_PER_SECOND * factor * seconds, center.lat],
+            });
           };
           frame = window.requestAnimationFrame(step);
 
           stopSpin = () => {
             spinningRef.current = false;
             window.cancelAnimationFrame(frame);
+            for (const type of ['mousedown', 'touchstart'] as const) {
+              canvas.removeEventListener(type, onDown);
+            }
+            for (const type of ['mouseup', 'touchend', 'touchcancel'] as const) {
+              window.removeEventListener(type, onUp);
+            }
+            for (const type of ['wheel', 'keydown'] as const) {
+              canvas.removeEventListener(type, touch);
+            }
+            element.removeEventListener('mouseover', onOver);
+            element.removeEventListener('mouseout', onOut);
+            scope.removeEventListener('focusin', onFocusIn);
+            scope.removeEventListener('focusout', onFocusOut as EventListener);
           };
         };
-
-        const stopOnInteraction = () => {
-          stopSpin?.();
-          stopSpin = null;
-        };
-
-        for (const type of ['mousedown', 'touchstart', 'wheel', 'keydown'] as const) {
-          canvas.addEventListener(type, stopOnInteraction, { passive: true });
-        }
 
         /*
          * Chips must not pile up.
@@ -913,7 +1092,7 @@ export function GlobeStage({
           // The origins, routes and destinations are all filled by the effect
           // below, which runs as soon as this sets `ready`. Only the opening
           // view belongs here, because it needs the container's real size.
-          map.jumpTo(overview(element, origins, initial.chips));
+          map.jumpTo(overview(element, origins, initial.chips, variant === 'stage'));
 
           /*
            * Follows the box.
@@ -935,7 +1114,7 @@ export function GlobeStage({
               if (cancelled) return;
               map.resize();
 
-              const fitted = overview(element, origins, latest.current.chips);
+              const fitted = overview(element, origins, latest.current.chips, variant === 'stage');
               if (Math.abs(map.getZoom() - restingZoom) < 0.05) {
                 map.jumpTo({ zoom: fitted.zoom });
                 restingZoom = fitted.zoom;
@@ -958,11 +1137,11 @@ export function GlobeStage({
                 [w!, s!],
                 [e!, n!],
               ],
-              { padding: countryPadding(map), maxZoom: 4.5, duration: 0 },
+              { ...flightTo(map), duration: 0 },
             );
-          } else {
-            startSpin();
           }
+
+          startSpin();
 
           /*
            * The decoration, now that the planet is on screen. `setData` takes
@@ -1072,7 +1251,7 @@ export function GlobeStage({
 
       // A hidden tab still gets frames in some engines, and repainting a
       // planet nobody is looking at is the definition of wasted battery.
-      if (document.hidden) return;
+      if (document.hidden || !visibleRef.current) return;
 
       /*
        * Nothing moves until the globe has finished arriving.
@@ -1244,7 +1423,8 @@ export function GlobeStage({
     if (!map || !root || !svg || status !== 'ready') return;
 
     const NS = 'http://www.w3.org/2000/svg';
-    const runs = toArcRuns(routes);
+    // Best-ranked last in the list, so the six that survive are the six best.
+    const runs = toArcRuns(routes).slice(-MAX_ARCS);
     const moving = !prefersReducedMotion();
 
     /*
@@ -1258,43 +1438,67 @@ export function GlobeStage({
     const drawn = runs.map((run) => {
       const glow = document.createElementNS(NS, 'path');
       const line = document.createElementNS(NS, 'path');
-      // Airplanes, not dots: a light on a line says nothing about what travels
-      // it. Drawn pointing along +x and turned to the arc each frame. Two to an
-      // arc, half a journey apart, so a busy route looks like one.
-      const pulses = moving
-        ? Array.from({ length: PLANES_PER_ARC }, () => document.createElementNS(NS, 'path'))
-        : [];
+      // One light per route: 6px across, travelling the arc once per 4s.
+      const light = moving ? document.createElementNS(NS, 'circle') : null;
 
       // One pixel. A route is a thread over a planet, not a pipe.
       const width = run.selected ? 1.5 : 1;
 
-      glow.setAttribute('fill', 'none');
-      glow.setAttribute('stroke', routeStroke(run.stops));
+      /*
+       * `pathLength` of 1 makes the dash arithmetic independent of the path's
+       * real length, which changes every frame as the planet turns. The draw
+       * is a dashoffset from 1 to 0. This is SVG, not the map's line atlas, so
+       * it does not touch `routeDashPattern`'s bound.
+       */
+      for (const path of [glow, line]) {
+        path.setAttribute('pathLength', '1');
+        path.setAttribute('stroke-dasharray', '1 1');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', routeStroke(run.stops));
+        path.setAttribute('stroke-linecap', 'round');
+      }
+
       glow.setAttribute('stroke-width', String(width * 6));
-      glow.setAttribute('stroke-linecap', 'round');
       glow.setAttribute('stroke-opacity', '0.12');
 
-      line.setAttribute('fill', 'none');
-      line.setAttribute('stroke', routeStroke(run.stops));
       line.setAttribute('stroke-width', String(width));
-      line.setAttribute('stroke-linecap', 'round');
       line.setAttribute('stroke-opacity', run.selected ? '0.9' : '0.6');
 
       svg.append(glow, line);
 
-      for (const pulse of pulses) {
-        pulse.setAttribute(
-          'd',
-          'M6 0 L-1 -1.2 L-3.5 -5 L-4.8 -5 L-3.2 -1 L-6 -0.8 L-6.6 -2.2 L-7.4 -2.2 L-7 0 L-7.4 2.2 L-6.6 2.2 L-6 0.8 L-3.2 1 L-4.8 5 L-3.5 5 L-1 1.2 Z',
-        );
-        pulse.setAttribute('fill', 'var(--color-stage-chip-ink)');
-        pulse.setAttribute('stroke', 'rgba(3, 5, 10, 0.7)');
-        pulse.setAttribute('stroke-width', '0.6');
-        svg.append(pulse);
+      if (light) {
+        light.setAttribute('r', '3');
+        light.setAttribute('fill', 'var(--color-stage-chip-ink)');
+        light.setAttribute('stroke', routeStroke(run.stops));
+        light.setAttribute('stroke-width', '4');
+        light.setAttribute('stroke-opacity', '0.35');
+        light.setAttribute('fill-opacity', '0');
+        light.setAttribute('stroke-linejoin', 'round');
+        svg.append(light);
       }
 
-      return { run, glow, line, pulses };
+      return { run, glow, line, light, drawnAt: null as number | null };
     });
+
+    /** Starts a route's 900ms draw the first time it has a path to draw. */
+    const startDraw = (entry: (typeof drawn)[number], index: number, now: number) => {
+      if (entry.drawnAt !== null) return;
+      entry.drawnAt = now + (moving ? index * 100 : 0);
+      if (!moving) {
+        // Reduced motion: appears drawn, no animation at all.
+        for (const path of [entry.glow, entry.line]) path.setAttribute('stroke-dasharray', 'none');
+        return;
+      }
+
+      for (const path of [entry.glow, entry.line]) {
+        path.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], {
+          duration: ARC_DRAW_MS,
+          delay: index * 100,
+          easing: EASE_OUT_QUART_CSS,
+          fill: 'both',
+        });
+      }
+    };
 
     let frame = 0;
     let last = 0;
@@ -1303,7 +1507,6 @@ export function GlobeStage({
     // the first frame always writes it.
     let groundTrackHidden: boolean | null = null;
     const arcs = new Map<string, ProjectedArc>();
-    const started = performance.now();
 
     /*
      * Custom properties are only written when they change.
@@ -1444,7 +1647,8 @@ export function GlobeStage({
           write('--globe-sun-y', `${highlight.y.toFixed(1)}%`);
         }
 
-        for (const { run, glow, line } of drawn) {
+        for (const entry of drawn) {
+          const { run, glow, line } = entry;
           const arc = projectArc(map, run, sphere);
 
           if (!arc) {
@@ -1457,40 +1661,35 @@ export function GlobeStage({
           arcs.set(run.key, arc);
           glow.setAttribute('d', arc.d);
           line.setAttribute('d', arc.d);
+          startDraw(entry, drawn.indexOf(entry), now);
         }
       }
 
       if (!moving) return;
 
-      const seconds = (now - started) / 1000;
+      // The travelling light is decoration: it stands down with the hero.
+      const looking = visibleRef.current;
 
-      for (const [index, { run, pulses }] of drawn.entries()) {
+      for (const [index, entry] of drawn.entries()) {
+        const { run, light } = entry;
+        if (!light) continue;
+
         const arc = arcs.get(run.key);
+        const sinceDrawn = entry.drawnAt === null ? -1 : now - entry.drawnAt - ARC_DRAW_MS;
+        const fraction = sinceDrawn < 0 || !looking ? null : arcLightFraction(sinceDrawn, index);
+        const at = arc && fraction !== null ? pointAt(arc, fraction) : null;
 
-        for (const [plane, pulse] of pulses.entries()) {
-          // Staggered between arcs, so eight lights do not leave the same
-          // airport in step, and half a journey apart on the same arc.
-          const fraction = (seconds * 0.16 + index * 0.17 + plane / PLANES_PER_ARC) % 1;
-          const at = arc ? pointAt(arc, fraction) : null;
-
-          if (!arc || !at) {
-            pulse.setAttribute('fill-opacity', '0');
-            pulse.setAttribute('stroke-opacity', '0');
-            continue;
-          }
-
-          // Heading from the next point along the same arc, so the nose leads.
-          const ahead = pointAt(arc, Math.min(0.9999, fraction + 0.02)) ?? at;
-          const heading = (Math.atan2(ahead.y - at.y, ahead.x - at.x) * 180) / Math.PI;
-          const size = run.selected ? 1.25 : 1;
-
-          pulse.setAttribute(
-            'transform',
-            `translate(${at.x.toFixed(1)} ${at.y.toFixed(1)}) rotate(${heading.toFixed(0)}) scale(${size})`,
-          );
-          pulse.setAttribute('fill-opacity', '0.95');
-          pulse.setAttribute('stroke-opacity', '1');
+        if (!at || fraction === null) {
+          light.setAttribute('fill-opacity', '0');
+          light.setAttribute('stroke-opacity', '0');
+          continue;
         }
+
+        const fade = arcLightOpacity(fraction);
+        light.setAttribute('cx', at.x.toFixed(1));
+        light.setAttribute('cy', at.y.toFixed(1));
+        light.setAttribute('fill-opacity', (0.95 * fade).toFixed(2));
+        light.setAttribute('stroke-opacity', (0.35 * fade).toFixed(2));
       }
     };
 
@@ -1512,10 +1711,10 @@ export function GlobeStage({
     return () => {
       window.clearTimeout(begin);
       window.cancelAnimationFrame(frame);
-      for (const { glow, line, pulses } of drawn) {
+      for (const { glow, line, light } of drawn) {
         glow.remove();
         line.remove();
-        for (const pulse of pulses) pulse.remove();
+        light?.remove();
       }
     };
   }, [routes, status, projection]);
@@ -1582,7 +1781,8 @@ export function GlobeStage({
       });
     } else if (!selectedCountry) {
       map.easeTo({
-        ...overview(map.getContainer(), origins, chips),
+        ...overview(map.getContainer(), origins, chips, stage),
+        pitch: 0,
         duration: prefersReducedMotion() ? 0 : 600,
       });
     }
@@ -2040,6 +2240,118 @@ export function GlobeStage({
     layoutRef.current();
   }, [hosts, chips]);
 
+  /*
+   * Pins keep clear of whatever is laid over the globe, even when it changes.
+   *
+   * The collision pass runs as the globe moves, and the globe holds still
+   * while somebody is typing in the search - so a search that opens, and
+   * pushes the headline up under a price, would never be re-measured. The
+   * overlays are watched for a change of size and the pass is run again.
+   */
+  React.useEffect(() => {
+    const root = rootRef.current;
+    if (!root || status !== 'ready' || typeof ResizeObserver === 'undefined') return;
+
+    const scope = root.closest('[data-hero]') ?? root.parentElement;
+    if (!scope) return;
+
+    const observer = new ResizeObserver(() => layoutRef.current());
+    for (const overlay of scope.querySelectorAll('[data-globe-overlay]')) observer.observe(overlay);
+
+    return () => observer.disconnect();
+  }, [status]);
+
+  /*
+   * The rail points at a pin.
+   *
+   * Focusing (or lingering on) a destination in the rail flies the camera to
+   * it: 1400ms on the expo curve, 0.6 closer, tilted 18 degrees. Leaving the
+   * rail brings it back in 900ms. While it is parked there the idle turn
+   * stands down. A country that is open owns the camera, so this does nothing
+   * then, and nothing in the flat map, where there is no globe to turn.
+   */
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+
+    const onFocus = (event: Event) => {
+      const code = (event as CustomEvent<{ code?: string }>).detail?.code;
+      const chip = latest.current.chips.find((candidate) => candidate.destination === code);
+      if (!chip || latest.current.selectedCountry || projectionRef.current !== 'globe') return;
+
+      flownRef.current = true;
+      const resting = overview(map.getContainer(), origins, latest.current.chips, stage);
+
+      map.easeTo({
+        center: [chip.position[0], chip.position[1]],
+        zoom: resting.zoom + FLY_ZOOM,
+        pitch: FLY_PITCH,
+        duration: prefersReducedMotion() ? 0 : FLY_MS,
+        easing: EASE_OUT_EXPO,
+      });
+    };
+
+    const onRelease = () => {
+      if (!flownRef.current) return;
+      flownRef.current = false;
+      map.easeTo(returnTo(overview(map.getContainer(), origins, latest.current.chips, stage)));
+    };
+
+    window.addEventListener(GLOBE_FOCUS_EVENT, onFocus);
+    window.addEventListener(GLOBE_RELEASE_EVENT, onRelease);
+
+    return () => {
+      window.removeEventListener(GLOBE_FOCUS_EVENT, onFocus);
+      window.removeEventListener(GLOBE_RELEASE_EVENT, onRelease);
+    };
+  }, [status, origins, stage]);
+
+  /*
+   * A pin whose price changed since you last looked pulses once.
+   *
+   * What was last seen is kept in this browser's local storage - prices as the
+   * server formatted them, nothing about the traveller. A first visit has
+   * nothing to compare against, so nothing pulses. The pulse is a one-shot
+   * class, cleared after a second: no pin pulses for ever.
+   */
+  React.useEffect(() => {
+    // The chips render into their markers a beat after `hosts` is set.
+    if (status !== 'ready' || comparedRef.current || Object.keys(hosts).length === 0) return;
+    comparedRef.current = true;
+
+    let seen: Record<string, string> | null = null;
+    try {
+      const raw = window.localStorage.getItem(PIN_PRICES_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      seen = parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : null;
+    } catch {
+      seen = null;
+    }
+
+    const changed = changedPins(seen, chips);
+
+    try {
+      const next: Record<string, string> = { ...seen };
+      for (const chip of chips) if (chip.label) next[chip.destination] = chip.label;
+      window.localStorage.setItem(PIN_PRICES_KEY, JSON.stringify(next));
+    } catch {
+      // Private mode or a full quota: the pulse is a nicety, not a feature.
+    }
+
+    if (changed.length === 0) return;
+
+    // Straight onto the element: a one-shot attribute, not render state.
+    const frame = window.requestAnimationFrame(() => {
+      for (const code of changed) {
+        const pin = document.querySelector(`.voyagr-chip[data-destination="${CSS.escape(code)}"]`);
+        pin?.setAttribute('data-pulse', 'true');
+        window.setTimeout(() => pin?.removeAttribute('data-pulse'), 1000);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [chips, status, hosts]);
+
   /* Selection: feature state and a flight, in place. */
   React.useEffect(() => {
     const map = mapRef.current;
@@ -2062,22 +2374,15 @@ export function GlobeStage({
             [w!, s!],
             [e!, n!],
           ],
-          {
-            padding: countryPadding(map),
-            maxZoom: 4.5,
-            duration: prefersReducedMotion() ? 0 : 1200,
-          },
+          flightTo(map),
         );
       }
     } else if (previous) {
-      map.easeTo({
-        ...overview(map.getContainer(), origins, chips),
-        duration: prefersReducedMotion() ? 0 : 1000,
-      });
+      map.easeTo(returnTo(overview(map.getContainer(), origins, chips, stage)));
     }
 
     selectedRef.current = nextKey;
-  }, [selectedCountry, status, chips, origins]);
+  }, [selectedCountry, status, chips, origins, stage]);
 
   /*
    * The states and provinces of the open country.
@@ -2174,10 +2479,8 @@ export function GlobeStage({
   const recentre = () => {
     const map = mapRef.current;
     if (!map) return;
-    map.easeTo({
-      ...overview(map.getContainer(), origins, chips),
-      duration: prefersReducedMotion() ? 0 : 700,
-    });
+    flownRef.current = false;
+    map.easeTo(returnTo(overview(map.getContainer(), origins, chips, stage)));
   };
 
   /** Every control on the globe wears the same pane of glass. */
@@ -2208,9 +2511,10 @@ export function GlobeStage({
           against: a card placed at the bottom of the column landed over the
           globe's own controls rather than under them.
         */
-        variant === 'hero'
-          ? 'aspect-square max-h-[38rem] w-full lg:aspect-auto lg:h-full lg:max-h-none'
-          : 'h-full w-full',
+        variant === 'hero' &&
+          'aspect-square max-h-[38rem] w-full lg:aspect-auto lg:h-full lg:max-h-none',
+        // The front page's box is positioned by its parent - see DiscoveryStage.
+        variant === 'explorer' && 'h-full w-full',
         className,
       )}
     >
@@ -2253,6 +2557,7 @@ export function GlobeStage({
       <div aria-hidden="true" className="voyagr-orb voyagr-orb-limb z-[1]" />
       <div aria-hidden="true" className="voyagr-orb voyagr-orb-sheen z-[1]" />
       <div aria-hidden="true" className="voyagr-orb voyagr-orb-air z-[1]" />
+      <div aria-hidden="true" className="voyagr-orb voyagr-orb-rim z-[1]" />
 
       <svg ref={arcsRef} aria-hidden="true" focusable="false" className="voyagr-arcs" />
 
@@ -2276,7 +2581,10 @@ export function GlobeStage({
             <ul
               aria-label="Colour of the flights"
               data-globe-overlay
-              className="stage-scope text-stage-ink-muted absolute top-4 left-0 z-[5] flex flex-wrap gap-x-3 gap-y-1 text-[11px]"
+              className={cn(
+                'stage-scope text-stage-ink-muted absolute top-4 z-[5] flex flex-wrap gap-x-3 gap-y-1 text-[11px]',
+                stage ? 'left-4 sm:left-6' : 'left-0',
+              )}
             >
               {(
                 [
@@ -2400,7 +2708,6 @@ export function GlobeStage({
               // glass palette; a badge drawn for a page is unreadable here.
               'voyagr-chip stage-scope stage-rise text-stage-chip-ink focus-visible:outline-stage-accent',
               'flex items-center gap-3 text-left leading-tight whitespace-nowrap',
-              'ease-standard duration-quick transition-transform hover:scale-[1.05]',
               chip.highlighted ? 'voyagr-chip-on' : '',
             )}
             style={{ '--stage-delay': `${Math.min(chip.rank, 8) * 50}ms` } as React.CSSProperties}
