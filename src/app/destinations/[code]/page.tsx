@@ -206,6 +206,10 @@ export default async function DestinationPage({ params, searchParams }: PageProp
             No data source behind the product carries these, which is not the same as there being
             nothing to report - and for a travel warning those are very different things:{' '}
             {[
+              // A slot with no data source says so here, instead of an empty
+              // section that reads as "nothing to report".
+              ...(detail.notAvailable.includes('transfers') ? ['Airport transfer prices'] : []),
+              ...(detail.notAvailable.includes('places') ? ['Places to eat, see and do'] : []),
               'Photographs of the places listed',
               'Events',
               'National holidays',

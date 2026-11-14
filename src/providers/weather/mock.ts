@@ -93,14 +93,19 @@ export class MockWeatherProvider implements WeatherProvider {
         ? Math.round((normalHigh - random.float(3, 7)) * 10) / 10
         : null;
 
+      const confidence = confidenceForLeadTime(daysBetween(MOCK_TODAY, date));
+
       outlook.push({
         date,
+        // Same line the confidence curve draws: at the floor it is the season's
+        // norm, not a forecast.
+        basis: confidence <= CLIMATOLOGY_CONFIDENCE ? 'climatology' : 'forecast',
         temperatureMinC,
         temperatureMaxC,
         precipitationProbability,
         windKph: Math.round(random.float(6, 34)),
         seaTemperatureC,
-        confidence: confidenceForLeadTime(daysBetween(MOCK_TODAY, date)),
+        confidence,
       });
     }
 

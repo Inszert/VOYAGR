@@ -16,7 +16,13 @@ const booleanish = z
   .union([z.boolean(), z.enum(['true', 'false', '1', '0', ''])])
   .transform((value) => value === true || value === 'true' || value === '1');
 
-const providerName = z.enum(['mock', 'live']).default('mock');
+/**
+ * `absent` is a slot with no data source behind it: the adapter answers with
+ * nothing and the cost line is `excluded`. It is what production resolves
+ * hotels, transfers and places to until a live adapter exists - see
+ * `productionAwareDefaults` and `src/providers/absent.ts`.
+ */
+const providerName = z.enum(['mock', 'live', 'absent']).default('mock');
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -78,6 +84,13 @@ const envSchema = z.object({
    * here would make the flag look like a setting somebody has to manage.
    */
   DATA_SOURCE_SWITCH: booleanish.optional(),
+  /**
+   * Lets a production build serve fixtures. For the end-to-end suite, which
+   * runs against `next start` and needs deterministic data, and for nothing
+   * else: with this unset a production process refuses to start on a mock, and
+   * the demo notices and the data-source switch can never appear.
+   */
+  ALLOW_MOCK_IN_PRODUCTION: booleanish.default(false),
   HOTEL_PROVIDER: providerName,
   /**
    * `open-meteo` needs no credential - it is a free, keyless API - so unlike
@@ -85,7 +98,7 @@ const envSchema = z.object({
    * startup. See `src/providers/weather/open-meteo.ts` for the free-tier
    * terms this still depends on.
    */
-  WEATHER_PROVIDER: z.enum(['mock', 'live', 'open-meteo']).default('mock'),
+  WEATHER_PROVIDER: z.enum(['mock', 'live', 'open-meteo']).default('open-meteo'),
   TRANSFER_PROVIDER: providerName,
   PLACES_PROVIDER: providerName,
   /**
@@ -206,8 +219,34 @@ function stripEmptyStrings(source: Record<string, string | undefined>): Record<s
   return out;
 }
 
+/**
+ * Defaults that depend on where the process runs.
+ *
+ * Weather is keyless and real, so it is on everywhere except a test run, which
+ * must not reach the network. In production the slots with no live adapter yet
+ * default to `absent` rather than to a fixture, so a production config says what
+ * it has - flights are the one slot with no safe default, and a `mock` there is
+ * refused by the registry's guard rather than papered over here.
+ */
+function productionAwareDefaults(source: Record<string, unknown>): Record<string, unknown> {
+  const production = source.NODE_ENV === 'production';
+
+  return {
+    WEATHER_PROVIDER: source.NODE_ENV === 'test' ? 'mock' : 'open-meteo',
+    ...(production
+      ? {
+          HOTEL_PROVIDER: 'absent',
+          TRANSFER_PROVIDER: 'absent',
+          PLACES_PROVIDER: 'absent',
+          STAY_PROVIDERS: 'absent',
+        }
+      : {}),
+    ...source,
+  };
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(stripEmptyStrings(source));
+  const result = envSchema.safeParse(productionAwareDefaults(stripEmptyStrings(source)));
 
   if (!result.success) {
     // Report which variable failed and why — never the offending value, which

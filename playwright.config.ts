@@ -113,6 +113,12 @@ export default defineConfig({
        * shape a deployment would use to expose it deliberately.
        */
       DATA_SOURCE_SWITCH: 'true',
+      /*
+       * A production build refuses to serve fixtures (`assertNoMockInProduction`).
+       * This suite is deterministic by design and runs on fixtures, so it opts in
+       * by name - the one place that does.
+       */
+      ALLOW_MOCK_IN_PRODUCTION: 'true',
       FLIGHT_PROVIDER: 'mock',
       HOTEL_PROVIDER: 'mock',
       WEATHER_PROVIDER: 'mock',

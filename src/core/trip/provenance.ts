@@ -156,13 +156,15 @@ export function combineProvenance(parts: readonly DataProvenance[]): DataProvena
  * that inherits "Live price" is a lie told by a boolean just as much as a
  * sandbox one would be.
  */
-export type ProviderMode = 'mock' | 'test' | 'indicative' | 'live';
+export type ProviderMode = 'mock' | 'test' | 'indicative' | 'live' | 'absent';
 
 const MODE_PROVENANCE: Record<ProviderMode, DataProvenance> = {
   mock: 'mock',
   test: 'test',
   indicative: 'indicative',
   live: 'live',
+  // Nobody is answering: not a fixture, and not a real figure either.
+  absent: 'unavailable',
 };
 
 export function provenanceForMode(mode: ProviderMode): DataProvenance {
@@ -172,6 +174,19 @@ export function provenanceForMode(mode: ProviderMode): DataProvenance {
 /** A provider's provenance, from whether its adapter serves fixtures. */
 export function provenanceForProvider(isMock: boolean): DataProvenance {
   return isMock ? 'mock' : 'live';
+}
+
+/**
+ * A provider's provenance from its metadata, honouring `mode` where it has one.
+ *
+ * `isMock` alone would call an absent provider "live", which is the one thing a
+ * slot with no data behind it must never be called.
+ */
+export function provenanceForMetadata(metadata: {
+  readonly isMock: boolean;
+  readonly mode?: ProviderMode;
+}): DataProvenance {
+  return metadata.mode ? provenanceForMode(metadata.mode) : provenanceForProvider(metadata.isMock);
 }
 
 /**

@@ -2,6 +2,12 @@ import { AppError } from '@/lib/errors';
 import { getEnv, type Env } from '@/lib/env';
 import type { DataSource } from './data-source';
 import { getLogger } from '@/lib/logger';
+import {
+  createAbsentHotelProvider,
+  createAbsentPlacesProvider,
+  createAbsentTransferProvider,
+} from './absent';
+import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
 import { createMockFlightProvider } from './flights/mock';
 import { createMockHotelProvider } from './hotels/mock';
@@ -27,9 +33,12 @@ import type {
  * ask for "the flight provider" and get whatever configuration selected, so no
  * feature code ever names a vendor.
  *
- * Every slot currently resolves to a mock. Adding a real provider means writing
- * the adapter and extending the relevant factory below - the call sites do not
- * change.
+ * Outside production a slot with no live adapter resolves to a mock. In
+ * production it never does: flights and weather refuse to start on one, and the
+ * slots that have no live adapter yet (hotels, transfers, places) resolve to an
+ * `absent` provider instead - see `assertNoMockInProduction`. Adding a real
+ * provider means writing the adapter and extending the relevant factory below -
+ * the call sites do not change.
  */
 
 const log = getLogger('providers.registry');
@@ -47,6 +56,8 @@ export class ProviderRegistry {
     this.weather = resolveWeatherProvider(env);
     this.transfers = resolveTransferProvider(env);
     this.places = resolvePlacesProvider(env);
+
+    assertNoMockInProduction(this, env);
   }
 
   all(): AnyProvider[] {
@@ -124,6 +135,48 @@ export class ProviderRegistry {
 }
 
 /**
+ * The production guard: no slot may be a mock.
+ *
+ * The resolvers below already refuse to build one, so this is the backstop
+ * that makes the property a fact about the finished registry rather than about
+ * each resolver being written correctly - a new slot or a new branch that
+ * forgets the rule fails here, at startup, and says which slot.
+ *
+ * Fixtures in front of a real traveller are invented prices, which is why this
+ * throws instead of logging.
+ */
+export function assertNoMockInProduction(
+  registry: Pick<ProviderRegistry, 'all'>,
+  env: Pick<Env, 'NODE_ENV' | 'ALLOW_MOCK_IN_PRODUCTION'>,
+): void {
+  if (mockAllowed(env)) return;
+
+  const mocked = registry
+    .all()
+    .filter((provider) => provider.metadata.isMock)
+    .map((provider) => `${provider.metadata.kind} (${provider.metadata.id})`);
+
+  if (mocked.length > 0) {
+    throw new AppError(
+      'CONFIGURATION_ERROR',
+      `Production resolved fixture providers: ${mocked.join(', ')}. Configure a live provider, or leave the slot absent.`,
+      { publicMessage: 'This travel data source is not configured.' },
+    );
+  }
+}
+
+function refuseMockInProduction(kind: ProviderKind): never {
+  throw new AppError(
+    'CONFIGURATION_ERROR',
+    `${kind.toUpperCase()}_PROVIDER is "mock" in production. Fixtures are never served there; configure a live provider.`,
+    {
+      publicMessage: 'This travel data source is not configured.',
+      context: { kind },
+    },
+  );
+}
+
+/**
  * Raised when configuration selects a live provider that has no implementation
  * yet. Failing loudly at resolution time is deliberate - silently falling back
  * to a mock in production would mean showing fixture prices as real ones.
@@ -174,15 +227,21 @@ function resolveFlightProvider(env: Env): FlightProvider {
     });
   }
 
-  return env.FLIGHT_PROVIDER === 'mock'
-    ? createMockFlightProvider()
-    : liveProviderNotImplemented('flights');
+  if (env.FLIGHT_PROVIDER === 'mock') {
+    return mockAllowed(env) ? createMockFlightProvider() : refuseMockInProduction('flights');
+  }
+
+  return liveProviderNotImplemented('flights');
 }
 
 function resolveHotelProvider(env: Env): HotelProvider {
-  return env.HOTEL_PROVIDER === 'mock'
-    ? createMockHotelProvider()
-    : liveProviderNotImplemented('hotels');
+  if (env.HOTEL_PROVIDER === 'absent') return createAbsentHotelProvider();
+
+  if (env.HOTEL_PROVIDER === 'mock') {
+    return mockAllowed(env) ? createMockHotelProvider() : refuseMockInProduction('hotels');
+  }
+
+  return liveProviderNotImplemented('hotels');
 }
 
 function resolveWeatherProvider(env: Env): WeatherProvider {
@@ -190,21 +249,33 @@ function resolveWeatherProvider(env: Env): WeatherProvider {
     return createOpenMeteoWeatherProvider();
   }
 
-  return env.WEATHER_PROVIDER === 'mock'
-    ? createMockWeatherProvider()
-    : liveProviderNotImplemented('weather');
+  if (env.WEATHER_PROVIDER === 'mock') {
+    return mockAllowed(env) ? createMockWeatherProvider() : refuseMockInProduction('weather');
+  }
+
+  return liveProviderNotImplemented('weather');
 }
 
 function resolveTransferProvider(env: Env): TransferProvider {
-  return env.TRANSFER_PROVIDER === 'mock'
-    ? createMockTransferProvider()
-    : liveProviderNotImplemented('transfers');
+  if (env.TRANSFER_PROVIDER === 'absent') return createAbsentTransferProvider();
+
+  if (env.TRANSFER_PROVIDER === 'mock') {
+    // Only mocks exist for this slot today, so in production it is absent
+    // rather than a startup failure: the cost line is `excluded`, never zero.
+    return mockAllowed(env) ? createMockTransferProvider() : createAbsentTransferProvider();
+  }
+
+  return liveProviderNotImplemented('transfers');
 }
 
 function resolvePlacesProvider(env: Env): PlacesProvider {
-  return env.PLACES_PROVIDER === 'mock'
-    ? createMockPlacesProvider()
-    : liveProviderNotImplemented('places');
+  if (env.PLACES_PROVIDER === 'absent') return createAbsentPlacesProvider();
+
+  if (env.PLACES_PROVIDER === 'mock') {
+    return mockAllowed(env) ? createMockPlacesProvider() : createAbsentPlacesProvider();
+  }
+
+  return liveProviderNotImplemented('places');
 }
 
 /**

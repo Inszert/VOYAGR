@@ -546,7 +546,7 @@ Decision of record: **production goes live — no mock providers, no "Demo data"
 | -------------------------- | ---------------------------------------------------------------------------------------- |
 | 1 Plan                     | Done: finish-plan.md, WHAT-I-NEED-FROM-YOU.md. Design audit still to do (see Phase 6)    |
 | 2a Cache + refresh worker  | Done, committed (617dcb1). `src/cache/`, `cache.refresh` job, `UpdatedAgo`               |
-| 2b Weather, no-mock guard  | In progress when this was written; check `git status` / `git log` for its result         |
+| 2b Weather, no-mock guard  | Done, committed. Hotel line still half-wired: Phase 3 makes `TripCandidate.hotel` nullable + excluded stay line. `.env.example` still needs ALLOW_MOCK_IN_PRODUCTION, `absent` values, prod defaults (owner: edit was permission-denied) |
 | 3 Hotels                   | Not started. Hotellook closed 2025-10-20: build deep-link adapter + priced-adapter slot  |
 | 4 Accounts, email, alerts  | Not started (Resend driver, alert prefs, digest, unsubscribe, templates)                 |
 | 5 Flexible dates           | Not started (`src/core/flex-dates.ts`, ±3 days strip)                                    |

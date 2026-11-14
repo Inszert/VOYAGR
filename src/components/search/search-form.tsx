@@ -245,7 +245,7 @@ export function BudgetFields({
           max={3000}
           step={10}
           defaultValue={form.value('targetBudget')}
-          hint="What a good trip should cost, all in."
+          hint="What a good trip should cost. Anything we cannot price is named, not counted."
           error={errors.targetBudget}
           required
         />

@@ -27,6 +27,7 @@ import { CostBreakdown } from './cost-breakdown';
 import { ScoreExplanation } from './score-explanation';
 import { DateSwapPanel, SwapPanel } from './swap-panel';
 import { DealNote } from './deal-note';
+import { TYPICAL_LABEL } from '@/discovery/weather-summary';
 import type { DealAgainstTypical } from '@/search/deal-score';
 import type { BuiltTrip, DateChoice } from '@/search/trip-builder';
 import { tintFor } from '@/lib/tint';
@@ -124,10 +125,11 @@ function weatherLabel(candidate: RankedTrip['candidate']): string {
   const low = Math.round(Math.min(...highs));
   const high = Math.round(Math.max(...highs));
 
-  const confident = candidate.weather.every((day) => day.confidence >= 0.5);
+  // The weakest claim wins: a week with any climate-average day is not a forecast.
+  const forecast = candidate.weather.every((day) => day.basis === 'forecast');
   const range = low === high ? `${low}°C` : `${low}–${high}°C`;
 
-  return confident ? range : `${range}, typical for the season`;
+  return forecast ? range : `${range}, ${TYPICAL_LABEL.toLowerCase()}`;
 }
 
 export interface TripCardProps {

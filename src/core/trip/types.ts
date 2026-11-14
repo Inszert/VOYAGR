@@ -177,8 +177,18 @@ export interface TransferOffer {
   readonly observedAt: IsoDateTime;
 }
 
+/**
+ * What a day of weather is: a meteorological forecast, or the climate average
+ * for that date. Carried on the day itself, not inferred from `confidence`,
+ * because the two are labelled differently ("Typical for these dates") and a
+ * threshold on a confidence number is not a fact about where the figure came
+ * from.
+ */
+export type WeatherBasis = 'forecast' | 'climatology';
+
 export interface WeatherOutlook {
   readonly date: IsoDate;
+  readonly basis: WeatherBasis;
   readonly temperatureMinC: number;
   readonly temperatureMaxC: number;
   readonly precipitationProbability: number;

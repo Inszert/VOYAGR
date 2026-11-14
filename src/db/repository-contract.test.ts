@@ -16,8 +16,8 @@ import type { Repositories } from './repository';
  * that are only ever tested separately are two different interfaces wearing one
  * name, and the bug that finds you is always in the one the tests skipped.
  *
- * Postgres runs only when `TEST_DATABASE_URL` is set and the migrations have
- * been applied. It is skipped otherwise rather than failed: the suite must keep
+ * Postgres runs only when `TEST_DATABASE_URL` is set, answers a probe query and the
+ * migrations have been applied. It is skipped otherwise rather than failed: the suite must keep
  * passing with no database, which is the property the whole foundation rests
  * on. A skipped backend is reported, never silently treated as a pass.
  */
@@ -39,6 +39,22 @@ const backends: Backend[] = [
   },
 ];
 
+/**
+ * A configured database that does not answer is the same as none for this suite.
+ * It would otherwise fail every test in the file with a connection error that says
+ * nothing about the repositories, and the suite must pass without external services.
+ */
+async function postgresAnswers(): Promise<boolean> {
+  try {
+    await query('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let postgresActive = false;
+
 if (POSTGRES_URL) {
   process.env.DATABASE_URL = POSTGRES_URL;
 
@@ -47,19 +63,23 @@ if (POSTGRES_URL) {
   // pool would be asked for a DATABASE_URL that was read before it was set.
   resetEnvCache();
 
-  backends.push({
-    name: 'postgres',
-    create: createPostgresRepositories,
-    reset: async () => {
-      // Truncate rather than delete: cascades clear every dependent table, and
-      // a test must not inherit the previous one's rows.
-      await query(
-        `TRUNCATE users, user_credentials, sessions, user_preferences, trip_searches,
+  postgresActive = await postgresAnswers();
+
+  if (postgresActive) {
+    backends.push({
+      name: 'postgres',
+      create: createPostgresRepositories,
+      reset: async () => {
+        // Truncate rather than delete: cascades clear every dependent table, and
+        // a test must not inherit the previous one's rows.
+        await query(
+          `TRUNCATE users, user_credentials, sessions, user_preferences, trip_searches,
                   travel_watches, price_history, notifications, push_subscriptions
          RESTART IDENTITY CASCADE`,
-      );
-    },
-  });
+        );
+      },
+    });
+  }
 
   afterAll(async () => {
     await closePool();
@@ -78,7 +98,7 @@ describe('backend coverage', () => {
    *   TEST_DATABASE_URL=postgresql://... npm run db:migrate
    *   TEST_DATABASE_URL=postgresql://... npm test
    */
-  it.skipIf(!POSTGRES_URL)('covers the postgres backend when one is configured', () => {
+  it.skipIf(!postgresActive)('covers the postgres backend when one is configured', () => {
     expect(backends.map((backend) => backend.name)).toContain('postgres');
   });
 });

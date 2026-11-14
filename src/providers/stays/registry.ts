@@ -1,6 +1,9 @@
+import { AppError } from '@/lib/errors';
 import { getEnv, type Env } from '@/lib/env';
 import type { DataSource } from '../data-source';
 import { getLogger } from '@/lib/logger';
+import { createAbsentStayProvider } from '../absent';
+import { mockAllowed } from '../mock-policy';
 import { createMockStayProvider } from './mock';
 import type { StayProvider } from './types';
 
@@ -28,6 +31,7 @@ const log = getLogger('providers.stays.registry');
 /** Every adapter this build knows how to construct. */
 const ADAPTERS: Record<string, (env: Env) => StayProvider> = {
   mock: () => createMockStayProvider(),
+  absent: () => createAbsentStayProvider(),
 };
 
 /**
@@ -58,6 +62,8 @@ export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'
   const existing = cached().get(source);
   if (existing) return existing;
 
+  const fixturesAllowed = mockAllowed(env);
+
   const names = (source === 'mock' ? 'mock' : (env.STAY_PROVIDERS ?? 'mock'))
     .split(',')
     .map((name) => name.trim().toLowerCase())
@@ -67,6 +73,13 @@ export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'
 
   for (const name of names) {
     const build = ADAPTERS[name];
+
+    if (name === 'mock' && !fixturesAllowed) {
+      throw new AppError(
+        'CONFIGURATION_ERROR',
+        'STAY_PROVIDERS names "mock" in production. Fixtures are never served there.',
+      );
+    }
 
     if (!build) {
       /*
@@ -83,8 +96,12 @@ export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'
   }
 
   // Never an empty list: a search with no providers is an empty page with no
-  // explanation, and the mock is always available.
-  const resolved = providers.length > 0 ? providers : [createMockStayProvider()];
+  // explanation. The fallback says so - and is a fixture only where fixtures
+  // are allowed.
+  const resolved =
+    providers.length > 0
+      ? providers
+      : [fixturesAllowed ? createMockStayProvider() : createAbsentStayProvider()];
   cached().set(source, resolved);
 
   return resolved;

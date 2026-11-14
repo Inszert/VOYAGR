@@ -75,10 +75,18 @@ describe('dataSourceSwitchEnabled', () => {
     ).toBe(true);
   });
 
-  it('can be turned on or off explicitly', () => {
+  it('stays off in production even when asked for, unless fixtures are explicitly allowed', () => {
     expect(dataSourceSwitchEnabled(env({ NODE_ENV: 'production', DATA_SOURCE_SWITCH: true }))).toBe(
-      true,
+      false,
     );
+  });
+
+  it('can be turned on or off explicitly', () => {
+    expect(
+      dataSourceSwitchEnabled(
+        env({ NODE_ENV: 'production', DATA_SOURCE_SWITCH: true, ALLOW_MOCK_IN_PRODUCTION: true }),
+      ),
+    ).toBe(true);
     expect(
       dataSourceSwitchEnabled(env({ NODE_ENV: 'development', DATA_SOURCE_SWITCH: false })),
     ).toBe(false);

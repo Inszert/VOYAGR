@@ -99,6 +99,7 @@ export function buildTransferOffer(overrides: Partial<TransferOffer> = {}): Tran
 export function buildWeather(days = 5): WeatherOutlook[] {
   return Array.from({ length: days }, (_, index) => ({
     date: `2026-06-${String(10 + index).padStart(2, '0')}`,
+    basis: 'forecast' as const,
     temperatureMinC: 21,
     temperatureMaxC: 28,
     precipitationProbability: 0.1,

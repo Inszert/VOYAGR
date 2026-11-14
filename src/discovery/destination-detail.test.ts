@@ -1,5 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { resetProviderRegistry } from '@/providers/registry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetCacheStore } from '@/cache';
+import { AppError } from '@/lib/errors';
+import { err, ok } from '@/lib/result';
+import type { WeatherOutlook } from '@/core/trip/types';
+import {
+  getProviderRegistry,
+  resetProviderRegistry,
+  type ProviderRegistry,
+} from '@/providers/registry';
+import type { WeatherProvider } from '@/providers/types';
 import { groupPlaces, loadDestinationDetail, PLACE_SECTIONS } from './destination-detail';
 
 /**
@@ -10,8 +19,13 @@ import { groupPlaces, loadDestinationDetail, PLACE_SECTIONS } from './destinatio
  * emptying it, and mock data is labelled as mock wherever it lands.
  */
 
+beforeEach(() => {
+  resetCacheStore();
+});
+
 afterEach(() => {
   resetProviderRegistry();
+  resetCacheStore();
 });
 
 const query = { destination: 'AYT', currency: 'EUR', passengers: 2 } as const;
@@ -58,6 +72,76 @@ describe('loadDestinationDetail', () => {
 
   it('reports nothing unavailable when everything answered', async () => {
     expect((await loadDestinationDetail(query))?.unavailable).toEqual([]);
+  });
+});
+
+describe('the outlook, through the cache', () => {
+  const day = (date: string, basis: WeatherOutlook['basis']): WeatherOutlook => ({
+    date: date as WeatherOutlook['date'],
+    basis,
+    temperatureMinC: 10,
+    temperatureMaxC: 20,
+    precipitationProbability: 0.2,
+    windKph: 10,
+    seaTemperatureC: null,
+    confidence: basis === 'forecast' ? 0.8 : 0.3,
+  });
+
+  /** The mock registry with only the weather swapped for one the test controls. */
+  function withWeather(getOutlook: WeatherProvider['getOutlook']) {
+    const real = getProviderRegistry();
+    const weather: WeatherProvider = {
+      ...real.weather,
+      metadata: real.weather.metadata,
+      getOutlook,
+    };
+    globalThis.__voyagrProviderRegistries = new Map([
+      ['api', { ...real, weather } as unknown as ProviderRegistry],
+    ]);
+  }
+
+  const dated = {
+    ...query,
+    startDate: '2027-06-15',
+    endDate: '2027-06-16',
+    now: () => new Date('2026-11-14T09:00:00Z'),
+  } as const;
+
+  it('asks the provider once for the same destination and dates', async () => {
+    const getOutlook = vi.fn(async () =>
+      ok([day('2027-06-15', 'climatology'), day('2027-06-16', 'climatology')]),
+    );
+    withWeather(getOutlook);
+
+    await loadDestinationDetail(dated);
+    const second = await loadDestinationDetail(dated);
+
+    expect(getOutlook).toHaveBeenCalledTimes(1);
+    expect(second?.weather).toHaveLength(2);
+  });
+
+  it('keeps what the day says it is: a forecast stays a forecast, an average stays an average', async () => {
+    withWeather(async () => ok([day('2027-06-15', 'forecast'), day('2027-06-16', 'climatology')]));
+
+    const detail = await loadDestinationDetail(dated);
+
+    expect(detail?.weather.map((entry) => entry.basis)).toEqual(['forecast', 'climatology']);
+  });
+
+  it('does not cache a failure as an answer, and says the weather did not answer', async () => {
+    const getOutlook = vi
+      .fn<WeatherProvider['getOutlook']>()
+      .mockResolvedValueOnce(err(new AppError('PROVIDER_UNAVAILABLE', 'down')))
+      .mockResolvedValue(ok([day('2027-06-15', 'climatology')]));
+    withWeather(getOutlook);
+
+    const failed = await loadDestinationDetail(dated);
+    expect(failed?.weather).toEqual([]);
+    expect(failed?.unavailable).toContain('weather');
+
+    const retried = await loadDestinationDetail(dated);
+    expect(getOutlook).toHaveBeenCalledTimes(2);
+    expect(retried?.weather).toHaveLength(1);
   });
 });
 

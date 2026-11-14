@@ -22,6 +22,7 @@ function point(overrides: Partial<DestinationPoint> = {}): DestinationPoint {
     position: [30.79, 36.9],
     tier: 'major',
     cheapestTotal: money(40_100, 'EUR'),
+    excludedCategories: [],
     bestScore: 78,
     fastestMinutes: 330,
     fewestStops: 0,

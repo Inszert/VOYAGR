@@ -13,6 +13,7 @@ import { feelFor, summariseWeather } from './weather-summary';
 function day(date: string, overrides: Partial<WeatherOutlook> = {}): WeatherOutlook {
   return {
     date,
+    basis: 'climatology',
     temperatureMinC: 15,
     temperatureMaxC: 25,
     precipitationProbability: 0.2,
@@ -27,6 +28,7 @@ const days = Array.from({ length: 10 }, (_, index) =>
   day(`2026-10-${String(index + 1).padStart(2, '0')}`, {
     temperatureMaxC: 20 + index,
     precipitationProbability: index % 3 === 0 ? 0.6 : 0.1,
+    basis: index < 3 ? 'forecast' : 'climatology',
     confidence: index < 3 ? 0.9 : 0.3,
   }),
 );
@@ -59,6 +61,16 @@ describe('summariseWeather', () => {
 
   it('counts forecast days apart from the season’s typical weather', () => {
     expect(summariseWeather(days)!.forecastDays).toBe(3);
+  });
+
+  it('counts by the basis a day states, not by how confident it is', () => {
+    // A low-confidence forecast is still a forecast; a climate average is
+    // never one, however confident the vendor sounds.
+    const mixed = [
+      day('2026-10-01', { basis: 'forecast', confidence: 0.2 }),
+      day('2026-10-02', { basis: 'climatology', confidence: 0.9 }),
+    ];
+    expect(summariseWeather(mixed)!.forecastDays).toBe(1);
   });
 
   it('gives no sea temperature unless every day has one', () => {

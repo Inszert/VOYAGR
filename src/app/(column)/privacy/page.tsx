@@ -148,8 +148,9 @@ const sections: readonly LegalSection[] = [
           </li>
         </ul>
         <p>
-          Hotel and transfer figures are sample data at this stage and involve no outside provider.
-          Voyagr does not sell personal data or share it for advertising.
+          Hotel and transfer prices come from no outside provider at this stage, so nothing about
+          you is sent anywhere for them. Voyagr does not sell personal data or share it for
+          advertising.
         </p>
       </>
     ),

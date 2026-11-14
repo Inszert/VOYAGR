@@ -1,6 +1,9 @@
 import { getLogger } from '@/lib/logger';
 import { getProviderRegistry } from '@/providers/registry';
-import { combineProvenance, provenanceForProvider } from '@/core/trip/provenance';
+import { cacheKey, getCacheStore, readThrough } from '@/cache';
+import { combineProvenance, provenanceForMetadata } from '@/core/trip/provenance';
+import { weatherCachePolicy } from '@/core/trip/weather-window';
+import type { WeatherProvider } from '@/providers/types';
 import { isOk } from '@/lib/result';
 import { resolveDestinationGeo } from '@/search/destination-names';
 import type { DataProvenance } from '@/core/trip/provenance';
@@ -51,6 +54,12 @@ export interface DestinationDetail {
   readonly unavailable: readonly string[];
   /** Which of this page's own sections are served by fixtures. */
   readonly demoParts: readonly string[];
+  /**
+   * Sections with no data source behind them at all, so the page can say the
+   * data is not available instead of showing an empty section as if there
+   * were nothing to report.
+   */
+  readonly notAvailable: readonly ('places' | 'transfers')[];
 }
 
 export interface DestinationDetailQuery {
@@ -61,6 +70,38 @@ export interface DestinationDetailQuery {
   readonly startDate?: IsoDate;
   readonly endDate?: IsoDate;
   readonly maxPlaces?: number;
+  /** Injectable clock, so the forecast horizon can be tested. */
+  readonly now?: () => Date;
+}
+
+/**
+ * The outlook for the trip's dates, through the cache.
+ *
+ * Forecast answers are reused for hours and climate averages for weeks (see
+ * `weatherCachePolicy`), so a page view does not become a vendor call. A failed
+ * load is thrown out of the loader so it is never cached as an answer.
+ */
+async function loadOutlook(
+  provider: WeatherProvider,
+  query: { destination: AirportCode; startDate: IsoDate; endDate: IsoDate },
+  now: Date,
+): Promise<{ outlook: readonly WeatherOutlook[] | null }> {
+  const today = now.toISOString().slice(0, 10) as IsoDate;
+
+  const cached = await readThrough(
+    getCacheStore(),
+    cacheKey('weather', { ...query, provider: provider.metadata.id }),
+    {
+      ...weatherCachePolicy(today, query.startDate),
+      load: async () => {
+        const result = await provider.getOutlook(query);
+        if (!isOk(result)) throw result.error;
+        return result.value;
+      },
+    },
+  );
+
+  return { outlook: cached.value };
 }
 
 export async function loadDestinationDetail(
@@ -87,11 +128,11 @@ export async function loadDestinationDetail(
       currency: query.currency,
     }),
     query.startDate && query.endDate
-      ? registry.weather.getOutlook({
-          destination: query.destination,
-          startDate: query.startDate,
-          endDate: query.endDate,
-        })
+      ? loadOutlook(
+          registry.weather,
+          { destination: query.destination, startDate: query.startDate, endDate: query.endDate },
+          (query.now ?? (() => new Date()))(),
+        )
       : Promise.resolve(null),
   ]);
 
@@ -103,7 +144,7 @@ export async function loadDestinationDetail(
     unavailable.push('transfers');
     log.warn({ destination: query.destination }, 'transfer provider did not answer');
   }
-  if (weather && !isOk(weather)) {
+  if (weather && weather.outlook === null) {
     unavailable.push('weather');
     log.warn({ destination: query.destination }, 'weather provider did not answer');
   }
@@ -113,11 +154,11 @@ export async function loadDestinationDetail(
     place,
     places: isOk(places) ? places.value : [],
     transfers: isOk(transfers) ? transfers.value : [],
-    weather: weather && isOk(weather) ? weather.value : [],
+    weather: weather?.outlook ?? [],
     provenance: combineProvenance([
-      provenanceForProvider(registry.places.metadata.isMock),
-      provenanceForProvider(registry.transfers.metadata.isMock),
-      provenanceForProvider(registry.weather.metadata.isMock),
+      provenanceForMetadata(registry.places.metadata),
+      provenanceForMetadata(registry.transfers.metadata),
+      provenanceForMetadata(registry.weather.metadata),
     ]),
     unavailable,
     demoParts: (
@@ -128,6 +169,14 @@ export async function loadDestinationDetail(
       ] as const
     )
       .filter(([, provider]) => provider.metadata.isMock)
+      .map(([name]) => name),
+    notAvailable: (
+      [
+        ['places', registry.places],
+        ['transfers', registry.transfers],
+      ] as const
+    )
+      .filter(([, provider]) => provider.metadata.mode === 'absent')
       .map(([name]) => name),
   };
 }

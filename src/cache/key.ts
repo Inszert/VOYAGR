@@ -15,7 +15,7 @@ import { stableStringify } from '@/search/cache';
 
 export const CACHE_KEY_VERSION = 'v1';
 
-export type CacheKind = 'discovery' | 'search';
+export type CacheKind = 'discovery' | 'search' | 'weather';
 
 export function cacheKey(kind: CacheKind, query: unknown): string {
   const hash = createHash('sha256').update(stableStringify(query)).digest('hex').slice(0, 32);

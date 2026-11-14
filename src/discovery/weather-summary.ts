@@ -12,9 +12,9 @@ import type { WeatherOutlook } from '@/core/trip/types';
  *
  * Pure and deterministic: averages of the provider's own figures, rounded
  * once, here. A day counts as likely wet at a 50% chance of rain or more.
- * Days whose confidence is below half are climatology - the typical weather
- * for the date, not a forecast - and the summary says how many there are so
- * the page can say so.
+ * Days whose `basis` is climatology are the typical weather for the date,
+ * not a forecast - and the summary says how many are which so the page can
+ * say so. The basis is read off the day, never inferred from a confidence.
  */
 
 export type WeatherFeel = 'hot' | 'warm' | 'mild' | 'cool' | 'cold';
@@ -44,8 +44,8 @@ export interface WeatherSummary {
 /** A day counts as wet from this chance of rain. */
 export const RAINY_DAY_CHANCE = 0.5;
 
-/** Below this confidence a day is climatology, not a forecast. */
-const FORECAST_CONFIDENCE = 0.5;
+/** The label a climate average carries wherever it is shown. It is never called a forecast. */
+export const TYPICAL_LABEL = 'Typical for these dates';
 
 /** How warm a typical afternoon feels, by its average high. */
 export function feelFor(highC: number): WeatherFeel {
@@ -88,6 +88,6 @@ export function summariseWeather(days: readonly WeatherOutlook[]): WeatherSummar
   return {
     overall: period(sorted),
     weeks,
-    forecastDays: sorted.filter((day) => day.confidence >= FORECAST_CONFIDENCE).length,
+    forecastDays: sorted.filter((day) => day.basis === 'forecast').length,
   };
 }

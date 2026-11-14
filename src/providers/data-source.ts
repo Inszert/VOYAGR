@@ -66,6 +66,10 @@ export function dataSourceSwitchEnabled(env: Env): boolean {
    * fixture flights, which is exactly what a person who set that provider up
    * does not want to be one click, or one leftover cookie, away from.
    */
+  // Production never offers a way to fixtures. The one exception is the
+  // opt-in that lets a production build serve them at all (the e2e suite).
+  if (env.NODE_ENV === 'production' && !env.ALLOW_MOCK_IN_PRODUCTION) return false;
+
   return (
     env.DATA_SOURCE_SWITCH ?? (env.NODE_ENV !== 'production' && env.FLIGHT_PROVIDER === 'mock')
   );

@@ -1,6 +1,7 @@
 import { lessThan, type Money } from '@/core/money';
+import { costCoverage } from '@/core/trip/coverage';
 import { connectionCount } from '@/core/trip/legs';
-import type { AirportCode } from '@/core/trip/types';
+import type { AirportCode, CostCategory } from '@/core/trip/types';
 import type { DateWeather } from './date-options';
 import type { RankedTrip } from './types';
 
@@ -38,6 +39,8 @@ export interface DestinationSummary {
    * had, never an average of two. What "typical" means on a result.
    */
   readonly typicalTotal: Money;
+  /** What the cheapest trip's total leaves out, so "all in" is only said when it is true. */
+  readonly excludedCategories: readonly CostCategory[];
 }
 
 function stopsOf(trip: RankedTrip): number {
@@ -87,6 +90,7 @@ export function summariseDestinations(trips: readonly RankedTrip[]): readonly De
       fastestMinutes: Math.min(...found.map(minutesOf)),
       fewestStops: Math.min(...found.map(stopsOf)),
       weather: weatherOf(cheapest),
+      excludedCategories: costCoverage(cheapest.cost.excluded).excluded,
       tripCount: found.length,
       typicalTotal: [...found].sort((a, b) => a.cost.total.amount - b.cost.total.amount)[
         Math.floor((found.length - 1) / 2)

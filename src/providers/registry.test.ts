@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseEnv, type Env } from '@/lib/env';
 import { AppError } from '@/lib/errors';
-import { ProviderRegistry } from './registry';
+import {
+  combineProvenance,
+  demoDataSentence,
+  provenanceForMetadata,
+  type SourceAttribution,
+} from '@/core/trip/provenance';
+import { assertNoMockInProduction, ProviderRegistry } from './registry';
+import { getStayProviders, resetStayProviders } from './stays/registry';
 
 /**
  * The zero-billing policy, enforced at the provider boundary.
@@ -135,5 +142,127 @@ describe('no user-controlled input can select a provider', () => {
     expect(parseDataSource('duffel')).toBeNull();
     expect(parseDataSource('aviasales')).toBeNull();
     expect(parseDataSource('live')).toBeNull();
+  });
+});
+
+describe('production serves no fixtures', () => {
+  const production = (overrides: Partial<Env> = {}) =>
+    env({
+      NODE_ENV: 'production',
+      FLIGHT_PROVIDER: 'aviasales',
+      AVIASALES_API_TOKEN: 'token-for-test',
+      HOTEL_PROVIDER: 'absent',
+      WEATHER_PROVIDER: 'open-meteo',
+      TRANSFER_PROVIDER: 'absent',
+      PLACES_PROVIDER: 'absent',
+      STAY_PROVIDERS: 'absent',
+      ...overrides,
+    });
+
+  it('builds a registry in which no slot is a mock', () => {
+    const registry = new ProviderRegistry(production());
+
+    for (const provider of registry.all()) {
+      expect(provider.metadata.isMock, `${provider.metadata.kind} is a mock`).toBe(false);
+    }
+    expect(() => assertNoMockInProduction(registry, production())).not.toThrow();
+  });
+
+  it('refuses a mock flight, hotel or weather provider, naming the slot', () => {
+    for (const [kind, name] of [
+      ['FLIGHT_PROVIDER', 'FLIGHTS'],
+      ['HOTEL_PROVIDER', 'HOTELS'],
+      ['WEATHER_PROVIDER', 'WEATHER'],
+    ] as const) {
+      const config = production({ [kind]: 'mock' } as Partial<Env>);
+
+      expect(() => new ProviderRegistry(config)).toThrow(AppError);
+      expect(() => new ProviderRegistry(config)).toThrow(new RegExp(`${name}_PROVIDER is "mock"`));
+    }
+  });
+
+  it('resolves transfers and places to absent, never to a mock, even when asked for one', () => {
+    const registry = new ProviderRegistry(
+      production({ TRANSFER_PROVIDER: 'mock', PLACES_PROVIDER: 'mock' }),
+    );
+
+    expect(registry.transfers.metadata.mode).toBe('absent');
+    expect(registry.places.metadata.mode).toBe('absent');
+    expect(registry.isFullyMocked()).toBe(false);
+  });
+
+  it('answers an absent slot with nothing, so the cost line is excluded rather than zero', async () => {
+    const registry = new ProviderRegistry(production());
+
+    const transfers = await registry.transfers.searchTransfers({
+      airport: 'VIE',
+      destinationName: 'Vienna',
+      passengers: 2,
+      currency: 'EUR',
+    });
+    const hotels = await registry.hotels.searchHotels({
+      destination: 'VIE',
+      checkIn: '2027-06-01',
+      checkOut: '2027-06-04',
+      guests: 2,
+      currency: 'EUR',
+    });
+
+    expect(transfers).toEqual({ ok: true, value: [] });
+    expect(hotels.ok).toBe(false);
+    if (!hotels.ok) expect(hotels.error.code).toBe('PROVIDER_UNAVAILABLE');
+  });
+
+  it('guards the finished registry, not only each resolver', () => {
+    const registry = new ProviderRegistry(env());
+
+    expect(() => assertNoMockInProduction(registry, { NODE_ENV: 'production' } as Env)).toThrow(
+      /Production resolved fixture providers: .*flights/,
+    );
+    expect(() =>
+      assertNoMockInProduction(registry, { NODE_ENV: 'development' } as Env),
+    ).not.toThrow();
+  });
+
+  it('serves fixtures only when a production build explicitly opts in', () => {
+    const registry = new ProviderRegistry(
+      env({ NODE_ENV: 'production', ALLOW_MOCK_IN_PRODUCTION: true }),
+    );
+
+    expect(registry.isFullyMocked()).toBe(true);
+  });
+
+  it('never reports a demo claim about slots that are absent', () => {
+    const registry = new ProviderRegistry(production());
+    const sources: SourceAttribution[] = [
+      { part: 'transfers', providerId: 'absent', displayName: 'Not available' },
+      { part: 'hotels', providerId: 'absent', displayName: 'Not available' },
+    ].map((source) => ({
+      ...source,
+      part: source.part as SourceAttribution['part'],
+      provenance: provenanceForMetadata(
+        source.part === 'transfers' ? registry.transfers.metadata : registry.hotels.metadata,
+      ),
+    }));
+
+    expect(sources.every((source) => source.provenance === 'unavailable')).toBe(true);
+    expect(combineProvenance(sources.map((source) => source.provenance))).not.toBe('mock');
+    expect(demoDataSentence(sources)).toBeNull();
+  });
+
+  it('never resolves a mock stay provider in production, whatever STAY_PROVIDERS says', () => {
+    resetStayProviders();
+    expect(() => getStayProviders(production({ STAY_PROVIDERS: 'mock' }))).toThrow(
+      /STAY_PROVIDERS names "mock" in production/,
+    );
+
+    resetStayProviders();
+    expect(
+      getStayProviders(production({ STAY_PROVIDERS: 'nonsense' })).map((p) => p.metadata.mode),
+    ).toEqual(['absent']);
+    // And through the mock data source, which is what the dev switch asks for.
+    resetStayProviders();
+    expect(() => getStayProviders(production(), 'mock')).toThrow(AppError);
+    resetStayProviders();
   });
 });

@@ -49,6 +49,49 @@ describe('parseEnv', () => {
   });
 });
 
+describe('provider defaults by environment', () => {
+  it('defaults weather to the real keyless provider outside a test run', () => {
+    expect(parseEnv({}).WEATHER_PROVIDER).toBe('open-meteo');
+    expect(parseEnv({ NODE_ENV: 'development' }).WEATHER_PROVIDER).toBe('open-meteo');
+    expect(parseEnv({ NODE_ENV: 'production' }).WEATHER_PROVIDER).toBe('open-meteo');
+  });
+
+  it('defaults weather to the mock under test, and honours an explicit choice anywhere', () => {
+    expect(parseEnv({ NODE_ENV: 'test' }).WEATHER_PROVIDER).toBe('mock');
+    expect(parseEnv({ NODE_ENV: 'development', WEATHER_PROVIDER: 'mock' }).WEATHER_PROVIDER).toBe(
+      'mock',
+    );
+    expect(parseEnv({ NODE_ENV: 'test', WEATHER_PROVIDER: 'open-meteo' }).WEATHER_PROVIDER).toBe(
+      'open-meteo',
+    );
+  });
+
+  it('defaults the slots with no live adapter to absent in production, and to mock elsewhere', () => {
+    const production = parseEnv({ NODE_ENV: 'production' });
+    expect([
+      production.HOTEL_PROVIDER,
+      production.TRANSFER_PROVIDER,
+      production.PLACES_PROVIDER,
+      production.STAY_PROVIDERS,
+    ]).toEqual(['absent', 'absent', 'absent', 'absent']);
+
+    const development = parseEnv({ NODE_ENV: 'development' });
+    expect([
+      development.HOTEL_PROVIDER,
+      development.TRANSFER_PROVIDER,
+      development.PLACES_PROVIDER,
+    ]).toEqual(['mock', 'mock', 'mock']);
+  });
+
+  it('does not allow fixtures in production unless asked for by name', () => {
+    expect(parseEnv({ NODE_ENV: 'production' }).ALLOW_MOCK_IN_PRODUCTION).toBe(false);
+    expect(
+      parseEnv({ NODE_ENV: 'production', ALLOW_MOCK_IN_PRODUCTION: 'true' })
+        .ALLOW_MOCK_IN_PRODUCTION,
+    ).toBe(true);
+  });
+});
+
 describe('getCapabilities', () => {
   it('reports every credentialled capability off for a bare environment', () => {
     const capabilities = getCapabilities(parseEnv({}));

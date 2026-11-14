@@ -1,5 +1,6 @@
 import type { Money } from '@/core/money';
-import type { AirportCode } from '@/core/trip/types';
+import { cheapestTripStatement } from '@/core/trip/coverage';
+import type { AirportCode, CostCategory } from '@/core/trip/types';
 import type { DateWeather } from '@/search/date-options';
 import type { SearchOutcome } from '@/search/types';
 import { greatCirclePath, type LngLat } from './geo';
@@ -76,6 +77,8 @@ export interface DestinationPoint {
   readonly position: readonly [number, number];
   readonly tier: PlaceTier;
   readonly cheapestTotal: Money | null;
+  /** What the cheapest total leaves out. Empty means it is all in. */
+  readonly excludedCategories: readonly CostCategory[];
   readonly bestScore: number | null;
   /** Shortest total flying time, both legs, of any trip found here. */
   readonly fastestMinutes: number | null;
@@ -125,7 +128,9 @@ function explainPoint(point: Omit<DestinationPoint, 'reason'>, mode: MapMode): s
 
   switch (mode) {
     case 'cheapest':
-      return point.cheapestTotal ? `Cheapest trip found here, all in.` : 'Nothing priced here yet.';
+      return point.cheapestTotal
+        ? cheapestTripStatement(point.excludedCategories)
+        : 'Nothing priced here yet.';
     case 'best-value':
       return point.bestScore === null
         ? 'Nothing scored here yet.'
@@ -197,6 +202,7 @@ export function buildMapPoints({ outcome, mode, geo }: BuildMapPointsOptions): D
       position: place.position,
       tier: place.tier,
       cheapestTotal: summary.cheapestTotal,
+      excludedCategories: summary.excludedCategories,
       bestScore: summary.bestScore,
       fastestMinutes: summary.fastestMinutes,
       fewestStops: summary.fewestStops,

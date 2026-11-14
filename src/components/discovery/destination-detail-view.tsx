@@ -10,6 +10,7 @@ import type { Tint } from '@/lib/tint';
 import {
   feelFor,
   summariseWeather,
+  TYPICAL_LABEL,
   type WeatherFeel,
   type WeatherPeriod,
 } from '@/discovery/weather-summary';
@@ -177,10 +178,10 @@ export function DestinationDetailView({ detail }: DestinationDetailViewProps) {
             */}
             <p className="text-dim text-sm">
               {summary.forecastDays === 0
-                ? 'These dates are too far ahead for a forecast, so this is the typical weather for the season, not a prediction.'
+                ? `${TYPICAL_LABEL}. These dates are too far ahead for a forecast, so this is the climate average, not a prediction.`
                 : summary.forecastDays === summary.overall.days
                   ? 'A forecast for every day.'
-                  : `The first ${summary.forecastDays} days are a forecast; after that it is the typical weather for the season.`}{' '}
+                  : `The first ${summary.forecastDays} days are a forecast. After that: ${TYPICAL_LABEL.toLowerCase()}, which is the climate average and not a prediction.`}{' '}
               Days range from {Math.round(coolest!)}°C at the coldest to {Math.round(warmest!)}°C at
               the hottest.
             </p>
@@ -300,6 +301,9 @@ export function DestinationDetailView({ detail }: DestinationDetailViewProps) {
                     <th scope="col" className="py-1.5 font-medium">
                       Chance of rain
                     </th>
+                    <th scope="col" className="py-1.5 font-medium">
+                      Basis
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-border divide-y">
@@ -314,6 +318,9 @@ export function DestinationDetailView({ detail }: DestinationDetailViewProps) {
                       </td>
                       <td className="text-ink-muted py-1.5">
                         {Math.round(day.precipitationProbability * 100)}%
+                      </td>
+                      <td className="text-ink-muted py-1.5">
+                        {day.basis === 'forecast' ? 'Forecast' : TYPICAL_LABEL}
                       </td>
                     </tr>
                   ))}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { IsoDate, WeatherOutlook } from '@/core/trip/types';
+import { FORECAST_HORIZON_DAYS } from '@/core/trip/weather-window';
 import { addDays, addMonths, daysBetween, datesBetween } from '@/core/dates';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
@@ -71,9 +72,6 @@ const log = getLogger('providers.open-meteo');
 
 const FORECAST_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 const ARCHIVE_BASE_URL = 'https://archive-api.open-meteo.com/v1/archive';
-
-/** Open-Meteo's own documented free-forecast reach, days from today, inclusive. */
-const FORECAST_HORIZON_DAYS = 15;
 
 /** Past years averaged into a climatology normal. Bounded: more years is more HTTP calls. */
 const CLIMATOLOGY_YEARS_SAMPLED = 3;
@@ -266,6 +264,7 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 
       outlook.push({
         date: date as IsoDate,
+        basis: 'forecast',
         temperatureMaxC: temperature_2m_max[index] as number,
         temperatureMinC: temperature_2m_min[index] as number,
         precipitationProbability: (precipitation_probability_max[index] as number) / 100,
@@ -363,6 +362,7 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 
       outlook.push({
         date,
+        basis: 'climatology',
         temperatureMaxC: monthly.maxC,
         temperatureMinC: monthly.minC,
         precipitationProbability: monthly.rainFraction,

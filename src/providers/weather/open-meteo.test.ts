@@ -16,6 +16,9 @@ import { OpenMeteoWeatherProvider } from './open-meteo';
  * those same three files, not invented.
  */
 
+/** Fixed clock: the fixtures' dates are 2026-11-04.., so "today" must be the day before. */
+const NOW = () => new Date('2026-11-03T09:00:00Z');
+
 const respond = (body: unknown, status = 200) =>
   Promise.resolve(
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }),
@@ -44,7 +47,7 @@ describe('OpenMeteoWeatherProvider', () => {
   });
 
   it('refuses a destination with no airport reference data, rather than guessing coordinates', async () => {
-    const provider = new OpenMeteoWeatherProvider({ fetchImpl: routingFetch({}) });
+    const provider = new OpenMeteoWeatherProvider({ now: NOW, fetchImpl: routingFetch({}) });
     const result = await provider.getOutlook({
       destination: 'ZZZ',
       startDate: '2026-11-04',
@@ -57,7 +60,7 @@ describe('OpenMeteoWeatherProvider', () => {
 
   it('maps a real forecast response, converting percent to a fraction and decaying confidence by lead time', async () => {
     const provider = new OpenMeteoWeatherProvider({
-      now: () => new Date('2026-11-03T09:00:00Z'),
+      now: NOW,
       fetchImpl: routingFetch({ forecast: forecastVienna }),
     });
 
@@ -73,6 +76,7 @@ describe('OpenMeteoWeatherProvider', () => {
     expect(result.value).toEqual([
       {
         date: '2026-11-04',
+        basis: 'forecast',
         temperatureMaxC: 8.8,
         temperatureMinC: 3.9,
         precipitationProbability: 0,
@@ -82,6 +86,7 @@ describe('OpenMeteoWeatherProvider', () => {
       },
       {
         date: '2026-11-05',
+        basis: 'forecast',
         temperatureMaxC: 10.3,
         temperatureMinC: 1.7,
         precipitationProbability: 0,
@@ -91,6 +96,7 @@ describe('OpenMeteoWeatherProvider', () => {
       },
       {
         date: '2026-11-06',
+        basis: 'forecast',
         temperatureMaxC: 9.6,
         temperatureMinC: 1.6,
         precipitationProbability: 0,
@@ -105,7 +111,7 @@ describe('OpenMeteoWeatherProvider', () => {
     const provider = new OpenMeteoWeatherProvider({
       // Today is deep in winter; June next year is many months out, well
       // past any forecast horizon.
-      now: () => new Date('2026-11-03T09:00:00Z'),
+      now: NOW,
       fetchImpl: routingFetch({ archive: [archive2025, archive2024, archive2023] }),
     });
 
@@ -124,6 +130,7 @@ describe('OpenMeteoWeatherProvider', () => {
     expect(result.value).toEqual([
       {
         date: '2027-06-15',
+        basis: 'climatology',
         temperatureMaxC: 26.4,
         temperatureMinC: 15.6,
         precipitationProbability: 0.32,
@@ -136,7 +143,7 @@ describe('OpenMeteoWeatherProvider', () => {
 
   it('omits a date rather than inventing one when every sampled year for its month failed', async () => {
     const provider = new OpenMeteoWeatherProvider({
-      now: () => new Date('2026-11-03T09:00:00Z'),
+      now: NOW,
       fetchImpl: routingFetch({ archive: [] }),
     });
 
@@ -152,6 +159,7 @@ describe('OpenMeteoWeatherProvider', () => {
 
   it('treats a 429 as PROVIDER_UNAVAILABLE and any other error status as PROVIDER_ERROR', async () => {
     const tooMany = new OpenMeteoWeatherProvider({
+      now: NOW,
       fetchImpl: () => respond({ error: true, reason: 'rate limited' }, 429),
     });
     const tooManyResult = await tooMany.getOutlook({
@@ -163,6 +171,7 @@ describe('OpenMeteoWeatherProvider', () => {
     if (!tooManyResult.ok) expect(tooManyResult.error.code).toBe('PROVIDER_UNAVAILABLE');
 
     const broken = new OpenMeteoWeatherProvider({
+      now: NOW,
       fetchImpl: () => respond({ error: true, reason: 'bad request' }, 400),
     });
     const brokenResult = await broken.getOutlook({
@@ -176,6 +185,7 @@ describe('OpenMeteoWeatherProvider', () => {
 
   it('reports a timeout distinctly from an unreachable host', async () => {
     const timedOut = new OpenMeteoWeatherProvider({
+      now: NOW,
       fetchImpl: () => {
         const error = new Error('aborted');
         error.name = 'AbortError';
@@ -191,6 +201,7 @@ describe('OpenMeteoWeatherProvider', () => {
     if (!timedOutResult.ok) expect(timedOutResult.error.code).toBe('PROVIDER_TIMEOUT');
 
     const unreachable = new OpenMeteoWeatherProvider({
+      now: NOW,
       fetchImpl: () => Promise.reject(new Error('network down')),
     });
     const unreachableResult = await unreachable.getOutlook({
@@ -204,6 +215,7 @@ describe('OpenMeteoWeatherProvider', () => {
 
   it('rejects an unrecognised response shape rather than mapping it anyway', async () => {
     const provider = new OpenMeteoWeatherProvider({
+      now: NOW,
       fetchImpl: () => respond({ not: 'the expected shape' }),
     });
     const result = await provider.getOutlook({

@@ -120,6 +120,23 @@ describe('buildMapPoints', () => {
     expect(point?.reason).toContain('typical for the season');
   });
 
+  it('says "all in" only when the cheapest total leaves nothing out', () => {
+    const [included] = buildMapPoints({
+      outcome: outcomeOf([tripAt('AYT', 30_000)]),
+      mode: 'cheapest',
+      geo,
+    });
+    const [left] = buildMapPoints({
+      outcome: outcomeOf([tripAt('AYT', 30_000, { transfer: null })]),
+      mode: 'cheapest',
+      geo,
+    });
+
+    expect(included?.reason).toBe('Cheapest trip found here, all in.');
+    expect(left?.reason).not.toMatch(/all in/i);
+    expect(left?.reason).toContain('Airport transfer not included');
+  });
+
   it('is stable for the same search', () => {
     const outcome = outcomeOf([tripAt('AYT', 30_000), tripAt('SPU', 30_000)]);
 
