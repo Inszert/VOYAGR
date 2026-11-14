@@ -50,6 +50,9 @@ const envSchema = z.object({
   PRICE_REFRESH_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
   HOTEL_REFRESH_MINUTES: z.coerce.number().int().min(1).max(10080).default(360),
 
+  /** How many days either side of the chosen ones the flexible-dates strip shows. */
+  FLEX_DAYS: z.coerce.number().int().min(0).max(7).default(3),
+
   // AI — `mock` needs no credentials.
   AI_PROVIDER: z.enum(['mock', 'anthropic']).default('mock'),
   AI_MODEL: z.string().min(1).default('claude-sonnet-5'),
