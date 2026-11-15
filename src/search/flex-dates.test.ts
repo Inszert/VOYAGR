@@ -6,6 +6,7 @@ import type { FlightOffer } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
 import { createLimiterPool } from '@/lib/concurrency';
 import { err, ok } from '@/lib/result';
+import { createMockFlightProvider } from '@/providers/flights/mock';
 import type { FlightProvider, FlightSearchQuery } from '@/providers/types';
 import { loadMonthDayPrices } from './day-prices';
 import { loadFlexDates } from './flex-dates';
@@ -126,6 +127,30 @@ describe('loadFlexDates', () => {
     expect(result.best).toBeNull();
     expect(result.ageMs).toBeNull();
     expect(result.reason).toMatch(/could not be loaded/);
+  });
+
+  it('prices an exact seven-night stay from a vendor that answers one pair at a time', async () => {
+    const store = new MemoryCacheStore({ now: () => NOW });
+    const result = await loadFlexDates(
+      {
+        origin: 'VIE',
+        destination: 'AYT',
+        departureDate: '2026-12-10',
+        returnDate: '2026-12-17',
+        currency: 'EUR',
+        windowDays: 3,
+      },
+      {
+        flights: createMockFlightProvider(),
+        store,
+        pool: createLimiterPool(4),
+        now: () => NOW,
+      },
+    );
+
+    // Every day is priced for the same seven nights, none invented.
+    expect(result.options.some((o) => o.price !== null)).toBe(true);
+    expect(result.options.every((o) => o.returnDate === addDays(o.departureDate, 7))).toBe(true);
   });
 
   it('a window of zero is just the chosen day', async () => {

@@ -6,8 +6,8 @@ import { LegalPage, type LegalSection } from '@/components/legal/legal-page';
  *
  * Written around what Voyagr actually is today: a search and monitoring tool
  * that hands off to the provider that quoted a price, with no booking and no
- * payment of its own (`src/booking/handoff.ts`), with sample data labelled as
- * such on every figure it touches. It promises nothing the software does not
+ * payment of its own (`src/booking/handoff.ts`), with sample data
+ * disclosed on the status page. It promises nothing the software does not
  * do, and says plainly what it cannot guarantee.
  */
 
@@ -43,14 +43,14 @@ const sections: readonly LegalSection[] = [
     body: (
       <>
         <p>
-          Every price is what a provider quoted when Voyagr asked, and each one says where it came
-          from and how long ago. Prices and availability change, sometimes within minutes, so the
-          price you are offered when you book may differ from the one shown here.
+          Every price is what a provider quoted when Voyagr asked, shown as a &ldquo;from&rdquo;
+          figure with how long ago it was updated. Prices and availability change, sometimes within
+          minutes, so the price you are offered when you book may differ from the one shown here.
         </p>
         <p>
           Some figures are <strong>sample data</strong>, used while a part of the service is not yet
-          connected to a real provider. Sample figures are labelled as demo or test data wherever
-          they appear. They are not offers and cannot be booked.
+          connected to a real provider. They are not offers and cannot be booked, and the{' '}
+          <a href="/status">status page</a> says which providers a deployment is connected to.
         </p>
         <p>
           A cost Voyagr could not get a price for is shown as not priced, never as zero, and a fact

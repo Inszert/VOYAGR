@@ -36,8 +36,10 @@ export function PartnerOfferCard({ offer, today }: { offer: PartnerOffer; today:
           <Icon name={CATEGORY_ICON[offer.category]} size={1.25} />
         </span>
         <div className="min-w-0">
-          <p className="text-dim text-xs">{CATEGORY_LABEL[offer.category]}</p>
-          <CardTitle level={4} id={headingId} className="break-words">
+          <p className="text-ink-muted text-[11px] font-medium tracking-[0.1em] uppercase">
+            {CATEGORY_LABEL[offer.category]}
+          </p>
+          <CardTitle level={3} id={headingId} className="break-words">
             {offer.partner}
           </CardTitle>
         </div>

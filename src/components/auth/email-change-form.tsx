@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Button, Card, Field } from '@/components/ui';
+import { Button, Card, Field, PasswordField } from '@/components/ui';
 import type { EmailChangeFormState } from '@/app/actions/auth';
 
 /**
@@ -41,10 +41,9 @@ export function EmailChangeForm({
           {state.message}
         </p>
 
-        <Field
+        <PasswordField
           label="Current password"
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
           required
         />

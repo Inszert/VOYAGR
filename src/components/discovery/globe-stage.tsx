@@ -66,6 +66,12 @@ import {
   spinFactor,
 } from './globe-motion';
 
+/** How long the camera takes to follow the globe's box between pages: inside 900-1400ms. */
+const REFRAME_MS = 1100;
+
+/** How long a pin that has left takes to fade out before its marker is removed. */
+const PIN_LEAVE_MS = 220;
+
 /** Where the last-seen prices are kept, to know which pin to pulse. */
 const PIN_PRICES_KEY = 'voyagr.pin-prices';
 
@@ -516,6 +522,25 @@ export function GlobeStage({
     latest.current = { chips, countryCounts, navigation, selectedCountry };
   });
 
+  /*
+   * What the creation effect's long-lived handlers read.
+   *
+   * The globe is mounted once above every stage page, so the page it is on,
+   * the home airport and the box it fills all change under handlers that were
+   * registered at creation. They read these rather than closing over the
+   * first render's values.
+   */
+  const live = React.useRef({ variant, origins, seasonDate });
+  React.useEffect(() => {
+    live.current = { variant, origins, seasonDate };
+  });
+  /** The zoom the sphere rests at, so a resize refits only a globe nobody has zoomed. */
+  const restingZoomRef = React.useRef(0);
+  /** True while the camera is easing between the hero and explorer compositions. */
+  const reframingRef = React.useRef(false);
+  /** The composition the camera was last framed for. */
+  const previousVariant = React.useRef(variant);
+
   const [status, setStatus] = React.useState<'loading' | 'ready' | 'failed'>('loading');
   /** Which kind of place the middle of the view is over, for the weather. */
   const [biome, setBiome] = React.useState<SurfaceKind | null>(null);
@@ -548,7 +573,8 @@ export function GlobeStage({
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === 'undefined') return;
 
-    const target = root.closest('[data-hero]') ?? root.closest('section') ?? root;
+    // The host's box is the hero on the front page and the column on the explorer.
+    const target = root.closest('[data-stage-host]') ?? root;
     const observer = new IntersectionObserver(
       ([entry]) => {
         visibleRef.current = (entry?.intersectionRatio ?? 1) >= 0.2;
@@ -611,7 +637,7 @@ export function GlobeStage({
            * zoom it. The explorer is a page about a map, so there the wheel
            * does what a wheel does.
            */
-          scrollZoom: variant === 'explorer',
+          scrollZoom: live.current.variant === 'explorer',
           /*
            * No attribution control.
            *
@@ -854,7 +880,9 @@ export function GlobeStage({
           spinningRef.current = true;
 
           const holds = { pointer: false, chip: false, focus: false };
-          const scope = element.closest('[data-hero]') ?? element.closest('section') ?? element;
+          // Focus anywhere in the hero's copy or in the globe's own box holds the turn.
+          const inScope = (node: EventTarget | null) =>
+            node instanceof Element && node.closest('[data-hero], [data-stage-host]') !== null;
           // Quiet already, so the first ramp starts as soon as the globe is up.
           let lastTouch = performance.now() - SPIN_RESUME_DELAY_MS;
           const touch = () => {
@@ -878,12 +906,13 @@ export function GlobeStage({
               touch();
             }
           };
-          const onFocusIn = () => {
+          const onFocusIn = (event: FocusEvent) => {
+            if (!inScope(event.target)) return;
             holds.focus = true;
             touch();
           };
           const onFocusOut = (event: FocusEvent) => {
-            if (!scope.contains(event.relatedTarget as Node | null)) {
+            if (!inScope(event.relatedTarget)) {
               holds.focus = false;
               touch();
             }
@@ -900,8 +929,8 @@ export function GlobeStage({
           }
           element.addEventListener('mouseover', onOver);
           element.addEventListener('mouseout', onOut);
-          scope.addEventListener('focusin', onFocusIn);
-          scope.addEventListener('focusout', onFocusOut as EventListener);
+          document.addEventListener('focusin', onFocusIn);
+          document.addEventListener('focusout', onFocusOut);
 
           let frame = 0;
           let previous = performance.now();
@@ -957,8 +986,8 @@ export function GlobeStage({
             }
             element.removeEventListener('mouseover', onOver);
             element.removeEventListener('mouseout', onOut);
-            scope.removeEventListener('focusin', onFocusIn);
-            scope.removeEventListener('focusout', onFocusOut as EventListener);
+            document.removeEventListener('focusin', onFocusIn);
+            document.removeEventListener('focusout', onFocusOut);
           };
         };
 
@@ -992,10 +1021,11 @@ export function GlobeStage({
            * a chip that would land under one is hidden and its neighbour
            * takes the space, which is what the pass already does for chips.
            */
-          const scope = element.parentElement?.parentElement ?? element.parentElement;
-          const placed: DOMRect[] = [
-            ...(scope?.querySelectorAll('[data-globe-overlay]') ?? []),
-          ].map((overlay) => overlay.getBoundingClientRect());
+          const placed: DOMRect[] = [...document.querySelectorAll('[data-globe-overlay]')]
+            .map((overlay) => overlay.getBoundingClientRect())
+            .filter((rect) => rect.width > 0);
+          const stage = live.current.variant === 'stage';
+          const origins = live.current.origins;
 
           /*
            * Written only when the answer changes.
@@ -1025,7 +1055,9 @@ export function GlobeStage({
             ? map.project([...origins[0].position] as [number, number])
             : null;
           const homeX = homeAt ? box.left + homeAt.x : null;
-          const stageBox = (element.closest('[data-hero]') ?? element).getBoundingClientRect();
+          const stageBox = (
+            (stage ? document.querySelector('[data-hero]') : null) ?? element
+          ).getBoundingClientRect();
 
           for (const [, marker] of ordered) {
             const chipElement = marker.getElement();
@@ -1162,9 +1194,8 @@ export function GlobeStage({
          * disagree. Only on `moveend`, because the weather does not need to
          * change sixty times a second while somebody spins the planet.
          */
-        const sun = sunLatitude(seasonDate);
         const readBiome = () => {
-          setBiome(bandFor(map.getCenter().lat, sun).kind);
+          setBiome(bandFor(map.getCenter().lat, sunLatitude(live.current.seasonDate)).kind);
         };
 
         map.on('move', onMove);
@@ -1179,8 +1210,19 @@ export function GlobeStage({
           // The origins, routes and destinations are all filled by the effect
           // below, which runs as soon as this sets `ready`. Only the opening
           // view belongs here, because it needs the container's real size.
-          if (variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
-          map.jumpTo(overview(element, origins, initial.chips, variant === 'stage', seasonDate));
+          const opening = live.current;
+          // The opening view is already the right composition for this page.
+          previousVariant.current = opening.variant;
+          if (opening.variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
+          map.jumpTo(
+            overview(
+              element,
+              opening.origins,
+              initial.chips,
+              opening.variant === 'stage',
+              opening.seasonDate,
+            ),
+          );
 
           /*
            * Follows the box.
@@ -1194,25 +1236,37 @@ export function GlobeStage({
            * has zoomed in keeps the view they chose, and only the canvas is
            * resized under it.
            */
-          let restingZoom = map.getZoom();
+          restingZoomRef.current = map.getZoom();
           let frame = 0;
           const observer = new ResizeObserver(() => {
             window.cancelAnimationFrame(frame);
             frame = window.requestAnimationFrame(() => {
               if (cancelled) return;
               map.resize();
-              if (variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
+              // While the camera is easing between compositions it owns the
+              // padding and the zoom; refitting here would snap it.
+              if (reframingRef.current) {
+                layoutRef.current?.();
+                return;
+              }
+
+              const now = live.current;
+              map.setPadding(
+                now.variant === 'stage'
+                  ? stagePadding(window.innerWidth)
+                  : { top: 0, right: 0, bottom: 0, left: 0 },
+              );
 
               const fitted = overview(
                 element,
-                origins,
+                now.origins,
                 latest.current.chips,
-                variant === 'stage',
-                seasonDate,
+                now.variant === 'stage',
+                now.seasonDate,
               );
-              if (Math.abs(map.getZoom() - restingZoom) < 0.05) {
+              if (Math.abs(map.getZoom() - restingZoomRef.current) < 0.05) {
                 map.jumpTo({ zoom: fitted.zoom });
-                restingZoom = fitted.zoom;
+                restingZoomRef.current = fitted.zoom;
               }
               layoutRef.current?.();
             });
@@ -2078,6 +2132,55 @@ export function GlobeStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCode, status]);
 
+  /*
+   * The page changed under the globe: hero composition to explorer, or back.
+   *
+   * The box it fills has already moved (the host animates that), so the
+   * camera follows it on the same curve rather than snapping to the new fit:
+   * the zoom, the centre and the padding that offsets the planet to the right
+   * of the headline all ease together. A selected country or a destination
+   * the rail pointed at owns the camera, so those are left alone.
+   */
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+    if (previousVariant.current === variant) return;
+    previousVariant.current = variant;
+
+    if (variant === 'explorer') map.scrollZoom.enable();
+    else map.scrollZoom.disable();
+
+    // The canvas is still the old size until the observer fires next frame.
+    map.resize();
+
+    const padding =
+      variant === 'stage'
+        ? stagePadding(window.innerWidth)
+        : { top: 0, right: 0, bottom: 0, left: 0 };
+
+    if (selectedCountry || flownRef.current || projectionRef.current !== 'globe') {
+      map.setPadding(padding);
+      return;
+    }
+
+    reframingRef.current = true;
+    const fit = overview(map.getContainer(), origins, chips, stage, seasonDate);
+    map.once('moveend', () => {
+      reframingRef.current = false;
+      restingZoomRef.current = map.getZoom();
+      layoutRef.current();
+    });
+    map.easeTo({
+      ...fit,
+      padding,
+      pitch: 0,
+      duration: prefersReducedMotion() ? 0 : REFRAME_MS,
+      easing: EASE_OUT_EXPO,
+    });
+    // Only a change of variant reframes; the rest is read when it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, status]);
+
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready') return;
@@ -2397,11 +2500,9 @@ export function GlobeStage({
            * boxes first means a name that would collide is dropped and the
            * space goes to one that fits.
            */
-          const scope = map.getContainer().closest('section') ?? document;
-
           const placed: DOMRect[] = [
-            ...scope.querySelectorAll('[data-globe-overlay]'),
-            ...scope.querySelectorAll('.voyagr-chip-host'),
+            ...document.querySelectorAll('[data-globe-overlay]'),
+            ...document.querySelectorAll('.voyagr-chip-host'),
           ]
             .map((node) => node.getBoundingClientRect())
             .filter((rect) => rect.width > 0);
@@ -2446,7 +2547,18 @@ export function GlobeStage({
     };
   }, [status]);
 
-  /* Markers: one host element per chip, rendered into by React below. */
+  /*
+   * Markers: one host element per chip, rendered into by React below.
+   *
+   * A pin that is no longer wanted does not vanish: it keeps its marker and
+   * its content for 220ms while it fades out (`data-leaving`), and a new pin
+   * fades in on its own entrance. A pin that comes back during its fade is
+   * simply kept.
+   */
+  const previousChips = React.useRef<readonly StageChip[]>([]);
+  const leavingTimers = React.useRef(new Map<string, number>());
+  const [leaving, setLeaving] = React.useState<Readonly<Record<string, StageChip>>>({});
+
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready') return;
@@ -2458,13 +2570,56 @@ export function GlobeStage({
       if (cancelled) return;
 
       const wanted = new Set(chips.map((chip) => chip.destination));
-      const next: Record<string, HTMLElement> = {};
+      const departed = previousChips.current.filter(
+        (chip) => !wanted.has(chip.destination) && markersRef.current.has(chip.destination),
+      );
+      previousChips.current = chips;
 
-      for (const [code, marker] of markersRef.current) {
-        if (!wanted.has(code)) {
-          marker.remove();
-          markersRef.current.delete(code);
+      // Back before its fade finished: keep it.
+      for (const code of wanted) {
+        const timer = leavingTimers.current.get(code);
+        if (timer !== undefined) {
+          window.clearTimeout(timer);
+          leavingTimers.current.delete(code);
+          markersRef.current.get(code)?.getElement().removeAttribute('data-leaving');
         }
+      }
+
+      if (departed.length > 0) {
+        setLeaving((current) => {
+          const next = { ...current };
+          for (const chip of departed) next[chip.destination] = chip;
+          return next;
+        });
+      }
+
+      for (const chip of departed) {
+        const code = chip.destination;
+        if (leavingTimers.current.has(code)) continue;
+
+        const marker = markersRef.current.get(code);
+        marker?.getElement().setAttribute('data-leaving', 'true');
+
+        const timer = window.setTimeout(
+          () => {
+            leavingTimers.current.delete(code);
+            const gone = markersRef.current.get(code);
+            gone?.remove();
+            markersRef.current.delete(code);
+            setLeaving((current) => {
+              const next = { ...current };
+              delete next[code];
+              return next;
+            });
+            setHosts((current) => {
+              const next = { ...current };
+              delete next[code];
+              return next;
+            });
+          },
+          prefersReducedMotion() ? 0 : PIN_LEAVE_MS,
+        );
+        leavingTimers.current.set(code, timer);
       }
 
       for (const chip of chips) {
@@ -2490,10 +2645,11 @@ export function GlobeStage({
         } else {
           marker.setLngLat([chip.position[0], chip.position[1]]);
         }
-
-        next[chip.destination] = marker.getElement();
       }
 
+      // Every live marker, the ones fading out included.
+      const next: Record<string, HTMLElement> = {};
+      for (const [code, marker] of markersRef.current) next[code] = marker.getElement();
       setHosts(next);
     })();
 
@@ -2501,6 +2657,15 @@ export function GlobeStage({
       cancelled = true;
     };
   }, [chips, status]);
+
+  // Timers outlive a render, not the component.
+  React.useEffect(() => {
+    const timers = leavingTimers.current;
+    return () => {
+      for (const timer of timers.values()) window.clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   /*
    * The accent follows the globe.
@@ -2536,14 +2701,15 @@ export function GlobeStage({
     const root = rootRef.current;
     if (!root || status !== 'ready' || typeof ResizeObserver === 'undefined') return;
 
-    const scope = root.closest('[data-hero]') ?? root.parentElement;
-    if (!scope) return;
-
+    // The overlays belong to whichever page is showing, so this is re-read
+    // whenever the page (and with it the variant) changes.
     const observer = new ResizeObserver(() => layoutRef.current());
-    for (const overlay of scope.querySelectorAll('[data-globe-overlay]')) observer.observe(overlay);
+    for (const overlay of document.querySelectorAll('[data-globe-overlay]')) {
+      observer.observe(overlay);
+    }
 
     return () => observer.disconnect();
-  }, [status]);
+  }, [status, variant, chips]);
 
   /*
    * The rail points at a pin.
@@ -2959,7 +3125,12 @@ export function GlobeStage({
         around, so a chip is ordinary markup - a link with a name, a figure
         and a provenance - that happens to be pinned to a place.
       */}
-      {chips.map((chip) => {
+      {[
+        ...chips,
+        ...Object.values(leaving).filter(
+          (gone) => !chips.some((chip) => chip.destination === gone.destination),
+        ),
+      ].map((chip) => {
         const host = hosts[chip.destination];
         if (!host) return null;
 

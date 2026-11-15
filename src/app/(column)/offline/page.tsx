@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui';
+import { Button, StateScreen } from '@/components/ui';
 
 /**
  * Offline fallback.
  *
  * Precached by the service worker and served when a navigation fails. It is
- * static by necessity - it has to render with no network at all.
+ * static by necessity - it has to render with no network at all - and so the
+ * action is a plain link back to the page you were on, not a script.
  *
  * It shows no prices. A cached price with no timestamp is exactly the false
  * certainty the product specification warns against.
@@ -17,19 +18,17 @@ export const metadata: Metadata = {
 
 export default function OfflinePage() {
   return (
-    <Card as="section" className="max-w-xl">
-      <CardHeader>
-        <CardTitle level={2}>You are offline</CardTitle>
-        <CardDescription>
-          Voyagr needs a connection to check current prices. Saved trips and alerts will be waiting
-          when you reconnect.
-        </CardDescription>
-      </CardHeader>
-
-      <p className="text-ink-muted text-sm">
-        Travel prices change constantly, so nothing priced is shown from cache. Reconnect and the
-        page will load fresh figures.
-      </p>
-    </Card>
+    <StateScreen
+      kind="offline"
+      title="You are offline"
+      description="Prices change constantly, so none is shown from memory. Reconnect and the page loads with fresh figures."
+      action={
+        <Button asChild variant="secondary" size="lg">
+          {/* A full navigation on purpose: client-side routing is what just failed. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/">Try again</a>
+        </Button>
+      }
+    />
   );
 }

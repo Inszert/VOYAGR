@@ -14,6 +14,7 @@ import '@/components/search/explore.css';
 import { tintFor, type Tint } from '@/lib/tint';
 import { daysBetween } from '@/core/dates';
 import { getAiProvider } from '@/ai';
+import { getEnv } from '@/lib/env';
 import { draftItinerary, itineraryRequestFor } from '@/discovery/itinerary';
 import { ItineraryView } from '@/components/discovery/itinerary-view';
 import { loadDestinationDetail } from '@/discovery/destination-detail';
@@ -267,7 +268,7 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                 itinerary={itinerary}
                 nights={nights}
                 sample={dates === null}
-                placeholder={getAiProvider().metadata.isMock}
+                placeholder={getAiProvider().metadata.isMock && getEnv().NODE_ENV !== 'production'}
               />
             ) : null}
 
@@ -373,11 +374,9 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                   ) : null}
                   <UpdatedAgo ageMs={flexData?.ageMs ?? null} />
                 </div>
-              ) : (
+              ) : flex ? null : (
                 <p className="text-ink-muted text-sm">
-                  {flex
-                    ? 'We have no flight price for your dates yet.'
-                    : 'Open this page from a search and it shows what the trip costs for your dates.'}
+                  Open this page from a search and it shows what the trip costs for your dates.
                 </p>
               )}
 

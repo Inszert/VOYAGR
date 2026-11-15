@@ -141,6 +141,13 @@ function shortDay(day: IsoDate): string {
 
 const MONTHS_AHEAD_WHEN_LOADING = 12;
 
+/** A month's cells in rows of seven: a `grid` needs `row`s between it and its cells. */
+function weeksOf<T>(cells: readonly T[]): T[][] {
+  const weeks: T[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
 export function PriceCalendar({
   options: searchOptions,
   load,
@@ -432,150 +439,160 @@ export function PriceCalendar({
               </div>
 
               <div role="grid" aria-label={monthName(month)} className="grid grid-cols-7 gap-1">
-                {monthCells(month).map((day, cell) => {
-                  if (day === null) return <span key={`blank-${cell}`} />;
+                {weeksOf(monthCells(month)).map((week, weekIndex) => (
+                  <div key={weekIndex} role="row" className="contents">
+                    {week.map((day, offset) => {
+                      const cell = weekIndex * 7 + offset;
+                      if (day === null) {
+                        return <span key={`blank-${cell}`} role="gridcell" aria-hidden="true" />;
+                      }
 
-                  const option = byDay.get(day);
-                  const number = Number(day.slice(8, 10));
+                      const option = byDay.get(day);
+                      const number = Number(day.slice(8, 10));
 
-                  // A month still on its way: a shimmer where the price will be, so
-                  // the cell reads as waiting rather than as having no flight.
-                  if (!option && phase === 'leave' && loading(day)) {
-                    return (
-                      <span
-                        key={day}
-                        role="gridcell"
-                        aria-busy="true"
-                        aria-label={`${spoken(day)}, loading price`}
-                        className="flex min-h-12 flex-col items-stretch gap-1.5 rounded-(--radius-control) p-1.5 md:min-h-14"
-                      >
-                        <span aria-hidden="true" className="text-dim text-sm">
-                          {number}
-                        </span>
-                        <Skeleton className="mt-auto h-3 w-3/4" />
-                      </span>
-                    );
-                  }
+                      // A month still on its way: a shimmer where the price will be, so
+                      // the cell reads as waiting rather than as having no flight.
+                      if (!option && phase === 'leave' && loading(day)) {
+                        return (
+                          <span
+                            key={day}
+                            role="gridcell"
+                            aria-busy="true"
+                            aria-label={`${spoken(day)}, loading price`}
+                            className="flex min-h-12 flex-col items-stretch gap-1.5 rounded-(--radius-control) p-1.5 md:min-h-14"
+                          >
+                            <span aria-hidden="true" className="text-dim text-sm">
+                              {number}
+                            </span>
+                            <Skeleton className="mt-auto h-3 w-3/4" />
+                          </span>
+                        );
+                      }
 
-                  // A day with nothing priced: a number, no price, not a button.
-                  if (!option) {
-                    return (
-                      <span
-                        key={day}
-                        role="gridcell"
-                        aria-label={`${spoken(day)}, no price`}
-                        className={cn(
-                          'text-dim grid min-h-12 place-items-start rounded-(--radius-control) p-1.5 text-sm md:min-h-14',
-                          between(day) && 'bg-accent-to/10',
-                        )}
-                      >
-                        <span aria-hidden="true">{number}</span>
-                      </span>
-                    );
-                  }
+                      // A day with nothing priced: a number, no price, not a button.
+                      if (!option) {
+                        return (
+                          <span
+                            key={day}
+                            role="gridcell"
+                            aria-label={`${spoken(day)}, no price`}
+                            className={cn(
+                              'text-dim grid min-h-12 place-items-start rounded-(--radius-control) p-1.5 text-sm md:min-h-14',
+                              between(day) && 'bg-accent-to/10',
+                            )}
+                          >
+                            <span aria-hidden="true">{number}</span>
+                          </span>
+                        );
+                      }
 
-                  const flightOnly = option.kind === 'flight';
-                  const tier = flightOnly ? 'mid' : tierOf(option.amount, sortedAmounts);
-                  const isDeparture =
-                    (chosen !== null && day === chosen.departure) ||
-                    (phase === 'return' && day === departure);
-                  const isReturn =
-                    chosen !== null && day === chosen.returnDate && phase === 'return';
-                  const isMonthLow = monthCheapest.has(option.key);
-                  const isCheapest = (!flightOnly && option.key === cheapestKey) || isMonthLow;
-                  const isBest = !flightOnly && option.key === bestValueKey;
+                      const flightOnly = option.kind === 'flight';
+                      const tier = flightOnly ? 'mid' : tierOf(option.amount, sortedAmounts);
+                      const isDeparture =
+                        (chosen !== null && day === chosen.departure) ||
+                        (phase === 'return' && day === departure);
+                      const isReturn =
+                        chosen !== null && day === chosen.returnDate && phase === 'return';
+                      const isMonthLow = monthCheapest.has(option.key);
+                      const isCheapest = (!flightOnly && option.key === cheapestKey) || isMonthLow;
+                      const isBest = !flightOnly && option.key === bestValueKey;
 
-                  const body = (
-                    <>
-                      <span aria-hidden="true" className="flex w-full items-start justify-between">
-                        <span className="text-sm font-medium">{number}</span>
-                        <span className="text-[10px] leading-none">
-                          {isBest ? '★' : isCheapest ? '▼' : ''}
-                        </span>
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'mt-auto text-[11px] tabular-nums md:text-xs',
-                          tier === 'low' && 'font-bold',
-                          tier === 'high' && 'font-normal opacity-70',
-                        )}
-                      >
-                        {flightOnly ? <span className="mr-0.5">✈</span> : null}
-                        {option.whole}
-                      </span>
-                      {/*
+                      const body = (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className="flex w-full items-start justify-between"
+                          >
+                            <span className="text-sm font-medium">{number}</span>
+                            <span className="text-[10px] leading-none">
+                              {isBest ? '★' : isCheapest ? '▼' : ''}
+                            </span>
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              'mt-auto text-[11px] tabular-nums md:text-xs',
+                              tier === 'low' && 'font-bold',
+                              tier === 'high' && 'font-normal opacity-70',
+                            )}
+                          >
+                            {flightOnly ? <span className="mr-0.5">✈</span> : null}
+                            {option.whole}
+                          </span>
+                          {/*
                         Once a departure is chosen, each return is read
                         against the cheapest return for that same day - a
                         smaller "+€38" beside the total, the way Kiwi shows
                         what a night more or fewer actually costs, rather than
                         a second total to compare by eye.
                       */}
-                      {phase === 'return' && option.delta ? (
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            'text-[10px] leading-none tabular-nums',
-                            isDeparture || isReturn ? 'text-white/75' : 'text-ink-muted',
-                          )}
-                        >
-                          {option.delta}
-                        </span>
-                      ) : null}
-                      <span className="sr-only">
-                        {spoken(day)},{' '}
-                        {flightOnly
-                          ? `flights only ${option.exact}, indicative - choosing it searches these dates for the whole trip`
-                          : `whole trip ${option.exact}`}
-                        {phase === 'leave' && !flightOnly
-                          ? ' at the cheapest'
-                          : `, ${option.nights} nights`}
-                        {phase === 'return' && option.delta
-                          ? `, ${option.delta} against the cheapest return for this departure`
-                          : ''}
-                        {isBest
-                          ? ', best value'
-                          : isMonthLow
-                            ? ', cheapest flight this month'
-                            : isCheapest
-                              ? ', cheapest'
+                          {phase === 'return' && option.delta ? (
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                'text-[10px] leading-none tabular-nums',
+                                isDeparture || isReturn ? 'text-white/75' : 'text-ink-muted',
+                              )}
+                            >
+                              {option.delta}
+                            </span>
+                          ) : null}
+                          <span className="sr-only">
+                            {spoken(day)},{' '}
+                            {flightOnly
+                              ? `flights only ${option.exact}, indicative - choosing it searches these dates for the whole trip`
+                              : `whole trip ${option.exact}`}
+                            {phase === 'leave' && !flightOnly
+                              ? ' at the cheapest'
+                              : `, ${option.nights} nights`}
+                            {phase === 'return' && option.delta
+                              ? `, ${option.delta} against the cheapest return for this departure`
                               : ''}
-                      </span>
-                    </>
-                  );
+                            {isBest
+                              ? ', best value'
+                              : isMonthLow
+                                ? ', cheapest flight this month'
+                                : isCheapest
+                                  ? ', cheapest'
+                                  : ''}
+                          </span>
+                        </>
+                      );
 
-                  const cellClass = cn(
-                    'flex min-h-14 flex-col items-stretch rounded-(--radius-control) border p-1.5 text-left md:min-h-16',
-                    'ease-standard duration-quick transition-colors',
-                    'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-1',
-                    isDeparture || isReturn
-                      ? 'border-accent-to bg-accent-to text-white'
-                      : flightOnly
-                        ? 'border-hairline text-ink-muted hover:border-border-strong border-dashed'
-                        : between(day)
-                          ? 'border-accent-to/30 bg-accent-to/15 text-ink'
-                          : tier === 'low'
-                            ? 'border-positive-500/40 bg-positive-500/10 text-positive-ink hover:border-positive-500'
-                            : 'border-hairline text-ink hover:border-border-strong',
-                  );
+                      const cellClass = cn(
+                        'flex min-h-14 flex-col items-stretch rounded-(--radius-control) border p-1.5 text-left md:min-h-16',
+                        'ease-standard duration-quick transition-colors',
+                        'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-1',
+                        isDeparture || isReturn
+                          ? 'border-accent-to bg-accent-to text-white'
+                          : flightOnly
+                            ? 'border-hairline text-ink-muted hover:border-border-strong border-dashed'
+                            : between(day)
+                              ? 'border-accent-to/30 bg-accent-to/15 text-ink'
+                              : tier === 'low'
+                                ? 'border-positive-500/40 bg-positive-500/10 text-positive-ink hover:border-positive-500'
+                                : 'border-hairline text-ink hover:border-border-strong',
+                      );
 
-                  // Leaving is a choice made here; coming back is the link.
-                  return phase === 'leave' ? (
-                    <button
-                      key={day}
-                      type="button"
-                      role="gridcell"
-                      onClick={() => setDeparture(day)}
-                      className={cellClass}
-                    >
-                      {body}
-                    </button>
-                  ) : (
-                    <a key={day} role="gridcell" href={option.href} className={cellClass}>
-                      {body}
-                    </a>
-                  );
-                })}
+                      // Leaving is a choice made here; coming back is the link.
+                      return phase === 'leave' ? (
+                        <button
+                          key={day}
+                          type="button"
+                          role="gridcell"
+                          onClick={() => setDeparture(day)}
+                          className={cellClass}
+                        >
+                          {body}
+                        </button>
+                      ) : (
+                        <a key={day} role="gridcell" href={option.href} className={cellClass}>
+                          {body}
+                        </a>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             </section>
           ))}

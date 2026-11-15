@@ -11,9 +11,6 @@ import { StayProperty } from '@/components/stays/stay-property';
 import { loadLocator } from '@/discovery/locator-data';
 import { tintFor } from '@/lib/tint';
 import { imageryCodeForPlace, imageryRefFor, resolveImagery } from '@/providers/imagery';
-import { SourceStrip } from '@/components/ui';
-import { getStayProviders } from '@/providers/stays/registry';
-import { provenanceForMode, type SourceAttribution } from '@/core/trip/provenance';
 import { loadStaySearch, stayHref, type StayParams } from '@/search/stays/load-stays';
 import type { IsoDate } from '@/core/trip/types';
 import { getActiveDataSource } from '@/providers/request-source';
@@ -62,24 +59,6 @@ export default async function StaysPage({
   const view = await loadStaySearch(params, today, dataSource.effective);
 
   /*
-   * Who answered, named on the page.
-   *
-   * Read off the adapters themselves rather than from configuration, and
-   * shown whether or not anything was found: a page of demo hotels that does
-   * not say so is the one outcome this product will not ship.
-   */
-  const sources: SourceAttribution[] = getStayProviders(undefined, dataSource.effective).map(
-    (provider) => ({
-      part: 'stays',
-      providerId: provider.metadata.id,
-      displayName: provider.metadata.displayName,
-      provenance: provenanceForMode(
-        provider.metadata.mode ?? (provider.metadata.isMock ? 'mock' : 'live'),
-      ),
-    }),
-  );
-
-  /*
    * Flights and a stay, on one page, with two independent sets of dates.
    *
    * `with=flights` adds the flight search above the stay flow. The two are
@@ -119,7 +98,7 @@ export default async function StaysPage({
       className="stage-scope bg-bg text-text min-h-screen"
       data-tint={tintFor(imageCode ?? view.query.destination.name)}
     >
-      <Container size="wide" className="flex flex-col gap-8 py-10">
+      <Container size="wide" className="flex flex-col gap-8 py-10 lg:gap-10 lg:py-16">
         <header className="flex flex-col gap-4">
           <SearchKindTabs active={withFlights ? 'both' : 'stays'} hrefFor={searchKindHref} />
 
@@ -131,7 +110,6 @@ export default async function StaysPage({
             checkOut={view.query.checkOut}
             nights={view.nights}
             occupancy={view.query.occupancy}
-            sources={<SourceStrip sources={sources} className="justify-end" />}
           />
         </header>
 
@@ -247,22 +225,48 @@ export default async function StaysPage({
         {view.step === 'results' ? (
           <section aria-labelledby="stays-heading" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="stays-heading" className="text-ink font-display text-2xl">
+              <h2 id="stays-heading" className="text-ink font-display text-display-sm">
                 {view.stays.length} places for {view.nights} nights
               </h2>
               <a
                 href={stayHref(params, { dates: undefined, property: undefined })}
-                className="text-accent-ink focus-visible:outline-accent-to -my-1 inline-block rounded-sm py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="text-accent-ink focus-visible:outline-accent-to inline-flex min-h-11 items-center rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 Change dates
               </a>
             </div>
 
-            {view.links.map((link) => (
-              <FindStayLink key={link.id} offer={link} />
-            ))}
+            {view.stays.length === 0 && view.links.length > 0
+              ? /*
+                Nothing here could be priced, and a link out exists: that link is
+                the answer, so it is the page's content rather than something
+                sitting above a sentence that says nothing came back.
+              */
+                view.links.map((link) => (
+                  <section
+                    key={link.id}
+                    aria-labelledby={`partner-${link.id}`}
+                    className="border-border bg-surface-raised flex flex-col gap-4 rounded-(--radius-shell) border p-6 sm:p-8"
+                  >
+                    <div>
+                      <h3
+                        id={`partner-${link.id}`}
+                        className="font-display text-display-sm text-ink text-balance"
+                      >
+                        Find a place to stay in {link.destinationName}
+                      </h3>
+                      <p className="text-ink-muted mt-2 max-w-[60ch] text-sm leading-relaxed">
+                        We cannot show rates for {link.destinationName} ourselves yet. The search
+                        opens on {link.displayName} with your dates and guests filled in, and the
+                        price you see there is theirs.
+                      </p>
+                    </div>
+                    <FindStayLink offer={link} />
+                  </section>
+                ))
+              : view.links.map((link) => <FindStayLink key={link.id} offer={link} />)}
 
-            {view.stays.length === 0 ? (
+            {view.stays.length === 0 && view.links.length > 0 ? null : view.stays.length === 0 ? (
               <EmptyState
                 icon={<Icon name="bed" />}
                 title="No places came back for these dates"
@@ -284,7 +288,7 @@ export default async function StaysPage({
                 wide cards, not three cards packed left against a gap that
                 reads as a loading state.
               */
-              <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(250px,100%),1fr))] gap-5">
+              <ul className="flex flex-col gap-4">
                 {view.stays.map((stay, index) => (
                   <li key={stay.key} className="flex">
                     <StayCard

@@ -1,7 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
-import { Button, Card, Field } from '@/components/ui';
+import { useActionState, useId } from 'react';
+import { Button, Field, PageHeader, PasswordField } from '@/components/ui';
 import type { AuthFormState } from '@/app/actions/auth';
 
 /**
@@ -14,11 +14,21 @@ import type { AuthFormState } from '@/app/actions/auth';
  * A client component, because it renders the server action's returned error
  * without a full navigation. It still submits as a real form, so it works
  * before the JavaScript arrives.
+ *
+ * The server's answer is one sentence about the attempt, not about a field
+ * ("That email or password is not right" must not say which), so it sits above
+ * the fields in a live region and both fields are described by it and marked
+ * invalid. The message is announced when it arrives, and a screen reader
+ * landing on either field hears it again.
  */
 
 export interface CredentialsFormProps {
+  eyebrow: string;
   heading: string;
+  description: string;
   submitLabel: string;
+  /** What the button says while the request is in flight: "Signing in…". */
+  pendingLabel: string;
   action: (state: AuthFormState, formData: FormData) => Promise<AuthFormState>;
   passwordHint?: string;
   /** `new-password` on sign-up lets a password manager offer to generate one. */
@@ -29,8 +39,11 @@ export interface CredentialsFormProps {
 }
 
 export function CredentialsForm({
+  eyebrow,
   heading,
+  description,
   submitLabel,
+  pendingLabel,
   action,
   passwordHint,
   passwordAutoComplete,
@@ -38,25 +51,37 @@ export function CredentialsForm({
   footer,
 }: CredentialsFormProps) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(action, {});
+  const alertId = useId();
 
   return (
-    <Card as="section" aria-labelledby="credentials-heading" className="mx-auto max-w-md">
-      <h1 id="credentials-heading" className="text-ink text-2xl font-semibold">
-        {heading}
-      </h1>
+    <section aria-labelledby="credentials-heading" className="flex flex-col gap-8">
+      <PageHeader
+        id="credentials-heading"
+        eyebrow={eyebrow}
+        title={heading}
+        description={description}
+      />
 
       {notice ? (
-        <p role="status" className="text-positive-ink mt-2 text-sm">
+        <p
+          role="status"
+          className="border-positive-500/30 bg-positive-500/10 text-positive-ink rounded-(--radius-control) border px-3.5 py-2.5 text-sm"
+        >
           {notice}
         </p>
       ) : null}
 
-      <form action={formAction} className="mt-6 flex flex-col gap-4">
+      <form action={formAction} className="flex flex-col gap-5" aria-busy={pending || undefined}>
         {/*
           Always mounted, not conditionally rendered: a live region that appears
           at the same moment as its content is often missed by screen readers.
         */}
-        <p role="alert" aria-live="polite" className="text-critical-ink text-sm empty:hidden">
+        <p
+          id={alertId}
+          role="alert"
+          aria-live="polite"
+          className="border-critical-500/30 bg-critical-500/10 text-critical-ink rounded-(--radius-control) border px-3.5 py-2.5 text-sm empty:hidden"
+        >
           {state.error}
         </p>
 
@@ -66,24 +91,27 @@ export function CredentialsForm({
           type="email"
           autoComplete="email"
           defaultValue={state.email}
+          invalid={Boolean(state.error)}
+          describedBy={state.error ? alertId : undefined}
           required
         />
 
-        <Field
+        <PasswordField
           label="Password"
           name="password"
-          type="password"
           autoComplete={passwordAutoComplete}
           hint={passwordHint}
+          invalid={Boolean(state.error)}
+          describedBy={state.error ? alertId : undefined}
           required
         />
 
-        <Button type="submit" size="lg" loading={pending}>
-          {pending ? 'Working…' : submitLabel}
+        <Button type="submit" size="lg" loading={pending} className="mt-1 w-full">
+          {pending ? pendingLabel : submitLabel}
         </Button>
       </form>
 
-      <p className="text-ink-muted mt-6 text-sm">{footer}</p>
-    </Card>
+      <p className="text-ink-muted text-sm leading-relaxed">{footer}</p>
+    </section>
   );
 }

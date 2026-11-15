@@ -81,14 +81,13 @@ export function AddWatchForm({ action, today }: AddWatchFormProps) {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" loading={pending}>
-            Start watching
+            {pending ? 'Starting…' : 'Start watching'}
           </Button>
-          <p role="status" className="text-sm empty:hidden">
-            {state.error ? (
-              <span className="text-critical-ink">{state.error}</span>
-            ) : state.saved ? (
-              <span className="text-positive-ink">Watching it. It is in the list below.</span>
-            ) : null}
+          <p role="alert" className="text-critical-ink text-sm empty:hidden">
+            {state.error}
+          </p>
+          <p role="status" className="text-positive-ink text-sm empty:hidden">
+            {state.saved && !state.error ? 'Watching it. It is in the list above.' : null}
           </p>
         </div>
       </form>

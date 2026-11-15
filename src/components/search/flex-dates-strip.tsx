@@ -57,17 +57,11 @@ function differenceOf(
   return { text: 'Same price', tone: 'quiet' };
 }
 
-export function FlexDatesStrip({
-  options,
-  best,
-  ageMs,
-  hrefFor,
-  reason = null,
-  className,
-}: FlexDatesStripProps) {
+export function FlexDatesStrip({ options, best, ageMs, hrefFor, className }: FlexDatesStripProps) {
   if (options.length <= 1) return null;
 
-  const priced = options.some((option) => option.price !== null);
+  // Every day unknown: a heading over a row of dashes tells nobody anything.
+  if (!options.some((option) => option.price !== null)) return null;
 
   return (
     <section
@@ -81,13 +75,7 @@ export function FlexDatesStrip({
 
         {best ? <p className="text-ink text-sm font-medium">{flexSentence(best)}</p> : null}
 
-        {priced ? (
-          <UpdatedAgo ageMs={ageMs} />
-        ) : (
-          <p className="text-ink-muted text-sm">
-            {reason ?? 'We have no flight prices for these days yet.'}
-          </p>
-        )}
+        <UpdatedAgo ageMs={ageMs} />
       </div>
 
       <ul

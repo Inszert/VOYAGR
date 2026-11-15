@@ -68,16 +68,20 @@ function parseOptionalDate(raw: string, label: string): Result<IsoDate | null, s
   return isIsoDate(raw) ? ok(raw) : err(`${label} must be a real date.`);
 }
 
-export interface TripFormInput {
+export interface TripDetailsInput {
   readonly name: string;
   readonly destination: string;
   readonly destinationCountry: string | null;
   readonly startDate: IsoDate | null;
   readonly endDate: IsoDate | null;
+}
+
+export interface TripFormInput extends TripDetailsInput {
   readonly ownerName: string;
 }
 
-export function parseTripForm(values: FormValues): Result<TripFormInput, string> {
+/** The fields a trip has whenever it is created or edited. */
+export function parseTripDetails(values: FormValues): Result<TripDetailsInput, string> {
   const name = text(values, 'name');
   if (name === '' || name.length > MAX_NAME)
     return err(`Give the trip a name of up to ${MAX_NAME} characters.`);
@@ -85,11 +89,6 @@ export function parseTripForm(values: FormValues): Result<TripFormInput, string>
   const destination = text(values, 'destination');
   if (destination === '' || destination.length > MAX_NAME) {
     return err(`Say where you are going, in up to ${MAX_NAME} characters.`);
-  }
-
-  const ownerName = text(values, 'ownerName');
-  if (ownerName === '' || ownerName.length > MAX_NAME) {
-    return err('Enter the name your travel companions will see for you.');
   }
 
   const countryRaw = text(values, 'destinationCountry').toUpperCase();
@@ -111,8 +110,19 @@ export function parseTripForm(values: FormValues): Result<TripFormInput, string>
     destinationCountry: countryRaw === '' ? null : countryRaw,
     startDate: start.value,
     endDate: end.value,
-    ownerName,
   });
+}
+
+export function parseTripForm(values: FormValues): Result<TripFormInput, string> {
+  const details = parseTripDetails(values);
+  if (!details.ok) return details;
+
+  const ownerName = text(values, 'ownerName');
+  if (ownerName === '' || ownerName.length > MAX_NAME) {
+    return err('Enter the name your travel companions will see for you.');
+  }
+
+  return ok({ ...details.value, ownerName });
 }
 
 export interface PlanItemFormInput {

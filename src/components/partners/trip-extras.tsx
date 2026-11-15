@@ -3,7 +3,7 @@ import type { PartnerOffer } from '@/booking/partners';
 import type { IsoDate } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
 import { AffiliateDisclosure } from './affiliate-disclosure';
-import { CATEGORY_HEADING, CATEGORY_ORDER } from './partner-meta';
+import { CATEGORY_ORDER } from './partner-meta';
 import { PartnerOfferCard } from './partner-offer-card';
 
 /**
@@ -25,36 +25,29 @@ export function TripExtras({
   today: IsoDate;
   className?: string;
 }) {
-  const groups = CATEGORY_ORDER.map((category) => ({
-    category,
-    // A card with no vetted link renders nothing, so it must not take a slot.
-    offers: offers.filter((offer) => offer.category === category && buildPartnerHandoff(offer)),
-  })).filter((group) => group.offers.length > 0);
+  // A card with no vetted link renders nothing, so it must not take a slot.
+  const shown = CATEGORY_ORDER.flatMap((category) =>
+    offers.filter((offer) => offer.category === category && buildPartnerHandoff(offer)),
+  );
 
-  if (groups.length === 0) return null;
+  if (shown.length === 0) return null;
 
   return (
     <section aria-labelledby="trip-extras-heading" className={cn('flex flex-col gap-6', className)}>
-      <div className="flex flex-col gap-2">
-        <h2 id="trip-extras-heading" className="font-display text-display-sm text-ink">
-          Sort the rest of the trip
-        </h2>
-        <AffiliateDisclosure />
-      </div>
+      <h2 id="trip-extras-heading" className="font-display text-display-sm text-ink">
+        Sort the rest of the trip
+      </h2>
 
-      {groups.map((group) => (
-        <div key={group.category} className="flex flex-col gap-3">
-          <h3 className="text-ink text-base font-semibold">{CATEGORY_HEADING[group.category]}</h3>
-          {/* One column on a phone, two from 640px, three from 1024px. */}
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {group.offers.map((offer) => (
-              <li key={offer.id} className="min-w-0">
-                <PartnerOfferCard offer={offer} today={today} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      {/* One grid across the whole band; each card names its own category. */}
+      <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-4">
+        {shown.map((offer) => (
+          <li key={offer.id} className="min-w-0">
+            <PartnerOfferCard offer={offer} today={today} />
+          </li>
+        ))}
+      </ul>
+
+      <AffiliateDisclosure />
     </section>
   );
 }

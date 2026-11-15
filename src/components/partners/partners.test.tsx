@@ -36,7 +36,7 @@ describe('PartnerOfferCard', () => {
     render(<PartnerOfferCard offer={intui} today={TODAY} />);
 
     const card = screen.getByRole('article', { name: 'Intui' });
-    expect(within(card).getByRole('heading', { name: 'Intui', level: 4 })).toBeInTheDocument();
+    expect(within(card).getByRole('heading', { name: 'Intui', level: 3 })).toBeInTheDocument();
     expect(within(card).getByText(intui.description)).toBeInTheDocument();
   });
 
@@ -199,39 +199,35 @@ describe('AffiliateDisclosure', () => {
 });
 
 describe('TripExtras', () => {
-  it('is a labelled section with the three groups, each under its heading', () => {
+  it('is one labelled section with one grid of cards, no stacked group headings', () => {
     render(<TripExtras offers={PARTNER_OFFERS} today={TODAY} />);
 
     const section = screen.getByRole('region', { name: 'Sort the rest of the trip' });
-    const headings = within(section)
-      .getAllByRole('heading', { level: 3 })
-      .map((heading) => heading.textContent);
 
-    expect(headings).toEqual([
-      'Getting from the airport',
-      'Stay connected',
-      'If your flight is delayed',
-    ]);
+    expect(within(section).getAllByRole('list')).toHaveLength(1);
+    expect(within(section).getAllByRole('article')).toHaveLength(4);
+    // The only headings are the cards' own, one level under the section's.
+    expect(
+      within(section)
+        .getAllByRole('heading')
+        .map((heading) => heading.tagName),
+    ).toEqual(['H2', 'H3', 'H3', 'H3', 'H3']);
   });
 
-  it('puts each partner in its own group', () => {
+  it('keeps the groups in order and names each card by its category', () => {
     render(<TripExtras offers={PARTNER_OFFERS} today={TODAY} />);
 
-    const group = (name: string) =>
-      screen.getByRole('heading', { name }).parentElement as HTMLElement;
+    const cards = screen.getAllByRole('article');
 
-    expect(within(group('Getting from the airport')).getAllByRole('article')).toHaveLength(1);
-    expect(within(group('Getting from the airport')).getByRole('article')).toHaveAccessibleName(
-      'Intui',
-    );
-    expect(
-      within(group('Stay connected'))
-        .getAllByRole('article')
-        .map((card) => card.getAttribute('aria-labelledby')),
-    ).toEqual(['partner-yesim-esim-heading', 'partner-gigsky-esim-heading']);
-    expect(within(group('If your flight is delayed')).getByRole('article')).toHaveAccessibleName(
-      'AirHelp',
-    );
+    expect(cards.map((card) => card.getAttribute('aria-labelledby'))).toEqual([
+      'partner-intui-transfer-heading',
+      'partner-yesim-esim-heading',
+      'partner-gigsky-esim-heading',
+      'partner-airhelp-compensation-heading',
+    ]);
+    expect(within(cards[0]!).getByText('Airport transfer')).toBeInTheDocument();
+    expect(within(cards[1]!).getByText('Travel eSIM')).toBeInTheDocument();
+    expect(within(cards[3]!).getByText('Flight compensation')).toBeInTheDocument();
   });
 
   it('gives all four partners a link, and every link opens a new tab', () => {
@@ -259,8 +255,8 @@ describe('TripExtras', () => {
   it('shows only the groups that have an offer', () => {
     render(<TripExtras offers={offersFor('esim')} today={TODAY} />);
 
-    expect(screen.getByRole('heading', { name: 'Stay connected' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Getting from the airport' })).toBeNull();
+    expect(screen.getAllByRole('article')).toHaveLength(2);
+    expect(screen.queryByText('Airport transfer')).toBeNull();
   });
 
   it('renders nothing at all - no heading, no disclosure - when there are no offers', () => {

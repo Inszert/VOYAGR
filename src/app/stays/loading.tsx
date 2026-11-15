@@ -12,7 +12,7 @@ import { Container, Skeleton } from '@/components/ui';
 export default function StaysLoading() {
   return (
     <div className="stage-scope bg-bg text-text min-h-screen">
-      <Container size="wide" className="flex flex-col gap-8 py-10">
+      <Container size="wide" className="flex flex-col gap-8 py-10 lg:gap-10 lg:py-16">
         <div className="flex flex-col gap-4">
           <Skeleton className="h-4 w-44" />
           <Skeleton className="h-[12rem] rounded-(--radius-surface) sm:h-[15rem]" />
@@ -29,13 +29,13 @@ export default function StaysLoading() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(250px,100%),1fr))] gap-5">
+        <div className="flex flex-col gap-4">
           {Array.from({ length: 3 }, (_, index) => (
             <div
               key={index}
-              className="border-border flex overflow-hidden rounded-(--radius-card) border sm:flex-col"
+              className="border-border flex min-h-32 overflow-hidden rounded-(--radius-card) border"
             >
-              <Skeleton className="w-28 shrink-0 rounded-none sm:h-[180px] sm:w-full" />
+              <Skeleton className="w-28 shrink-0 rounded-none sm:w-56 md:w-64 lg:w-72" />
               <div className="flex flex-1 flex-col gap-2.5 p-4">
                 <Skeleton className="h-3 w-20" />
                 <Skeleton className="h-5 w-3/4" />

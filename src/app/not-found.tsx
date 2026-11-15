@@ -1,19 +1,22 @@
 import Link from 'next/link';
-import { Container, Button, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui';
+import { Button, Container, Icon, StateScreen } from '@/components/ui';
 
 export default function NotFound() {
   return (
-    <Container className="py-10">
-      <Card as="section" className="max-w-xl">
-        <CardHeader>
-          <CardTitle level={2}>Page not found</CardTitle>
-          <CardDescription>That page does not exist, or it has moved.</CardDescription>
-        </CardHeader>
-
-        <Button asChild>
-          <Link href="/">Back to the start</Link>
-        </Button>
-      </Card>
+    <Container size="wide" className="py-10 lg:py-16">
+      <StateScreen
+        kind="not-found"
+        title="Page not found"
+        description="That page does not exist, or it has moved."
+        action={
+          <Button asChild size="lg">
+            <Link href="/">
+              Back to the start
+              <Icon name="arrow-right" size={1} />
+            </Link>
+          </Button>
+        }
+      />
     </Container>
   );
 }

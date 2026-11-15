@@ -1,4 +1,3 @@
-import type * as React from 'react';
 import { Icon, Media } from '@/components/ui';
 import type { StayOccupancy } from '@/core/stay/types';
 import type { DestinationImage } from '@/providers/imagery/types';
@@ -33,8 +32,6 @@ export interface StayHeaderProps {
   readonly checkOut: string;
   readonly nights: number;
   readonly occupancy: StayOccupancy;
-  /** Who is answering, named over the picture rather than below it. */
-  readonly sources?: React.ReactNode;
 }
 
 function plural(count: number, one: string, many: string): string {
@@ -49,7 +46,6 @@ export function StayHeader({
   checkOut,
   nights,
   occupancy,
-  sources,
 }: StayHeaderProps) {
   const guests = occupancy.adults + occupancy.children;
 
@@ -74,17 +70,13 @@ export function StayHeader({
         className="from-stage/70 absolute inset-0 -z-10 bg-gradient-to-r via-transparent to-transparent"
       />
 
-      {/*
-        The provenance tags over a photograph get their own dark backing.
-        "Demo data" is the one label on this page that must never be hard
-        to read, and a translucent pill over a bright sky is.
-      */}
-      <div className="[&_.voyagr-source]:bg-stage/85 flex justify-end [&_.voyagr-source]:backdrop-blur-sm">
-        {sources}
-      </div>
-
       <div className="flex flex-col gap-2">
-        <h1 className="font-display text-display-md text-balance text-white">{name}</h1>
+        <p className="text-[0.6875rem] font-medium tracking-[0.18em] text-white/70 uppercase">
+          Stays
+        </p>
+        <h1 className="font-display text-display-sm sm:text-display-md text-balance text-white">
+          {name}
+        </h1>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/85">
           <Icon name="calendar" size={0.95} />
           <span className="tabular-nums">{shortDateRange(checkIn, checkOut)}</span>

@@ -240,7 +240,7 @@ export function SearchResults({
         new one: the ranking is the whole trip's either way, and both figures
         are the engine's. Links, so the choice is part of the address.
       */}
-      <div className="voyagr-toolbar border-stage-glass-border bg-stage-glass backdrop-blur-glass static -mx-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 rounded-(--radius-card) border px-3 py-2.5 sm:sticky">
+      <div className="voyagr-toolbar border-stage-glass-border bg-stage-glass backdrop-blur-glass static -mx-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-3 rounded-(--radius-card) border px-3 py-2.5 sm:sticky sm:gap-x-6">
         <SortSelect
           value={sort}
           action={basePath}
@@ -270,8 +270,8 @@ export function SearchResults({
               aria-current={view === option ? 'page' : undefined}
               className={
                 view === option
-                  ? 'bg-tint-ink text-surface inline-flex min-h-11 items-center rounded-(--radius-pill) px-4 text-sm font-semibold'
-                  : 'text-ink-muted hover:text-ink ease-standard inline-flex min-h-11 items-center rounded-(--radius-pill) px-4 text-sm transition-colors'
+                  ? 'bg-tint-ink text-surface inline-flex min-h-11 items-center rounded-(--radius-pill) px-3 text-sm font-semibold whitespace-nowrap sm:px-4'
+                  : 'text-ink-muted hover:text-ink ease-standard inline-flex min-h-11 items-center rounded-(--radius-pill) px-3 text-sm whitespace-nowrap transition-colors sm:px-4'
               }
             >
               {text}
@@ -322,18 +322,18 @@ export function SearchResults({
         surprise worth leading with.
       */}
       {diagnostics.quoteFreshness.stale > 0 ? (
-        <div
-          role="status"
-          className="border-caution-500/30 bg-caution-500/10 rounded-(--radius-card) border p-4"
-        >
-          <h3 className="text-caution-ink text-sm font-semibold">Some prices may have moved</h3>
-          <p className="text-ink mt-1 text-sm">
-            {diagnostics.quoteFreshness.stale} of these trips{' '}
-            {diagnostics.quoteFreshness.stale === 1 ? 'carries' : 'carry'} a quote that has expired
-            or was observed a while ago. Search again, or check the price with the provider before
-            booking.
-          </p>
-        </div>
+        <p role="status" className="text-ink-muted text-sm">
+          <span className="text-caution-ink font-medium">Some prices may have moved.</span>{' '}
+          {diagnostics.quoteFreshness.stale} of these trips{' '}
+          {diagnostics.quoteFreshness.stale === 1 ? 'carries' : 'carry'} an older quote; check the
+          price before booking.{' '}
+          <a
+            href={linkWith({})}
+            className="text-tint-ink inline-flex min-h-11 items-center font-medium underline underline-offset-4"
+          >
+            Search again
+          </a>
+        </p>
       ) : null}
 
       {/*
@@ -458,12 +458,12 @@ export function SearchResults({
         {others.length > 0 ? (
           /*
             The rest of the results: where, when, how and how much, and anything
-            worth worrying about. One column on a phone, two from 1024px. Each
+            worth worrying about. One column, two from 1280px. Each
             opens in the builder.
           */
           <ol
             aria-label={`Other trips, ${others.length} more`}
-            className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+            className="grid grid-cols-1 gap-4 xl:grid-cols-2"
           >
             {others.map((trip, index) => (
               <li key={trip.candidate.id} className="voyagr-reveal min-w-0">
@@ -515,7 +515,7 @@ export function SearchResults({
             <h3 id="near-misses-heading" className="font-display text-ink text-2xl">
               Close, but outside your limits
             </h3>
-            <ol className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <ol className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               {closeCalls.map((trip) => (
                 <li key={trip.candidate.id} className="min-w-0">
                   {/* Rank is deliberately out of range: a near miss is not ranked. */}

@@ -11,7 +11,13 @@ import type {
   TripRecord,
 } from '@/db/repository';
 import { AppError } from '@/lib/errors';
-import type { ContactFormInput, ExpenseFormInput, PlanItemFormInput, TripFormInput } from './parse';
+import type {
+  ContactFormInput,
+  ExpenseFormInput,
+  PlanItemFormInput,
+  TripDetailsInput,
+  TripFormInput,
+} from './parse';
 import type { PlanItemKind, PlanItemStatus } from './types';
 
 /**
@@ -101,6 +107,12 @@ export class TripHubService {
     const { ownerName, ...fields } = input;
     const record: TripInput = { ownerId: userId, ...fields };
     return this.repositories.trips.create(record, ownerName);
+  }
+
+  /** Name, place and dates. Any member may correct them: a shared trip is shared. */
+  async updateTrip(userId: string, tripId: string, input: TripDetailsInput): Promise<TripRecord> {
+    await this.access(userId, tripId);
+    return this.repositories.trips.update(tripId, input);
   }
 
   async deleteTrip(userId: string, tripId: string): Promise<void> {
@@ -268,11 +280,12 @@ export class TripHubService {
 
   // --- Expenses ----------------------------------------------------------------
 
-  async addExpense(
+  /** The checks an expense passes before it is stored, whether new or edited. */
+  private async checkExpense(
     userId: string,
     tripId: string,
     input: ExpenseFormInput,
-  ): Promise<TripExpenseRecord> {
+  ): Promise<void> {
     const { members } = await this.access(userId, tripId);
     const known = new Set(members.map((member) => member.id));
 
@@ -292,8 +305,39 @@ export class TripHubService {
         publicMessage: 'Everyone in an expense must be on the trip.',
       });
     }
+  }
 
+  async addExpense(
+    userId: string,
+    tripId: string,
+    input: ExpenseFormInput,
+  ): Promise<TripExpenseRecord> {
+    await this.checkExpense(userId, tripId, input);
     return this.repositories.tripExpenses.create({ tripId, ...input });
+  }
+
+  /**
+   * Correct an expense: who paid, how much, in which currency, how it is split.
+   *
+   * Held to exactly the checks a new one passes. An expense of another trip is
+   * "not found" here, because the id in the form is only a claim.
+   */
+  async updateExpense(
+    userId: string,
+    tripId: string,
+    expenseId: string,
+    input: ExpenseFormInput,
+  ): Promise<TripExpenseRecord> {
+    await this.checkExpense(userId, tripId, input);
+
+    const existing = await this.repositories.tripExpenses.findById(expenseId);
+    if (!existing || existing.tripId !== tripId) {
+      throw new AppError('NOT_FOUND', 'Expense not found', {
+        publicMessage: 'That expense could not be found.',
+      });
+    }
+
+    return this.repositories.tripExpenses.update(expenseId, input);
   }
 
   async removeExpense(userId: string, tripId: string, expenseId: string): Promise<void> {

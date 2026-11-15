@@ -2,7 +2,7 @@ import { format } from '@/core/money';
 import { bestRateFor, ratesOf } from '@/core/stay/comparison';
 import type { CanonicalStay } from '@/core/stay/identity';
 import type { BoardType, StayRate } from '@/core/stay/types';
-import { Icon, Media, Price, SourceTag } from '@/components/ui';
+import { Icon, Media, Price } from '@/components/ui';
 import { amenityIcon } from './stay-property';
 
 /**
@@ -87,7 +87,7 @@ export function StayCard({ stay, nights, href, priority = false }: StayCardProps
       surface and its call to action; a card that jumps under the pointer
       moves the thing being read.
     */
-    <article className="border-border bg-panel ease-standard duration-settled hover:bg-panel-2 group relative flex h-full w-full overflow-hidden rounded-(--radius-card) border transition-[border-color,background-color] hover:border-(--color-accent-ink) sm:flex-col">
+    <article className="border-border bg-panel ease-standard duration-settled hover:bg-panel-2 group relative flex h-full w-full overflow-hidden rounded-(--radius-card) border transition-[border-color,background-color] hover:border-(--color-accent-ink)">
       <Media
         // Keyed to the property rather than to its name, so the same hotel
         // keeps its colour when a provider spells it differently.
@@ -96,7 +96,7 @@ export function StayCard({ stay, nights, href, priority = false }: StayCardProps
         priority={priority}
         zoomOnHover
         scrim={photo ? 'none' : 'bottom'}
-        className="w-28 shrink-0 sm:h-[180px] sm:w-full"
+        className="min-h-32 w-28 shrink-0 sm:w-56 md:w-64 lg:w-72"
       >
         {photo ? null : (
           /*
@@ -119,7 +119,7 @@ export function StayCard({ stay, nights, href, priority = false }: StayCardProps
         )}
 
         {providers.size > 1 ? (
-          <span className="border-hairline bg-field/85 text-text absolute top-3 right-3 hidden rounded-(--radius-pill) border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md sm:inline">
+          <span className="border-hairline bg-field/85 text-text absolute top-3 left-3 hidden rounded-(--radius-pill) border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md sm:inline">
             {providers.size} providers
           </span>
         ) : null}
@@ -210,7 +210,6 @@ export function StayCard({ stay, nights, href, priority = false }: StayCardProps
               the same rule, named beside the figure it is about.
             */}
             <div className="border-hairline mt-auto flex flex-col gap-2 border-t pt-3.5">
-              <SourceTag source={best.source} className="w-fit" />
               <Price
                 amount={format(best.total)}
                 caption={`total · ${nights} nights · ${format(best.perNight)} a night`}

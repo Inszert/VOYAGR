@@ -3,7 +3,8 @@
 import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { abs, format } from '@/core/money';
-import { Badge, Button, type BadgeTone } from '@/components/ui';
+import { Badge, Button, PlacePicture, type BadgeTone } from '@/components/ui';
+import type { PlacePictureData } from '@/lib/place-image';
 import { searchProfileToQuery } from '@/search/schema';
 import type { WatchFormState } from '@/app/actions/watches';
 import type { TravelWatchRecord, TripSearchRecord } from '@/db/repository';
@@ -41,6 +42,10 @@ export interface WatchRow {
   readonly observationCount: number;
   readonly trend: PriceTrend;
   readonly intervalHours: number;
+  /** The picture we ship for the first destination that has one, resolved on the server. */
+  readonly picture?: PlacePictureData | null;
+  /** Letters for the tile when there is no picture. */
+  readonly initials?: string;
 }
 
 export interface WatchListProps {
@@ -76,7 +81,7 @@ function TrendLine({ trend }: { trend: PriceTrend }) {
   const coordinates = points.map(([x, y]) => `${x},${y}`).join(' ');
 
   return (
-    <svg aria-hidden="true" viewBox="-3 -2 106 40" className="text-tint-ink h-14 w-auto">
+    <svg aria-hidden="true" viewBox="-3 -2 106 40" className="text-tint-ink h-14 w-full max-w-xs">
       <polyline
         points={coordinates}
         fill="none"
@@ -177,7 +182,7 @@ function WatchAction({
   return (
     <form action={formAction}>
       <input type="hidden" name="watchId" value={watchId} />
-      <Button type="submit" size="sm" variant={variant} loading={pending}>
+      <Button type="submit" variant={variant} loading={pending}>
         {label}
       </Button>
       <span role="alert" className="text-critical-ink block text-sm empty:hidden">
@@ -207,7 +212,7 @@ function DeleteWatch({
 
   if (!asking) {
     return (
-      <Button type="button" size="sm" variant="ghost" onClick={() => setAsking(true)}>
+      <Button type="button" variant="ghost" onClick={() => setAsking(true)}>
         Delete
       </Button>
     );
@@ -217,7 +222,7 @@ function DeleteWatch({
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Delete ${name}?`}>
       <span className="text-ink text-sm">Delete it and its price history?</span>
       <WatchAction action={action} watchId={watchId} label="Delete for good" variant="danger" />
-      <Button type="button" size="sm" variant="ghost" onClick={() => setAsking(false)}>
+      <Button type="button" variant="ghost" onClick={() => setAsking(false)}>
         Keep it
       </Button>
     </div>
@@ -233,131 +238,159 @@ export function WatchList({
   checkAction,
 }: WatchListProps) {
   return (
-    /*
-      A list with rules between its rows, not a stack of cards. Each watch is
-      one line of what it is and how it is doing, then its figures, then what
-      can be done with it.
-    */
-    <ul className="divide-border border-border flex flex-col divide-y border-y">
+    <ul aria-label="Your watches" className="flex flex-col gap-6">
       {rows.map(
-        ({
-          watch,
-          search,
-          nextRunLabel,
-          lowestRecorded,
-          observationCount,
-          trend,
-          intervalHours,
-        }) => (
+        (
+          {
+            watch,
+            search,
+            nextRunLabel,
+            lowestRecorded,
+            observationCount,
+            trend,
+            intervalHours,
+            picture = null,
+            initials = '',
+          },
+          index,
+        ) => (
           <li key={watch.id}>
-            <article aria-labelledby={`watch-${watch.id}`} className="py-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 id={`watch-${watch.id}`} className="font-display text-ink text-xl">
-                    {search.name}
-                  </h3>
-                  <p className="text-ink-muted text-sm">
-                    {search.destinations.join(', ')} · {search.profile.earliestDeparture} to{' '}
-                    {search.profile.latestReturn} · {search.profile.minNights}–
-                    {search.profile.maxNights} nights
-                  </p>
-                </div>
-
-                <Badge tone={STATUS_TONE[watch.status]} srPrefix="Status">
-                  {STATUS_LABEL[watch.status]}
-                </Badge>
+            <article
+              aria-labelledby={`watch-${watch.id}`}
+              className="border-border bg-surface-raised overflow-hidden rounded-(--radius-card) border md:grid md:grid-cols-[17rem_minmax(0,1fr)] lg:grid-cols-[20rem_minmax(0,1fr)]"
+            >
+              <div className="@container relative h-44 md:h-auto md:min-h-full">
+                <PlacePicture
+                  picture={picture}
+                  initials={initials}
+                  priority={index === 0}
+                  sizes="(min-width: 1024px) 320px, (min-width: 768px) 272px, 100vw"
+                  className="absolute inset-0"
+                />
+                <div
+                  aria-hidden="true"
+                  className="from-bg/70 pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t to-transparent"
+                />
               </div>
 
-              <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Next check</dt>
-                  <dd className="text-ink">{nextRunLabel}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Checks every</dt>
-                  {/*
-                  Adaptive: sooner as the trip nears, never faster than the
-                  plan allows. The figure is the schedule's own.
-                */}
-                  <dd className="text-ink tabular-nums">
-                    {intervalHours === 1 ? 'hour' : `${intervalHours} hours`}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Last checked</dt>
-                  <dd className="text-ink">
-                    {watch.lastRunAt ? watch.lastRunAt.slice(0, 16).replace('T', ' ') : 'Not yet'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Best seen so far</dt>
-                  <dd className="text-ink tabular-nums">
-                    {lowestRecorded ? format(lowestRecorded) : 'Nothing yet'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Prices recorded</dt>
-                  {/*
-                  Shown because "best seen so far" means nothing without knowing
-                  how much looking is behind it. One observation is not a trend.
-                */}
-                  <dd className="text-ink tabular-nums">{observationCount}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Budget ceiling</dt>
-                  <dd className="text-ink tabular-nums">{format(search.profile.maxBudget)}</dd>
-                </div>
-              </dl>
+              <div className="flex min-w-0 flex-col gap-5 p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3
+                      id={`watch-${watch.id}`}
+                      className="font-display text-ink text-[1.5rem] leading-tight text-balance"
+                    >
+                      {search.name}
+                    </h3>
+                    <p className="text-ink-muted mt-1 text-sm">
+                      {search.destinations.join(', ')} &middot; {search.profile.earliestDeparture}{' '}
+                      to {search.profile.latestReturn} &middot; {search.profile.minNights}&ndash;
+                      {search.profile.maxNights} nights
+                    </p>
+                  </div>
 
-              <div className="mt-4">
+                  <Badge tone={STATUS_TONE[watch.status]} srPrefix="Status">
+                    {STATUS_LABEL[watch.status]}
+                  </Badge>
+                </div>
+
+                <dl className="border-border divide-border grid divide-y rounded-(--radius-control) border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                  <div className="flex flex-col gap-1 px-4 py-3">
+                    <dt className="text-dim text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+                      Next check
+                    </dt>
+                    <dd className="text-ink text-base font-medium">{nextRunLabel}</dd>
+                  </div>
+                  <div className="flex flex-col gap-1 px-4 py-3">
+                    <dt className="text-dim text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+                      Best seen so far
+                    </dt>
+                    <dd className="text-ink text-base font-medium tabular-nums">
+                      {lowestRecorded ? format(lowestRecorded) : 'Nothing yet'}
+                    </dd>
+                  </div>
+                </dl>
+
                 <TrendSummary trend={trend} />
-              </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                {watch.status === 'active' ? (
-                  <WatchAction
-                    action={checkAction}
-                    watchId={watch.id}
-                    label="Check now"
-                    variant="secondary"
-                  />
-                ) : null}
+                <dl className="text-ink-muted grid gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
+                  <div className="flex justify-between gap-4">
+                    <dt>Checks every</dt>
+                    {/*
+                      Adaptive: sooner as the trip nears, never faster than the
+                      plan allows. The figure is the schedule's own.
+                    */}
+                    <dd className="text-ink tabular-nums">
+                      {intervalHours === 1 ? 'hour' : `${intervalHours} hours`}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Last checked</dt>
+                    <dd className="text-ink tabular-nums">
+                      {watch.lastRunAt ? watch.lastRunAt.slice(0, 16).replace('T', ' ') : 'Not yet'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Prices recorded</dt>
+                    {/*
+                      Shown because "best seen so far" means nothing without
+                      knowing how much looking is behind it. One observation is
+                      not a trend.
+                    */}
+                    <dd className="text-ink tabular-nums">{observationCount}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Budget ceiling</dt>
+                    <dd className="text-ink tabular-nums">{format(search.profile.maxBudget)}</dd>
+                  </div>
+                </dl>
 
-                {watch.status === 'active' ? (
-                  <WatchAction
-                    action={pauseAction}
-                    watchId={watch.id}
-                    label="Pause"
-                    variant="secondary"
-                  />
-                ) : watch.status === 'paused' ? (
-                  <WatchAction
-                    action={resumeAction}
-                    watchId={watch.id}
-                    label="Resume"
-                    variant="secondary"
-                  />
-                ) : null}
+                <div className="border-border flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-4">
+                  {watch.status === 'active' ? (
+                    <WatchAction
+                      action={checkAction}
+                      watchId={watch.id}
+                      label="Check now"
+                      variant="secondary"
+                    />
+                  ) : null}
 
-                {watch.status !== 'archived' ? (
-                  <WatchAction
-                    action={archiveAction}
-                    watchId={watch.id}
-                    label="Archive"
-                    variant="ghost"
-                  />
-                ) : null}
+                  {watch.status === 'active' ? (
+                    <WatchAction
+                      action={pauseAction}
+                      watchId={watch.id}
+                      label="Pause"
+                      variant="secondary"
+                    />
+                  ) : watch.status === 'paused' ? (
+                    <WatchAction
+                      action={resumeAction}
+                      watchId={watch.id}
+                      label="Resume"
+                      variant="secondary"
+                    />
+                  ) : null}
 
-                <Link
-                  href={searchHref(search)}
-                  className="text-tint-ink text-sm underline underline-offset-4"
-                >
-                  Run this search now
-                </Link>
+                  {watch.status !== 'archived' ? (
+                    <WatchAction
+                      action={archiveAction}
+                      watchId={watch.id}
+                      label="Archive"
+                      variant="ghost"
+                    />
+                  ) : null}
 
-                <span className="ml-auto">
-                  <DeleteWatch action={deleteAction} watchId={watch.id} name={search.name} />
-                </span>
+                  <Link
+                    href={searchHref(search)}
+                    className="text-brand-ink inline-flex min-h-11 items-center gap-1.5 px-1 text-sm underline underline-offset-4"
+                  >
+                    Run this search now
+                  </Link>
+
+                  <span className="ml-auto">
+                    <DeleteWatch action={deleteAction} watchId={watch.id} name={search.name} />
+                  </span>
+                </div>
               </div>
             </article>
           </li>

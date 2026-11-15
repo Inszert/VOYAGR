@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Playfair_Display } from 'next/font/google';
 import { SkipLink } from '@/components/ui';
 import { AccountNav } from '@/components/auth/account-nav';
+import { getCurrentUser } from '@/auth/current-user';
+import { NotificationCentre } from '@/components/notifications/notification-centre';
+import { HeaderPrimaryAction, MenuAccountLinks } from '@/components/shell/header-account';
 import { SiteHeader } from '@/components/shell/site-header';
 import { DataSourceSwitch } from '@/components/dev/data-source-switch';
 import { getActiveDataSource } from '@/providers/request-source';
@@ -49,6 +52,8 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const [user, dataSource] = await Promise.all([getCurrentUser(), getActiveDataSource()]);
+
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <meta
@@ -65,15 +70,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SkipLink targetId="main-content" />
 
         <div className="flex min-h-dvh flex-col">
-          <SiteHeader>
-            {/*
+          <SiteHeader
+            bell={user ? <NotificationCentre /> : null}
+            account={<AccountNav withBell={false} />}
+            /*
               Developer infrastructure, rendered on the server so the client
               never learns which vendor is configured. It removes itself in
               production unless DATA_SOURCE_SWITCH says otherwise.
-            */}
-            <DataSourceSwitch source={await getActiveDataSource()} />
-            <AccountNav />
-          </SiteHeader>
+            */
+            dataSwitch={<DataSourceSwitch source={dataSource} />}
+            primaryAction={<HeaderPrimaryAction email={user?.email ?? null} />}
+            menuAccount={<MenuAccountLinks email={user?.email ?? null} />}
+            menuDataSwitch={
+              dataSource.switchEnabled ? <DataSourceSwitch source={dataSource} /> : null
+            }
+          />
 
           <main id="main-content" className="flex-1">
             {children}

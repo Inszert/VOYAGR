@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Container, Button, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui';
+import { Button, Container, StateScreen } from '@/components/ui';
 
 /**
  * Route error boundary.
@@ -24,30 +24,24 @@ export default function RouteError({
   }, [error]);
 
   return (
-    <Container className="py-10">
-      <Card as="section" className="max-w-xl">
-        <CardHeader>
-          <CardTitle level={2}>Something went wrong</CardTitle>
-          <CardDescription>
-            This page could not be rendered. The error has been logged.
-          </CardDescription>
-        </CardHeader>
-
-        <div className="flex flex-col gap-4">
-          {error.digest ? (
-            <p className="text-ink-muted text-sm">
-              Reference:{' '}
-              <code className="bg-surface-sunken rounded px-1.5 py-0.5 font-mono">
-                {error.digest}
-              </code>
-            </p>
-          ) : null}
-
-          <div>
-            <Button onClick={reset}>Try again</Button>
-          </div>
-        </div>
-      </Card>
+    <Container size="wide" className="py-10 lg:py-16">
+      <StateScreen
+        kind="error"
+        title="Something went wrong"
+        description="This page could not be shown. The error has been logged, and trying again often works."
+        action={
+          <Button size="lg" onClick={reset}>
+            Try again
+          </Button>
+        }
+        footnote={
+          error.digest ? (
+            <>
+              Reference: <code className="font-mono">{error.digest}</code>
+            </>
+          ) : null
+        }
+      />
     </Container>
   );
 }

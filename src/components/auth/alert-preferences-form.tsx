@@ -48,7 +48,7 @@ function Checkbox({
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-ink flex items-center gap-3 text-sm">
+      <label className="text-ink flex min-h-11 items-center gap-3 text-sm">
         <input
           type="checkbox"
           name={name}

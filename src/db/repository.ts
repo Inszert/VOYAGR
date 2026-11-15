@@ -533,6 +533,11 @@ export interface TripExpenseRepository {
   /** Oldest first by expense date, then by creation. */
   listByTrip(tripId: string): Promise<TripExpenseRecord[]>;
   create(input: Omit<TripExpenseRecord, 'id' | 'createdAt'>): Promise<TripExpenseRecord>;
+  /** Replaces what was recorded; the id, the trip and the creation time stay. */
+  update(
+    id: string,
+    input: Omit<TripExpenseRecord, 'id' | 'tripId' | 'createdAt'>,
+  ): Promise<TripExpenseRecord>;
   delete(id: string): Promise<void>;
 }
 

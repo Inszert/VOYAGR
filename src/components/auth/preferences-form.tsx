@@ -35,7 +35,7 @@ function Checkbox({
   defaultChecked: boolean;
 }) {
   return (
-    <label className="text-ink flex items-center gap-3 text-sm">
+    <label className="text-ink flex min-h-11 items-center gap-3 text-sm">
       <input
         type="checkbox"
         name={name}

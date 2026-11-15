@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Slot } from 'radix-ui';
 import { cn } from '@/lib/cn';
+import { Spinner } from './feedback';
 
 /**
  * Button.
@@ -97,7 +98,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       )}
       {...props}
     >
-      {children}
+      {/* Slot needs exactly one child, so an `asChild` button gets no spinner sibling. */}
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {loading ? <Spinner /> : null}
+          {children}
+        </>
+      )}
     </Component>
   );
 });

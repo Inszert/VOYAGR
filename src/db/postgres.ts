@@ -1456,6 +1456,29 @@ class PostgresTripExpenseRepository implements TripExpenseRepository {
     return toTripExpense(requireRow(rows[0], 'expense', input.description));
   }
 
+  async update(
+    id: string,
+    input: Omit<TripExpenseRecord, 'id' | 'tripId' | 'createdAt'>,
+  ): Promise<TripExpenseRecord> {
+    const rows = await query<TripExpenseRow>(
+      `UPDATE trip_expenses
+          SET paid_by = $2, amount = $3, currency = $4, description = $5,
+              expense_date = $6, split = $7::jsonb
+        WHERE id = $1
+        RETURNING ${EXPENSE_COLUMNS}`,
+      [
+        id,
+        input.paidBy,
+        input.amount.amount,
+        input.amount.currency,
+        input.description,
+        input.date,
+        JSON.stringify(splitToJson(input.split)),
+      ],
+    );
+    return toTripExpense(requireRow(rows[0], 'expense', input.description));
+  }
+
   async delete(id: string): Promise<void> {
     await query('DELETE FROM trip_expenses WHERE id = $1', [id]);
   }

@@ -7,7 +7,9 @@ import {
 import type { AirportSuggestion } from '@/search/destination-names';
 import type { SearchFormErrors } from '@/search/schema';
 import { CompactSearch } from './compact-search';
-import { GlobeStage, type GlobeStageProps } from './globe-stage';
+import { StageSlot } from './stage-slot';
+import { StageSync } from './stage-sync';
+import type { StageData } from './stage-store';
 import { FeaturedCard } from './featured-card';
 import { HeroMetrics } from './hero-metrics';
 import { HeroRail, type HeroRailItem } from './hero-rail';
@@ -29,7 +31,8 @@ import { MorePlaces } from './more-places';
  */
 
 export interface DiscoveryStageProps {
-  globe: GlobeStageProps;
+  /** What the persistent globe should show while this page is open. */
+  globe: StageData;
   /**
    * Remounts the compact form when the search changes. Only the form: its
    * inputs are uncontrolled, and a navigation from a lens or a chip would
@@ -115,7 +118,7 @@ export function DiscoveryStage({
     */
     <section
       aria-labelledby="stage-heading"
-      className="bg-bg text-text relative -mt-[72px] overflow-x-clip"
+      className="text-text relative -mt-[72px] overflow-x-clip"
     >
       {/*
         Space, and the light the planet is sitting in: ambient, no edge. The
@@ -137,30 +140,24 @@ export function DiscoveryStage({
         the idle turn and the arcs' light stop when less than a fifth of it
         is on screen.
       */}
-      <div
+      <StageSlot
+        variant="stage"
         data-hero
         className="group/hero relative h-[calc(100svh-var(--hero-top,56px))] min-h-[40rem] pt-[calc(var(--hero-top,56px)+72px)] sm:h-[calc(100svh-var(--hero-top,0px))] sm:min-h-[44rem] sm:pt-[calc(var(--hero-top,0px)+72px)] lg:overflow-clip"
       >
         <HeroMetrics />
 
         {/*
-          The planet.
-
-          Three compositions. On a phone the box starts 38% down the screen
-          and is as tall as the sphere is wide (118vw), so it bleeds off both
-          sides; the hero's own top is measured (`HeroMetrics`), not assumed,
-          because the header wraps there. In between it is centred. From 1024px
-          it is the whole hero with the camera padded so the sphere's centre is at
-          66% of the width, and the box starts 8% down so the bottom of the planet
-          runs off the hero - the hero crops it. Behind everything else, and
-          the content layer lets pointers through wherever it is empty, so the
-          globe can still be dragged.
+          The planet is not here. One globe lives above this page and the
+          explorer (see `(stage)/layout.tsx`), and fills this box: the hero
+          itself is its slot. On a phone it starts 38% down the screen and is
+          as tall as the sphere is wide (118vw), so it bleeds off both sides; from
+          1024px it is the whole hero with the camera padded so the sphere's
+          centre is at 66% of the width, and the bottom of the planet runs off
+          the hero, which crops it. The classes that place it live in
+          `stage-host.tsx`. This page only says what it should show.
         */}
-        <GlobeStage
-          {...globe}
-          variant="stage"
-          className="absolute inset-x-0 top-[calc(38svh-var(--hero-top,56px))] z-0 h-[118vw] sm:top-[calc(var(--hero-top,0px)+72px)] sm:bottom-0 sm:h-auto lg:top-[8%] lg:bottom-auto lg:h-full"
-        />
+        <StageSync data={globe} />
 
         {/* Dark behind the words wherever the planet comes under them: a scrim, not a panel. */}
         <div
@@ -241,7 +238,7 @@ export function DiscoveryStage({
             </div>
           ) : null}
         </Container>
-      </div>
+      </StageSlot>
 
       <Container size="wide" className="flex flex-col gap-8 pt-10 pb-12 lg:pb-16">
         <HeroRail items={rail} provenance={provenance} sources={sources} />

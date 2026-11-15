@@ -33,7 +33,20 @@ export { CalendarMonth, type CalendarMonthProps } from './calendar-month';
 export { DateField, type DateFieldProps } from './date-field';
 export { DateRangeField, type DateRangeFieldProps } from './date-range-field';
 export { Disclosure, type DisclosureProps } from './disclosure';
-export { EmptyState, Skeleton, type EmptyStateProps, type SkeletonProps } from './feedback';
+export { Collapsible, type CollapsibleProps } from './collapsible';
+export {
+  EmptyState,
+  Skeleton,
+  Spinner,
+  type EmptyStateProps,
+  type SkeletonProps,
+} from './feedback';
+export { PageHeader, type PageHeaderProps } from './page-header';
+export { PasswordField } from './password-field';
+export { PlacePicture, type PlacePictureProps } from './place-picture';
+export { StateScreen, type StateScreenKind } from './state-screen';
+export { StatusChip, type StatusChipKind } from './status-chip';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
 export { Field, type FieldProps } from './field';
 export {
   Popover,
@@ -43,6 +56,7 @@ export {
   PopoverTrigger,
   type PopoverPanelProps,
 } from './popover';
+export { Sheet, SheetClose, SheetContent, SheetTrigger, type SheetContentProps } from './sheet';
 export { FactGrid, type Fact, type FactGridProps } from './fact-grid';
 export { Icon, type IconName, type IconProps } from './icon';
 export { Media, washFor, type MediaImage, type MediaProps, type MediaScrim } from './media';

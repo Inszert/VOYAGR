@@ -1,5 +1,6 @@
 import { Field, Select } from '@/components/ui';
 import type { PlanItemRecord } from '@/db/repository';
+import { expenseCurrencyOptions } from '@/trip-hub/currencies';
 import {
   PLAN_ITEM_KINDS,
   PLAN_ITEM_STATUSES,
@@ -14,7 +15,7 @@ import {
  * shown in major units for editing, as the digits that were stored.
  */
 
-function majorText(minor: number, exponent: number): string {
+export function majorText(minor: number, exponent: number): string {
   const sign = minor < 0 ? '-' : '';
   const digits = String(Math.abs(minor)).padStart(exponent + 1, '0');
   return exponent === 0
@@ -25,15 +26,18 @@ function majorText(minor: number, exponent: number): string {
 export function PlanItemFields({
   item,
   exponentFor,
+  compact = false,
 }: {
   readonly item?: PlanItemRecord;
   /** Minor-unit exponent for the price's currency, from `minorUnitExponent`. */
   readonly exponentFor?: (currency: string) => number;
+  /** One column, for the narrow "add" panel beside the timeline. */
+  readonly compact?: boolean;
 }) {
   const price = item?.price ?? null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className={compact ? 'grid gap-4' : 'grid gap-4 sm:grid-cols-2'}>
       <Select
         label="Kind"
         name="kind"
@@ -67,12 +71,12 @@ export function PlanItemFields({
           price && exponentFor ? majorText(price.amount, exponentFor(price.currency)) : ''
         }
       />
-      <Field
+      <Select
         label="Currency"
         name="currency"
-        maxLength={3}
-        placeholder="EUR"
-        defaultValue={price?.currency ?? ''}
+        hint="Used only if you enter a price."
+        defaultValue={price?.currency ?? 'EUR'}
+        options={expenseCurrencyOptions(price ? [price.currency] : [])}
       />
     </div>
   );

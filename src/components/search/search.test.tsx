@@ -445,10 +445,13 @@ describe('data provenance', () => {
       />,
     );
 
-    expect(screen.getByText('Some prices may have moved')).toBeInTheDocument();
-    expect(
-      screen.getByText(/1 of these trips carries a quote that has expired/),
-    ).toBeInTheDocument();
+    const note = screen
+      .getAllByRole('status')
+      .find((node) => /Some prices may have moved/.test(node.textContent ?? ''))!;
+    expect(note).toBeDefined();
+    expect(note).toHaveTextContent('Some prices may have moved.');
+    expect(note).toHaveTextContent(/1 of these trips carries an older quote/);
+    expect(within(note).getByRole('link', { name: 'Search again' })).toBeInTheDocument();
   });
 
   it('says what the price is in words, with no source badge beside it', () => {

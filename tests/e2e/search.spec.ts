@@ -179,8 +179,12 @@ test.describe('running a search', () => {
     // Both legs, each with the clock times the provider gave and what the
     // routing actually is. The shape of the journey is the thing somebody
     // comparing trips reads, and it is the shape they clicked to get here.
-    await expect(top.getByText(/^\d{2}:\d{2}$/).first()).toBeVisible();
-    expect(await top.getByText(/^\d{2}:\d{2}$/).count()).toBeGreaterThanOrEqual(4);
+    const legs = top.getByRole('list', { name: 'Flights' }).getByRole('listitem');
+    await expect(legs).toHaveCount(2);
+    for (const leg of await legs.all()) {
+      // Two clock faces, there and back: the provider's times, not ours.
+      await expect(leg).toContainText(/\d{2}:\d{2}.*\d{2}:\d{2}/);
+    }
     await expect(top.getByText(/\d+h( \d+m)? · (direct|\d+ stops? in)/).first()).toBeVisible();
 
     // And the price says what it is worth against the limit that was set.
@@ -192,11 +196,10 @@ test.describe('running a search', () => {
 
     const top = page.getByRole('article').first();
 
-    await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
-
-    // The score breaks down into the factors that produced it, on demand.
+    // The score and its reasons are one click away, never absent.
     const scoreDisclosure = top.getByText(/How the score of \d+ was calculated/);
     await scoreDisclosure.click();
+    await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
     await expect(top.getByRole('rowheader', { name: 'Budget fit' })).toBeVisible();
     await expect(top.getByText('Complete Trip Value Score')).toBeVisible();
   });
@@ -205,6 +208,7 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
+    await top.getByText('Open the breakdown').click();
     await top.getByText('Full cost breakdown').click();
 
     await expect(top.getByRole('columnheader', { name: 'Confidence' })).toBeVisible();
@@ -259,7 +263,8 @@ test.describe('running a search', () => {
     // text inside one of the other, still-closed disclosures. Located by the
     // `details` element the Disclosure component is documented to render,
     // because browsers do not agree on exposing it as a named `group` role.
-    const panel = top.locator('details', { hasText: 'Change the flight' });
+    await top.getByText('Open the breakdown').click();
+    const panel = top.locator('details:has(> summary:has-text("Change the flight"))');
     await panel.getByText('Change the flight').click();
 
     await expect(panel.getByText('Chosen')).toBeVisible();
@@ -271,7 +276,8 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
-    const panel = top.locator('details', { hasText: 'Change the hotel' });
+    await top.getByText('Open the breakdown').click();
+    const panel = top.locator('details:has(> summary:has-text("Change the hotel"))');
     await panel.getByText('Change the hotel').click();
 
     await expect(panel.getByText(/cheaper|more|Same price/).first()).toBeVisible();
@@ -298,8 +304,11 @@ test.describe('running a search', () => {
     // Clicked by its label, which is what a user does: the input itself is
     // visually hidden so the chip can be styled, and only the label is a
     // pointer target.
-    await page.getByText(/^Narrow these results/).click();
-    await page.getByText('Direct only').click();
+    await page
+      .getByText(/^Narrow these results/)
+      .first()
+      .click();
+    await page.locator('label', { hasText: 'Direct only' }).click();
     await page.getByRole('button', { name: 'Apply filters' }).click();
 
     await expect(page.getByRole('checkbox', { name: 'Direct only' })).toBeChecked();
@@ -323,15 +332,18 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
+    await top.getByText(/How the score of \d+ was calculated/).click();
     await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
     // The at-a-glance figures a card should carry.
-    await expect(top.getByText('Airport transfer').first()).toBeVisible();
     await expect(top.getByText('Weather').first()).toBeVisible();
+    await top.getByText('Open the breakdown').click();
+    await expect(top.getByText('Airport transfer').first()).toBeVisible();
   });
 
   test('is operable by keyboard alone', async ({ page }) => {
     await page.goto(A_SEARCH);
 
+    await page.getByText('Open the breakdown').first().click();
     const summary = page.getByText('Full cost breakdown').first();
     await summary.focus();
     await expect(summary).toBeFocused();
@@ -362,7 +374,7 @@ test.describe('flexible dates', () => {
   test('shows what the dates are worth, and says what it sampled', async ({ page }) => {
     await page.goto(A_SEARCH);
 
-    const section = page.getByRole('region', { name: 'What the dates are worth' });
+    const section = page.getByRole('region', { name: 'Pick your dates' });
     await expect(section).toBeVisible();
 
     // The sample is stated. Eight rows presented as a whole calendar would be
@@ -373,10 +385,11 @@ test.describe('flexible dates', () => {
   test('narrows to one set of dates without running another search', async ({ page }) => {
     await page.goto(A_SEARCH);
 
-    const section = page.getByRole('region', { name: 'What the dates are worth' });
+    const section = page.getByRole('region', { name: 'Pick your dates' });
     const before = await page.getByRole('article').count();
 
-    await section.getByRole('link').first().click();
+    // The picks above the calendar are links that narrow to one set of dates.
+    await section.locator('dl a').first().click();
 
     await expect(page).toHaveURL(/fDates=/);
     // The search itself is untouched, so no provider call was made for this.
@@ -389,38 +402,36 @@ test.describe('flexible dates', () => {
   test('offers the flexibility presets without opening anything', async ({ page }) => {
     await page.goto('/');
 
-    const flexibility = page.getByRole('combobox', { name: 'Dates' });
-    await expect(flexibility).toBeVisible();
-    await expect(flexibility.locator('option', { hasText: 'A long weekend' })).toHaveCount(1);
+    // The presets are a radio group on the search itself, one tap each.
+    const flexibility = page.getByRole('radiogroup', { name: 'Dates' }).first();
+    await expect(flexibility).toBeAttached();
+    await expect(flexibility.getByRole('radio', { name: /A long weekend/ })).toHaveCount(1);
   });
 
   test('a weekend search returns only weekend trips', async ({ page }) => {
-    await page.goto('/');
+    // A weekend search is a URL like any other, so it is asked for as one: the
+    // first Friday-to-Sunday three weeks out, counted in UTC.
+    const earliest = new Date(Date.now() + 21 * 86_400_000).toISOString().slice(0, 10);
+    const { friday, sunday } = weekendOnOrAfter(earliest);
 
-    const leaving = page.getByLabel('Leaving');
-    const back = page.getByLabel('Back', { exact: true });
+    await page.goto(
+      '/explore?origins=VIE&destinations=AYT&earliestDeparture=' +
+        friday +
+        '&latestReturn=' +
+        sunday +
+        '&minNights=2&maxNights=2&passengers=2&currency=EUR&targetBudget=650&maxBudget=850' +
+        '&travelStyle=balanced&optimisationMode=best_value&flexibility=weekend',
+    );
 
-    // The return's `min` is the later of the two bounds, so it is the one to
-    // clear. Read from the page rather than assumed, because it is the form's
-    // own default departure date and that moves with the calendar.
-    const earliest = (await back.getAttribute('min')) ?? (await leaving.getAttribute('min'));
-    expect(earliest).toBeTruthy();
-
-    const { friday, sunday } = weekendOnOrAfter(earliest!);
-    await leaving.fill(friday);
-    await back.fill(sunday);
-    await page.getByRole('combobox', { name: 'Dates' }).selectOption('weekend');
-    await page.getByRole('button', { name: 'Search trips' }).click();
-
-    await expect(page).toHaveURL(/flexibility=weekend/);
-
-    const section = page.getByRole('region', { name: 'What the dates are worth' });
+    const section = page.getByRole('region', { name: 'Pick your dates' });
     await expect(section).toBeVisible();
 
     // Every window offered departs on a Friday or Saturday and returns on a
     // Sunday. Saturday to Monday is two nights from a Saturday, which is a day
     // off work rather than a weekend.
-    for (const text of await section.getByRole('link').allInnerTexts()) {
+    const picks = await section.locator('dl a').allInnerTexts();
+    expect(picks.length).toBeGreaterThan(0);
+    for (const text of picks) {
       expect(text).toMatch(/^(Fri|Sat) /);
       expect(text).toContain('Sun ');
     }
@@ -428,7 +439,7 @@ test.describe('flexible dates', () => {
 
   test('has no accessibility violations across the date comparison', async ({ page }) => {
     await page.goto(A_SEARCH);
-    await expect(page.getByRole('region', { name: 'What the dates are worth' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Pick your dates' })).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('[aria-labelledby="date-options-heading"]')

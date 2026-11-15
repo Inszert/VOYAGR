@@ -25,6 +25,10 @@ test.describe('the explorer', () => {
   test('is reachable from the primary navigation', async ({ page }) => {
     await page.goto('/');
 
+    // Below 1024px the navigation lives behind the Menu button.
+    if (!(await page.getByRole('navigation', { name: 'Primary' }).isVisible())) {
+      await page.getByRole('button', { name: 'Menu' }).click();
+    }
     await page
       .getByRole('navigation', { name: 'Primary' })
       .getByRole('link', { name: 'Explore' })

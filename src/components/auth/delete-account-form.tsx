@@ -45,7 +45,7 @@ export function DeleteAccountForm({
       />
 
       <div>
-        <Button type="submit" variant="danger" disabled={pending}>
+        <Button type="submit" variant="danger" loading={pending}>
           {pending ? 'Deleting…' : 'Delete my account'}
         </Button>
       </div>

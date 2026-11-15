@@ -79,13 +79,14 @@ test.describe('stays', () => {
     ).toBeVisible();
   });
 
-  test('labels demo data as demo data, never as live', async ({ page }) => {
-    await page.goto(SEARCH);
+  test('shows no provenance chips, and still says what a price is', async ({ page }) => {
+    await page.goto(`${SEARCH}&checkIn=2026-10-20&checkOut=2026-10-24&dates=confirmed`);
 
-    const tags = page.locator('.voyagr-source');
-    expect(await tags.count()).toBeGreaterThan(0);
-    await expect(tags.first()).toContainText('Demo data');
+    // Honesty is carried by wording on the figure, not by a badge on the card.
+    await expect(page.locator('.voyagr-source')).toHaveCount(0);
+    await expect(page.getByText('Demo data')).toHaveCount(0);
     await expect(page.getByText('Live price')).toHaveCount(0);
+    await expect(page.getByText(/total · \d+ nights/).first()).toBeVisible();
   });
 
   test('keeps hotel dates independent of flight dates', async ({ page }) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Button, Card, Field } from '@/components/ui';
+import { Button, Card, PasswordField } from '@/components/ui';
 import { MIN_PASSWORD_LENGTH } from '@/auth/password-policy';
 import type { PasswordFormState } from '@/app/actions/auth';
 
@@ -34,17 +34,15 @@ export function PasswordForm({ action }: PasswordFormProps) {
           {state.error}
         </p>
 
-        <Field
+        <PasswordField
           label="Current password"
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
           required
         />
-        <Field
+        <PasswordField
           label="New password"
           name="newPassword"
-          type="password"
           autoComplete="new-password"
           hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
           required

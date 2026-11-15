@@ -25,7 +25,7 @@ export function ResendVerificationForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+      <Button type="submit" variant="secondary" loading={pending}>
         {pending ? 'Sending…' : 'Resend verification email'}
       </Button>
       {state.message ? (

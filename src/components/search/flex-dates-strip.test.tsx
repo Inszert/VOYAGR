@@ -109,11 +109,11 @@ describe('FlexDatesStrip', () => {
     expect(within(current).getByText('No price yet')).toBeTruthy();
   });
 
-  it('with no prices at all, says so instead of showing an age', () => {
-    strip({});
+  it('with no prices at all, renders nothing: no heading, no empty cells', () => {
+    const { container } = strip({});
 
-    expect(screen.getByText(/no flight prices for these days yet/i)).toBeTruthy();
-    expect(screen.queryByText(/Updated/)).toBeNull();
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole('heading')).toBeNull();
   });
 
   it('renders nothing for a window of zero', () => {

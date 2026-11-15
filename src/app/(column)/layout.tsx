@@ -3,9 +3,9 @@ import { Container } from '@/components/ui';
 /**
  * The column layout.
  *
- * Every page that is a column of content - account, watches, sign-in, the
- * status page - lives in this route group and gets the measure the root layout
- * used to give everything. The homepage and the explorer are outside it,
+ * Every page that is a column of content - account, watches, trips, the status
+ * page - lives in this route group. The four account-entry pages have their own
+ * (auth) group, because they want the full width. The homepage and the explorer are outside it,
  * because a globe does not want a column.
  *
  * It carries the same sky those two hang their planet in. The product is one
@@ -24,7 +24,15 @@ export default function ColumnLayout({ children }: { children: React.ReactNode }
       />
       <div aria-hidden="true" className="voyagr-grid pointer-events-none absolute inset-0 -z-10" />
 
-      <Container className="py-12">{children}</Container>
+      {/*
+        The page gutter and rhythm every surface shares: the wide measure the
+        home page uses, 40px of air above and below on a phone and 64px from
+        1024px. A page that wants a narrower column (a form, a document) sets
+        its own `max-w-*` inside this, so the left edge stays put.
+      */}
+      <Container size="wide" className="py-10 lg:py-16">
+        {children}
+      </Container>
     </div>
   );
 }

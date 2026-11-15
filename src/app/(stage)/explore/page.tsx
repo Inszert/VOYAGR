@@ -9,7 +9,11 @@ import { shortDate } from '@/lib/display-date';
 import { redirect } from 'next/navigation';
 import { wasSubmitted } from '@/discovery/load-stage';
 import { DestinationRail } from '@/components/discovery/destination-rail';
-import { GlobeStage } from '@/components/discovery/globe-stage';
+import { DestinationCard } from '@/components/home/destination-card';
+import { toHomeCard } from '@/components/home/card-data';
+import destinationImages from '../../../../public/img/destinations/manifest.json';
+import { EXPLORE_SLOT_CLASS, StageSlot } from '@/components/discovery/stage-slot';
+import { StageSync } from '@/components/discovery/stage-sync';
 import { StageControls } from '@/components/discovery/stage-controls';
 import { SearchResults } from '@/components/search/search-results';
 import { FlexDatesSection } from '@/components/search/flex-dates-section';
@@ -180,11 +184,23 @@ export default async function ExplorePage({
     image: images.get(card.point.destination) ?? null,
   }));
 
+  // Every place except the ones the results above already are.
+  const searchedCodes = new Set(
+    page.outcome
+      ? [...page.outcome.results, ...page.outcome.nearMisses].map(
+          (trip) => trip.candidate.destination,
+        )
+      : [],
+  );
+  const otherCards = railCards
+    .filter((card) => !searchedCodes.has(card.point.destination))
+    .map((card) => toHomeCard(card, destinationImages as Record<string, { blur: string }>));
+
   return (
     <div className="flex flex-col">
       <section
         aria-labelledby="explore-heading"
-        className="bg-bg text-text relative -mt-[72px] overflow-x-clip pt-[72px]"
+        className="text-text relative -mt-[72px] overflow-x-clip pt-[72px]"
       >
         <div
           aria-hidden="true"
@@ -292,38 +308,42 @@ export default async function ExplorePage({
             )}
           </div>
 
-          <div className="relative h-[24rem] w-full sm:h-[32rem] lg:h-[40rem]">
-            <GlobeStage
-              chips={stage.chips}
-              origins={stage.originPoints.map((origin) => ({
-                code: origin.code,
-                name: origin.name,
-                position: origin.position,
-              }))}
-              routes={stage.routes}
-              points={stage.pointsGeoJson}
-              landUrl={LAND_URL}
-              iceUrl={ICE_URL}
-              placesUrl={PLACES_URL}
-              countriesUrl={COUNTRIES_URL}
-              countriesDetailUrl={COUNTRIES_DETAIL_URL}
-              physicalUrl={PHYSICAL_URL}
-              cityLightsUrl={CITY_LIGHTS_URL}
-              coastlineUrl={COASTLINE_URL}
-              seasonDate={page.season.date}
-              regionsUrl={stage.regionsUrl}
-              provenance={page.provenance}
-              sources={page.sources}
-              countryCounts={stage.countryCounts}
-              selectedCountry={
-                stage.country
+          {/*
+            The planet's box. The globe itself is mounted once above this page
+            and the front page (see `(stage)/layout.tsx`); this is only where it
+            should sit, and what it should show.
+          */}
+          <StageSlot variant="explorer" className={EXPLORE_SLOT_CLASS}>
+            <StageSync
+              data={{
+                chips: stage.chips,
+                origins: stage.originPoints.map((origin) => ({
+                  code: origin.code,
+                  name: origin.name,
+                  position: origin.position,
+                })),
+                routes: stage.routes,
+                points: stage.pointsGeoJson,
+                landUrl: LAND_URL,
+                iceUrl: ICE_URL,
+                placesUrl: PLACES_URL,
+                countriesUrl: COUNTRIES_URL,
+                countriesDetailUrl: COUNTRIES_DETAIL_URL,
+                physicalUrl: PHYSICAL_URL,
+                cityLightsUrl: CITY_LIGHTS_URL,
+                coastlineUrl: COASTLINE_URL,
+                seasonDate: page.season.date,
+                regionsUrl: stage.regionsUrl,
+                provenance: page.provenance,
+                sources: page.sources,
+                countryCounts: stage.countryCounts,
+                selectedCountry: stage.country
                   ? { adm0: stage.country.adm0, name: stage.country.name, bbox: stage.country.bbox }
-                  : null
-              }
-              navigation={page.navigation}
-              variant="explorer"
+                  : null,
+                navigation: page.navigation,
+              }}
             />
-          </div>
+          </StageSlot>
         </Container>
       </section>
 
@@ -372,28 +392,60 @@ export default async function ExplorePage({
         </section>
       ) : null}
 
-      <DestinationRail
-        cards={railCards}
-        totalCount={stage.points.length}
-        mode={page.mode}
-        provenance={page.provenance}
-        sources={page.sources}
-        assumptions={page.assumptions}
-        country={stage.country}
-        regionSummary={stage.regionSummary}
-        clearHref={page.clearCountryHref()}
-        unpriced={page.unpriced}
-        controls={
-          <StageControls
-            mode={page.mode}
-            modeHref={page.modeHref}
-            action="/explore"
-            carry={page.carry}
-            counts={stage.countryCounts}
-            selected={stage.country}
-          />
-        }
-      />
+      {page.outcome ? (
+        /*
+         * After a search, the places the search was not about: the same card the
+         * home page uses. One card that only repeats the place already searched
+         * is not a section, so with nothing else to show there is none.
+         */
+        otherCards.length > 0 ? (
+          <section
+            aria-labelledby="other-places-heading"
+            className="stage-scope text-stage-ink bg-stage"
+          >
+            <Container size="wide" className="flex flex-col gap-5 pt-2 pb-16">
+              <h2 id="other-places-heading" className="font-display text-display-sm">
+                Other places we can price
+              </h2>
+              <ol aria-label="Other destinations" className="home-rail">
+                {otherCards.map((card, index) => (
+                  <DestinationCard
+                    key={card.code}
+                    card={card}
+                    variant="tall"
+                    index={index}
+                    sizes="320px"
+                    headingLevel={3}
+                  />
+                ))}
+              </ol>
+            </Container>
+          </section>
+        ) : null
+      ) : (
+        <DestinationRail
+          cards={railCards}
+          totalCount={stage.points.length}
+          mode={page.mode}
+          provenance={page.provenance}
+          sources={page.sources}
+          assumptions={page.assumptions}
+          country={stage.country}
+          regionSummary={stage.regionSummary}
+          clearHref={page.clearCountryHref()}
+          unpriced={page.unpriced}
+          controls={
+            <StageControls
+              mode={page.mode}
+              modeHref={page.modeHref}
+              action="/explore"
+              carry={page.carry}
+              counts={stage.countryCounts}
+              selected={stage.country}
+            />
+          }
+        />
+      )}
     </div>
   );
 }

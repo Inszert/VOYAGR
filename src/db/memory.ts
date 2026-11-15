@@ -876,6 +876,23 @@ class MemoryTripExpenseRepository implements TripExpenseRepository {
     return record;
   }
 
+  async update(
+    id: string,
+    input: Omit<TripExpenseRecord, 'id' | 'tripId' | 'createdAt'>,
+  ): Promise<TripExpenseRecord> {
+    const existing = this.byId.get(id);
+    if (!existing) throw new AppError('NOT_FOUND', `No expense ${id}`);
+
+    const record: TripExpenseRecord = {
+      ...input,
+      id,
+      tripId: existing.tripId,
+      createdAt: existing.createdAt,
+    };
+    this.byId.set(id, record);
+    return record;
+  }
+
   async delete(id: string): Promise<void> {
     this.byId.delete(id);
   }

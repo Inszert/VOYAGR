@@ -10,6 +10,7 @@ import {
   parseContactForm,
   parseExpenseForm,
   parsePlanItemForm,
+  parseTripDetails,
   parseTripForm,
 } from '@/trip-hub/parse';
 import { TripHubService } from '@/trip-hub/service';
@@ -87,6 +88,23 @@ export async function createTripAction(
   log.info({ userId: user.id, tripId: trip.id }, 'trip created');
 
   redirect(`/trips/${trip.id}`);
+}
+
+/** Rename the trip, change where it goes or move its dates. */
+export async function updateTripAction(
+  _previous: TripFormState,
+  formData: FormData,
+): Promise<TripFormState> {
+  const parsed = parseTripDetails(formData);
+  if (!parsed.ok) return { error: parsed.error };
+
+  const result = await run(formData, async (userId, tripId) => {
+    await service().updateTrip(userId, tripId, parsed.value);
+  });
+
+  // The list shows the name and the dates too.
+  if (result.saved) revalidatePath('/trips');
+  return result;
 }
 
 export async function deleteTripAction(formData: FormData): Promise<void> {
@@ -220,6 +238,31 @@ export async function addExpenseAction(
     if (!parsed.ok) return { error: parsed.error };
 
     await service().addExpense(user.id, tripId, parsed.value);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { saved: true };
+}
+
+export async function updateExpenseAction(
+  _previous: TripFormState,
+  formData: FormData,
+): Promise<TripFormState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: SIGN_IN };
+
+  const tripId = field(formData, 'tripId');
+  try {
+    const { members } = await service().access(user.id, tripId);
+    const parsed = parseExpenseForm(
+      formData,
+      members.map((member) => member.id),
+    );
+    if (!parsed.ok) return { error: parsed.error };
+
+    await service().updateExpense(user.id, tripId, field(formData, 'expenseId'), parsed.value);
   } catch (error) {
     return { error: messageFor(error) };
   }

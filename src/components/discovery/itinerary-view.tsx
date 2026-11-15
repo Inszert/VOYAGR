@@ -21,6 +21,11 @@ export function ItineraryView({
   /** True when the assistant is the offline placeholder. */
   placeholder: boolean;
 }) {
+  // The mock's own signature is for whoever is developing against it, not a visitor.
+  const notes = placeholder
+    ? itinerary.notes
+    : itinerary.notes.filter((note) => !/deterministic mock provider/i.test(note));
+
   return (
     <section aria-labelledby="itinerary-heading" className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
@@ -28,9 +33,10 @@ export function ItineraryView({
           A first plan for {nights} {nights === 1 ? 'night' : 'nights'}
         </h2>
         <p className="text-ink-muted max-w-2xl text-sm">
-          Drafted {placeholder ? 'by the placeholder assistant' : 'by the assistant'} from the
-          places and weather on this page{sample ? ', for an example length of stay' : ''}. A
-          starting point to change, not a booking: check opening times before you go.
+          Drafted {placeholder ? 'by the placeholder assistant' : ''}
+          {placeholder ? ' ' : ''}from the places and weather on this page
+          {sample ? ', for an example length of stay' : ''}. A starting point to change, not a
+          booking: check opening times before you go.
         </p>
       </div>
 
@@ -59,9 +65,9 @@ export function ItineraryView({
         ))}
       </ol>
 
-      {itinerary.notes.length > 0 ? (
+      {notes.length > 0 ? (
         <ul className="text-ink-muted flex flex-col gap-1 text-sm">
-          {itinerary.notes.map((note) => (
+          {notes.map((note) => (
             <li key={note}>{note}</li>
           ))}
         </ul>

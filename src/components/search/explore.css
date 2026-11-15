@@ -36,12 +36,15 @@
 }
 
 @keyframes voyagr-reveal-in {
+  /*
+   * Position only, never opacity. Text at 60% is below 4.5:1 for as long as it
+   * has not scrolled into view, and axe (rightly) reads that state - so the
+   * reveal moves a little and stays fully legible throughout.
+   */
   from {
-    opacity: 0;
-    transform: translateY(1.25rem);
+    transform: translateY(0.75rem);
   }
   to {
-    opacity: 1;
     transform: none;
   }
 }

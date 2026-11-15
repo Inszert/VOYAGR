@@ -29,7 +29,9 @@ export function Disclosure({
 }: DisclosureProps) {
   return (
     <details
-      open={defaultOpen}
+      // Only ever set when open by default. A `false` here is still a prop React
+      // owns, and a click that lands before hydration finishes was being undone by it.
+      {...(defaultOpen ? { open: true } : {})}
       className={cn('border-border group rounded-(--radius-control) border', className)}
       {...props}
     >

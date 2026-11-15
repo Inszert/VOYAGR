@@ -10,7 +10,7 @@ import * as React from 'react';
  * wraps to two rows. The hero's top edge is therefore wherever the header
  * ends minus that 72px, and everything sized from "the screen" - its height,
  * where the planet's top sits - has to subtract it. This measures the header,
- * not a guess, and writes the answer as `--hero-top` on the hero.
+ * not a guess, and writes the answer as `--hero-top` on the root element.
  *
  * It renders nothing. Before it runs, the CSS falls back to values that are
  * right for a desktop and close for a phone.
@@ -26,7 +26,9 @@ export function HeroMetrics() {
     const measure = () => {
       // Where the hero begins on the page, at the top of the page.
       const top = hero.getBoundingClientRect().top + window.scrollY;
-      hero.style.setProperty('--hero-top', `${Math.max(0, Math.round(top))}px`);
+      // On the root, not the hero: the globe is mounted above the page now and
+      // its own layout classes read this too.
+      document.documentElement.style.setProperty('--hero-top', `${Math.max(0, Math.round(top))}px`);
     };
 
     measure();
@@ -37,6 +39,7 @@ export function HeroMetrics() {
 
     return () => {
       observer?.disconnect();
+      document.documentElement.style.removeProperty('--hero-top');
       window.removeEventListener('resize', measure);
     };
   }, []);

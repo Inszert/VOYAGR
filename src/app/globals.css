@@ -1448,6 +1448,49 @@
     }
   }
 
+  /* The phone menu: in from the right edge, 280ms out of expo, out faster. */
+  @media (prefers-reduced-motion: no-preference) {
+    .voyagr-sheet[data-state='open'] {
+      animation: voyagr-sheet-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .voyagr-sheet[data-state='closed'] {
+      animation: voyagr-sheet-out 160ms ease-in forwards;
+    }
+
+    .voyagr-sheet-overlay[data-state='open'] {
+      animation: voyagr-fade-in 200ms ease-out;
+    }
+
+    .voyagr-sheet-overlay[data-state='closed'] {
+      animation: voyagr-fade-out 160ms ease-in forwards;
+    }
+  }
+
+  @keyframes voyagr-sheet-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes voyagr-sheet-out {
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes voyagr-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes voyagr-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
   /*
    * A place name on the globe: a country, a capital or an airport.
    *
@@ -2048,5 +2091,72 @@
       color-mix(in oklab, var(--color-stage-deep) 45%, transparent) 55%,
       transparent 100%
     );
+  }
+}
+
+/*
+ * The persistent globe's pins.
+ *
+ * A pin that has left fades out over 220ms before its marker is removed, and
+ * while a navigation is in flight the old pins and arcs sit at half strength
+ * rather than vanishing. `filter: opacity()` rather than `opacity`, because
+ * MapLibre writes an inline opacity on a marker and would win.
+ */
+.voyagr-chip-host,
+.voyagr-arcs {
+  transition: filter var(--duration-settled) var(--ease-out-quart);
+}
+
+.voyagr-chip-host[data-leaving='true'] {
+  filter: opacity(0);
+  pointer-events: none;
+}
+
+[data-stage-host][data-pending='true'] .voyagr-chip-host,
+[data-stage-host][data-pending='true'] .voyagr-arcs {
+  filter: opacity(0.5);
+}
+
+/* A 2px line at the top of the stage while a navigation is pending. */
+.voyagr-stage-progress {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 6;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-settled) var(--ease-out-quart);
+}
+
+.voyagr-stage-progress[data-active='true'] {
+  opacity: 1;
+}
+
+.voyagr-stage-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-stage-accent);
+  transform: translateX(-100%);
+}
+
+.voyagr-stage-progress[data-active='true']::after {
+  animation: voyagr-stage-progress 1.1s var(--ease-out-quart) infinite;
+}
+
+@keyframes voyagr-stage-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-stage-progress[data-active='true']::after {
+    animation: none;
+    transform: none;
   }
 }

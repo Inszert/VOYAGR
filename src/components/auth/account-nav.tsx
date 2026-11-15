@@ -17,7 +17,7 @@ import { NotificationCentre } from '@/components/notifications/notification-cent
  * navigation only, where it is a place in the product rather than a property
  * of the session.
  */
-export async function AccountNav() {
+export async function AccountNav({ withBell = true }: { withBell?: boolean } = {}) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -41,7 +41,7 @@ export async function AccountNav() {
 
   return (
     <nav aria-label="Account" className="flex items-center gap-2 text-sm">
-      <NotificationCentre />
+      {withBell ? <NotificationCentre /> : null}
       <Link
         href="/account"
         className="voyagr-panel text-text ease-standard duration-quick flex h-[38px] items-center gap-2 rounded-(--radius-pill) pr-4 pl-1.5 text-[14px] transition-colors hover:border-(--color-stage-accent)"

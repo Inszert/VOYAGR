@@ -204,7 +204,21 @@ one-off. See `docs/design-system.md` for what each guarantees.
 `Button` · `Card` · `Badge` · `Tag`/`ToggleChip`/`RadioChip` · `Field` · `Select` · `DateField` ·
 `DateRangeField` · `CalendarMonth` · `AmountSlider` · `Popover` · `Disclosure` · `Icon` ·
 `Container` · `EmptyState` · `Skeleton` · `SkipLink` · `Media` · `Price` · `FactGrid` ·
-`ProvenanceBadge` · `SourceStrip`/`SourceTag`
+`PageHeader` · `PasswordField` · `PlacePicture` · `StatusChip` · `Tabs` · `StateScreen` ·
+`Spinner` · `ProvenanceBadge` · `SourceStrip`/`SourceTag` (the last three are no longer rendered on
+any page: D20 removed provenance chips; provenance stays in the data model)
+
+Four more carry the page-level pattern the account, trip, watch, status and legal pages share:
+
+- **`PageHeader`** — an eyebrow (11px, `.18em` tracking, uppercase, `text-dim`), a Playfair title
+  (`display-sm` on a phone, `display-md` from `sm`), and one supporting line held to 60ch. Pages sit
+  in `Container size="wide"` with `py-10` on a phone and `py-16` from 1024px; a form is `max-w-md`,
+  a document `max-w-prose`.
+- **`PlacePicture`** — the shipped `/img/destinations` illustration, or the country's initials on a
+  quiet tile. Described as "an AI-generated illustration"; never a picture of somewhere else.
+- **`PasswordField`** — a `Field` with a Radix `Toggle` to show the characters. The toggle's name
+  does not repeat "password", so a field can still be found by its label.
+- **`StateScreen`** — offline, error and not-found: one illustration, one sentence, one action.
 
 Three of those carry rules worth repeating here:
 

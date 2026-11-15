@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { AuthShell } from '@/components/auth/auth-shell';
 import { CredentialsForm } from '@/components/auth/credentials-form';
 import { signInAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
@@ -32,25 +33,30 @@ export default async function SignInPage({
   const notice = flag ? SIGN_IN_NOTICES[flag] : null;
 
   return (
-    <CredentialsForm
-      heading="Sign in"
-      submitLabel="Sign in"
-      action={signInAction}
-      passwordAutoComplete="current-password"
-      notice={notice}
-      footer={
-        <>
-          No account yet?{' '}
-          <Link href="/sign-up" className="text-brand-ink underline underline-offset-4">
-            Create one
-          </Link>
-          . Forgotten your password?{' '}
-          <Link href="/forgot-password" className="text-brand-ink underline underline-offset-4">
-            Reset it
-          </Link>
-          .
-        </>
-      }
-    />
+    <AuthShell scene={{ code: 'LIS', line: 'Pick up where your last search left off.' }}>
+      <CredentialsForm
+        eyebrow="Welcome back"
+        heading="Sign in"
+        description="Your saved searches, watches and trips are waiting."
+        submitLabel="Sign in"
+        pendingLabel="Signing in…"
+        action={signInAction}
+        passwordAutoComplete="current-password"
+        notice={notice}
+        footer={
+          <>
+            No account yet?{' '}
+            <Link href="/sign-up" className="text-brand-ink underline underline-offset-4">
+              Create one
+            </Link>
+            . Forgotten your password?{' '}
+            <Link href="/forgot-password" className="text-brand-ink underline underline-offset-4">
+              Reset it
+            </Link>
+            .
+          </>
+        }
+      />
+    </AuthShell>
   );
 }

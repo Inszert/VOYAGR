@@ -235,6 +235,79 @@ describe('expenses', () => {
     expect(eur.transfers[0]!.amount.amount).toBe(a.id < b.id ? 500 : 501);
   });
 
+  it('edits an expense, recomputing the ledger from the core, in the new currency', async () => {
+    const { owner, trip, a, b } = await aGroup();
+    const saved = await service.addExpense(owner.id, trip.id, {
+      paidBy: a.id,
+      amount: money(1000, 'EUR'),
+      description: 'Dinner',
+      date: '2026-04-10',
+      split: { kind: 'equal', memberIds: [a.id, b.id] },
+    });
+
+    const edited = await service.updateExpense(owner.id, trip.id, saved.id, {
+      paidBy: b.id,
+      amount: money(2000, 'GBP'),
+      description: 'Dinner, with drinks',
+      date: '2026-04-11',
+      split: { kind: 'equal', memberIds: [a.id, b.id] },
+    });
+
+    expect(edited.id).toBe(saved.id);
+    expect(edited.createdAt).toBe(saved.createdAt);
+    const ledger = await service.ledger(owner.id, trip.id);
+    expect(ledger.expenses).toHaveLength(1);
+    expect(ledger.balances.map((group) => group.currency)).toEqual(['GBP']);
+  });
+
+  it('holds an edited expense to the checks a new one passes, and to its own trip', async () => {
+    const { owner, trip, a, b } = await aGroup();
+    const other = await service.createTrip(owner.id, tripForm);
+    const saved = await service.addExpense(owner.id, trip.id, {
+      paidBy: a.id,
+      amount: money(1000, 'EUR'),
+      description: 'Dinner',
+      date: '2026-04-10',
+      split: { kind: 'equal', memberIds: [a.id, b.id] },
+    });
+    const form = {
+      paidBy: a.id,
+      amount: money(1000, 'EUR'),
+      description: 'Dinner',
+      date: '2026-04-10',
+      split: { kind: 'exact' as const, amounts: [{ memberId: a.id, amount: money(900, 'EUR') }] },
+    };
+
+    expect(await code(service.updateExpense(owner.id, trip.id, saved.id, form))).toBe(
+      'VALIDATION_ERROR',
+    );
+    expect(
+      await code(
+        service.updateExpense(owner.id, other.id, saved.id, {
+          ...form,
+          split: { kind: 'equal', memberIds: [a.id] },
+        }),
+      ),
+    ).toBe('VALIDATION_ERROR');
+  });
+
+  it('lets a member edit the trip name and dates, and nobody else', async () => {
+    const owner = await aUser();
+    const stranger = await aUser();
+    const trip = await service.createTrip(owner.id, tripForm);
+    const details = {
+      name: 'Lisbon, long weekend',
+      destination: 'Lisbon',
+      destinationCountry: 'PT',
+      startDate: '2026-05-01',
+      endDate: '2026-05-04',
+    };
+
+    const updated = await service.updateTrip(owner.id, trip.id, details);
+    expect(updated).toMatchObject({ name: 'Lisbon, long weekend', startDate: '2026-05-01' });
+    expect(await code(service.updateTrip(stranger.id, trip.id, details))).toBe('NOT_FOUND');
+  });
+
   it('rejects exact amounts that do not add up, and people outside the trip', async () => {
     const { owner, trip, a, b } = await aGroup();
     const base = {

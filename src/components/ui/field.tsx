@@ -34,10 +34,31 @@ export interface FieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
    * sees as its edge and a second border inside it reads as a box in a box.
    */
   bare?: boolean;
+  /**
+   * Mark the control invalid when the message lives somewhere else, such as a
+   * form-level alert that this field is one of the causes of.
+   */
+  invalid?: boolean;
+  /** An extra id (or ids) to describe the control by, e.g. a form-level alert. */
+  describedBy?: string;
+  /** A control that sits inside the right edge of the input, such as "show password". */
+  trailing?: React.ReactNode;
 }
 
 export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Field(
-  { label, hint, error, hideLabel = false, bare = false, className, required, ...props },
+  {
+    label,
+    hint,
+    error,
+    hideLabel = false,
+    bare = false,
+    invalid = false,
+    describedBy: extraDescribedBy,
+    trailing,
+    className,
+    required,
+    ...props
+  },
   ref,
 ) {
   const id = React.useId();
@@ -45,7 +66,32 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Fie
   const errorId = `${id}-error`;
 
   const describedBy =
-    [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+    [hint ? hintId : null, error ? errorId : null, extraDescribedBy].filter(Boolean).join(' ') ||
+    undefined;
+
+  const control = (
+    <input
+      ref={ref}
+      id={id}
+      required={required}
+      aria-describedby={describedBy}
+      aria-invalid={error || invalid ? true : undefined}
+      className={cn(
+        'text-text w-full min-w-0 text-[16px] sm:text-[14px]',
+        'placeholder:text-dim',
+        'disabled:cursor-not-allowed disabled:opacity-70',
+        bare
+          ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
+          : cn(
+              'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
+              error || invalid ? 'border-critical-500' : 'border-border-strong',
+              trailing ? 'pr-20' : undefined,
+            ),
+        className,
+      )}
+      {...props}
+    />
+  );
 
   return (
     <div className={cn('flex flex-col', bare ? 'gap-0.5' : 'gap-1.5')}>
@@ -70,26 +116,14 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(function Fie
         ) : null}
       </Label.Root>
 
-      <input
-        ref={ref}
-        id={id}
-        required={required}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
-        className={cn(
-          'text-text w-full min-w-0 text-[16px] sm:text-[14px]',
-          'placeholder:text-dim',
-          'disabled:cursor-not-allowed disabled:opacity-70',
-          bare
-            ? 'h-7 truncate border-0 bg-transparent p-0 focus:outline-none'
-            : cn(
-                'bg-surface-raised h-11 rounded-(--radius-control) border px-3',
-                error ? 'border-critical-500' : 'border-border-strong',
-              ),
-          className,
-        )}
-        {...props}
-      />
+      {trailing ? (
+        <div className="relative">
+          {control}
+          <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div>
+        </div>
+      ) : (
+        control
+      )}
 
       {hint && !bare ? (
         <p id={hintId} className="text-ink-muted text-sm">

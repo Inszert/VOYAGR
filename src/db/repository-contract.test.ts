@@ -1196,6 +1196,38 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(await repositories.tripExpenses.findById(expense.id)).toBeNull();
     });
 
+    it('replaces an expense in place, keeping its id, trip and creation time', async () => {
+      const owner = await aUser();
+      const trip = await aTrip(owner.id);
+      const [self] = await repositories.trips.listMembers(trip.id);
+      const saved = await repositories.tripExpenses.create({
+        tripId: trip.id,
+        paidBy: self!.id,
+        amount: money(100, 'EUR'),
+        description: 'Coffee',
+        date: '2026-04-11',
+        split: { kind: 'equal', memberIds: [self!.id] },
+      });
+
+      const updated = await repositories.tripExpenses.update(saved.id, {
+        paidBy: self!.id,
+        amount: money(250, 'GBP'),
+        description: 'Coffee and cake',
+        date: '2026-04-12',
+        split: { kind: 'shares', weights: [{ memberId: self!.id, weight: 2 }] },
+      });
+
+      expect(updated).toMatchObject({
+        id: saved.id,
+        tripId: trip.id,
+        createdAt: saved.createdAt,
+        description: 'Coffee and cake',
+        date: '2026-04-12',
+        amount: money(250, 'GBP'),
+      });
+      expect(await repositories.tripExpenses.findById(saved.id)).toEqual(updated);
+    });
+
     it('keeps emergency contacts per user', async () => {
       const one = await aUser();
       const two = await aUser();

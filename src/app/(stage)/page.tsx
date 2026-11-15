@@ -15,7 +15,7 @@ import { listPlaceableDestinations } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
 import { imageryUrlFor } from '@/providers/imagery/url';
 import type { HeroRailItem } from '@/components/discovery/hero-rail';
-import destinationImages from '../../public/img/destinations/manifest.json';
+import destinationImages from '../../../public/img/destinations/manifest.json';
 import {
   COUNTRIES_DETAIL_URL,
   COUNTRIES_URL,
@@ -164,7 +164,6 @@ export default async function DiscoverPage({
             ? { adm0: stage.country.adm0, name: stage.country.name, bbox: stage.country.bbox }
             : null,
           navigation: page.navigation,
-          variant: 'stage',
         }}
         today={page.today}
         values={values}

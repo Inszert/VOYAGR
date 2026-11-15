@@ -1,7 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
-import { Button, Card, Field } from '@/components/ui';
+import { useActionState, useId } from 'react';
+import { Button, PageHeader, PasswordField } from '@/components/ui';
 import type { ResetPasswordState } from '@/app/actions/auth';
 
 /**
@@ -23,33 +23,43 @@ export function ResetPasswordForm({
   readonly token: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const alertId = useId();
 
   return (
-    <Card as="section" aria-labelledby="reset-password-heading" className="mx-auto max-w-md">
-      <h1 id="reset-password-heading" className="text-ink text-2xl font-semibold">
-        Choose a new password
-      </h1>
+    <section aria-labelledby="reset-password-heading" className="flex flex-col gap-8">
+      <PageHeader
+        id="reset-password-heading"
+        eyebrow="Account"
+        title="Choose a new password"
+        description="Pick something you have not used elsewhere. You will sign in with it straight after."
+      />
 
-      <form action={formAction} className="mt-6 flex flex-col gap-4">
-        <p role="alert" aria-live="polite" className="text-critical-ink text-sm empty:hidden">
+      <form action={formAction} className="flex flex-col gap-5" aria-busy={pending || undefined}>
+        <p
+          id={alertId}
+          role="alert"
+          aria-live="polite"
+          className="border-critical-500/30 bg-critical-500/10 text-critical-ink rounded-(--radius-control) border px-3.5 py-2.5 text-sm empty:hidden"
+        >
           {state.error}
         </p>
 
         <input type="hidden" name="token" value={token} />
 
-        <Field
+        <PasswordField
           label="New password"
           name="password"
-          type="password"
           autoComplete="new-password"
           hint="At least 12 characters. A memorable phrase works well."
+          invalid={Boolean(state.error)}
+          describedBy={state.error ? alertId : undefined}
           required
         />
 
-        <Button type="submit" size="lg" loading={pending}>
-          {pending ? 'Working…' : 'Set new password'}
+        <Button type="submit" size="lg" loading={pending} className="mt-1 w-full">
+          {pending ? 'Saving…' : 'Set new password'}
         </Button>
       </form>
-    </Card>
+    </section>
   );
 }

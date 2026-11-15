@@ -1,6 +1,6 @@
 import { format } from '@/core/money';
 import { DIFFERENCE_LABEL, type PriceComparison } from '@/core/stay/comparison';
-import { Icon, SourceTag } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { BOARD_LABEL, cancellationLabel } from './stay-card';
 
@@ -64,7 +64,9 @@ export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
-                  <SourceTag source={entry.rate.source} className="w-fit" />
+                  <p className="text-dim text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+                    Offered by {entry.rate.source.displayName}
+                  </p>
 
                   <p className="text-ink text-base font-medium">
                     {entry.rate.roomName ?? 'Room'}

@@ -198,8 +198,12 @@ async function fetchMonth(
       requests.push(ask(destination, first, `${query.month}-28`));
       requests.push(ask(destination, first, firstOf(nextMonth)));
     } else {
+      // The stay asked about must be one the bounds accept: a strip that wants
+      // exactly seven nights asked for four, and every answer was then dropped
+      // for being the wrong length.
+      const stay = Math.min(Math.max(EXACT_PAIR_NIGHTS, minNights), maxNights);
       for (const day of datesBetween(first, addDays(firstOf(nextMonth), -1))) {
-        requests.push(ask(destination, day, addDays(day, EXACT_PAIR_NIGHTS)));
+        requests.push(ask(destination, day, addDays(day, stay)));
       }
     }
   }

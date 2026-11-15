@@ -1,6 +1,17 @@
 import type { Metadata } from 'next';
-import { Badge, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui';
+import { Badge, PageHeader, describeAge } from '@/components/ui';
+import { getCacheStore } from '@/cache';
+import { buildCacheTargets } from '@/cache/targets';
+import {
+  DISCOVERY_STALE_MS,
+  DISCOVERY_TTL_MS,
+  buildDiscoveryRequest,
+  discoveryCacheKey,
+} from '@/discovery/snapshot';
 import { getProviderRegistry } from '@/providers/registry';
+import { getStayProviders } from '@/providers/stays/registry';
+import { getActiveDataSource } from '@/providers/request-source';
+import type { ProviderMode } from '@/core/trip/provenance';
 import { getCapabilities } from '@/lib/env';
 import { getRepositories } from '@/db';
 
@@ -38,7 +49,7 @@ function stateBadge(state: Subsystem['state']) {
     case 'mocked':
       return (
         <Badge tone="caution" srPrefix="Status">
-          Mock
+          Fixture
         </Badge>
       );
     case 'pending':
@@ -56,6 +67,74 @@ async function lastDayOfProviderCalls() {
   return getRepositories()
     .providerRequests.summarise(since)
     .catch(() => null);
+}
+
+interface Slot {
+  readonly slot: string;
+  readonly provider: string;
+  readonly state: 'live' | 'absent' | 'fixture';
+  readonly detail: string;
+}
+
+const MODE_WORDS: Record<ProviderMode, { state: Slot['state']; detail: string }> = {
+  live: { state: 'live', detail: 'Answering with real data.' },
+  indicative: { state: 'live', detail: 'Real fares from a cache, which may have moved.' },
+  test: { state: 'live', detail: 'A sandbox account: real shapes, not bookable.' },
+  mock: { state: 'fixture', detail: 'Sample data from fixtures, not real offers.' },
+  absent: { state: 'absent', detail: 'No provider is connected, so nothing is shown.' },
+};
+
+function slotOf(
+  slot: string,
+  metadata: { displayName: string; isMock: boolean; mode?: ProviderMode },
+): Slot {
+  const mode: ProviderMode = metadata.mode ?? (metadata.isMock ? 'mock' : 'live');
+  return { slot, provider: metadata.displayName, ...MODE_WORDS[mode] };
+}
+
+const SLOT_BADGE = {
+  live: { tone: 'positive', word: 'Live' },
+  absent: { tone: 'neutral', word: 'Absent' },
+  fixture: { tone: 'caution', word: 'Fixture' },
+} as const;
+
+/**
+ * How warm the discovery cache is: the newest entry the worker or a visitor
+ * wrote, out of the targets the worker keeps warm. Read from the store, not
+ * estimated; null when it cannot be read.
+ */
+async function cacheFreshness() {
+  try {
+    const store = getCacheStore();
+    const { effective } = await getActiveDataSource();
+    const today = new Date().toISOString().slice(0, 10);
+    const targets = buildCacheTargets();
+
+    const entries = await Promise.all(
+      targets.map(async (target) => {
+        const request = buildDiscoveryRequest(target.input(today));
+        return request ? store.get(discoveryCacheKey(request, effective)) : null;
+      }),
+    );
+
+    const stamps = entries
+      .flatMap((entry) => (entry ? [Date.parse(entry.observedAt)] : []))
+      .filter((stamp) => Number.isFinite(stamp));
+
+    return {
+      backend: store.name,
+      warm: stamps.length,
+      total: targets.length,
+      newestAgeMs: stamps.length > 0 ? Date.now() - Math.max(...stamps) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function hours(ms: number): string {
+  const value = Math.round(ms / 3_600_000);
+  return value === 1 ? '1 hour' : `${value} hours`;
 }
 
 export default async function StatusPage() {
@@ -105,36 +184,145 @@ export default async function StatusPage() {
     },
   ];
 
+  const dataSource = await getActiveDataSource();
+  const cache = await cacheFreshness();
+
+  const slots: Slot[] = [
+    slotOf('Flights', registry.flights.metadata),
+    slotOf('Hotels', registry.hotels.metadata),
+    ...getStayProviders(undefined, dataSource.effective).map((provider) =>
+      slotOf('Stays', provider.metadata),
+    ),
+    slotOf('Weather', registry.weather.metadata),
+    slotOf('Transfers', registry.transfers.metadata),
+    slotOf('Places', registry.places.metadata),
+  ];
+
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <h1 className="font-display text-display-md text-ink">System status</h1>
-        <p className="text-ink-muted max-w-2xl text-base">
-          What this deployment is running on, and how each travel data provider has behaved over the
-          last day.
+    <div className="flex flex-col gap-12">
+      <PageHeader
+        eyebrow="System"
+        title="Status"
+        description="What this deployment is connected to, how warm its cache is, and how each provider has behaved over the last day."
+      />
+
+      <section aria-labelledby="slots-heading" className="flex max-w-4xl flex-col gap-4">
+        <h2 id="slots-heading" className="font-display text-display-sm text-ink">
+          Provider slots
+        </h2>
+
+        <div className="border-border overflow-x-auto rounded-(--radius-card) border">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-sunken text-ink-muted text-left">
+              <tr>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Slot
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Provider
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  State
+                </th>
+                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                  What that means
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-border divide-y">
+              {slots.map((slot) => (
+                <tr key={`${slot.slot}-${slot.provider}`}>
+                  <th scope="row" className="text-ink px-4 py-3 text-left font-medium">
+                    {slot.slot}
+                  </th>
+                  <td className="text-ink px-4 py-3">{slot.provider}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={SLOT_BADGE[slot.state].tone}>{SLOT_BADGE[slot.state].word}</Badge>
+                  </td>
+                  <td className="text-ink-muted hidden px-4 py-3 md:table-cell">{slot.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="cache-heading" className="flex max-w-4xl flex-col gap-4">
+        <h2 id="cache-heading" className="font-display text-display-sm text-ink">
+          Cache
+        </h2>
+
+        {cache === null ? (
+          <p className="text-ink-muted text-sm">The cache could not be read just now.</p>
+        ) : (
+          <dl className="border-border divide-border grid divide-y rounded-(--radius-card) border text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="flex flex-col gap-1 p-4">
+              <dt className="text-dim">Last refresh</dt>
+              <dd className="text-ink text-base font-medium tabular-nums">
+                {cache.newestAgeMs === null
+                  ? 'Nothing cached yet'
+                  : describeAge(cache.newestAgeMs).replace(/^Updated /, '')}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1 p-4">
+              <dt className="text-dim">Warm targets</dt>
+              <dd className="text-ink text-base font-medium tabular-nums">
+                {cache.warm} of {cache.total}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1 p-4">
+              <dt className="text-dim">Held in</dt>
+              <dd className="text-ink text-base font-medium">
+                {cache.backend === 'redis' ? 'Redis' : 'Memory, lost on restart'}
+              </dd>
+            </div>
+          </dl>
+        )}
+
+        <p className="text-ink-muted max-w-[60ch] text-sm leading-relaxed">
+          A price is served as fresh for {hours(DISCOVERY_TTL_MS)} and as stale, and said to be, for
+          up to {hours(DISCOVERY_STALE_MS)} after that while a refresh runs.
         </p>
       </section>
 
-      <section aria-labelledby="subsystems-heading" className="flex flex-col gap-4">
-        <h2 id="subsystems-heading" className="text-ink text-xl font-semibold">
+      <section aria-labelledby="subsystems-heading" className="flex max-w-4xl flex-col gap-4">
+        <h2 id="subsystems-heading" className="font-display text-display-sm text-ink">
           Subsystems
         </h2>
 
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {subsystems.map((subsystem) => (
-            <li key={subsystem.name}>
-              <Card as="article" className="h-full">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle level={3}>{subsystem.name}</CardTitle>
-                    {stateBadge(subsystem.state)}
-                  </div>
-                  <CardDescription>{subsystem.detail}</CardDescription>
-                </CardHeader>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <div className="border-border overflow-x-auto rounded-(--radius-card) border">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-sunken text-ink-muted text-left">
+              <tr>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Subsystem
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  State
+                </th>
+                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                  Detail
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-border divide-y">
+              {subsystems.map((subsystem) => (
+                <tr key={subsystem.name}>
+                  <th scope="row" className="text-ink px-4 py-3 text-left font-medium">
+                    {subsystem.name}
+                    <span className="text-ink-muted mt-1 block text-xs font-normal md:hidden">
+                      {subsystem.detail}
+                    </span>
+                  </th>
+                  <td className="px-4 py-3 align-top">{stateBadge(subsystem.state)}</td>
+                  <td className="text-ink-muted hidden px-4 py-3 md:table-cell">
+                    {subsystem.detail}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/*
@@ -142,8 +330,8 @@ export default async function StatusPage() {
         vendor without reading logs. Every call a search or a watch makes is
         recorded with how it ended and how long it took.
       */}
-      <section aria-labelledby="providers-heading" className="flex flex-col gap-4">
-        <h2 id="providers-heading" className="text-ink text-xl font-semibold">
+      <section aria-labelledby="providers-heading" className="flex max-w-4xl flex-col gap-4">
+        <h2 id="providers-heading" className="font-display text-display-sm text-ink">
           Providers, last 24 hours
         </h2>
 
