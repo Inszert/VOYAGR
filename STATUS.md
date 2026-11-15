@@ -1,7 +1,7 @@
 # Voyagr — how things stand
 
 Short on purpose. Details live in `docs/finish-plan.md` and `progress.md`.
-Last updated: 2026-11-15.
+Last updated: 2026-11-15 (evening).
 
 ## Your wishes (Dani writes here, plain English)
 
@@ -9,9 +9,16 @@ Last updated: 2026-11-15.
 
 ## In progress
 
-- Next up: "up to 30 things to do" per destination, more partners, cookie consent, hero video, final docs
+- Fixes: health check, midnight cold cache, pre-loading "things to do", trip plan links, unused settings, docs
 
 ## Done
+
+- "Things to do": up to 30 real places per destination (Wikidata, Wikimedia photos)
+- Cookie consent banner: Travelpayouts script loads only after Accept
+- Security review: price-calendar abuse limit, push and image-proxy fixes, trip limits
+- Default search dates follow today
+- Full test suite green again: 273 passed (desktop and phone)
+- Docs: README, architecture, runbook, setup checklist
 
 - End-to-end and accessibility suite green: 248 passed, 0 failed (desktop and phone)
 - 8 real bugs fixed (trip page crash, globe not draggable, results page hydration error, phone layout shift, hidden Globe/Map switch, and others)
@@ -43,18 +50,15 @@ Last updated: 2026-11-15.
 
 - Redesign: stays, watches, account, sign-in pages, trips hub, status/legal/offline/error pages,
   empty and loading states, emails
-- "Up to 30 things to do" per destination (real places only)
 - Trip hub: invites, edit expenses, currency picker, "Add to my plan" buttons
 - More partners: hotels, car rental, tours, insurance, trains, luggage
 - Promo codes on partner offers
-- Cookie consent banner
 - Hero video loops, upscaled images
 - Final pass: e2e + accessibility suite, security review, docs, runbook
 
 ## Waiting on Dani
 
 - Log in to Travelpayouts in the Playwright browser window (account setup agent is blocked)
-- Cookie consent: load Drive only after "accept"? (recommended: yes)
 - Production host env: `FLIGHT_PROVIDER=aviasales`, `AVIASALES_API_TOKEN`, `EMAIL_PROVIDER=resend`,
   `RESEND_API_KEY`, `REDIS_URL`, `DATABASE_URL`; run `npm run db:migrate` (migrations 0008, 0009)
 - A priced hotel feed key (LiteAPI recommended) for real "flight + stay" totals
