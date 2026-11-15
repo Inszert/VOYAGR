@@ -9,9 +9,17 @@ Last updated: 2026-11-15 (evening).
 
 ## In progress
 
-- Fixes: health check, midnight cold cache, pre-loading "things to do", trip plan links, unused settings, docs
+- Bugs: search finding nothing (VIE to KZN), missing images in Popular and in Things to do
+- Trip builder on explore: change flight or hotel and see the price move; hotel with photos, stars, location
+- Prices follow the traveller count everywhere; fuller date calendar
+- Globe: more places as you rotate and zoom, never cut by a box, seasonal look by month
+- Stays redesign with a hotel map
+- Next: destination page (slideshow, interactive things to do, day plan, airport section)
+- Paused by the usage limit: health check, midnight cache, pre-loading places, docs update
 
 ## Done
+
+- Fixed: a missing email setting no longer breaks pages or sign-up
 
 - "Things to do": up to 30 real places per destination (Wikidata, Wikimedia photos)
 - Cookie consent banner: Travelpayouts script loads only after Accept
