@@ -15,17 +15,17 @@ Rule I followed: **free tier first.** Every service below has a free plan that i
 
 ## Needed — in priority order
 
-| #   | What                                                  | Free?                                                       | Variable(s)                                         | What it unlocks                                    |
-| --- | ----------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------- |
-| 1   | Travelpayouts / Aviasales token + partner ID          | Yes (you already have these)                                | `AVIASALES_API_TOKEN`, `AVIASALES_PARTNER_ID`       | Real flights, price calendar, affiliate links      |
-| 2   | **Resend** account + verified domain `voyagrfind.com` | Yes: 3,000 emails/month, 100/day                            | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`           | Verification, reset, price-drop alerts, digest     |
-| 3   | DNS records for email (see below)                     | Free (your registrar)                                       | — (DNS only)                                        | Emails land in the inbox instead of spam           |
-| 4   | **Redis** (Upstash free or your host's)               | Yes: Upstash free tier                                      | `REDIS_URL`, `QUEUE_DRIVER=bullmq`                  | Shared cache + background refresh worker           |
-| 5   | **Postgres** (Neon or Supabase free)                  | Yes: free tiers                                             | `DATABASE_URL`                                      | Accounts, watches and alert prefs that persist     |
-| 6   | Web Push VAPID keys                                   | Free, self-generated: `npx web-push generate-vapid-keys`    | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`             | Browser push alerts                                |
-| 7   | A priced hotel feed (optional, see note)              | Free to start — **verify at signup**, terms change          | `STAY_PROVIDERS=...`, key name given by the adapter | Real nightly prices, so trip totals can be all-in  |
-| 8   | Higgsfield connection                                 | You said unlimited plan                                     | — (MCP login)                                       | Generated destination imagery and hero video       |
-| 9   | Deployment host env (Railway/Render/Vercel + worker)  | Free tiers exist; the worker needs an always-on process     | all of the above                                    | Production                                         |
+| #   | What                                                  | Free?                                                    | Variable(s)                                         | What it unlocks                                    |
+| --- | ----------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------- |
+| 1   | Travelpayouts / Aviasales token + partner ID          | Yes (you already have these)                             | `AVIASALES_API_TOKEN`, `AVIASALES_PARTNER_ID`       | Real flights, price calendar, affiliate links      |
+| 2   | **Resend** account + verified domain `voyagrfind.com` | Yes: 3,000 emails/month, 100/day                         | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`           | Welcome/verification, password reset, email change |
+| 3   | DNS records for email (see below)                     | Free (your registrar)                                    | — (DNS only)                                        | Emails land in the inbox instead of spam           |
+| 4   | **Redis** (Upstash free or your host's)               | Yes: Upstash free tier                                   | `REDIS_URL`, `QUEUE_DRIVER=bullmq`                  | Shared cache + background refresh worker           |
+| 5   | **Postgres** (Neon or Supabase free)                  | Yes: free tiers                                          | `DATABASE_URL`                                      | Accounts, watches and alert prefs that persist     |
+| 6   | Web Push VAPID keys                                   | Free, self-generated: `npx web-push generate-vapid-keys` | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Browser push alerts                                |
+| 7   | A priced hotel feed (optional, see note)              | Free to start — **verify at signup**, terms change       | `STAY_PROVIDERS=...`, key name given by the adapter | Real nightly prices, so trip totals can be all-in  |
+| 8   | Higgsfield connection                                 | You said unlimited plan                                  | — (MCP login)                                       | Generated destination imagery and hero video       |
+| 9   | Deployment host env (Railway/Render/Vercel + worker)  | Free tiers exist; the worker needs an always-on process  | all of the above                                    | Production                                         |
 
 ### Note on hotels (important)
 
@@ -46,7 +46,7 @@ API inside Travelpayouts any more. What I'm building:
 
 Open-Meteo needs **no key** and is free for non-commercial use. If Voyagr earns money (affiliate
 commission counts), their terms ask for a commercial plan — a few euros a month. I'd budget for
-it before launch; the code takes `OPEN_METEO_API_KEY` if you add one.
+it before launch. The code does not read an Open-Meteo key yet; that needs a small change when you get one.
 
 ### Note on Higgsfield
 
@@ -60,12 +60,12 @@ current imagery pipeline, and no destination ships without an image.
 Resend shows the **exact** values after you add the domain (`resend.com/domains`) — paste those.
 The shape is always:
 
-| Type  | Host                | Value                                                                            |
-| ----- | ------------------- | -------------------------------------------------------------------------------- |
-| TXT   | `send`              | `v=spf1 include:amazonses.com ~all` (Resend shows the exact SPF for its sender)  |
-| MX    | `send`              | `feedback-smtp.<region>.amazonses.com`, priority 10 (copy from Resend)           |
-| TXT   | `resend._domainkey` | the long `p=MIGf...` DKIM public key Resend gives you                            |
-| TXT   | `_dmarc`            | `v=DMARC1; p=none; rua=mailto:dmarc@voyagrfind.com; pct=100` (tighten later)    |
+| Type | Host                | Value                                                                           |
+| ---- | ------------------- | ------------------------------------------------------------------------------- |
+| TXT  | `send`              | `v=spf1 include:amazonses.com ~all` (Resend shows the exact SPF for its sender) |
+| MX   | `send`              | `feedback-smtp.<region>.amazonses.com`, priority 10 (copy from Resend)          |
+| TXT  | `resend._domainkey` | the long `p=MIGf...` DKIM public key Resend gives you                           |
+| TXT  | `_dmarc`            | `v=DMARC1; p=none; rua=mailto:dmarc@voyagrfind.com; pct=100` (tighten later)    |
 
 Start `_dmarc` at `p=none`, watch reports for two weeks, then move to `p=quarantine`.
 
@@ -89,19 +89,19 @@ From what I know of these programs, not verified against today's terms. Most are
 Travelpayouts, so commission is paid to you there; the Travelpayouts agent is checking which ones
 your account can actually join. Tick or strike each:
 
-| Need                  | First pick                      | Alternative                 | Note                                                    |
-| --------------------- | ------------------------------- | --------------------------- | ------------------------------------------------------- |
-| Hotels                | Booking.com (via Travelpayouts) | Trip.com, Hotels.com        | Links only; no price feed without a separate hotel API  |
-| Hotel prices (API)    | LiteAPI                         | Booking.com Demand API      | The only route to a real "flight + stay" total          |
-| Car rental            | DiscoverCars                    | Localrent, EconomyBookings  |                                                         |
-| Transfers / taxis     | Intui (you have it)             | Kiwitaxi, GetTransfer       |                                                         |
-| Tours and activities  | GetYourGuide                    | Viator, Tiqets, Klook       | Also a source for the "things to do" list               |
-| eSIM                  | Yesim, GigSky (you have both)   | Airalo                      |                                                         |
-| Travel insurance      | EKTA                            | VisitorsCoverage, SafetyWing | Check which countries each one sells to                |
-| Flight compensation   | AirHelp (you have it)           | Compensair                  |                                                         |
-| Trains and buses      | 12Go                            | Omio, Rail Europe           |                                                         |
-| Luggage storage       | Radical Storage                 | Bounce                      |                                                         |
-| Events (dated)        | Ticketmaster Discovery API      |                             | Free key; feeds the events group in "things to do"      |
+| Need                 | First pick                      | Alternative                  | Note                                                   |
+| -------------------- | ------------------------------- | ---------------------------- | ------------------------------------------------------ |
+| Hotels               | Booking.com (via Travelpayouts) | Trip.com, Hotels.com         | Links only; no price feed without a separate hotel API |
+| Hotel prices (API)   | LiteAPI                         | Booking.com Demand API       | The only route to a real "flight + stay" total         |
+| Car rental           | DiscoverCars                    | Localrent, EconomyBookings   |                                                        |
+| Transfers / taxis    | Intui (you have it)             | Kiwitaxi, GetTransfer        |                                                        |
+| Tours and activities | GetYourGuide                    | Viator, Tiqets, Klook        | Also a source for the "things to do" list              |
+| eSIM                 | Yesim, GigSky (you have both)   | Airalo                       |                                                        |
+| Travel insurance     | EKTA                            | VisitorsCoverage, SafetyWing | Check which countries each one sells to                |
+| Flight compensation  | AirHelp (you have it)           | Compensair                   |                                                        |
+| Trains and buses     | 12Go                            | Omio, Rail Europe            |                                                        |
+| Luggage storage      | Radical Storage                 | Bounce                       |                                                        |
+| Events (dated)       | Ticketmaster Discovery API      |                              | Free key; feeds the events group in "things to do"     |
 
 ### Decide
 

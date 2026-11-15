@@ -1,7 +1,8 @@
 # Progress
 
-**Last updated:** 2026-11-04
-**Stage:** Zero-paid-search-cost constraint in place (see 11-03 below); this session added email
+**Last updated:** 2026-11-15 (the current state is the "Finish-the-product run" report at the end of
+this file; the paragraph below and the sections between are history from 2026-11-04 and earlier)
+**Stage at 2026-11-04:** Zero-paid-search-cost constraint in place (see 11-03 below); this session added email
 verification and, while testing it by hand against the zero-config in-memory backend, found and
 fixed a real, significant pre-existing bug: `getRepositories()`'s singleton was a plain
 module-level `let`, which is not actually process-wide across a Route Handler/Server Action
@@ -307,6 +308,9 @@ patched.
 
 ## Where things stand
 
+_Written 2026-09-23. Superseded: flights, weather and FX can now be live, and production refuses
+mocks. See the report at the end of this file._
+
 Voyagr runs end to end against deterministic mock providers: a person can search, understand why a
 trip ranks where it does, see what moving their dates is worth, discover destinations on a globe,
 read about a place, create an account, save a Travel Watch, have a worker re-price it in the
@@ -535,49 +539,75 @@ What is still open, and all of it needs a human:
 
 ---
 
-## Finish-the-product run (started 2026-11-14) — RESUME HERE
+## Finish-the-product run, report of 2026-11-15
 
-Plan and decisions: `docs/finish-plan.md`. What the owner must supply: `WHAT-I-NEED-FROM-YOU.md`.
-Method: lead (Fable) plans/designs/reviews; implementation goes to sub-agents with `model: "sonnet"`,
-exploration to `Explore` with `model: "haiku"`. All `.claude/agents/*` are pinned to sonnet.
-Decision of record: **production goes live — no mock providers, no "Demo data" in production.**
+Plan and decisions: `docs/finish-plan.md` (D1 to D20). What the owner must supply:
+`WHAT-I-NEED-FROM-YOU.md`. Go-live checklist: `SETUP-CHECKLIST.md`. Operations: `docs/runbook.md`.
+Decision of record (2026-11-14): production goes live and never serves mock data.
+This replaces the earlier "RESUME HERE" table and checkpoint, which were stale. State at commit
+`0093bcb`, working tree clean at the start of this report.
 
-| Phase                      | Status                                                                                   |
-| -------------------------- | ---------------------------------------------------------------------------------------- |
-| 1 Plan                     | Done: finish-plan.md, WHAT-I-NEED-FROM-YOU.md. Design audit still to do (see Phase 6)    |
-| 2a Cache + refresh worker  | Done, committed (617dcb1). `src/cache/`, `cache.refresh` job, `UpdatedAgo`               |
-| 2b Weather, no-mock guard  | Done, committed. Hotel line still half-wired: Phase 3 makes `TripCandidate.hotel` nullable + excluded stay line. `.env.example` still needs ALLOW_MOCK_IN_PRODUCTION, `absent` values, prod defaults (owner: edit was permission-denied) |
-| 3 Hotels                   | Not started. Hotellook closed 2025-10-20: build deep-link adapter + priced-adapter slot  |
-| 4 Accounts, email, alerts  | Not started (Resend driver, alert prefs, digest, unsubscribe, templates)                 |
-| 5 Flexible dates           | Not started (`src/core/flex-dates.ts`, ±3 days strip)                                    |
-| 6 Design direction + imagery | Not started. Needs Higgsfield MCP (owner connected it in a NEW session)                |
-| 7 Design build            | Not started                                                                              |
-| 8 Polish, review, docs    | Not started                                                                              |
+Numbers reported for this commit (taken from the lead's run, not re-run while writing this report):
+1887 unit and component tests; 248 end-to-end tests passing on `chromium` and `mobile-chrome`
+through the local Chrome channel, 0 failed.
 
-Known loose ends: `UpdatedAgo` line not yet looked at in a browser; three `collection:*` refresh
-targets feed no page yet; `HOTEL_REFRESH_MINUTES` defined but unused; `--ease-emphasis` in
-`globals.css` flagged as bounce easing (decide in the Phase 6 motion system);
-Postgres repository-contract tests fail without a database (2b makes them skip).
+### By phase
 
-### Checkpoint 2026-11-14 (usage limit reached mid-run)
+| Phase                       | State                   | What exists, and what does not                                                                                                                                                                                                                  |
+| --------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Plan                      | Done, partly            | `docs/finish-plan.md`, `WHAT-I-NEED-FROM-YOU.md`. The design audit (`docs/design-audit.md`) was never written                                                                                                                                   |
+| 2 Data foundation           | Done                    | `src/cache/` (memory, Redis, read-through with stale-while-revalidate), `cache.refresh` job and `PRICE_REFRESH_MINUTES`, `UpdatedAgo`, Open-Meteo weather with "typical for these dates", production no-mock guard and its test, `absent` slots |
+| 3 Hotels                    | Done, partly            | Trips work with no priced stay (`hotel: null`, `excluded` line, honest "all in"); `travelpayouts-links` adapter and "Find a stay". No priced hotel feed exists. The Booking.com URL parameters were not verified on a live click                |
+| 4 Accounts, email, alerts   | Done, as changed by D14 | Resend driver; three transactional mails; in-app bell; Web Push; alert preferences (migration 0008). The digest and unsubscribe were dropped. Real delivery not verified                                                                        |
+| 5 Flexible dates            | Done                    | `src/core/flex-dates.ts`, strip, shared `day-prices` loader, price calendar loads every day of both visible months (two calls per destination per month for Aviasales)                                                                          |
+| 6 Design direction, imagery | Done, partly            | `docs/design-direction.md`; 16 generated destination illustrations. No hero video                                                                                                                                                               |
+| 7 Design build              | Partly                  | See below                                                                                                                                                                                                                                       |
+| 8 Polish, review, docs      | Partly                  | End-to-end and accessibility suite green; 8 real bugs fixed; README, architecture, runbook, setup checklist and design docs rewritten. No security review, no impeccable polish pass, no cookie consent                                         |
 
-Committed: plan, cache + refresh worker (2a), weather + no-mock guard (2b), design direction
-(`docs/design-direction.md`), 16 destination illustrations (`public/img/destinations/`,
-masters in `assets/destination-masters/`, `scripts/export-destination-images.mjs`).
+### Design build (phase 7)
 
-**Uncommitted in the working tree — check `git status` first:**
+- Done: shared persistent globe for home and explore (`(stage)` route group, stage store, client-side
+  navigation); NASA Blue Marble surface and city lights; arcs follow drag; phone header and menu;
+  home below the hero (cards, mosaic, rail, full-bleed moment); explore results and calendar;
+  destination page; sign-in and account pages, trips hub, watches, stays, status, legal, offline and
+  error pages; provenance badges removed (D20).
+- Not done: pinned full-bleed section, hero scroll choreography, view-transition morphs beyond the
+  card-to-destination image, clouds, hero video, upscaled masters, email visuals.
+- Most new screens have not been reviewed in a browser by a person. Screenshots in `docs/screenshots/`
+  are fixture data.
 
-- **Phase 3 hotels: finished by its agent, NOT committed.** Typecheck and tests passed (1529).
-  `TripCandidate.hotel` nullable, excluded stay line, `travelpayouts-links` adapter, "Find a stay"
-  link. Unverified: Booking.com URL parameters, no browser check, `/stays` empty-state copy.
-- **Phase 4a email/alerts: was still running** (Resend driver, templates, alert prefs, digest,
-  unsubscribe). May be partial. Run typecheck + tests, finish or revert.
-- **Design slice 1 hero + globe: was still running.** May be partial. Screenshots, if any, in the
-  session scratchpad `slice1/`. Must be looked at in a browser and shown to the owner.
+### Other decisions
 
-Because the three overlap in the tree, nothing above was committed. Next session: run
-`npm run typecheck && npm run lint && npm test`, repair, then commit per phase.
+| Decision                                | State                                                                                                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D13 "up to 30 things to do"             | Not done. No places data source; places are `absent` in production                                                                                                     |
+| D15 Travelpayouts Drive script          | Done, production only. No consent gating (owner decision open)                                                                                                         |
+| D16, D18 partner hub, native components | Partly: four partners (Intui, AirHelp, Yesim, GigSky). Hotels, car rental, tours, insurance, trains, luggage not registered                                            |
+| D17 trip hub                            | Partly: plan, shared expenses, emergency numbers, migration 0009. Invites, edit-expense, currency picker not built; promo codes supported in the type, none registered |
+| D19 globe catalogue                     | Done as dots from a static airport catalogue; a dot has a price only when the cache has one                                                                            |
 
-Still to do: Phase 5 flexible dates; design slices 2–5 (cards use the new images; upscale masters,
-they are only 1024px wide); D13 "up to 30 things to do"; hero video loops (Higgsfield window ends
-2026-11-16); `.env.example` update; Phase 8 polish, e2e, docs, `npm run verify`.
+### Not verified
+
+- Real email delivery through Resend, with a verified domain.
+- Live Aviasales calendar calls from a deployed host, and the real quota behaviour.
+- Migrations 0008 and 0009 against a real Postgres.
+- `/api/health` in production: by reading the code it answers 503 because the `absent` slots report
+  `unavailable`. Not run.
+- The cache key roll-over at 00:00 UTC on a live deployment.
+
+### Found while writing the docs
+
+- `DESIGN.md` described a violet accent; `globals.css` has leather. Corrected.
+- `HOTEL_REFRESH_MINUTES` and the five `*_PROVIDER_API_KEY` variables are read by no code.
+- `AI_PROVIDER=anthropic` is accepted by the schema and fails at startup; no adapter exists.
+- `WHAT-I-NEED-FROM-YOU.md` names `VAPID_PUBLIC_KEY` (the code reads `NEXT_PUBLIC_VAPID_PUBLIC_KEY`),
+  `OPEN_METEO_API_KEY` (nothing reads it), and says Resend unlocks price-drop alerts and a digest
+  (D14 removed both). Not edited here.
+- `.env.example` could not be read or written in this session; the proposed content is in
+  `docs/env-example-proposed.md`.
+
+### Next
+
+Owner: production host and env, Resend domain, Redis, Postgres, the cookie-consent decision, a
+priced hotel feed key. Code: places data and "things to do", more partners, trip invites, cookie
+consent, hero video, a browser review of every screen, security review.

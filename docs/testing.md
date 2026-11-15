@@ -21,6 +21,20 @@ configured, both report as **skipped**, never as passing, so the gap shows up in
 rather than as silence. If a _different_ test ever needs real infrastructure, that is the design
 problem this note originally warned about.
 
+## Current numbers
+
+As reported for commit `0093bcb` (2026-11-15); not re-run when this section was written:
+
+| Suite                           | Result                                                            |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `npm test` (unit and component) | 1887 tests                                                        |
+| `npm run test:e2e`              | 248 passed, 0 failed, on `chromium` and `mobile-chrome` (Pixel 7) |
+
+The end-to-end run used the locally installed Chrome (`PLAYWRIGHT_CHANNEL=chrome`), because this
+machine cannot download Playwright's Chromium. CI uses the bundled one. The Postgres contract suite
+and the BullMQ suite skip without `TEST_DATABASE_URL` and `REDIS_URL`, so they are not part of
+those numbers.
+
 ## The three levels
 
 **Unit** (`src/**/*.test.ts`, node environment) — the deterministic core, adapters, guardrails,
@@ -96,6 +110,37 @@ badges used dark ink that fell to 2.04:1 against dark-mode surfaces.
 
 Treat axe as a floor, not a target. It catches perhaps a third of real accessibility problems; tab
 through what you build.
+
+### The hermetic environment
+
+`playwright.config.ts` starts `npm run build && next start` on port 3100 (`PLAYWRIGHT_PORT`) with a
+fixed environment, so the result does not depend on what is in the developer's `.env`:
+
+- `DATABASE_URL`, `TEST_DATABASE_URL`, `REDIS_URL` blank; `QUEUE_DRIVER=memory`. Accounts live in
+  memory.
+- `ALLOW_MOCK_IN_PRODUCTION=true` and every provider (`FLIGHT`, `HOTEL`, `WEATHER`, `TRANSFER`,
+  `PLACES`, `FX`) set to `mock`. A production build otherwise refuses fixtures. This is the one place
+  that opts in. It also turns off the Travelpayouts Drive script.
+- `DATA_SOURCE_SWITCH=true`, so the API/MOCK switch can be asserted on.
+- `AVIASALES_API_TOKEN`, VAPID keys blank; `IMAGERY_PROVIDER=none`, so no run needs Wikimedia.
+
+What it cannot prove: real provider behaviour, real email, Postgres, Redis, push delivery, or that a
+photograph appears.
+
+### Support helpers (`tests/e2e/support/`)
+
+| File          | Helper                                 | Use                                                                                                                                                                                              |
+| ------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `searches.ts` | `hydrated(locator)`                    | Waits until React has hydrated the element (it carries a `__reactProps$` key) before pressing it. A client form submitted before hydration is a native POST and the press is lost                |
+| `searches.ts` | `aSearch`, `openSearch`, `closeSearch` | Build a search with dates relative to the run day (UTC), and open the folded search controls                                                                                                     |
+| `axe.ts`      | `axeFindings(page, { include })`       | Runs axe with the WCAG 2.0 and 2.1 A and AA tags; returns one readable line per violating node                                                                                                   |
+| `axe.ts`      | `waitForEntranceMotion(page)`          | Waits for finished animations, ignoring infinite loops and scroll-driven animations                                                                                                              |
+| `menu.ts`     | `openMenuIfPhone(page)`                | Opens the "Menu" sheet (shown below 1024px) and returns whether it had to; repeats the press until open, because the trigger does nothing before hydration                                       |
+| `requests.ts` | `watchRequests(page)`                  | Listens on the browser context, so it also sees MapLibre's worker and the service worker. Records `/geo/` paths and any non-same-origin URL (`external` must stay empty). Start it before `goto` |
+
+`tests/e2e/pages.spec.ts` checks, for each surface, that it raises no uncaught page error (which is
+how React reports a hydration mismatch) and has no axe violations, in both viewports. With two Playwright projects, default workers can be too many
+for a WebGL globe per page; `--workers=4` removes the resulting flake.
 
 ### Avoiding flake
 

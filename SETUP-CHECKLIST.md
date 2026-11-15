@@ -1,141 +1,155 @@
-# Voyagr — setup and deployment checklist
+# Voyagr - going-live checklist
 
-Rewritten 3 November 2026. The previous version of this file was generated on 18 September 2026,
-when the repository held `docs/PRODUCT-SPECIFICATION.md` and nothing else — no source code, no
-`package.json`, one commit. Every decision it listed as open has since been made and built; keeping
-that version around was actively misleading about what exists today. This version is grounded in
-the actual code: `src/lib/env.ts` (the one place every environment variable is declared), the
-scripts in `package.json`, `/api/health`, and this session's updates to `docs/security.md` and
-`docs/provider-evaluation.md`.
+> **Not yet reflected here:** uncommitted work that was in the tree while this was written (a cookie-consent banner gating the Drive script, a Wikidata places provider with `PLACES_PROVIDER=wikidata` and a `places` cache kind, a `DRIVE_TEST_STUB` test variable). Sections on cookie consent, places and the env table describe commit `0093bcb`; reconcile them when that work is committed.
 
-Source of truth for the decisions, not this file: `progress.md` for what is built, `docs/implementation-plan.md`
-for what comes next, `docs/provider-evaluation.md` for why no paid provider is configured by default.
 
----
+Rewritten 2026-11-15 against the code at `0093bcb`. Nothing here has been done yet: no host is
+chosen, no account created by the code, no deployment made. Tick items as they happen.
 
-## The one rule that decides most of the rest
+Who does what: the accounts, keys and DNS records are the owner's. The table of what each one
+unlocks, and the free-tier notes, are in [`WHAT-I-NEED-FROM-YOU.md`](WHAT-I-NEED-FROM-YOU.md); this
+file does not repeat them. How to operate the result is in [`docs/runbook.md`](docs/runbook.md).
 
-**Zero paid search API cost, ever** — the project owner's hard constraint, documented in
-`docs/provider-evaluation.md`. It rules out every commercial flight/hotel vendor regardless of
-their terms, and it is why the two live provider options below (Aviasales, Open-Meteo) are the ones
-that exist rather than Duffel, Amadeus, Booking.com or Hotelbeds. Hosting and a domain may cost
-money; a search must not.
+**Rule that decides most things:** zero paid search API cost. Hosting and a domain may cost money; a
+search must not (`docs/provider-policy.md`). **Production never serves mock data**: it refuses to
+start on a mock flight, weather or email provider (`docs/finish-plan.md`, decision of record
+2026-11-14).
 
-## Runs with nothing configured
+A local `npm install && npm run dev` still works with no `.env` at all, on fixtures and in-memory
+storage.
 
-`npm install && npm run dev` works with **no `.env` file at all**. Every one of the following
-degrades to a safe default rather than crashing the app:
+## 1. Accounts and keys
 
-| Capability | Default | What you lose without it |
-| --- | --- | --- |
-| Database | In-memory repositories | Data does not survive a restart. |
-| Background jobs | In-process queue | A worker restart forgets in-flight jobs. |
-| AI | Deterministic mock provider | No real natural-language parsing or itinerary wording. |
-| Flights / hotels / weather / transfers / places | Deterministic mock fixtures | No real prices - and the UI says so on every surface that shows money. |
-| Destination photographs | Wikimedia (needs no key) | Set `IMAGERY_PROVIDER=none` to turn this off too. |
-| Web Push | Disabled | No browser notifications; watches still work, you just will not be pushed one. |
+| Done | Item                                  | Variables                                                  | Notes                                                                   |
+| ---- | ------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [ ]  | Travelpayouts / Aviasales token       | `AVIASALES_API_TOKEN` (secret)                             | Required: production refuses to start without a live flight provider    |
+| [ ]  | Travelpayouts marker                  | `AVIASALES_PARTNER_ID` (public)                            | Affiliate marker in outbound and stay links                             |
+| [ ]  | Hotel programme and campaign ids      | `TRAVELPAYOUTS_HOTEL_PROGRAM_ID`, `TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID` | Only for the "Find a stay" links; unset means no stay links     |
+| [ ]  | Resend account, verified domain       | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` (secret)         | Required: production refuses `console`                                  |
+| [ ]  | Redis                                 | `REDIS_URL` (secret), `QUEUE_DRIVER=bullmq`                | Required in practice: shared cache and queue between web and worker     |
+| [ ]  | Postgres                              | `DATABASE_URL` (secret), `DATABASE_SSL`                    | Required in practice: otherwise accounts and trips vanish on restart    |
+| [ ]  | Web Push keys (optional)              | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `npm run vapid:generate` prints a pair. Regenerating invalidates every push subscription |
+| [ ]  | Priced hotel feed (optional)          | none yet                                                   | No adapter exists. A key alone does nothing; an adapter must be written (`docs/architecture.md`, 5) |
+| [ ]  | Domain `voyagrfind.com`               | `NEXT_PUBLIC_APP_URL`, `PUBLIC_BASE_URL`, `EMAIL_FROM`     | `EMAIL_FROM` defaults to `Voyagr <hello@voyagrfind.com>` and must be on the verified domain |
+| [ ]  | Postal address for email footers      | `EMAIL_POSTAL_ADDRESS`                                     | Optional; a visible placeholder prints if unset                         |
 
-`src/lib/env.ts` is the only module allowed to read `process.env`; every variable below is declared
-there with a Zod schema, and an invalid value fails loudly at startup rather than silently.
+`AI_PROVIDER=anthropic` is not implemented and fails at startup. Leave `AI_PROVIDER` unset (mock).
 
-## To run a real database and queue
+## 2. DNS records (email)
 
-| Variable | Required for | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | Postgres persistence | `npm run db:migrate` applies `src/db/migrations/*.sql`. Unset = in-memory. |
-| `DATABASE_SSL` | TLS to that database | `true`/`false`, default `false`. Turn on in production. |
-| `DATABASE_POOL_MAX` | Connection pool size | Default 10. |
-| `REDIS_URL` | A shared queue across processes | Unset = in-process queue, fine for one instance, not for several. |
-| `QUEUE_DRIVER` | `memory` (default) or `bullmq` | `bullmq` needs `REDIS_URL`. |
+Resend shows the exact values after the domain is added; paste those, not the shapes below.
 
-Running the worker as its own process: `npm run worker` (reads `.env` if present). It re-prices
-Travel Watches on a schedule, records price history, detects materially better deals, and sweeps
-expired sessions and old price/provider-request rows (`src/worker/maintenance.ts` - 90 days for
-price history except the cheapest observation ever seen, 30 days for provider request logs, every
-6 hours for expired sessions). The web process and the worker process must point at the **same**
-`DATABASE_URL` and `REDIS_URL` - an in-memory queue is per-process, and a worker that cannot see the
-web process's jobs is not wired up, not degraded.
+| Done | Type  | Host                | Value                                                              |
+| ---- | ----- | ------------------- | ------------------------------------------------------------------ |
+| [ ]  | TXT   | `send`              | SPF from Resend                                                    |
+| [ ]  | MX    | `send`              | Feedback MX from Resend, priority 10                               |
+| [ ]  | TXT   | `resend._domainkey` | DKIM public key from Resend                                        |
+| [ ]  | TXT   | `_dmarc`            | `v=DMARC1; p=none; rua=mailto:<your address>; pct=100`, tighten later |
 
-## To turn on a real (free) flight or weather source
+Wait until Resend shows the domain as verified before sending. Also needed, outside DNS: point the
+site's hostname at the host, with HTTPS (the CSP has `upgrade-insecure-requests`).
 
-| Variable | Turns on | What it actually is |
-| --- | --- | --- |
-| `FLIGHT_PROVIDER=aviasales` + `AVIASALES_API_TOKEN` | Travelpayouts Data API | Free, real, but **cached price points from other people's searches, not a quote for this one** - labelled `indicative`, never `live`. Direct flights only. |
-| ~~`FLIGHT_PROVIDER=duffel`~~ | Nothing - **removed, 2026-11-04** | Duffel is a paid, partner-gated vendor, **prohibited outright** under the project's zero-billing policy - not merely "off by default." `FLIGHT_PROVIDER` no longer has a `'duffel'` value to set it to; the adapter code is kept at `src/providers/flights/duffel.ts` purely as a historical reference and is not imported by the registry. See `docs/provider-policy.md`. |
-| `WEATHER_PROVIDER=open-meteo` | Open-Meteo | Free, keyless, no card. Real forecast within 15 days; a climatology normal reconstructed from 3 real past years beyond that. One open question, unresolved: Open-Meteo's free tier is scoped to "non-commercial use" and does not define that boundary publicly - ask them before this product earns revenue. |
-| `HOTEL_PROVIDER`, `TRANSFER_PROVIDER`, `PLACES_PROVIDER` | Nothing live exists | **No free hotel source exists at all** - every candidate researched is a one-time trial-credit vendor or a scraping reseller, both ruled out. These stay `mock`; setting them to anything else is a hard error at startup (`ProviderRegistry` refuses to silently fall back to fixtures). |
+## 3. Host environment variables
 
-Setting any `*_PROVIDER` to `live` without an implemented adapter, or to a named provider without
-its required token, fails at process startup with a clear message - never a silent fallback to
-mock data in production.
+Set these on **both** the web and the worker process. The full list with defaults is the table in
+[`README.md`](README.md#environment-variables), generated from `src/lib/env.ts`.
 
-## To turn on push notifications
+Minimum for a live deployment:
 
 ```
-npm run vapid:generate
+NODE_ENV=production
+NEXT_PUBLIC_APP_URL=https://<your origin>
+PUBLIC_BASE_URL=https://<your origin>
+DATABASE_URL=...            DATABASE_SSL=true      (if the host requires TLS)
+REDIS_URL=...               QUEUE_DRIVER=bullmq
+FLIGHT_PROVIDER=aviasales   AVIASALES_API_TOKEN=...   AVIASALES_PARTNER_ID=...
+EMAIL_PROVIDER=resend       RESEND_API_KEY=...
+STAY_PROVIDERS=travelpayouts-links   (with the two Travelpayouts hotel ids)
 ```
 
-writes a public/private key pair. Set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (safe to expose, hence the
-prefix) and `VAPID_PRIVATE_KEY` (never expose), plus `VAPID_SUBJECT` (a `mailto:` address, default
-is a placeholder - a real deployment should set its own).
+Do not set:
 
-## To turn on real AI reasoning
+- `ALLOW_MOCK_IN_PRODUCTION` (it exists only for the end-to-end suite and also turns off the
+  Travelpayouts Drive script);
+- `DATA_SOURCE_SWITCH` (leave unset; the API/MOCK switch then stays hidden in production);
+- `FLIGHT_PROVIDER=mock`, `EMAIL_PROVIDER=console`, `HOTEL_PROVIDER=mock`.
 
-`AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, `AI_MODEL` (default `claude-sonnet-5`). Guardrails in
-`src/ai/guardrails.ts` apply regardless of provider: generated prose is scanned for figures absent
-from its source facts and discarded if it invents one. The model is never the source of truth for a
-price, a total or an eligibility decision - see `docs/architecture.md` section 1.
+`PRICE_REFRESH_MINUTES` (default 30) sets the background Aviasales spend; see the quota maths in
+`docs/architecture.md` before lowering it. Secrets come from the host's secret store, never from a
+file in the repository. `.env*` other than `.env.example` is gitignored.
 
-## Health and verification
+## 4. Database
 
-- `GET /api/health` - reports booleans (`database`, `redis`, `backgroundJobs`, `webPush`, `ai`,
-  `providersFullyMocked`) and per-provider status, never a connection string or a key. `200` when
-  healthy, `503` when a configured dependency is unreachable. Cached nowhere (`Cache-Control:
-no-store`).
-- `npm run verify` - format, lint, typecheck, unit/component tests, production build. Run this
-  before calling anything done.
-- `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` - the regression suite against a production build,
-  for a machine (like this one) that cannot download Playwright's bundled Chromium.
-- CI: `.github/workflows/ci.yml` already exists and runs on every push to `main`/`master` and on
-  every pull request - this is not a decision still open.
+- [ ] Take a backup or snapshot of the target (the app has no backup tooling).
+- [ ] `npm run db:migrate` against the production `DATABASE_URL`. Applies `0001` to `0009`
+      forward-only; there is no rollback tooling. Needs 0008 (alert preferences) and 0009 (trip hub).
+- [ ] Prove a real write works. Migrations 0008 and 0009 have not been run on a real Postgres. A
+      build succeeds whether or not the database is reachable, so a green build proves nothing here.
+- [ ] If every query fails with `ECONNRESET`, try `DATABASE_SSL=true` first
+      (`docs/deployment-checklist.md`).
 
-## Secrets
+## 5. Worker process
 
-Production secrets come from the host's secret store, never a file in the repository. `.env.example`
-holds inert placeholders only; `.env*` besides it is gitignored. `SECRET_ENV_KEYS` in `src/lib/env.ts`
-lists every variable that must never reach a log or a client-visible error - `describeEnv()` reduces
-each to a boolean before it can be reported anywhere.
+- [ ] Run `npm run worker` as an always-on process with the same env as web. Free tiers that sleep
+      will stop price refresh, watch checks and push delivery.
+- [ ] Confirm the log lines `worker started` and `cache refresh scheduled`.
+- [ ] Confirm there is no warning `REDIS_URL is not set` or `QUEUE_DRIVER=memory`.
 
-## Backup and rollback
+## 6. Deploy
 
-Not built, and worth being honest about rather than implying otherwise: there is no backup tooling
-and no rollback procedure beyond standard Postgres practice (point-in-time recovery or your host's
-own backup product) and standard SQL-migration discipline (each file in `src/db/migrations/` is
-additive and forward-only; there is no down-migration). Needed before this handles anything
-customers would notice losing.
+- [ ] `npm run verify` green on the commit (the owner fast-forwards `main` after each part).
+- [ ] Build with `npm run build` (not `next build` directly, so the MapLibre worker is copied), then
+      `npm start`.
+- [ ] Decide the cookie-consent question (section 8) before opening to EU visitors.
 
-## Known gaps, honestly, not hidden
+## 7. Post-deploy checks
 
-From `docs/security.md`, current as of this file:
+- [ ] `/status`: flights provider is live (not mock); weather live; hotels, transfers and places
+      "not available"; cache held in Redis; after one refresh interval, warm targets above 0.
+- [ ] `/api/health`: JSON shows `backgroundJobs: "bullmq"`, `redis: true`, `providersFullyMocked:
+      false`. **It will probably answer 503 `degraded`** because the `absent` slots report
+      `unavailable`; do not wire a restart-on-failure probe to it expecting 200 (not verified on a host).
+- [ ] `/`: globe with prices and "Updated N min ago"; no "Demo data", no API/MOCK switch.
+- [ ] A search returns trips; totals say "Flights only - stay not included".
+- [ ] Sign up: the verification mail arrives; the link signs the account in as verified.
+- [ ] Password reset mail arrives.
+- [ ] Response carries a `Content-Security-Policy` with a nonce; no CSP errors in the browser console.
+- [ ] In the Travelpayouts dashboard, run "Verify installation" for the Drive script (it passes only
+      after a deploy).
+- [ ] Create a watch and confirm the worker logs a refresh for it (push needs the VAPID pair).
 
-- **No rate limiting on the search page.** An attempt was made and reverted this session - a naive
-  per-client limiter collapsed into one shared bucket in any topology without a trustworthy
-  client-distinguishing signal, which is worse than no limiter. Needed before any public deployment
-  with a live provider configured; whoever picks it back up should confirm the real deployment's
-  proxy/header topology first.
-- **Audit logging** - not built. Needed once bookings or payments exist; neither does yet.
-- **Data retention and deletion** - built and documented (`/privacy`, `src/worker/maintenance.ts`,
-  account export and erasure both reachable from the account page). Not a gap any more, listed here
-  only because an earlier version of this file's sibling doc said it was.
+## 8. Decisions only the owner can make
 
-## What is genuinely not applicable yet
+- **Cookie consent.** The Drive script and affiliate links set tracking cookies. There is no consent
+  banner; the script loads without consent. Recommendation in `WHAT-I-NEED-FROM-YOU.md`: load it only
+  after "accept". Not built.
+- **Hosting target** and its spend. Check for automatic billing risk first.
+- **Priced hotel feed** and its terms.
+- **Open-Meteo commercial use.** The free tier is non-commercial; ask before the site earns revenue.
+- **Legal pages.** `/privacy` and `/terms` are drafts and need legal review.
+- **Licence.** Not chosen.
 
-Unchanged from the original audit, and still true: mobile app store accounts, booking/checkout
-merchant-of-record setup, autonomous booking integrations, community-layer infrastructure, B2B/white
--label infrastructure, multi-region scaling. Nothing in the product today needs any of them.
+## 9. Known gaps, not hidden
 
-## Going live — see `WHAT-I-NEED-FROM-YOU.md`
+From `docs/security.md`, `docs/runbook.md` and the code:
 
-The list of keys, accounts and DNS records needed for the live product (Resend, Redis, Postgres,
-hotel feed, VAPID, Higgsfield) lives in `WHAT-I-NEED-FROM-YOU.md`, free tiers first. Decision of
-record: production never shows mock data — see `docs/finish-plan.md`.
+- No rate limiting on the search page. A naive limiter collapsed into one shared bucket behind a
+  proxy and was reverted; confirm the real proxy and header topology before trying again.
+- Sign-in and email-send throttles are per process, in memory.
+- No audit logging. Not needed until booking or payments exist.
+- No backups, no rollback tooling, forward-only migrations.
+- No worker monitoring. The discovery cache key rolls at 00:00 UTC with no pre-warming.
+- CSP keeps `'unsafe-inline'` for styles (a `style=` attribute is set by several components).
+- Real email delivery, live Aviasales calendar calls from a host, and migrations 0008 and 0009 are
+  not verified.
+- No priced hotels, transfers or places data; no AI adapter; no booking or payments.
+- Not applicable yet: app-store accounts, merchant-of-record, autonomous booking, multi-region.
+
+## 10. Verification commands
+
+```
+npm run verify                              # format check, lint, typecheck, test, build
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e  # production build on fixtures; local Chrome
+```
+
+CI is `.github/workflows/ci.yml`, on pushes and pull requests to `main` or `master`.

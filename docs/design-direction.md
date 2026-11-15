@@ -1,7 +1,41 @@
 # Voyagr — design direction (finish run)
 
-Status: **proposed 2026-11-14, shown to the owner before build.** Built in slices; each slice is
-shown (before/after at 1440×900 and 390×844) before the next starts.
+Status: **built in part** (reconciled with the code at `0093bcb`, 2026-11-15). Proposed 2026-11-14,
+approved by the owner, built in slices. The sections below are the original proposal and are kept
+as written; the table says what of it exists. Where the two disagree, the code and
+`src/app/globals.css` are right. Visual review in a browser covered the slices shown to the owner;
+most later screens were not reviewed (see `STATUS.md`).
+
+| Item (section)                                                  | State          | Notes                                                                                                                 |
+| --------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Globe large behind the headline, bleeding on phones (2)         | Built          | `StageHost` root classes; hero crops the planet from 1024px up                                                        |
+| `--text-display-xl` headline (2)                                | Built          | 4.5rem; 2.75rem on a phone                                                                                            |
+| One glass search bar (2)                                        | Built          | From, To, Leaving, Back, Travellers, Options, Search. Calendar-as-sheet not checked                                   |
+| Right-edge rail of 5 live destinations (2)                      | Not built      | A recommended-trip card sits bottom right instead                                                                     |
+| "From {city} tonight" rail, mosaic, full-bleed moment (2)       | Built          | First pass; mosaic count rules not re-checked                                                                         |
+| Flexible-dates strip, trust band (2)                            | Built          | The strip is on the destination page and results                                                                      |
+| Image-led card, 3:2, scrim, one chip max (2)                    | Built          | Provenance chips removed entirely (D20)                                                                               |
+| Fly-to on selection (3)                                         | Built, differs | 1400 ms, pitch 18 degrees; zoom is +0.35, not +0.6 (`globe-motion.ts`)                                                |
+| Idle rotation 360 degrees in 240 s, pause and resume (3)        | Built          | Values in `globe-motion.ts`                                                                                           |
+| Arcs draw in 900 ms, travelling light, max 6 (3)                | Built          | Arcs also stay synced while the globe is dragged; bounded dash-pattern set                                            |
+| Price pin pulse on change (3)                                   | Built          | Keyframes `voyagr-pin-pulse`, `voyagr-pin-ring`                                                                       |
+| Warmer terminator, brighter lights, atmosphere (3)              | Built          | Plus NASA Blue Marble surface and Black Marble lights (not in the original text)                                      |
+| One globe for home and explore; client-side navigation          | Built          | Not in the original proposal; `docs/architecture.md`, 12                                                              |
+| Hero scroll choreography: globe scales, headline fades (4)      | Not built      | No such keyframes exist                                                                                               |
+| Rail entry stagger by range, mosaic parallax (4)                | Built          | `home-rise`, `home-par` in `home.css`, inside `@supports (animation-timeline: view())`                                |
+| Full-bleed moment image settle and 3-step reveal (4)            | Built          | `home-settle`, `home-fact` steps                                                                                      |
+| Full-bleed section **pinned** for 150vh (4)                     | Not built      | No sticky or pinned section                                                                                           |
+| View transition: card image to destination header (4)           | Built          | Cross-document `@view-transition`, name `dest-<code>`, 420 ms                                                         |
+| View transitions for anything else (4)                          | Not built      | Only the card-to-destination image morphs                                                                             |
+| Motion tokens (5)                                               | Built          | `--ease-out-quart`, `--ease-out-expo`, `--ease-in-out-soft`, `--duration-cinematic` 900 ms; `--ease-emphasis` retired |
+| Reduced motion (5)                                              | Built          | Animations shortened to 0.01 ms in the base layer; no FLIP, no scroll-driven motion                                   |
+| Imagery: 16 generated illustrations, AVIF and WebP, credits (6) | Built          | Masters are 1024 px wide; upscaling not done                                                                          |
+| Clouds over the globe                                           | Not built      | Specified in the brief, not in the text below; nothing draws clouds                                                   |
+| Hero video loops                                                | Not built      | No `<video>` exists. The owner's Higgsfield window runs to 2026-11-16                                                 |
+| Slice 5 email visuals                                           | Not built      | Three transactional templates exist (`src/email/templates/`); designed imagery in them not checked                    |
+
+Also differs from this proposal: the accent became **leather** (`#8a5130` to `#a0633a`) with a
+per-place tint, replacing the violet; see `DESIGN.md`.
 
 The idea in one line: **the planet is the page.** Today the globe is a picture beside a form, and
 below it the site turns into a card grid. The direction makes the globe the thing you act on, and
@@ -73,23 +107,23 @@ so, weather glyph + temperature. One label chip maximum, top-left. No stacked ch
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Hero 0→60% scrolled        | Globe scales 1→0.82, translates up 6vh, dims to 70%; headline fades 1→0 and rises 24px                   |
 | Rail enters (entry 0→40%)  | Cards rise 32px and fade in, 60ms stagger by index (max 6 staggered)                                     |
-| Mosaic tiles               | Image inside each tile parallaxes -6%→+6% over the tile's view range (`animation-timeline: view()`)       |
-| Full-bleed moment (pinned) | Section sticks for 150vh: image scales 1.12→1, scrim deepens, price/savings/weather reveal in 3 steps     |
+| Mosaic tiles               | Image inside each tile parallaxes -6%→+6% over the tile's view range (`animation-timeline: view()`)      |
+| Full-bleed moment (pinned) | Section sticks for 150vh: image scales 1.12→1, scrim deepens, price/savings/weather reveal in 3 steps    |
 | Page → destination         | View Transition: the card image morphs into the destination header image (`view-transition-name`), 420ms |
 
 Where `animation-timeline` is unsupported, content is simply visible (no JS fallback).
 
 ## 5. Motion system
 
-| Token                   | Value                             | Use                               |
-| ----------------------- | --------------------------------- | --------------------------------- |
-| `--ease-out-quart`      | `cubic-bezier(0.25, 1, 0.5, 1)`   | Default enter                     |
-| `--ease-out-expo`       | `cubic-bezier(0.16, 1, 0.3, 1)`   | Camera, large surfaces            |
-| `--ease-in-out-soft`    | `cubic-bezier(0.65, 0, 0.35, 1)`  | Things that move and stay on screen |
-| `--duration-quick`      | 120ms (kept)                      | Press, hover                      |
-| `--duration-settled`    | 220ms (kept)                      | Popovers, chips                   |
-| `--duration-deliberate` | 420ms (kept)                      | Sheets, view transitions          |
-| `--duration-cinematic`  | 900ms (new)                       | Arc draw, reveal steps            |
+| Token                   | Value                            | Use                                 |
+| ----------------------- | -------------------------------- | ----------------------------------- |
+| `--ease-out-quart`      | `cubic-bezier(0.25, 1, 0.5, 1)`  | Default enter                       |
+| `--ease-out-expo`       | `cubic-bezier(0.16, 1, 0.3, 1)`  | Camera, large surfaces              |
+| `--ease-in-out-soft`    | `cubic-bezier(0.65, 0, 0.35, 1)` | Things that move and stay on screen |
+| `--duration-quick`      | 120ms (kept)                     | Press, hover                        |
+| `--duration-settled`    | 220ms (kept)                     | Popovers, chips                     |
+| `--duration-deliberate` | 420ms (kept)                     | Sheets, view transitions            |
+| `--duration-cinematic`  | 900ms (new)                      | Arc draw, reveal steps              |
 
 `--ease-emphasis` (overshoot 1.2) is retired in favour of `--ease-out-quart`; this closes the
 standing bounce-easing finding. Press feedback: `scale(0.97)` 120ms. Hover on cards: image

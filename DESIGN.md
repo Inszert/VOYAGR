@@ -41,13 +41,36 @@ and nowhere else.
 
 ### Accent and status
 
-| Token                    | Value                 | Purpose                              |
-| ------------------------ | --------------------- | ------------------------------------ |
-| `--color-accent-from/to` | `#6a6cf6` → `#8b7bf7` | The one filled button, as a gradient |
-| `--color-brand-ink`      | `#a9a5f5`             | Accent text on a dark surface        |
-| `--color-positive-ink`   | `#7fd8a6`             | Under budget, confirmed              |
-| `--color-caution-ink`    | `#ecc06a`             | Estimated, unpriced, needs checking  |
-| `--color-critical-ink`   | `#f09a92`             | Over budget, demo data, an error     |
+The accent is **leather**, not violet: a saddle brown into cognac. White type on the fill measures
+6.5:1 on the dark end and 4.8:1 on the light end.
+
+| Token                    | Value                   | Purpose                                        |
+| ------------------------ | ----------------------- | ---------------------------------------------- |
+| `--color-accent-from/to` | `#8a5130` → `#a0633a`   | The one filled button, as a gradient           |
+| `--color-brand-ink`      | `#d9a877`               | Accent text on a dark surface (fixed, no tint) |
+| `--color-accent-ink`     | `var(--color-tint-ink)` | Accent as type; follows the page's tint        |
+| `--color-positive-ink`   | `#7fd8a6`               | Under budget, confirmed                        |
+| `--color-caution-ink`    | `#ecc06a`               | Estimated, unpriced, needs checking            |
+| `--color-critical-ink`   | `#f09a92`               | Over budget, an error                          |
+
+The `--color-brand-50..900` ramp is kept because components use it; `500` and `600` point at the
+gradient's ends. `--color-accent-300/500/700` is a warm sand (`#f2c46a`, `#d99b42`, `#9a6a24`) used
+for one `Tag` tone and the departure airport on the globe.
+
+### Tint and biome
+
+Two attributes recolour what is _tinted_ and never a control, a status or a price.
+
+- **Tint** (`--color-tint`, `--color-tint-ink`): the colour of the place you are looking at. Five
+  warm-night values: leather `#a0633a` (default), sand `#b8904f`, sage `#5f8a6c`, harbour `#4f7389`,
+  clay `#9a5f4a`. Set with `data-tint` on any element (a place's page picks one from the place) or
+  `data-biome` on the root.
+- **Biome** (`--color-biome`, `--color-biome-ink`): what the middle of the globe is looking at.
+  Default `#6a6cf6` / `#a9a5f5` (lavender) until the planet says otherwise: ice blue, sand, jade,
+  open blue, teal. It dresses the glow behind the stage, flight paths and the accent word in the
+  hero heading. This is the only place violet remains.
+- **Temperature** (`--color-temp-cold` to `--color-temp-hot`): five tints, always beside the figure
+  and the word.
 
 **Use the `-ink` token, never the `-500` ramp value, for text.** A ramp value dark enough for a
 light chip measures under 4.5:1 once the surface behind it is dark. The ramp is for fills and
@@ -231,6 +254,34 @@ Three of those carry rules worth repeating here:
   inside a bordered card are four boxes, not a hierarchy.
 
 ---
+
+## Page patterns that shipped
+
+- **Home** (`(stage)` route group). The globe sits behind the headline: large on desktop (cropped
+  from 1024px up), bleeding off both sides on a phone. Headline in `--text-display-xl` bottom-left,
+  one glass search bar (From, To, Leaving, Back, Travellers, Options, Search trips), and a
+  Globe / Map switch. Below the hero: image-led cards in a rail, a mosaic, and a full-bleed
+  destination moment. Scroll-driven motion is CSS only (`src/components/home/home.css`), inside
+  `@supports (animation-timeline: view())`.
+- **Explore** (`(stage)`). The same globe in a column, with the search as a one-line summary, a
+  results toolbar, a price calendar, the featured trip, compact result rows, and a partner grid.
+- **Destination** (`/destinations/[code]`). A full-width illustrated header with the place name in
+  Playfair, the flexible-dates strip, "While you are there", and a "Plan a trip" panel.
+- **Auth** (`(auth)`). A form column beside an illustration with a credit line.
+- **Column pages** (`(column)`): `PageHeader`, then content in `Container size="wide"`.
+
+## Imagery rules
+
+- Destination pictures are AI-generated illustrations, 3:2 masters, shipped as AVIF and WebP at 480,
+  768 and 1024 px with a blur placeholder. The credit reads "AI-generated illustration".
+- A picture is painted over the place's colour wash and never leaves a broken-image icon or a grey
+  box. No people in the foreground, no text, no logos.
+- The globe's surface is NASA Blue Marble tiles, credited on the stage. No third-party request.
+
+## Specified but not built
+
+See the table in `docs/design-direction.md`: the pinned full-bleed section, a view-transition morph
+beyond the card-to-destination image, clouds, and hero video.
 
 ## What this product is not
 
