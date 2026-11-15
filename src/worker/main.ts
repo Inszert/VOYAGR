@@ -74,7 +74,6 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
   // Re-prices what the front pages show, so a page reads instead of calling.
   const cacheRefresh = startCacheRefresh(queue, getEnv().PRICE_REFRESH_MINUTES, {
     runOnStart: options.sweepOnStart,
-    placesIntervalHours: getEnv().PLACES_REFRESH_HOURS,
   });
 
   if (!getEnv().REDIS_URL) {
