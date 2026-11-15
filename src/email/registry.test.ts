@@ -13,16 +13,18 @@ describe('buildEmailProvider', () => {
     expect(build({ NODE_ENV: 'test' }).id).toBe('console');
   });
 
-  it('refuses the console provider in production with a configuration error', () => {
-    let thrown: unknown;
-    try {
-      build({ NODE_ENV: 'production' });
-    } catch (error) {
-      thrown = error;
-    }
+  it('does not throw for the console provider in production: every send fails instead', async () => {
+    const provider = build({ NODE_ENV: 'production' });
 
-    expect(thrown).toBeInstanceOf(AppError);
-    expect((thrown as AppError).code).toBe('CONFIGURATION_ERROR');
+    expect(provider.id).toBe('unconfigured');
+    expect(provider.sendsRealEmail).toBe(false);
+
+    const result = await provider.send({ to: 'a@example.com', subject: 's', text: 't' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(AppError);
+      expect(result.error.code).toBe('CONFIGURATION_ERROR');
+    }
   });
 
   it('lets production opt in to the console provider by name, for the e2e suite', () => {
@@ -41,8 +43,12 @@ describe('buildEmailProvider', () => {
     expect(provider.sendsRealEmail).toBe(true);
   });
 
-  it('refuses Resend with no key rather than failing on the first send', () => {
-    expect(() => build({ EMAIL_PROVIDER: 'resend' })).toThrow(AppError);
+  it('fails every send for Resend with no key, without throwing', async () => {
+    const provider = build({ EMAIL_PROVIDER: 'resend' });
+
+    expect(provider.id).toBe('unconfigured');
+    const result = await provider.send({ to: 'a@example.com', subject: 's', text: 't' });
+    expect(result.ok).toBe(false);
   });
 
   it('defaults the sender to the Voyagr address', () => {

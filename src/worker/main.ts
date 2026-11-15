@@ -41,8 +41,8 @@ export interface WorkerOptions {
 }
 
 export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHandle> {
-  // Resolved now so a production worker with no real email provider stops at
-  // startup rather than discovering it on the first alert.
+  // Resolved now so a missing email setting is logged at startup, not on the
+  // first mail. It does not stop the worker: price refresh must keep running.
   getEmailProvider();
 
   const repositories = getRepositories();
@@ -74,6 +74,7 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
   // Re-prices what the front pages show, so a page reads instead of calling.
   const cacheRefresh = startCacheRefresh(queue, getEnv().PRICE_REFRESH_MINUTES, {
     runOnStart: options.sweepOnStart,
+    placesIntervalHours: getEnv().PLACES_REFRESH_HOURS,
   });
 
   if (!getEnv().REDIS_URL) {
