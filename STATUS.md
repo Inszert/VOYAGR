@@ -9,12 +9,15 @@ Last updated: 2026-11-15.
 
 ## In progress
 
-- Explore results: compact rows, flexible-dates strip showing no prices, partner section layout
-- One shared globe for home and explore (no reload when a search is submitted)
-- Redesign: stays, watches, account, sign-in pages, trips hub, status/legal/offline/error pages
-- Phone header (navigation is clipped on small screens)
+- End-to-end and accessibility test repair (128 pass, 82 fail after the redesign); fixing real bugs found
+- Not on main yet: shared globe, phone header, remaining pages, explore fixes (on the branch, waiting for the tests)
 
 ## Done
+
+- One shared globe for home and explore: a search no longer reloads it (on the branch)
+- Phone header with a menu (on the branch)
+- Redesign of sign-in pages, trips hub, watches, stays, status, legal, offline and error pages (on the branch)
+- Explore: new result rows, flexible-dates strip fixed, partner grid (on the branch)
 
 - Home page below the hero: image cards, mosaic, rail, full-bleed destination moment
 - Explore, trip card and destination page redesign (first pass); badges removed
