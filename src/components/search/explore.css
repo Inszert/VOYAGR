@@ -1,0 +1,81 @@
+/*
+ * Component-level CSS for the results and destination surfaces.
+ *
+ * Nothing here is a token: every colour, duration and easing is read from the
+ * ones globals.css already defines. It exists because three behaviours cannot
+ * be written as utilities - a scroll-driven reveal, a cross-document view
+ * transition and a hover that must wait for a pointer that can hover.
+ */
+
+/* A card's picture eases up a little under a pointer, never under a finger. */
+.voyagr-card-image {
+  transition: transform var(--duration-deliberate) var(--ease-out-quart);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .voyagr-card:hover .voyagr-card-image {
+    transform: scale(1.04);
+  }
+}
+
+/*
+ * Scroll-driven reveal.
+ *
+ * Only where `animation-timeline` exists and only for people who have not
+ * asked for less motion. Everywhere else the element is simply there, which is
+ * the point: there is no JavaScript fallback to fail.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .voyagr-reveal {
+      animation: voyagr-reveal-in 1ms var(--ease-out-quart) both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+  }
+}
+
+@keyframes voyagr-reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * A card's picture becomes the destination's header.
+ *
+ * A cross-document transition, so it works with the plain links the results
+ * use and needs no router integration. A browser without it ignores the rule
+ * and navigates as it always did. Reduced motion opts out of the transition
+ * altogether rather than shortening it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+}
+
+::view-transition-group(*) {
+  animation-duration: var(--duration-deliberate);
+  animation-timing-function: var(--ease-out-quart);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
+
+/* The sticky toolbar clears the site header, whose height is measured. */
+.voyagr-toolbar {
+  position: sticky;
+  top: var(--voyagr-header-h, 4.5rem);
+  z-index: 10;
+}

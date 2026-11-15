@@ -277,25 +277,16 @@ test.describe('running a search', () => {
     await expect(panel.getByText(/cheaper|more|Same price/).first()).toBeVisible();
   });
 
-  test('says plainly that the data is not real', async ({ page }) => {
-    // 1.10.1 section 4: never pretend mock data is live data. Every provider
-    // is a fixture today, and the page has to lead with that.
+  test('carries no demo banner or source badge on a trip', async ({ page }) => {
+    // D20: honesty is in the words - "from", "Updated", and what a total
+    // leaves out - not in a chip. Provenance stays in the data model.
     await page.goto(A_SEARCH);
 
-    await expect(page.getByRole('note')).toContainText('these trips are not real');
-    await expect(page.getByRole('note')).toContainText('Nothing here can be booked');
-
-    // And beside the price itself, not only at the top of the page. There is
-    // more than one of these now - a combined verdict plus a tag per provider
-    // - which is the point: `.first()` proves one is on screen, and the count
-    // proves the per-provider strip is there too.
+    await expect(page.getByRole('note')).toHaveCount(0);
     const card = page.getByRole('article').first();
-    await expect(card.getByText('Demo data').first()).toBeVisible();
-    expect(await card.getByText('Demo data').count()).toBeGreaterThan(1);
-
-    // The provider is named, so demo data can never be mistaken for a real
-    // vendor's answer while an integration is being brought up.
-    await expect(card.getByText('DEMO', { exact: false }).first()).toBeVisible();
+    await expect(card.getByText('from', { exact: true })).toBeVisible();
+    await expect(card.getByText('Demo data')).toHaveCount(0);
+    await expect(card.getByText('DEMO', { exact: false })).toHaveCount(0);
   });
 
   test('narrows results without searching again', async ({ page }) => {
@@ -307,6 +298,7 @@ test.describe('running a search', () => {
     // Clicked by its label, which is what a user does: the input itself is
     // visually hidden so the chip can be styled, and only the label is a
     // pointer target.
+    await page.getByText(/^Narrow these results/).click();
     await page.getByText('Direct only').click();
     await page.getByRole('button', { name: 'Apply filters' }).click();
 
@@ -530,7 +522,11 @@ test.describe('the globe', () => {
     // The destinations list by name: the band also holds the ranking
     // controls, which are a list of their own.
     const rail = page.getByRole('region', { name: /destinations, ranked by/ });
-    const listed = rail.getByRole('list', { name: 'Destinations' });
+    // The mosaic holds the first cards and a second rail the rest, so a
+    // destination is a list item in one of the two; together they are the chips.
+    const listed = rail.getByRole('list', {
+      name: /^(Destinations|From .+ tonight|More places to go)$/,
+    });
     expect(await chips.count()).toBe(await listed.getByRole('listitem').count());
 
     const chip = visible.first();

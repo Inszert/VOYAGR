@@ -1,6 +1,5 @@
 import { abs, format, subtract, toMajor, type Money } from '@/core/money';
 import { startOfMonth } from '@/core/dates';
-import { SourceStrip } from '@/components/ui';
 import type { SourceAttribution } from '@/core/trip/provenance';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
@@ -168,7 +167,6 @@ export function DateOptions({
   searchValues,
   selected,
   basePath = '/explore',
-  sources = [],
 }: DateOptionsProps) {
   // Always shown once anything was priced. One set of dates is not a choice
   // between dates, but the calendar and its flexibility chips are how somebody
@@ -323,11 +321,10 @@ export function DateOptions({
       />
 
       {/*
-        Where the prices come from. Named here, on the calendar, because a
+        What the prices are and are not, said under the calendar, because a
         figure written in a day is the one most easily read as a promise.
       */}
       <div className="border-tint/20 flex flex-col gap-2 border-t pt-4">
-        <SourceStrip sources={sources} />
         <p className="text-dim text-xs">
           {breakdown.sampled
             ? `Priced ${breakdown.windowsPriced} of the ${breakdown.windowsAllowed} date combinations your dates allow, spread evenly across them - so some days have no price.`

@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container, Icon, UpdatedAgo } from '@/components/ui';
 import { format } from '@/core/money';
-import { demoDataSentence } from '@/core/trip/provenance';
+import { getCurrentUser } from '@/auth/current-user';
+import { getRepositories } from '@/db';
+import { countryNameFor } from '@/lib/destination-media';
 import { shortDate } from '@/lib/display-date';
 import { redirect } from 'next/navigation';
 import { wasSubmitted } from '@/discovery/load-stage';
@@ -156,6 +158,23 @@ export default async function ExplorePage({
     ),
   ).toString();
 
+  // "Add to my plan" is offered only to somebody signed in, with their own trips to choose from.
+  const user = page.outcome ? await getCurrentUser() : null;
+  const planTrips = user
+    ? (await getRepositories().trips.listForUser(user.id)).map((trip) => ({
+        id: trip.id,
+        name: trip.name,
+      }))
+    : null;
+  const countries = new Map<string, string>();
+  if (page.outcome) {
+    for (const trip of [...page.outcome.results, ...page.outcome.nearMisses]) {
+      const code = trip.candidate.destination;
+      const name = countries.has(code) ? null : countryNameFor(code);
+      if (name) countries.set(code, name);
+    }
+  }
+
   const railCards = stage.cards.map((card) => ({
     ...card,
     image: images.get(card.point.destination) ?? null,
@@ -217,12 +236,13 @@ export default async function ExplorePage({
               </h1>
               {/* Four pixels under a forty-pixel heading is not a gap. */}
               <p className="text-stage-ink-muted mt-3 max-w-xl text-sm">
-                {page.provenance === 'mock' ? `${demoDataSentence(page.sources) ?? ''} ` : ''}
                 {page.outcome
                   ? 'Every trip below is also a chip on the globe. Narrow them, compare the dates, or open one and build it your way.'
                   : 'Click a country to look inside it. Drag to turn the globe, scroll to zoom.'}
               </p>
-              <UpdatedAgo ageMs={page.updatedAgeMs} className="text-stage-ink-muted mt-2" />
+              {page.outcome ? null : (
+                <UpdatedAgo ageMs={page.updatedAgeMs} className="text-stage-ink-muted mt-2" />
+              )}
             </div>
 
             {/*
@@ -315,20 +335,24 @@ export default async function ExplorePage({
          * keeps its own contrast pairings on the night.
          */
         <section className="stage-scope bg-stage text-stage-ink">
-          <Container size="wide" className="flex flex-col gap-6 pt-2 pb-12">
-            {(() => {
-              const trip = flexTrip(values, page.outcome, page.outcome.diagnostics.plan.currency);
-              return trip ? <FlexDatesSection {...trip} /> : null;
-            })()}
+          <Container size="wide" className="flex flex-col gap-6 pt-6 pb-16">
             <SearchResults
               outcome={page.outcome}
               profile={page.profile}
               filters={page.filters}
               searchValues={values}
               resultAgeMs={page.resultAgeMs}
+              updatedAgeMs={page.updatedAgeMs}
               images={images}
               stayLinks={stayLinks}
+              countries={countries}
+              planTrips={planTrips}
+              changeSearchHref={`/?${query}&edit=1`}
               basePath="/explore"
+              flexStrip={(() => {
+                const trip = flexTrip(values, page.outcome, page.outcome.diagnostics.plan.currency);
+                return trip ? <FlexDatesSection {...trip} /> : null;
+              })()}
               saveSearch={
                 <SaveSearchForm
                   query={query}
@@ -337,11 +361,12 @@ export default async function ExplorePage({
                   action={saveSearchAction}
                 />
               }
-            />
-            <TripExtras
-              offers={offersForTrip()}
-              today={new Date().toISOString().slice(0, 10)}
-              className="border-border border-t pt-8"
+              closing={
+                <TripExtras
+                  offers={offersForTrip()}
+                  today={new Date().toISOString().slice(0, 10)}
+                />
+              }
             />
           </Container>
         </section>

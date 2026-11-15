@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
-import { Badge, Button, DemoDataNotice, Disclosure } from '@/components/ui';
+import { Button, Disclosure, Icon, UpdatedAgo } from '@/components/ui';
+import { shortDate } from '@/lib/display-date';
+import './explore.css';
+import { HeaderOffset } from './header-offset';
+import type { PlanTrip } from './add-to-plan';
 import { explainTrip } from '@/search/explain';
 import {
   anyArrivalKnown,
@@ -15,7 +19,7 @@ import { buildDateBreakdown } from '@/search/date-options';
 import { DateOptions } from './date-options';
 import { ResultFiltersPanel } from './result-filters';
 import { SortSelect } from './sort-select';
-import type { SearchOutcome } from '@/search/types';
+import type { RankedTrip, SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
 import type { StayLinkOffer } from '@/core/stay/types';
 import type { DestinationImage } from '@/providers/imagery/types';
@@ -74,6 +78,18 @@ export interface SearchResultsProps {
    * itself rather than about any one trip in it.
    */
   saveSearch?: ReactNode;
+  /** How old the prices behind this page are, for the header's "Updated" line. */
+  updatedAgeMs?: number | null;
+  /** The flexible-dates strip, placed above the list. */
+  flexStrip?: ReactNode;
+  /** The partner section, placed in the closing band. */
+  closing?: ReactNode;
+  /** Country names by airport code, so a card says "Malta", not "MT". */
+  countries?: ReadonlyMap<string, string>;
+  /** The signed-in person's trips, for "Add to my plan". Null when signed out. */
+  planTrips?: readonly PlanTrip[] | null;
+  /** Where "Change the search" goes, for an empty result. */
+  changeSearchHref?: string;
 }
 
 /** The builder's parameters: which trip, and which flight and hotel in it. */
@@ -94,6 +110,12 @@ export function SearchResults({
   stayLinks,
   basePath = '/explore',
   saveSearch,
+  updatedAgeMs,
+  flexStrip,
+  closing,
+  countries,
+  planTrips = null,
+  changeSearchHref,
 }: SearchResultsProps) {
   const { nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
@@ -146,95 +168,158 @@ export function SearchResults({
 
   const noBuild = Object.fromEntries(BUILD_KEYS.map((key) => [key, null]));
 
-  /*
-   * Whether there is anything to say beside the results at all.
-   *
-   * Filters and date options only mean something once there is a match to
-   * narrow, but the "keep looking" card and the demo-data notice are true of
-   * the search itself and belong here even when nothing matched - so the
-   * column exists whenever any one of the three does, not only when the
-   * instruments do.
-   */
-  const hasSidebar =
-    diagnostics.eligibleCount > 0 || Boolean(saveSearch) || diagnostics.provenance === 'mock';
+  const destinationLabel = searchValues.destinations?.trim()
+    ? searchValues.destinations
+    : 'anywhere';
+
+  /** The destination page for a trip, carrying the search's dates and party over. */
+  const destinationHref = (trip: RankedTrip) => {
+    const { candidate } = trip;
+    const params = new URLSearchParams({
+      startDate: candidate.dates.departureDate,
+      endDate: candidate.dates.returnDate,
+      origin: candidate.origin,
+      departureDate: candidate.dates.departureDate,
+      returnDate: candidate.dates.returnDate,
+      passengers: String(candidate.passengers),
+      currency: trip.cost.total.currency,
+    });
+    return `/destinations/${candidate.destination.toLowerCase()}?${params.toString()}`;
+  };
+
+  const countryOf = (trip: RankedTrip) => countries?.get(trip.candidate.destination) ?? null;
 
   return (
     <section aria-labelledby="results-heading" className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="flex flex-col gap-1">
-          {/*
-          The heading counts what matched, not what fits on the page. Titling a
-          capped list "10 trips match" when 192 did would be a number the user
-          could act on and we made up.
-        */}
-          <h2 id="results-heading" className="text-ink font-display text-display-sm">
-            {diagnostics.eligibleCount > 0
-              ? `${diagnostics.eligibleCount} ${diagnostics.eligibleCount === 1 ? 'trip' : 'trips'} match`
-              : 'No trip matched'}
-          </h2>
-          <p className="text-ink-muted text-sm">
-            {results.length < diagnostics.eligibleCount
-              ? `Showing the best ${results.length}. `
-              : ''}
-            Considered {diagnostics.candidatesEvaluated} combinations across{' '}
-            {diagnostics.plan.destinations.length}{' '}
-            {diagnostics.plan.destinations.length === 1 ? 'destination' : 'destinations'}.
-          </p>
-        </div>
+      <HeaderOffset />
 
-        {/*
-          Which price leads each result.
+      {/*
+        The header: how many, between where and where, when, and how fresh.
 
-          A reading of the same search, not a new one: the ranking is the
-          whole trip's either way, and both figures are the engine's. Links,
-          so the choice is part of the address like everything else here.
-        */}
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          <SortSelect
-            value={sort}
-            action={basePath}
-            hidden={Object.fromEntries(
-              Object.entries(searchValues).filter(
-                (entry): entry is [string, string] =>
-                  typeof entry[1] === 'string' &&
-                  entry[1] !== '' &&
-                  entry[0] !== 'fSort' &&
-                  !(BUILD_KEYS as readonly string[]).includes(entry[0]),
-              ),
-            )}
-          />
-          <nav
-            aria-label="Price shown"
-            className="border-border flex rounded-(--radius-pill) border p-1"
-          >
-            {(
-              [
-                ['trip', 'Whole trip'],
-                ['flight', 'Flights only'],
-              ] as const
-            ).map(([option, text]) => (
-              <a
-                key={option}
-                href={linkWith({ view: option })}
-                aria-current={view === option ? 'page' : undefined}
-                className={
-                  view === option
-                    ? 'bg-tint-ink text-surface rounded-(--radius-pill) px-4 py-1.5 text-sm font-semibold'
-                    : 'text-ink-muted hover:text-ink rounded-(--radius-pill) px-4 py-1.5 text-sm transition-colors'
-                }
-              >
-                {text}
-              </a>
-            ))}
-          </nav>
-        </div>
+        The heading counts what matched, not what fits on the page. Titling a
+        capped list "10 trips match" when 192 did would be a number the user
+        could act on and we made up.
+      */}
+      <header className="flex flex-col gap-2">
+        <h2 id="results-heading" className="text-ink font-display text-display-sm">
+          {diagnostics.eligibleCount > 0
+            ? `${diagnostics.eligibleCount} ${diagnostics.eligibleCount === 1 ? 'trip' : 'trips'} match`
+            : 'No trip matched'}
+        </h2>
+        <p className="text-ink flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium">
+          <span>
+            {profile.origins.join(', ')}
+            <span aria-hidden="true" className="text-dim mx-1.5">
+              →
+            </span>
+            <span className="sr-only"> to </span>
+            {destinationLabel}
+          </span>
+          <span className="text-ink-muted font-normal tabular-nums">
+            {shortDate(profile.earliestDeparture)} to {shortDate(profile.latestReturn)}
+          </span>
+          {updatedAgeMs !== undefined ? (
+            <UpdatedAgo ageMs={updatedAgeMs} className="text-ink-muted" />
+          ) : null}
+        </p>
+        <p className="text-ink-muted text-sm">
+          {results.length < diagnostics.eligibleCount ? `Showing the best ${results.length}. ` : ''}
+          Considered {diagnostics.candidatesEvaluated} combinations across{' '}
+          {diagnostics.plan.destinations.length}{' '}
+          {diagnostics.plan.destinations.length === 1 ? 'destination' : 'destinations'}.
+        </p>
+      </header>
+
+      {/*
+        One quiet toolbar. It sticks under the site header once the list
+        scrolls beneath it (the header's height is measured, not assumed), and
+        on a phone it stays in the flow, because two rows of controls pinned
+        to the top of a small screen cost more than they give.
+
+        Which price leads each result is a reading of the same search, not a
+        new one: the ranking is the whole trip's either way, and both figures
+        are the engine's. Links, so the choice is part of the address.
+      */}
+      <div className="voyagr-toolbar border-stage-glass-border bg-stage-glass backdrop-blur-glass static -mx-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 rounded-(--radius-card) border px-3 py-2.5 sm:sticky">
+        <SortSelect
+          value={sort}
+          action={basePath}
+          hidden={Object.fromEntries(
+            Object.entries(searchValues).filter(
+              (entry): entry is [string, string] =>
+                typeof entry[1] === 'string' &&
+                entry[1] !== '' &&
+                entry[0] !== 'fSort' &&
+                !(BUILD_KEYS as readonly string[]).includes(entry[0]),
+            ),
+          )}
+        />
+        <nav
+          aria-label="Price shown"
+          className="border-border flex rounded-(--radius-pill) border p-1"
+        >
+          {(
+            [
+              ['trip', 'Whole trip'],
+              ['flight', 'Flights only'],
+            ] as const
+          ).map(([option, text]) => (
+            <a
+              key={option}
+              href={linkWith({ view: option })}
+              aria-current={view === option ? 'page' : undefined}
+              className={
+                view === option
+                  ? 'bg-tint-ink text-surface inline-flex min-h-11 items-center rounded-(--radius-pill) px-4 text-sm font-semibold'
+                  : 'text-ink-muted hover:text-ink ease-standard inline-flex min-h-11 items-center rounded-(--radius-pill) px-4 text-sm transition-colors'
+              }
+            >
+              {text}
+            </a>
+          ))}
+        </nav>
       </div>
+
+      {diagnostics.eligibleCount > 0 ? (
+        <Disclosure
+          summary={
+            filtered
+              ? 'Narrow these results (filters on)'
+              : 'Narrow these results, or see what a bigger budget would buy'
+          }
+          defaultOpen={filtered}
+          className="bg-surface-sunken"
+        >
+          <div className="grid items-start gap-8 lg:grid-cols-2">
+            <ResultFiltersPanel
+              filters={filters}
+              searchValues={searchValues}
+              hidden={hidden}
+              currency={profile.targetBudget.currency}
+              basePath={basePath}
+              origin={profile.origins.join(', ')}
+              arrivalsKnown={anyArrivalKnown(outcome.results)}
+            />
+            <div className="flex flex-col gap-8">
+              <WhatIfPanel
+                steps={budgetWhatIf(outcome, profile)}
+                hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
+              />
+              <NearbyAirportsPanel
+                airports={nearbyOrigins(profile.origins).slice(0, 5)}
+                hrefFor={(code) =>
+                  linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
+                }
+              />
+            </div>
+          </div>
+        </Disclosure>
+      ) : null}
 
       {/*
         Quotes the vendor no longer stands behind, or observed too long ago.
-        Counted by the search from each offer's own time and, where the
-        vendor gives one, its validity window. Said before the trips, because
-        a price that may have moved is the one surprise worth leading with.
+        Said before the trips, because a price that may have moved is the one
+        surprise worth leading with.
       */}
       {diagnostics.quoteFreshness.stale > 0 ? (
         <div
@@ -251,34 +336,51 @@ export function SearchResults({
         </div>
       ) : null}
 
+      {/*
+        A provider that did not answer, in plain words: what is missing, what
+        that means for the list, and a way to ask again.
+      */}
       {diagnostics.degraded ? (
         <div
           role="status"
-          className="border-caution-500/30 bg-caution-500/10 rounded-(--radius-card) border p-4"
+          className="border-caution-500/30 bg-caution-500/10 flex flex-col gap-3 rounded-(--radius-card) border p-4"
         >
-          <h3 className="text-caution-ink text-sm font-semibold">This search is incomplete</h3>
-          <p className="text-ink mt-1 text-sm">
-            One or more travel data sources did not answer, so there may be trips we did not see.
-          </p>
-          <ul className="mt-2 flex flex-col gap-1">
+          <div>
+            <h3 className="text-caution-ink text-sm font-semibold">This search is incomplete</h3>
+            <p className="text-ink mt-1 text-sm">
+              One or more travel data sources did not answer, so there may be trips we did not see.
+            </p>
+          </div>
+          <ul className="flex flex-col gap-1">
             {diagnostics.issues.map((issue) => (
               <li key={`${issue.scope}-${issue.code}`} className="text-ink text-sm">
-                <Badge tone="caution" srPrefix="Unavailable">
+                <span className="text-caution-ink font-medium capitalize">
+                  <span className="sr-only">Unavailable: </span>
                   {issue.kind}
-                </Badge>{' '}
+                </span>
+                {' — '}
                 {issue.message}
               </li>
             ))}
           </ul>
+          <a
+            href={linkWith({})}
+            className="text-tint-ink inline-flex min-h-11 w-fit items-center gap-1.5 text-sm font-medium underline underline-offset-4"
+          >
+            Try the search again
+            <Icon name="arrow-right" size={0.9} aria-hidden="true" />
+          </a>
         </div>
       ) : null}
+
+      {/* The flexible-dates strip comes before the list: the dates are the first thing to move. */}
+      {flexStrip}
 
       {/*
         The dates, across the whole width.
 
         A calendar with a price in every day is two months side by side on a
-        desktop, which does not fit in the narrow column beside the trips - and
-        it is the first thing to choose, so it comes before them.
+        desktop, and it is the first thing to choose, so it comes before the trips.
       */}
       {diagnostics.eligibleCount > 0 ? (
         <DateOptions
@@ -290,192 +392,146 @@ export function SearchResults({
         />
       ) : null}
 
-      {/*
-        Two columns once there is room: the instruments on the left, the
-        trips on the right.
-
-        "What the dates are worth" and "Narrow these results" were two large
-        panels stacked above the trips, so a person had to scroll past both to
-        reach the first result. Beside the list they are where a control
-        belongs: next to what it changes.
-      */}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-8 lg:grid-cols-[19rem_minmax(0,1fr)] xl:grid-cols-[21rem_minmax(0,1fr)]">
-        {hasSidebar ? (
-          <aside aria-label="About this search" className="flex flex-col gap-8">
-            {saveSearch}
-
-            {/*
-              Said beside the results rather than above them, with the rest of
-              what this card already says about the search - but never later
-              than the first thing a reader sees of it, because a notice that
-              everything below is fictional is worthless underneath the
-              fiction.
-            */}
-            {diagnostics.provenance === 'mock' ? (
-              <DemoDataNotice sources={diagnostics.sources} />
-            ) : null}
-
-            {diagnostics.eligibleCount > 0 ? (
-              <>
-                <ResultFiltersPanel
-                  filters={filters}
-                  searchValues={searchValues}
-                  hidden={hidden}
-                  currency={profile.targetBudget.currency}
-                  basePath={basePath}
-                  origin={profile.origins.join(', ')}
-                  arrivalsKnown={anyArrivalKnown(outcome.results)}
-                />
-                <WhatIfPanel
-                  steps={budgetWhatIf(outcome, profile)}
-                  hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
-                />
-                <NearbyAirportsPanel
-                  airports={nearbyOrigins(profile.origins).slice(0, 5)}
-                  hrefFor={(code) =>
-                    linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
-                  }
-                />
-              </>
-            ) : null}
-          </aside>
+      <div className="flex min-w-0 flex-col gap-6">
+        {results.length === 0 && filtered ? (
+          // Different from "no trip matched": the search found trips and the
+          // filters removed them, so the thing to change is the filters.
+          <EmptyState
+            title="Your filters hid every trip"
+            description={`The search found ${diagnostics.eligibleCount}, and the filters above removed all of them. Loosen one to see them again.`}
+            action={
+              <Button asChild variant="secondary" size="md">
+                <a
+                  href={linkWith(
+                    Object.fromEntries(
+                      Object.keys(searchValues)
+                        .filter((key) => key.startsWith('f'))
+                        .map((key) => [key, null]),
+                    ),
+                  )}
+                >
+                  Clear the filters
+                </a>
+              </Button>
+            }
+          />
         ) : null}
 
-        <div
-          className={
-            hasSidebar ? 'flex min-w-0 flex-col gap-4' : 'flex min-w-0 flex-col gap-4 lg:col-span-2'
-          }
-        >
-          {results.length === 0 && filtered ? (
-            // Different from "no trip matched": the search found trips and the
-            // filters removed them, so the thing to change is the filters.
-            <EmptyState
-              title="Your filters hid every trip"
-              description={`The search found ${diagnostics.eligibleCount}, and the filters above removed all of them. Loosen one to see them again.`}
-              action={
-                <Button asChild variant="secondary" size="md">
-                  <a
-                    href={linkWith(
-                      Object.fromEntries(
-                        Object.keys(searchValues)
-                          .filter((key) => key.startsWith('f'))
-                          .map((key) => [key, null]),
-                      ),
-                    )}
-                  >
-                    Clear the filters
-                  </a>
-                </Button>
-              }
-            />
-          ) : null}
+        {built && focus ? (
+          <TripCard
+            trip={built.trip}
+            rank={results.includes(focus) ? 0 : -1}
+            lead={RESULT_SORTS.find((option) => option.value === sort)?.label}
+            deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
+            label={building ? 'Your trip' : undefined}
+            view={view}
+            provenance={diagnostics.provenance}
+            sources={diagnostics.sources}
+            reasons={explainTrip(built.trip, profile)}
+            image={images?.get(built.trip.candidate.destination) ?? null}
+            stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
+            transferOffer={offersFor('transfer')[0] ?? null}
+            country={countryOf(built.trip)}
+            planTrips={planTrips}
+            destinationHref={destinationHref(built.trip)}
+            transition
+            builder={{
+              built,
+              flightHref: (offerId) =>
+                linkWith({
+                  tTrip: focus.candidate.id,
+                  tFlight: offerId,
+                  tHotel: searchValues.tHotel ?? null,
+                }),
+              hotelHref: (offerId) =>
+                linkWith({
+                  tTrip: focus.candidate.id,
+                  tHotel: offerId,
+                  tFlight: searchValues.tFlight ?? null,
+                }),
+              dateHref: (choice) => linkWith({ ...noBuild, tTrip: choice.trip.candidate.id }),
+              resetHref: linkWith({ ...noBuild, tTrip: focus.candidate.id }),
+            }}
+          />
+        ) : null}
 
-          {built && focus ? (
-            <TripCard
-              trip={built.trip}
-              rank={results.includes(focus) ? 0 : -1}
-              lead={RESULT_SORTS.find((option) => option.value === sort)?.label}
-              deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
-              label={building ? 'Your trip' : undefined}
-              view={view}
-              provenance={diagnostics.provenance}
-              sources={diagnostics.sources}
-              reasons={explainTrip(built.trip, profile)}
-              image={images?.get(built.trip.candidate.destination) ?? null}
-              stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
-              transferOffer={offersFor('transfer')[0] ?? null}
-              builder={{
-                built,
-                flightHref: (offerId) =>
-                  linkWith({
-                    tTrip: focus.candidate.id,
-                    tFlight: offerId,
-                    tHotel: searchValues.tHotel ?? null,
-                  }),
-                hotelHref: (offerId) =>
-                  linkWith({
-                    tTrip: focus.candidate.id,
-                    tHotel: offerId,
-                    tFlight: searchValues.tFlight ?? null,
-                  }),
-                dateHref: (choice) => linkWith({ ...noBuild, tTrip: choice.trip.candidate.id }),
-                resetHref: linkWith({ ...noBuild, tTrip: focus.candidate.id }),
-              }}
-            />
-          ) : null}
-
-          {others.length > 0 ? (
-            /*
-              The rest of the results as rows: where, when, how and how much,
-              and anything worth worrying about. Each opens in the builder.
-            */
-            <ol
-              tabIndex={0}
-              aria-label={`Other trips, ${others.length} more, scroll for the rest`}
-              className="border-border max-h-[44rem] overflow-y-auto overscroll-contain border-t"
-            >
-              {others.map((trip, index) => (
-                <li key={trip.candidate.id}>
-                  <TripRow
-                    trip={trip}
-                    rank={index + 1}
-                    deal={dealAgainstTypical(trip, outcome.destinationSummaries)}
-                    view={view}
-                    provenance={diagnostics.provenance}
-                    image={images?.get(trip.candidate.destination) ?? null}
-                    buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#results-heading`}
-                  />
-                </li>
-              ))}
-            </ol>
-          ) : focus || filtered ? null : (
-            /*
-          An empty result set is a state, not a sentence in a box.
-
-          It says what happened, and it offers the one thing worth doing
-          next. Widening the dates is that thing: a budget is usually what
-          somebody meant, and the calendar is usually what they can move.
-        */
-            <EmptyState
-              title="Nothing came in under your limits"
-              description={
-                nearMisses.length > 0
-                  ? 'These were the closest, and each one says below what ruled it out.'
-                  : 'Nothing was found within the dates, the budget and the destinations you set.'
-              }
-              action={
+        {others.length > 0 ? (
+          /*
+            The rest of the results: where, when, how and how much, and anything
+            worth worrying about. One column on a phone, two from 1024px. Each
+            opens in the builder.
+          */
+          <ol
+            aria-label={`Other trips, ${others.length} more`}
+            className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+          >
+            {others.map((trip, index) => (
+              <li key={trip.candidate.id} className="voyagr-reveal min-w-0">
+                <TripRow
+                  trip={trip}
+                  rank={index + 1}
+                  deal={dealAgainstTypical(trip, outcome.destinationSummaries)}
+                  view={view}
+                  image={images?.get(trip.candidate.destination) ?? null}
+                  country={countryOf(trip)}
+                  buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#results-heading`}
+                />
+              </li>
+            ))}
+          </ol>
+        ) : focus || filtered ? null : (
+          /*
+            An empty result set is a state, not a sentence in a box. It says
+            what happened and offers the one thing worth doing next: widening
+            the dates, because a budget is usually what somebody meant and the
+            calendar is usually what they can move.
+          */
+          <EmptyState
+            title="Nothing came in under your limits"
+            description={
+              nearMisses.length > 0
+                ? 'These were the closest, and each one says below what ruled it out.'
+                : 'Nothing was found within the dates, the budget and the destinations you set.'
+            }
+            action={
+              <div className="flex flex-wrap justify-center gap-3">
                 <Button asChild variant="secondary" size="md">
                   <a href={linkWith({ ...noBuild, flexibility: 'flexible' })}>
                     Try more flexible dates
                   </a>
                 </Button>
-              }
-            />
-          )}
+                {changeSearchHref ? (
+                  <Button asChild variant="ghost" size="md">
+                    <a href={changeSearchHref}>Change the search</a>
+                  </Button>
+                ) : null}
+              </div>
+            }
+          />
+        )}
 
-          {closeCalls.length > 0 ? (
-            <section aria-labelledby="near-misses-heading" className="mt-6 flex flex-col gap-3">
-              <h3 id="near-misses-heading" className="font-display text-ink text-2xl">
-                Close, but outside your limits
-              </h3>
-              <ol className="border-border border-t">
-                {closeCalls.map((trip) => (
-                  <li key={trip.candidate.id}>
-                    {/* Rank is deliberately out of range: a near miss is not ranked. */}
-                    <TripRow
-                      trip={trip}
-                      rank={-1}
-                      view={view}
-                      provenance={diagnostics.provenance}
-                      image={images?.get(trip.candidate.destination) ?? null}
-                      buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#results-heading`}
-                    />
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ) : null}
-        </div>
+        {closeCalls.length > 0 ? (
+          <section aria-labelledby="near-misses-heading" className="mt-4 flex flex-col gap-4">
+            <h3 id="near-misses-heading" className="font-display text-ink text-2xl">
+              Close, but outside your limits
+            </h3>
+            <ol className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {closeCalls.map((trip) => (
+                <li key={trip.candidate.id} className="min-w-0">
+                  {/* Rank is deliberately out of range: a near miss is not ranked. */}
+                  <TripRow
+                    trip={trip}
+                    rank={-1}
+                    view={view}
+                    image={images?.get(trip.candidate.destination) ?? null}
+                    country={countryOf(trip)}
+                    buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#results-heading`}
+                  />
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
       </div>
 
       <Disclosure summary="How this search was run">
@@ -535,6 +591,20 @@ export function SearchResults({
           </p>
         ) : null}
       </Disclosure>
+
+      {/*
+        A calm closing band: keep looking, then the rest of the trip. The
+        affiliate disclosure travels with the partner links inside it.
+      */}
+      {saveSearch || closing ? (
+        <aside
+          aria-label="About this search"
+          className="bg-surface-sunken border-border mt-4 flex flex-col gap-10 rounded-(--radius-surface) border p-6 sm:p-10"
+        >
+          {saveSearch}
+          {closing}
+        </aside>
+      ) : null}
     </section>
   );
 }

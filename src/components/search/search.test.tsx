@@ -370,8 +370,9 @@ describe('SearchResults counts', () => {
 });
 
 describe('data provenance', () => {
-  it('warns before the results when everything below is fictional', async () => {
-    // A notice that the data is fake is worthless underneath the fake data.
+  it('carries no demo banner, whatever the data source is', async () => {
+    // Provenance stays in the data model; the page says what a figure is in
+    // words ("from", "Updated", what a total leaves out), not with a banner.
     const { SearchResults } = await import('./search-results');
     const trip = buildRankedTrip();
 
@@ -392,8 +393,9 @@ describe('data provenance', () => {
       />,
     );
 
-    expect(screen.getByRole('note')).toHaveTextContent('these trips are not real');
-    expect(screen.getByText(/Nothing here can be booked/)).toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.queryByText(/not real/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/demo data/i)).not.toBeInTheDocument();
   });
 
   it('shows no demo notice when the prices are live', async () => {
@@ -449,18 +451,22 @@ describe('data provenance', () => {
     ).toBeInTheDocument();
   });
 
-  it('puts the source beside the price, not in a footnote', () => {
+  it('says what the price is in words, with no source badge beside it', () => {
     const trip = buildRankedTrip();
     render(<TripCard trip={trip} rank={0} provenance="mock" />);
 
-    // "€670 · Demo data" has to be readable at the same glance as the price.
-    expect(screen.getByText('Demo data')).toBeInTheDocument();
-    expect(screen.getAllByText('Data source:').length).toBeGreaterThan(0);
+    // "from" and what the figure covers are the honesty; a chip is not.
+    expect(screen.getByText('from')).toBeInTheDocument();
+    expect(screen.getByText(/^total · .* each/)).toBeInTheDocument();
+    expect(screen.queryByText('Demo data')).not.toBeInTheDocument();
+    expect(screen.queryByText('Data source:')).not.toBeInTheDocument();
   });
 
-  it('labels a live price as live', () => {
+  it('shows the same card, without a "live" badge, when the price is live', () => {
     render(<TripCard trip={buildRankedTrip()} rank={0} provenance="live" />);
-    expect(screen.getByText('Live price')).toBeInTheDocument();
+
+    expect(screen.getByText('from')).toBeInTheDocument();
+    expect(screen.queryByText('Live price')).not.toBeInTheDocument();
   });
 });
 
@@ -698,6 +704,47 @@ describe('TripCard with no priced stay', () => {
 
     expect(screen.queryByRole('link', { name: /Continue to Intui/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Airport transfer not included')).not.toBeInTheDocument();
+  });
+
+  it('says what the total leaves out once, not beside every row', () => {
+    render(
+      <TripCard
+        trip={buildRankedTrip({ transfer: null })}
+        rank={0}
+        transferOffer={offersFor('transfer')[0]!}
+      />,
+    );
+
+    expect(screen.getAllByText('Airport transfer not included')).toHaveLength(1);
+  });
+
+  it('offers "Add to my plan" beside the partner row only to somebody signed in', () => {
+    const transferOffer = offersFor('transfer')[0]!;
+    const { unmount } = render(
+      <TripCard
+        trip={buildRankedTrip({ transfer: null })}
+        rank={0}
+        transferOffer={transferOffer}
+        planTrips={[{ id: 'trip-1', name: 'Lisbon in May' }]}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Add to my plan/ })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <TripCard
+        trip={buildRankedTrip({ transfer: null })}
+        rank={0}
+        transferOffer={transferOffer}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Add to my plan/ })).not.toBeInTheDocument();
+  });
+
+  it('names the country in full', () => {
+    render(<TripCard trip={buildRankedTrip()} rank={0} country="Malta" />);
+
+    expect(screen.getByText('Malta')).toBeInTheDocument();
   });
 
   it('shows nothing extra for an excluded transfer when no partner is registered', () => {

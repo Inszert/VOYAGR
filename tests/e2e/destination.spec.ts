@@ -15,23 +15,15 @@ const ANTALYA = '/destinations/ayt';
 const WITH_DATES = `${ANTALYA}?startDate=2026-06-10&endDate=2026-06-14&passengers=2&currency=EUR`;
 
 test.describe('a destination page', () => {
-  test('opens on the globe, framed on the country the place is in', async ({ page }) => {
-    // Arriving here should read as zooming further into the map rather than
-    // as leaving it for a different website.
+  test('opens on a full-width picture of the place, with its country in full', async ({ page }) => {
     const requests = watchRequests(page);
 
     await page.goto(ANTALYA);
 
     await expect(page.getByRole('heading', { level: 1, name: 'Antalya' })).toBeVisible();
-    await expect(page.getByText('Turkey · airport AYT')).toBeVisible();
-    await expect(page.locator('.maplibregl-canvas')).toBeVisible({ timeout: 15_000 });
-
-    // The place is marked, with no price on it: this page knows where Antalya
-    // is, not what a trip there costs.
-    const chip = page.locator('a[data-destination="AYT"]');
-    await expect(chip).toContainText('Antalya');
-    await expect(chip).not.toContainText('€');
-    await expect(chip).not.toContainText('Demo data');
+    await expect(page.getByText(/Turkey/).first()).toBeVisible();
+    // The picture is ours and has a description; nothing is fetched from a third party.
+    await expect(page.getByRole('img', { name: /Antalya/ }).first()).toBeVisible();
 
     expect(requests.external).toEqual([]);
   });
@@ -61,10 +53,11 @@ test.describe('a destination page', () => {
     await expect(gaps.getByText('Photographs')).toBeVisible();
   });
 
-  test('says plainly that the data is not real', async ({ page }) => {
+  test('carries no demo banner', async ({ page }) => {
     await page.goto(ANTALYA);
 
-    await expect(page.getByRole('note')).toContainText('not real');
+    await expect(page.getByRole('note')).toHaveCount(0);
+    await expect(page.getByText(/demo data/i)).toHaveCount(0);
   });
 
   test('has no empty section for something the place does not have', async ({ page }) => {

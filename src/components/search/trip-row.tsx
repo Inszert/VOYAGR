@@ -1,7 +1,7 @@
 import { abs, format } from '@/core/money';
 import { localHour, minutesIntoLocalDay } from '@/core/dates';
-import { Icon, Media, ProvenanceBadge } from '@/components/ui';
-import type { DataProvenance } from '@/core/trip/provenance';
+import { Icon } from '@/components/ui';
+import { DestinationPicture } from './destination-picture';
 import { connectionCount } from '@/core/trip/legs';
 import type { FlightLeg } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
@@ -34,7 +34,8 @@ export interface TripRowProps {
   /** Zero-based position among the results, or -1 for a near miss. */
   readonly rank: number;
   readonly view?: 'trip' | 'flight';
-  readonly provenance?: DataProvenance;
+  /** The country in full, so the row says "Malta", not "MT". */
+  readonly country?: string | null;
   readonly image?: DestinationImage | null;
   /** Opens this trip in the builder. */
   readonly buildHref: string;
@@ -63,7 +64,7 @@ export function TripRow({
   trip,
   rank,
   view = 'trip',
-  provenance = 'unavailable',
+  country = null,
   image = null,
   buildHref,
   deal = null,
@@ -78,13 +79,14 @@ export function TripRow({
     <article
       aria-labelledby={headingId}
       data-tint={tintFor(candidate.destination)}
-      className="group border-border hover:bg-surface-raised ease-standard duration-quick relative grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b py-4 transition-colors sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:px-3"
+      className="voyagr-card group border-border bg-surface-raised hover:border-border-strong ease-standard duration-quick relative grid h-full grid-cols-[5.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 rounded-(--radius-card) border p-3 transition-colors sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:p-4 lg:grid-cols-[5.5rem_minmax(0,1fr)] xl:grid-cols-[7rem_minmax(0,1fr)_auto]"
     >
-      <Media
-        seed={candidate.destination}
-        image={image ? { url: imageryUrlFor(candidate.destination), alt: '' } : null}
-        zoomOnHover
-        className="row-span-2 h-full min-h-[5.5rem] rounded-(--radius-control) sm:row-span-1"
+      <DestinationPicture
+        code={candidate.destination}
+        providerUrl={image ? imageryUrlFor(candidate.destination) : null}
+        alt={`Illustration of ${candidate.destinationName}`}
+        sizes="(min-width: 640px) 8rem, 6rem"
+        className="voyagr-card-frame row-span-2 h-full min-h-[5.5rem] rounded-(--radius-control) sm:row-span-1"
       />
 
       <div className="flex min-w-0 flex-col gap-1">
@@ -100,6 +102,7 @@ export function TripRow({
             from {candidate.origin}
           </span>
         </h3>
+        {country ? <p className="text-ink-muted text-sm">{country}</p> : null}
         <p className="text-ink-muted text-sm tabular-nums">
           {shortDate(candidate.dates.departureDate)} to {shortDate(candidate.dates.returnDate)} ·{' '}
           {candidate.dates.nights} nights · score {score.score}
@@ -133,8 +136,9 @@ export function TripRow({
         ) : null}
       </div>
 
-      <div className="col-start-2 flex flex-wrap items-end justify-between gap-2 sm:col-start-3 sm:row-start-1 sm:flex-col sm:items-end sm:justify-start">
-        <div className="text-right">
+      <div className="col-start-2 flex flex-wrap items-end justify-between gap-2 sm:col-start-3 sm:row-start-1 sm:flex-col sm:items-end sm:justify-start lg:col-start-2 lg:row-start-auto lg:flex-row lg:items-end lg:justify-between xl:col-start-3 xl:row-start-1 xl:flex-col xl:items-end xl:justify-start">
+        <div className="text-right lg:text-left xl:text-right">
+          <p className="text-ink-muted text-xs">from</p>
           <p className="text-ink flex items-center justify-end gap-2 text-xl font-semibold tabular-nums">
             {format(view === 'flight' ? candidate.flight.price : cost.total)}
           </p>
@@ -156,7 +160,6 @@ export function TripRow({
           <DealNote deal={deal} />
         </div>
         <div className="flex items-center gap-3">
-          <ProvenanceBadge provenance={provenance} explain={false} />
           <span
             aria-hidden="true"
             className="text-tint-ink flex items-center gap-1 text-sm font-medium"

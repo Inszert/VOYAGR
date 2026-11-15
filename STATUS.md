@@ -9,12 +9,16 @@ Last updated: 2026-11-15.
 
 ## In progress
 
-- Globe round 3–4: smooth arcs while dragging, no globe reload on search change, 300–400 real
-  cities preloaded, clouds, remove badges on the hero
-- Home page below the hero: "Popular right now", image cards, mosaic, full-bleed moment
-- Explore results, trip card and destination page redesign
+- Explore results: compact rows, flexible-dates strip showing no prices, partner section layout
+- One shared globe for home and explore (no reload when a search is submitted)
+- Redesign: stays, watches, account, sign-in pages, trips hub, status/legal/offline/error pages
+- Phone header (navigation is clipped on small screens)
 
 ## Done
+
+- Home page below the hero: image cards, mosaic, rail, full-bleed destination moment
+- Explore, trip card and destination page redesign (first pass); badges removed
+- Globe: arcs follow the globe when dragged, 367 real airports preloaded as dots, smooth curved arcs
 
 - Cache + background price refresh (pages no longer call Aviasales on every visit)
 - Live weather (Open-Meteo), "Typical for these dates" beyond the forecast

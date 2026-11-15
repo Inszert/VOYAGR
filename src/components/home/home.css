@@ -1,0 +1,537 @@
+/*
+ * The home page below the hero.
+ *
+ * Component-level rules for `src/components/home/`, imported by the
+ * components that use them. No token is defined here and no raw colour is
+ * written: every colour is a token from `globals.css`, and the scrim is the
+ * page colour (`--color-bg`, #05070e) at 88%, which is the specified
+ * rgba(5, 7, 14, .88) without a second copy of the value.
+ *
+ * This file is deliberately outside every `@layer`, so it is the last word on
+ * the properties it sets. Components therefore must not also set those
+ * properties with utilities on the same element.
+ */
+
+.home-scope {
+  /* Under the sticky header when a section is jumped to. */
+  scroll-margin-top: 5rem;
+  /* The page's own side gutter, so a rail can bleed to the screen edge and still start in line. */
+  --home-gutter: 1.25rem;
+  --home-card-gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .home-scope {
+    --home-gutter: 3rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The card                                                            */
+/* ------------------------------------------------------------------ */
+
+.home-card {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  border-radius: var(--radius-card);
+  aspect-ratio: 3 / 2;
+  min-width: 0;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--duration-quick) var(--ease-out-quart);
+}
+
+.home-card:active {
+  transform: scale(0.97);
+}
+
+.home-card[data-variant='tall'] {
+  aspect-ratio: 320 / 420;
+  width: 20rem;
+  flex: none;
+}
+
+.home-card__frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background-color: var(--color-surface-sunken);
+  /* A hairline so a dark picture still has an edge against the dark page. */
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.home-fill,
+.home-par {
+  position: absolute;
+  inset: 0;
+}
+
+/* Taller than the frame, so it can travel +-6% without showing an edge. */
+.home-par {
+  inset: -7% 0;
+}
+
+.home-card__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 420ms var(--ease-out-quart);
+}
+
+.home-card__img {
+  display: block;
+}
+
+.home-card__initials {
+  position: absolute;
+  inset: 0;
+  font-size: clamp(3rem, 14cqi, 6rem);
+  letter-spacing: 0.04em;
+  padding-bottom: 35%;
+}
+
+/* Transparent at the top of the lower 55%, the page colour at 88% at the bottom. */
+.home-card__scrim,
+.home-moment__scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 55%;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-bg) 88%, transparent),
+    transparent
+  );
+}
+
+.home-card__chip {
+  position: absolute;
+  z-index: 2;
+  top: 0.75rem;
+  left: 0.75rem;
+  max-width: calc(100% - 4.5rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.3125rem 0.75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-overlay);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.home-card__body {
+  position: absolute;
+  z-index: 1;
+  inset: auto 0 0 0;
+  padding: 1rem 1.125rem 1.0625rem;
+  pointer-events: none;
+  /* The same page colour as the scrim, as a halo: a bright patch never takes the text with it. */
+  text-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-bg) 70%, transparent),
+    0 0 14px color-mix(in srgb, var(--color-bg) 55%, transparent);
+}
+
+.home-card__name {
+  font-size: 1.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+.home-card__country {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1.3;
+  opacity: 0.88;
+}
+
+.home-card__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.875rem;
+  row-gap: 0.25rem;
+  margin-top: 0.625rem;
+}
+
+.home-card__arrow {
+  transition: transform var(--duration-quick) var(--ease-out-quart);
+}
+
+/* The stretched link: the whole card is the target, and it carries the focus ring. */
+.home-card__link {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+}
+
+.home-card__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 3px;
+}
+
+/* A 44px target holding a 32px disc: the target is the box, not the glyph. */
+.home-card__about {
+  position: absolute;
+  z-index: 4;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+}
+
+.home-card__about-disc {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-overlay);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: background-color var(--duration-quick) var(--ease-standard);
+}
+
+.home-card__about:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 0;
+}
+
+@media (hover: hover) {
+  .home-card:hover .home-card__img {
+    transform: scale(1.04);
+  }
+
+  .home-card:hover .home-card__arrow {
+    transform: translateX(4px);
+  }
+
+  .home-card__about:hover .home-card__about-disc {
+    background-color: var(--color-surface-sunken);
+  }
+}
+
+/* A narrow card keeps the price and the weather, and gives up the arrow first. */
+@container (max-width: 17rem) {
+  .home-card__arrow {
+    display: none;
+  }
+
+  .home-card__body {
+    padding-inline: 1rem;
+  }
+}
+
+/* Tall rail card: portrait, so the name has room for a second line. */
+.home-card[data-variant='tall'] .home-card__scrim {
+  height: 55%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Rail (every size) and mosaic (desktop)                              */
+/* ------------------------------------------------------------------ */
+
+.home-rail {
+  display: flex;
+  gap: var(--home-card-gap);
+  margin-inline: calc(var(--home-gutter) * -1);
+  padding-inline: var(--home-gutter);
+  /* Room for the focus ring, which an overflow container would otherwise clip. */
+  padding-block: 0.375rem;
+  margin-block: -0.375rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--home-gutter);
+  scrollbar-width: none;
+  list-style: none;
+  /* Fade the right edge only: the left edge is where it starts, and is not cut. */
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.25rem), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 1.25rem), transparent);
+}
+
+.home-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.home-rail > .home-card {
+  scroll-snap-align: start;
+}
+
+.home-rail > .home-card:not([data-variant='tall']) {
+  flex: 0 0 min(78vw, 21.25rem);
+}
+
+/*
+ * On a phone the card is portrait. At 78vw a 3:2 card is only ~170px tall and
+ * the text stack would cover most of the picture; a taller card keeps the
+ * text on the scrim and gives the picture room to lead.
+ */
+@media (max-width: 639px) {
+  .home-rail > .home-card:not([data-variant='tall']) {
+    aspect-ratio: 4 / 5;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-mosaic {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.25rem;
+    margin-inline: 0;
+    padding-inline: 0;
+    overflow: visible;
+    scroll-snap-type: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .home-mosaic > .home-card {
+    flex: none;
+  }
+
+  .home-mosaic > [data-slot='lead'] {
+    grid-column: span 7;
+    grid-row: span 2;
+    /* Two rows tall: it takes its height from the grid, not from a ratio. */
+    aspect-ratio: auto;
+  }
+
+  .home-mosaic > [data-slot='five'] {
+    grid-column: span 5;
+  }
+
+  .home-mosaic > [data-slot='four'] {
+    grid-column: span 4;
+  }
+
+  .home-mosaic > [data-slot='six'] {
+    grid-column: span 6;
+    aspect-ratio: 2 / 1;
+  }
+
+  .home-mosaic > [data-slot='lead'] .home-card__name {
+    font-size: 2rem;
+  }
+
+  .home-mosaic > [data-slot='lead'] .home-card__body {
+    padding: 1.5rem 1.75rem 1.625rem;
+  }
+
+  .home-mosaic > [data-slot='lead'] .home-card__facts {
+    margin-top: 0.75rem;
+  }
+}
+
+/* Previous / next. Touch scrolls with a thumb; these are for a pointer and a keyboard. */
+.home-rail-nav button {
+  transition:
+    background-color var(--duration-quick) var(--ease-standard),
+    opacity var(--duration-quick) var(--ease-standard),
+    transform var(--duration-quick) var(--ease-out-quart);
+}
+
+.home-rail-nav button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .home-rail-nav {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The full-bleed destination moment                                   */
+/* ------------------------------------------------------------------ */
+
+.home-moment {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 80vh;
+  min-height: 80svh;
+  background-color: var(--color-surface-sunken);
+}
+
+.home-moment__media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+}
+
+.home-moment__media .home-card__img {
+  transition: none;
+}
+
+.home-moment__scrim {
+  z-index: -1;
+  height: 100%;
+  background-image: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-bg) 94%, transparent) 0%,
+    color-mix(in srgb, var(--color-bg) 82%, transparent) 38%,
+    color-mix(in srgb, var(--color-bg) 45%, transparent) 70%,
+    transparent 100%
+  );
+}
+
+.home-moment__shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-bg) 55%, transparent),
+    transparent 28%
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Scroll choreography                                                 */
+/*                                                                     */
+/* CSS scroll-driven animation only. Everything below sits inside      */
+/* @supports, so where `animation-timeline` does not exist the page is  */
+/* simply there. Nothing runs under reduced motion but a 150ms fade.   */
+/* ------------------------------------------------------------------ */
+
+@keyframes home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes home-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes home-parallax {
+  from {
+    transform: translateY(-6%);
+  }
+
+  to {
+    transform: translateY(6%);
+  }
+}
+
+@keyframes home-settle {
+  from {
+    transform: scale(1.12);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes home-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    /*
+     * `backwards`, not `both`: once the animation is over the element is back
+     * on its own styles, so the press feedback on a card still works.
+     *
+     * A scroll timeline has no clock, so a 60ms stagger cannot be a delay. It
+     * is the same thing expressed as range: each card's range starts a little
+     * further down the scroll than the one before it.
+     */
+    .home-rise {
+      animation: home-rise linear backwards;
+      animation-timeline: view();
+      animation-range: entry calc(var(--i, 0) * 4%) entry calc(38% + var(--i, 0) * 4%);
+    }
+
+    .home-par {
+      animation: home-parallax linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+
+    .home-moment__media {
+      animation: home-settle linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 55%;
+    }
+
+    .home-fact {
+      animation: home-reveal linear backwards;
+      animation-timeline: view();
+    }
+
+    .home-fact[data-step='1'] {
+      animation-range: entry 45% entry 75%;
+    }
+
+    .home-fact[data-step='2'] {
+      animation-range: entry 62% entry 92%;
+    }
+
+    .home-fact[data-step='3'] {
+      animation-range: entry 80% cover 22%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-rise,
+  .home-fact {
+    animation: home-fade 150ms linear backwards;
+  }
+
+  .home-card,
+  .home-card__img,
+  .home-card__arrow {
+    transition: none;
+  }
+
+  .home-card:active {
+    transform: none;
+  }
+
+  .home-card:hover .home-card__img,
+  .home-card:hover .home-card__arrow {
+    transform: none;
+  }
+}

@@ -1,7 +1,7 @@
 import { getEnv } from '@/lib/env';
 import { getProviderRegistry } from '@/providers/registry';
 import { getActiveDataSource } from '@/providers/request-source';
-import { loadFlexDates } from '@/search/flex-dates';
+import { loadFlexDates, type FlexDates } from '@/search/flex-dates';
 import { FlexDatesStrip } from './flex-dates-strip';
 
 /**
@@ -13,34 +13,46 @@ import { FlexDatesStrip } from './flex-dates-strip';
  * set to zero or when the trip is not one this can be asked about.
  */
 
-export interface FlexDatesSectionProps {
+export interface FlexDatesTrip {
   origin: string;
   destination: string;
   departureDate: string;
   returnDate: string;
   currency: string;
   passengers: number;
+}
+
+export interface FlexDatesSectionProps extends FlexDatesTrip {
   /** A search link with `__DEPARTURE__` and `__RETURN__` where the dates go. */
   hrefTemplate: string;
   className?: string;
+  /** Prices already loaded by the page, so they are read once and shared. */
+  preloaded?: FlexDates | null;
 }
 
-export async function FlexDatesSection({
-  hrefTemplate,
-  className,
-  ...trip
-}: FlexDatesSectionProps) {
+/** The strip's data, or null when the window is off or the trip is not a trip. */
+export async function loadFlexForTrip(trip: FlexDatesTrip): Promise<FlexDates | null> {
   const windowDays = getEnv().FLEX_DAYS;
   if (windowDays === 0 || trip.returnDate <= trip.departureDate) return null;
 
   const source = (await getActiveDataSource()).effective;
-  const flex = await loadFlexDates(
+  return loadFlexDates(
     { ...trip, windowDays },
     {
       flights: getProviderRegistry(source).flights,
       today: new Date().toISOString().slice(0, 10),
     },
   );
+}
+
+export async function FlexDatesSection({
+  hrefTemplate,
+  className,
+  preloaded,
+  ...trip
+}: FlexDatesSectionProps) {
+  const flex = preloaded === undefined ? await loadFlexForTrip(trip) : preloaded;
+  if (!flex) return null;
 
   return (
     <FlexDatesStrip

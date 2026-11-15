@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
-import { DestinationRail } from '@/components/discovery/destination-rail';
 import { DiscoveryStage } from '@/components/discovery/discovery-stage';
-import { NextTripBand, type BandPicture } from '@/components/discovery/next-trip-band';
-import { StageControls } from '@/components/discovery/stage-controls';
-import { TrustStrip } from '@/components/discovery/trust-strip';
+import { pickMoment, toHomeCard } from '@/components/home/card-data';
+import { DestinationMoment } from '@/components/home/destination-moment';
+import { ImageCredits } from '@/components/home/image-credits';
+import { NextTripPanel } from '@/components/home/next-trip-panel';
+import { PopularSection } from '@/components/home/popular-section';
+import { TrustBand } from '@/components/home/trust-band';
 import { Container, UpdatedAgo } from '@/components/ui';
 import { redirect } from 'next/navigation';
 import { firstValues, loadStagePage, wasSubmitted } from '@/discovery/load-stage';
@@ -118,25 +120,13 @@ export default async function DiscoverPage({
     };
   });
 
-  const picture = (index: number): BandPicture | null => {
-    const card = railCards[index];
-    if (!card) return null;
-
-    return {
-      code: card.point.destination,
-      name: card.point.name,
-      image: card.image,
-    };
-  };
-
+  /*
+   * Below the hero: the same cards, reduced to plain values, so the mosaic,
+   * the rail and the closing moment all read one object per place.
+   */
+  const homeCards = railCards.map((card) => toHomeCard(card, localImages));
   const recommended = page.recommended;
-  const recommendedPicture: BandPicture | null = recommended
-    ? {
-        code: recommended.candidate.destination,
-        name: recommended.candidate.destinationName,
-        image: images.get(recommended.candidate.destination) ?? null,
-      }
-    : null;
+  const moment = pickMoment(homeCards, recommended?.candidate.destination ?? null);
 
   const query = new URLSearchParams(
     Object.entries(values).filter(
@@ -196,36 +186,39 @@ export default async function DiscoverPage({
         action="/explore"
       />
 
-      <DestinationRail
-        cards={railCards}
+      <PopularSection
+        cards={homeCards}
         totalCount={stage.points.length}
         mode={page.mode}
-        provenance={page.provenance}
-        sources={page.sources}
         assumptions={page.assumptions}
         country={stage.country}
         regionSummary={stage.regionSummary}
         clearHref={page.clearCountryHref()}
         unpriced={page.unpriced}
         viewAllHref={query ? `/explore?${query}` : '/explore'}
-        controls={
-          <StageControls
-            mode={page.mode}
-            modeHref={page.modeHref}
-            action="/"
-            carry={page.carry}
-            counts={stage.countryCounts}
-            selected={stage.country}
-          />
-        }
+        originName={stage.originPoints[0]?.name ?? null}
+        controls={{
+          mode: page.mode,
+          modeHref: page.modeHref,
+          carry: page.carry,
+          counts: stage.countryCounts,
+          selected: stage.country,
+        }}
       />
+
+      {moment ? (
+        <DestinationMoment
+          card={moment.card}
+          eyebrow={moment.isBest ? 'Best value right now' : 'Worth a closer look'}
+        />
+      ) : null}
 
       {/*
         Something to do next, built from the snapshot that is already on the
         page. A search never runs here - it carries on to the explorer - so
         this is always the page's closing answer.
       */}
-      <NextTripBand
+      <NextTripPanel
         trip={recommended}
         tripHref={
           recommended
@@ -234,23 +227,16 @@ export default async function DiscoverPage({
               )?.href ?? '/explore')
             : '/explore'
         }
-        tripPicture={recommendedPicture}
-        wide={picture(0)}
-        tall={picture(1)}
         exploreHref={query ? `/explore?${query}` : '/explore'}
-        provenance={page.provenance}
-        sources={page.sources}
       />
 
       <Container size="wide" className="py-3">
         <UpdatedAgo ageMs={page.updatedAgeMs} />
       </Container>
 
-      <TrustStrip
-        provenance={page.provenance}
-        sources={page.sources}
-        noticeShown={page.outcome !== null}
-      />
+      <TrustBand />
+
+      <ImageCredits cards={homeCards} />
     </div>
   );
 }

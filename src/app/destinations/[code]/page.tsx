@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { format } from '@/core/money';
-import { Container, DemoDataNotice, Icon, type IconName } from '@/components/ui';
+import { Button, Container, Icon, UpdatedAgo, type IconName } from '@/components/ui';
+import { costCoverage, describeExclusions } from '@/core/trip/coverage';
+import { DestinationHero } from '@/components/destination/destination-hero';
+import { WeatherSection } from '@/components/destination/weather-section';
+import { HeaderOffset } from '@/components/search/header-offset';
+import { formatWhole } from '@/search/day-prices-json';
+import { countryNameFor } from '@/lib/destination-media';
+import { shortDate } from '@/lib/display-date';
+import { summariseWeather, TYPICAL_LABEL } from '@/discovery/weather-summary';
+import '@/components/search/explore.css';
 import { tintFor, type Tint } from '@/lib/tint';
 import { daysBetween } from '@/core/dates';
 import { getAiProvider } from '@/ai';
@@ -9,8 +18,6 @@ import { draftItinerary, itineraryRequestFor } from '@/discovery/itinerary';
 import { ItineraryView } from '@/components/discovery/itinerary-view';
 import { loadDestinationDetail } from '@/discovery/destination-detail';
 import { DestinationDetailView } from '@/components/discovery/destination-detail-view';
-import { DestinationHeader } from '@/components/discovery/destination-header';
-import { findCountry } from '@/discovery/countries';
 import { resolveDestinationGeo } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
 import { getActiveDataSource } from '@/providers/request-source';
@@ -19,7 +26,7 @@ import { loadStayLinks } from '@/search/stays/stay-links';
 import { offersForTrip } from '@/booking/partners';
 import { TripExtras } from '@/components/partners';
 import { buildDiscoveryQuery } from '@/discovery/snapshot';
-import { FlexDatesSection } from '@/components/search/flex-dates-section';
+import { FlexDatesSection, loadFlexForTrip } from '@/components/search/flex-dates-section';
 
 /**
  * A destination (1.10.1 section 18).
@@ -161,156 +168,251 @@ export default async function DestinationPage({ params, searchParams }: PageProp
       ? { origin, departureDate: flexDeparture, returnDate: flexReturn }
       : null;
 
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'EUR';
+  const safePassengers = Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2;
+  const country = countryNameFor(destination);
+  const image = (await resolveImagery([destination])).get(destination.toUpperCase()) ?? null;
+
+  // A search link with the dates left open, for the strip and for the panel's button.
+  const hrefTemplate = flex
+    ? `/explore?${new URLSearchParams({
+        ...buildDiscoveryQuery({
+          today,
+          defaults: {
+            origins: origin,
+            currency: safeCurrency,
+            passengers: String(safePassengers),
+          },
+        }),
+        destinations: destination,
+        flexibility: 'exact',
+        departureDate: '__DEPARTURE__',
+        returnDate: '__RETURN__',
+      }).toString()}`
+    : null;
+
+  // Read once and shared: the hero's price and the strip are the same prices.
+  const flexData =
+    flex && hrefTemplate
+      ? await loadFlexForTrip({
+          ...flex,
+          destination,
+          currency: safeCurrency,
+          passengers: safePassengers,
+        })
+      : null;
+  // The price of the dates the visitor arrived with: read off the strip, never computed here.
+  const ownDates = flexData?.options.find((option) => option.offset === 0) ?? null;
+  const flightsFrom = ownDates?.price ? formatWhole(ownDates.price) : null;
+  const exclusions = describeExclusions(
+    costCoverage([{ category: 'hotel' }, { category: 'transfer' }]).excluded,
+  );
+
+  const weatherSummary = summariseWeather(detail.weather);
+  const weatherLine = weatherSummary
+    ? `${weatherSummary.overall.highC}°C by day · ${
+        weatherSummary.forecastDays === weatherSummary.overall.days
+          ? 'forecast'
+          : TYPICAL_LABEL.toLowerCase()
+      }`
+    : null;
+
+  const planHref =
+    flex && hrefTemplate
+      ? hrefTemplate
+          .replace('__DEPARTURE__', flex.departureDate)
+          .replace('__RETURN__', flex.returnDate)
+      : `/?destinations=${destination}`;
+
   return (
-    <div className="flex flex-col" data-tint={tintFor(place.adm0 ?? destination)}>
-      <DestinationHeader
-        today={today}
-        destination={destination}
-        place={place}
-        country={place.adm0 ? findCountry(place.adm0) : null}
-        dates={dates}
-        image={(await resolveImagery([destination])).get(destination.toUpperCase()) ?? null}
+    <div data-tint={tintFor(place.adm0 ?? destination)}>
+      <HeaderOffset />
+      <DestinationHero
+        code={destination}
+        name={place.name}
+        country={country}
+        image={image}
+        price={
+          flightsFrom
+            ? {
+                amount: flightsFrom,
+                covers: `Flights for ${safePassengers} ${safePassengers === 1 ? 'traveller' : 'travellers'}`,
+              }
+            : null
+        }
+        weather={weatherLine}
+        dates={dates ? `${shortDate(dates.startDate)} to ${shortDate(dates.endDate)}` : null}
       />
 
-      <Container className="flex flex-col gap-14 py-12">
-        {/*
-          Before the content, as everywhere else. A notice that what follows is
-          fictional is worthless underneath the fiction.
-        */}
-        {detail.provenance === 'mock' ? <DemoDataNotice parts={detail.demoParts} /> : null}
+      <Container size="wide" className="py-12 md:py-16">
+        <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem] xl:gap-16">
+          <div className="order-2 flex min-w-0 flex-col gap-14 lg:order-1">
+            {flex && hrefTemplate ? (
+              <FlexDatesSection
+                {...flex}
+                destination={destination}
+                currency={safeCurrency}
+                passengers={safePassengers}
+                hrefTemplate={hrefTemplate}
+                preloaded={flexData}
+              />
+            ) : null}
 
-        {flex ? (
-          <FlexDatesSection
-            {...flex}
-            destination={destination}
-            currency={/^[A-Z]{3}$/.test(currency) ? currency : 'EUR'}
-            passengers={Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2}
-            hrefTemplate={`/explore?${new URLSearchParams({
-              ...buildDiscoveryQuery({
-                today,
-                defaults: {
-                  origins: origin,
-                  currency: /^[A-Z]{3}$/.test(currency) ? currency : 'EUR',
-                  passengers: String(
-                    Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 2,
-                  ),
-                },
-              }),
-              destinations: destination,
-              flexibility: 'exact',
-              departureDate: '__DEPARTURE__',
-              returnDate: '__RETURN__',
-            }).toString()}`}
-          />
-        ) : null}
+            {/* The weather is drawn by `WeatherSection`; the rest of the detail by the shared view. */}
+            <WeatherSection days={detail.weather} />
+            <DestinationDetailView detail={{ ...detail, weather: [] }} />
 
-        <DestinationDetailView detail={detail} />
+            {itinerary ? (
+              <ItineraryView
+                itinerary={itinerary}
+                nights={nights}
+                sample={dates === null}
+                placeholder={getAiProvider().metadata.isMock}
+              />
+            ) : null}
 
-        {itinerary ? (
-          <ItineraryView
-            itinerary={itinerary}
-            nights={nights}
-            sample={dates === null}
-            placeholder={getAiProvider().metadata.isMock}
-          />
-        ) : null}
+            {detail.transfers.length > 0 ? (
+              <section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <h2 id="transfers-heading" className="font-display text-display-sm text-ink">
+                    Getting in from the airport
+                  </h2>
+                  <p className="text-ink-muted max-w-2xl text-sm">
+                    Priced each way, for the whole party. A trip total in a search counts both
+                    directions - this is the half of it you would pay on arrival.
+                  </p>
+                </div>
 
-        {stayLinks.length > 0 ? (
-          <section aria-labelledby="stay-heading" className="flex flex-col gap-3">
-            <h2 id="stay-heading" className="font-display text-display-sm text-ink">
-              Where to stay
-            </h2>
-            <p className="text-ink-muted max-w-2xl text-sm">
-              We have no priced hotels for {place.name}. This opens a search for your dates and
-              party at a booking site.
-            </p>
-            {stayLinks.map((link) => (
-              <FindStayLink key={link.id} offer={link} />
-            ))}
-          </section>
-        ) : null}
-
-        {detail.transfers.length > 0 ? (
-          <section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <h2 id="transfers-heading" className="font-display text-display-sm text-ink">
-                Getting in from the airport
-              </h2>
-              <p className="text-ink-muted max-w-2xl text-sm">
-                Priced each way, for the whole party. A trip total in a search counts both
-                directions - this is the half of it you would pay on arrival.
-              </p>
-            </div>
+                {/* One row of options, side by side, so they compare at a glance. */}
+                <ul className="divide-border border-border grid divide-y border-y sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-4">
+                  {detail.transfers.map((transfer) => (
+                    <li
+                      key={transfer.id}
+                      data-tint={TRANSFER_TINT[transfer.mode] ?? 'leather'}
+                      className="sm:border-border flex flex-col gap-2 px-1 py-5 sm:border-l sm:px-5 sm:first:border-l-0 sm:[&:nth-child(3)]:border-l-0 xl:[&:nth-child(3)]:border-l"
+                    >
+                      <span className="text-ink flex items-center gap-2.5 text-sm font-medium capitalize">
+                        <span
+                          aria-hidden="true"
+                          className="bg-tint/25 text-tint-ink grid size-9 place-items-center rounded-full"
+                        >
+                          <Icon name={TRANSFER_ICON[transfer.mode] ?? 'car'} size={1} />
+                        </span>
+                        {transfer.mode}
+                      </span>
+                      <span className="text-tint-ink text-2xl font-semibold tabular-nums">
+                        {format(transfer.pricePerDirection)}
+                        <span className="text-ink-muted text-sm font-normal"> each way</span>
+                      </span>
+                      <span className="text-ink-muted text-sm tabular-nums">
+                        about {transfer.durationMinutes} minutes
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             {/*
-              One row of options, side by side, so they compare at a glance:
-              how, how long, how much. Rules between them, not boxes round them.
+              What is missing, said once and quietly. A note rather than a
+              panel: it matters that it is said, not that it is loud.
             */}
-            <ul className="divide-border border-border grid divide-y border-y sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
-              {detail.transfers.map((transfer) => (
-                <li
-                  key={transfer.id}
-                  data-tint={TRANSFER_TINT[transfer.mode] ?? 'leather'}
-                  className="sm:border-border flex flex-col gap-2 px-1 py-5 sm:border-l sm:px-5 sm:first:border-l-0 sm:[&:nth-child(3)]:border-l-0 lg:[&:nth-child(3)]:border-l"
-                >
-                  <span className="text-ink flex items-center gap-2.5 text-sm font-medium capitalize">
-                    <span
-                      aria-hidden="true"
-                      className="bg-tint/25 text-tint-ink grid size-9 place-items-center rounded-full"
-                    >
-                      <Icon name={TRANSFER_ICON[transfer.mode] ?? 'car'} size={1} />
-                    </span>
-                    {transfer.mode}
+            <section
+              aria-labelledby="gaps-heading"
+              className="border-border text-ink-muted flex flex-col gap-2 border-l-2 pl-5 text-sm"
+            >
+              <h2 id="gaps-heading" className="text-ink text-sm font-semibold">
+                What this page cannot tell you yet
+              </h2>
+              <p className="max-w-3xl">
+                No data source behind the product carries these, which is not the same as there
+                being nothing to report - and for a travel warning those are very different things:{' '}
+                {[
+                  // A slot with no data source says so here, instead of an empty
+                  // section that reads as "nothing to report".
+                  ...(detail.notAvailable.includes('transfers') ? ['Airport transfer prices'] : []),
+                  ...(detail.notAvailable.includes('places') ? ['Places to eat, see and do'] : []),
+                  'Photographs of the places listed',
+                  'Events',
+                  'National holidays',
+                  'Travel warnings',
+                  'Hidden places',
+                  'Recommended trip lengths',
+                ].map((missing, index, all) => (
+                  <span key={missing}>
+                    <span className="text-ink">{missing}</span>
+                    {index < all.length - 1 ? ', ' : '.'}
                   </span>
-                  <span className="text-tint-ink text-2xl font-semibold tabular-nums">
-                    {format(transfer.pricePerDirection)}
-                    <span className="text-ink-muted text-sm font-normal"> each way</span>
-                  </span>
-                  <span className="text-ink-muted text-sm">
-                    about {transfer.durationMinutes} minutes
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+                ))}
+              </p>
+            </section>
+          </div>
+
+          {/*
+            The price and the way to act on it, kept in view beside the facts
+            on a wide screen and first on a phone. "from" because it is the
+            cheapest quote seen; what it leaves out is said in words under it.
+          */}
+          <aside aria-labelledby="plan-heading" className="order-1 lg:order-2">
+            <div className="border-border bg-surface-raised shadow-raised flex flex-col gap-5 rounded-(--radius-surface) border p-6 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+1.5rem)]">
+              <h2 id="plan-heading" className="font-display text-ink text-2xl">
+                Plan a trip to {place.name}
+              </h2>
+
+              {flightsFrom ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-ink-muted text-sm">
+                    Flights for {safePassengers} {safePassengers === 1 ? 'traveller' : 'travellers'}
+                    , from
+                  </p>
+                  <p className="text-ink text-3xl font-semibold tracking-tight tabular-nums">
+                    {flightsFrom}
+                  </p>
+                  {exclusions ? (
+                    <p className="text-caution-ink text-sm font-medium">{exclusions}</p>
+                  ) : null}
+                  <UpdatedAgo ageMs={flexData?.ageMs ?? null} />
+                </div>
+              ) : (
+                <p className="text-ink-muted text-sm">
+                  {flex
+                    ? 'We have no flight price for your dates yet.'
+                    : 'Open this page from a search and it shows what the trip costs for your dates.'}
+                </p>
+              )}
+
+              <Button
+                asChild
+                variant="cta"
+                size="lg"
+                className="w-full active:scale-[0.97] motion-reduce:active:scale-100"
+              >
+                <a href={planHref}>
+                  {flex ? `See trips to ${place.name}` : 'Search trips'}
+                  <Icon name="arrow-right" size={1} aria-hidden="true" />
+                </a>
+              </Button>
+
+              {stayLinks.length > 0 ? (
+                <div className="border-border flex flex-col gap-3 border-t pt-4">
+                  <p className="text-ink text-sm font-medium">Where to stay</p>
+                  <p className="text-ink-muted text-sm">
+                    We have no priced hotels for {place.name}. This opens a search for your dates
+                    and party at a booking site.
+                  </p>
+                  {stayLinks.map((link) => (
+                    <FindStayLink key={link.id} offer={link} />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        </div>
 
         {/* Partner link-outs for what a search does not price. Nothing renders without a partner. */}
-        <TripExtras offers={offersForTrip()} today={today} />
-
-        {/*
-          What is missing, said once and quietly. A footnote rather than a
-          panel: it matters that it is said, not that it is loud.
-        */}
-        <section
-          aria-labelledby="gaps-heading"
-          className="border-border text-ink-muted flex flex-col gap-2 border-t pt-6 text-sm"
-        >
-          <h2 id="gaps-heading" className="text-ink text-sm font-semibold">
-            What this page cannot tell you yet
-          </h2>
-          <p className="max-w-3xl">
-            No data source behind the product carries these, which is not the same as there being
-            nothing to report - and for a travel warning those are very different things:{' '}
-            {[
-              // A slot with no data source says so here, instead of an empty
-              // section that reads as "nothing to report".
-              ...(detail.notAvailable.includes('transfers') ? ['Airport transfer prices'] : []),
-              ...(detail.notAvailable.includes('places') ? ['Places to eat, see and do'] : []),
-              'Photographs of the places listed',
-              'Events',
-              'National holidays',
-              'Travel warnings',
-              'Hidden places',
-              'Recommended trip lengths',
-            ].map((missing, index, all) => (
-              <span key={missing}>
-                <span className="text-ink">{missing}</span>
-                {index < all.length - 1 ? ', ' : '.'}
-              </span>
-            ))}
-          </p>
-        </section>
+        <div className="bg-surface-sunken border-border mt-16 rounded-(--radius-surface) border p-6 empty:hidden sm:p-10">
+          <TripExtras offers={offersForTrip()} today={today} />
+        </div>
       </Container>
     </div>
   );

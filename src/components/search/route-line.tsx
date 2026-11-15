@@ -35,14 +35,14 @@ export interface RouteLineProps {
 }
 
 /** e.g. "06:10". A local time is a clock face, so it is read as one. */
-function clock(value: string): string {
+export function clock(value: string): string {
   const minutes = minutesIntoLocalDay(value);
   const hours = localHour(value);
 
   return `${String(hours).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
-function duration(minutes: number): string {
+export function duration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
 
