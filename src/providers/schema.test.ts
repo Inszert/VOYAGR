@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flightOfferSchema, hotelOfferSchema, validateOffers } from './schema';
+import { flightOfferSchema, hotelOfferSchema, thingToDoSchema, validateOffers } from './schema';
 import { createMockFlightProvider } from './flights/mock';
 import { createMockHotelProvider } from './hotels/mock';
 
@@ -245,5 +245,57 @@ describe('the deterministic mocks', () => {
     if (hotels.ok) {
       expect(validateOffers(hotelOfferSchema, hotels.value.items).rejected).toEqual([]);
     }
+  });
+});
+
+describe('thingToDoSchema', () => {
+  const place = {
+    id: 'Q1283114',
+    providerId: 'wikidata',
+    name: "Hadrian's Gate",
+    kind: 'sights',
+    description: 'triumphal arch in Antalya',
+    latitude: 36.8866,
+    longitude: 30.7054,
+    distanceFromCentreMetres: 2780,
+    notability: 20,
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Hadrian%27s_Gate',
+    imageFile: 'Hadrian Kapısı (4).JPG',
+  };
+
+  const valid = (overrides: Record<string, unknown>) =>
+    validateOffers(thingToDoSchema, [{ ...place, ...overrides }]);
+
+  it('accepts a well-formed place, with every unstated fact as an explicit null', () => {
+    expect(validateOffers(thingToDoSchema, [place]).rejected).toEqual([]);
+    expect(
+      validateOffers(thingToDoSchema, [
+        { ...place, description: null, wikipediaUrl: null, imageFile: null },
+      ]).accepted,
+    ).toHaveLength(1);
+  });
+
+  it('rejects a fact that is missing rather than null', () => {
+    for (const field of ['description', 'wikipediaUrl', 'imageFile']) {
+      const { [field]: _omitted, ...without } = place as Record<string, unknown>;
+      expect(validateOffers(thingToDoSchema, [without]).accepted, field).toEqual([]);
+    }
+  });
+
+  it.each([
+    ['an id that is not a Wikidata item', { id: 'place-1' }],
+    ['an empty name', { name: '   ' }],
+    ['a kind we do not have', { kind: 'nightlife' }],
+    ['a latitude off the globe', { latitude: 91 }],
+    ['a longitude off the globe', { longitude: -181 }],
+    ['a distance that is not a whole number of metres', { distanceFromCentreMetres: 12.5 }],
+    ['a negative distance', { distanceFromCentreMetres: -1 }],
+    ['a link that is not Wikipedia', { wikipediaUrl: 'https://evil.example/wiki/X' }],
+    ['a link that is not https', { wikipediaUrl: 'http://en.wikipedia.org/wiki/X' }],
+    ['an image path', { imageFile: '../secret.jpg' }],
+    ['an image that is a vector', { imageFile: 'plan.svg' }],
+    ['an unknown field', { rating: 4.8 }],
+  ])('rejects %s', (_label, overrides) => {
+    expect(valid(overrides).accepted).toEqual([]);
   });
 });

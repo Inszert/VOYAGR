@@ -12,6 +12,7 @@ import { createAviasalesFlightProvider } from './flights/aviasales';
 import { createMockFlightProvider } from './flights/mock';
 import { createMockHotelProvider } from './hotels/mock';
 import { createMockPlacesProvider } from './places/mock';
+import { createWikidataPlacesProvider } from './places/wikidata';
 import { createMockTransferProvider } from './transfers/mock';
 import { createMockWeatherProvider } from './weather/mock';
 import { createOpenMeteoWeatherProvider } from './weather/open-meteo';
@@ -270,6 +271,7 @@ function resolveTransferProvider(env: Env): TransferProvider {
 
 function resolvePlacesProvider(env: Env): PlacesProvider {
   if (env.PLACES_PROVIDER === 'absent') return createAbsentPlacesProvider();
+  if (env.PLACES_PROVIDER === 'wikidata') return createWikidataPlacesProvider();
 
   if (env.PLACES_PROVIDER === 'mock') {
     return mockAllowed(env) ? createMockPlacesProvider() : createAbsentPlacesProvider();

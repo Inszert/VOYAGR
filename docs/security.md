@@ -223,3 +223,143 @@ confirmed real rather than theoretical: its callers already span a Route Handler
 `src/db/index.ts` proved happens — and a split limiter would have silently doubled the concurrent
 request rate against Wikimedia, breaking this module's own documented "one request at a time"
 promise to a free service we depend on behaving politely toward.
+
+---
+
+## 10. Review of the 2026-11-15 run (`bd03e10..HEAD`)
+
+Scope: the Resend email driver and templates, the send throttles, `/api/price-calendar`,
+`/api/notifications`, the trip hub, the partner allow-list and hand-off, the image paths, the
+notification centre, the CSP, the shared-globe client navigation, log redaction and the CSRF posture
+of server actions. Every item below was traced from the input to where it ends up; the ones marked
+fixed have a test that fails without the fix. Anything not demonstrated is labelled as such.
+
+### Cookie consent and the third-party script (a change, not a finding)
+
+The Travelpayouts Drive script used to load for every production visitor. It now loads only for a
+request that carries `voyagr-consent=accepted`:
+
+- `AffiliateDrive` renders the tag server-side from the cookie, so before a choice, or after a
+  decline, there is no `<script>` in the HTML and no request to `emrldco.com`.
+- `src/proxy.ts` names `https://emrldco.com` in `script-src` and `connect-src` only for that same
+  request (`src/consent/csp.ts`, `src/consent/drive.ts`). Everyone else gets a policy that does not
+  mention it. Both decisions come from one pure function, so they cannot disagree.
+- The cookie holds one word (`accepted` or `declined`), lasts 12 months, is `SameSite=Lax`, `Secure`
+  in production, and is not HttpOnly (the banner reads it). It is set by a server action, so Next's
+  origin check is the CSRF defence: another site cannot accept on a visitor's behalf.
+- Accepting reloads the page rather than calling only `router.refresh()`. A CSP belongs to the
+  document response, so a refreshed render cannot make an already-loaded page allow a new origin;
+  without the reload the browser would block the script it had just been told it could load.
+- Test seam: `DRIVE_TEST_STUB` swaps the vendor URL for a same-origin stub, and is honoured only
+  together with `ALLOW_MOCK_IN_PRODUCTION`, which a real deployment refuses to start with. A stray
+  value on a live site changes nothing (unit-tested).
+- Link-outs to `tpk.lv` / `tp.media` are plain links and need no consent; the privacy page says so.
+
+### Findings
+
+| #   | Severity | Finding                                                                                                                                                                                                                                                                                                                                                                                   | Status               |
+| --- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| 1   | High     | `/api/price-calendar` is unauthenticated and every distinct query is a cache miss that fans out to the flight vendor (2 calls per destination for a by-month vendor, up to about 30 otherwise, 5 destinations). Nothing bounded the number of distinct queries: any month, origin or currency. The concurrency limiter bounds how many calls run at once, not how many queue behind them. | Fixed                |
+| 2   | Medium   | Both throttles (`SignInThrottle`, `SendThrottle`) keep one map entry per caller-chosen key (an email typed into a form) and `prune()` was never called anywhere. A loop of distinct addresses grows memory without limit.                                                                                                                                                                 | Fixed                |
+| 3   | Medium   | The send throttle's per-client limit keys on the first `x-forwarded-for` value, which a caller can set when no proxy overwrites it. Rotating it removes the client limit; only the per-address limit (3 an hour) remains, so one machine can mail many different addresses.                                                                                                               | Needs owner          |
+| 4   | Medium   | `POST /api/push/subscribe` accepted any `https` URL as a push endpoint, and the server later POSTs to it: a signed-in user could aim server-side requests at an internal host (blind SSRF). Not in this diff but on the notification path.                                                                                                                                                | Fixed                |
+| 5   | Medium   | The image proxy fetched a URL taken from a Wikipedia API response without checking its host. A poisoned response could point it at an internal address and have the bytes served back. Not in this diff; reviewed with the image paths.                                                                                                                                                   | Fixed                |
+| 6   | Low      | Trip, item, expense and contact ids that were not UUIDs reached Postgres and failed with a type error (a 500) instead of the 404 the service promises. Not an access bypass; it made probing distinguishable.                                                                                                                                                                             | Fixed                |
+| 7   | Low      | No ceilings on trips per account, people per trip or emergency contacts per account: a script could fill the database through three authenticated forms.                                                                                                                                                                                                                                  | Fixed                |
+| 8   | Low      | The Resend driver trusted `to`, `subject` and header values. All come from validated sources today, so no injection is demonstrated, but a loosened upstream validator would turn one mail into mail to a list, or inject a header.                                                                                                                                                       | Fixed (defence)      |
+| 9   | Low      | The notification bell renders `notification.url` in an `href`. The pipeline writes app-relative paths, but the column is free text; a `javascript:` or `//host` value would have been rendered.                                                                                                                                                                                           | Fixed (defence)      |
+| 10  | Low      | Log redaction did not cover email addresses, one-time links or token hashes. Nothing logs them today (every `log.*` call was checked), but a future `{ email }` or `{ link }` would have gone out in clear.                                                                                                                                                                               | Fixed (defence)      |
+| 11  | Low      | An owner can add a registered user to a trip by typing their email; they are linked at once, with no acceptance step, and then see the trip name, place, dates and ledger. The response is identical whether or not the address has an account, so this is not an enumeration oracle; the issue is consent, not disclosure.                                                               | Needs owner          |
+| 12  | Low      | Provider-supplied flight and hotel `deepLink` values may be `http:` as well as `https:` (intended for a local sandbox). In production a plain-HTTP link is a worse link, not an injection.                                                                                                                                                                                                | Accepted risk        |
+| 13  | Info     | In-process state: both throttles, the price-calendar limiter and the load budget are per process, so a multi-instance deployment multiplies every allowance by the instance count.                                                                                                                                                                                                        | Accepted (as before) |
+
+#### What was done
+
+1. **Price calendar (fixed).** `src/app/api/price-calendar/route.ts` refuses a month outside this
+   month through twelve months ahead (400, before any provider work) and limits each client to 60
+   requests a minute (429 with `Retry-After`). A request with no client address is not given one
+   shared bucket, so a proxy-less deployment does not lock everybody out - the failure recorded in
+   section 9. `src/search/day-prices.ts` enforces a per-process budget of 120 cache misses a minute
+   (`DAY_PRICE_LOADS_PER_MINUTE`); past it a month answers "could not be loaded", the page degrades
+   and the vendor is not called. Cache hits cost nothing. The budget is the real ceiling on spend,
+   because the per-client key is only as honest as `x-forwarded-for`. Tests: `route.test.ts` proves
+   200 requests with spoofed client keys cause at most 240 provider calls, and that repeating one
+   query is one load. Validation of origin, destinations (5 at most), currency and passengers was
+   already tight.
+2. **Throttle memory (fixed).** Both throttles cap at 10,000 keys (`MAX_THROTTLE_KEYS`), dropping
+   expired entries and then the oldest, which forgets one client rather than refusing everybody. The
+   new `src/lib/fixed-window.ts` has the same bound.
+3. **Push endpoint (fixed).** `src/notifications/push-endpoint.ts` accepts only `https`, default
+   port, no credentials and a dotted public hostname: no IP literal (including the cloud metadata
+   address), `localhost`, single-label, `.local` or `.internal` host. A vendor allow-list would be
+   tighter but would silently break the next browser's push service.
+4. **Image proxy (fixed).** `isWikimediaImageUrl` in `src/providers/imagery/url.ts`: `https` on
+   `wikimedia.org` only, checked before the fetch and again on the final URL after redirects.
+5. **Trip hub ids and ceilings (fixed).** `TripHubService` treats a non-UUID id as not found before
+   any query, and caps 100 trips per account, 30 people per trip and 20 contacts per account. The
+   actions that create a trip or a contact now turn the limit into a message instead of a 500.
+6. **Resend (fixed, defence).** The driver refuses a recipient that is not a single bare mailbox
+   (no display name, list, angle bracket, quote, backslash or control character), a subject or
+   header value containing a line break, and a malformed header name - before calling the vendor and
+   without echoing the value.
+7. **Notification links (fixed, defence).** `appRelativeUrl` keeps only a path on this site.
+8. **Redaction (fixed).** Added `email`, `newEmail`, `link`, `tokenHash`, `cookie`, `set-cookie`,
+   `auth` and `secret` (top level and one level down) to `REDACTED_PATHS`.
+
+#### Reviewed and found sound
+
+- **Email templates.** Every value goes through `escapeHtml`; links through `assertSafeUrl`
+  (absolute `http(s)` only, throws otherwise); the subject through `singleLine`. Verification,
+  reset and change-of-email links are built from `NEXT_PUBLIC_APP_URL`, never from the `Host`
+  header, so a forged `Host` cannot redirect a reset link to an attacker. The new address in an
+  email-change mail is escaped like any other text. The key is not logged, and neither is Resend's
+  error body.
+- **Trip hub authorisation.** Every action starts from `getCurrentUser()` and passes the session's
+  user id to the service; no handler trusts an id in a form. `access()` answers a trip you are not
+  on exactly as it answers a missing one. Plan items and expenses are checked against the trip in
+  the request (`item.tripId !== tripId` is "not found"), so an id from another trip is not an IDOR.
+  Contacts belong to the person, not the trip, and are listed and deleted only by their owner.
+  Member deletion is scoped `trip_id = $1 AND id = $2`. All SQL is parameterised. Adding a member by
+  email returns the same result whether or not the address has an account.
+- **Partner links.** `isAllowedPartnerUrl` is `https`, no credentials, host equal to or a dotted
+  subdomain of `tpk.lv` / `tp.media` (`evil-tpk.lv` fails). A plan item's partner URL comes from the
+  registry by offer id, never from the request, and "Add to my plan" always creates an `idea`. The
+  stay link builder encodes the destination once as a query value on a fixed redirect host.
+- **`/api/notifications`.** Authenticated, scoped to the session user, `no-store`, at most 30 rows,
+  polled once a minute and on focus. Marking read checks ownership.
+- **Shared-globe navigation.** The click and submit interceptors in `stage-host.tsx` act only when
+  the target's origin equals the page's and its path is `/` or `/explore`, and push
+  `pathname + search + hash`, never the original string. GET forms only. Anything else is left to
+  the browser. No open redirect found.
+- **CSP.** Baseline unchanged (`frame-ancestors 'none'`, `base-uri` and `form-action` `'self'`, no
+  `unsafe-inline` or `unsafe-eval` in production `script-src`), now covered by unit tests. The
+  service worker never serves cached HTML, so a page cached under one consent state is not replayed
+  under another.
+- **Server actions and CSRF.** The trip, notification and consent mutations are server actions, so
+  Next's origin check applies, and the session cookie is `SameSite=Lax`. The only other state
+  changes are `POST` and `DELETE /api/push/subscribe`, which are cookie-authenticated JSON and are
+  not reachable from a cross-site form under `Lax`.
+
+#### Needs owner
+
+- **Finding 3: client identity behind a proxy.** Decide the deployment topology and make the proxy
+  overwrite `x-forwarded-for` (or give the app a trusted-proxy setting). Until then per-client
+  limits narrow a noisy client and do not stop a determined one; the per-address limit and the
+  price-calendar load budget are what hold. A global cap on outbound email an hour would bound it
+  regardless; it was not added because it lets one abuser deny reset mail to everyone, which is a
+  product decision.
+- **Finding 11: invitations.** Linking a registered user to a trip without their acceptance is a
+  design choice. If strangers adding strangers becomes a nuisance, the fix is an accept step and
+  showing a trip only after it.
+- **Per-process state.** Moving the throttles, the calendar limiter and the load budget to Redis
+  belongs with the queue's move; the interfaces are small.
+- **Legal.** The privacy text describes what the code does. Whether Drive's cookies and the consent
+  wording satisfy the operator's legal basis is for the owner to confirm; the code cannot know.
+
+#### Not verified
+
+- Behaviour against a live Resend account, the real Travelpayouts script (the e2e build uses the
+  stub and never contacts the real host), or a real Postgres (the SQL was read; the repository
+  contract tests run on the in-memory implementation).
+- Whether the real Drive script sets cookies or contacts hosts beyond `emrldco.com`. If it does the
+  CSP blocks them until each is added deliberately.

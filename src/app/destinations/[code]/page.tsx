@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
 import { format } from '@/core/money';
 import { Button, Container, Icon, UpdatedAgo, type IconName } from '@/components/ui';
 import { costCoverage, describeExclusions } from '@/core/trip/coverage';
@@ -28,6 +29,14 @@ import { offersForTrip } from '@/booking/partners';
 import { TripExtras } from '@/components/partners';
 import { buildDiscoveryQuery } from '@/discovery/snapshot';
 import { FlexDatesSection, loadFlexForTrip } from '@/components/search/flex-dates-section';
+import {
+  ThingsToDoLoaded,
+  ThingsToDoSkeleton,
+} from '@/components/destination/things-to-do-section';
+import { loadThingsToDo, parseKind, type ThingsToDoOutcome } from '@/discovery/things-to-do';
+import { getCurrentUser } from '@/auth/current-user';
+import { getRepositories } from '@/db';
+import type { ThingKind } from '@/providers/types';
 
 /**
  * A destination (1.10.1 section 18).
@@ -110,6 +119,34 @@ export default async function DestinationPage({ params, searchParams }: PageProp
   });
 
   if (!detail || !place) notFound();
+
+  // Started now and awaited inside a Suspense boundary: the first look at a city
+  // asks an open dataset a heavy question, and nothing else on the page waits for it.
+  const things = loadThingsToDo({
+    destination,
+    destinationName: place.name,
+    position: place.position,
+  });
+  const kind = parseKind(query.kind);
+  const user = await getCurrentUser();
+  const planTrips = user
+    ? (await getRepositories().trips.listForUser(user.id)).map((trip) => ({
+        id: trip.id,
+        name: trip.name,
+      }))
+    : null;
+  // Every other parameter is carried over, so a filter does not forget the dates.
+  const hrefForKind = (next: ThingKind | null): string => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (key === 'kind' || value === undefined) continue;
+      for (const entry of [value].flat()) params.append(key, entry);
+    }
+    if (next) params.set('kind', next);
+    const text = params.toString();
+
+    return `${text ? `?${text}` : '?'}#things-heading`;
+  };
 
   const dates =
     startDate && endDate && ISO_DATE.test(startDate) && ISO_DATE.test(endDate)
@@ -263,6 +300,16 @@ export default async function DestinationPage({ params, searchParams }: PageProp
             <WeatherSection days={detail.weather} />
             <DestinationDetailView detail={{ ...detail, weather: [] }} />
 
+            <Suspense fallback={<ThingsToDoSkeleton city={place.name} />}>
+              <ThingsToDoLoaded
+                outcome={things}
+                city={place.name}
+                kind={kind}
+                hrefFor={hrefForKind}
+                planTrips={planTrips}
+              />
+            </Suspense>
+
             {itinerary ? (
               <ItineraryView
                 itinerary={itinerary}
@@ -328,23 +375,9 @@ export default async function DestinationPage({ params, searchParams }: PageProp
               <p className="max-w-3xl">
                 No data source behind the product carries these, which is not the same as there
                 being nothing to report - and for a travel warning those are very different things:{' '}
-                {[
-                  // A slot with no data source says so here, instead of an empty
-                  // section that reads as "nothing to report".
-                  ...(detail.notAvailable.includes('transfers') ? ['Airport transfer prices'] : []),
-                  ...(detail.notAvailable.includes('places') ? ['Places to eat, see and do'] : []),
-                  'Photographs of the places listed',
-                  'Events',
-                  'National holidays',
-                  'Travel warnings',
-                  'Hidden places',
-                  'Recommended trip lengths',
-                ].map((missing, index, all) => (
-                  <span key={missing}>
-                    <span className="text-ink">{missing}</span>
-                    {index < all.length - 1 ? ', ' : '.'}
-                  </span>
-                ))}
+                <Suspense fallback={<MissingList things={null} detail={detail} />}>
+                  <ResolvedMissingList things={things} detail={detail} />
+                </Suspense>
               </p>
             </section>
           </div>
@@ -415,4 +448,54 @@ export default async function DestinationPage({ params, searchParams }: PageProp
       </Container>
     </div>
   );
+}
+
+/**
+ * What the page cannot tell you, said once.
+ *
+ * "Places to eat, see and do" is named while the places are unknown and
+ * whenever they could not be had - the source off, down or empty - and dropped
+ * only once a real list is on the page above. `things` is null while that is
+ * still loading, which is the pessimistic reading.
+ */
+function MissingList({
+  things,
+  detail,
+}: {
+  things: ThingsToDoOutcome | null;
+  detail: { notAvailable: readonly string[] };
+}) {
+  const placesListed = things?.status === 'ok' && things.things.length > 0;
+
+  return (
+    <>
+      {[
+        // A slot with no data source says so here, instead of an empty
+        // section that reads as "nothing to report".
+        ...(detail.notAvailable.includes('transfers') ? ['Airport transfer prices'] : []),
+        ...(placesListed ? [] : ['Places to eat, see and do']),
+        'Photographs of the places listed',
+        'Events',
+        'National holidays',
+        'Travel warnings',
+        'Hidden places',
+        'Recommended trip lengths',
+      ].map((missing, index, all) => (
+        <span key={missing}>
+          <span className="text-ink">{missing}</span>
+          {index < all.length - 1 ? ', ' : '.'}
+        </span>
+      ))}
+    </>
+  );
+}
+
+async function ResolvedMissingList({
+  things,
+  detail,
+}: {
+  things: Promise<ThingsToDoOutcome>;
+  detail: { notAvailable: readonly string[] };
+}) {
+  return <MissingList things={await things} detail={detail} />;
 }

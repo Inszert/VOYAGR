@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getLogger } from '@/lib/logger';
 import { resolveOneImage } from '@/providers/imagery';
+import { isWikimediaImageUrl } from '@/providers/imagery/url';
 
 /**
  * A destination photograph, served from our own origin.
@@ -103,6 +104,12 @@ export async function GET(
   const cached = held.get(code.toUpperCase());
   if (cached) return serve(cached);
 
+  // The address came out of an API response, so it is checked, not trusted.
+  if (!isWikimediaImageUrl(image.url)) {
+    logger.warn({ code }, 'upstream image address is not on Wikimedia; refused');
+    return NextResponse.json({ error: 'Image unavailable' }, { status: 404 });
+  }
+
   try {
     const upstream = await fetch(image.url, {
       signal: request.signal,
@@ -115,7 +122,12 @@ export async function GET(
 
     const type = upstream.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
 
-    if (!upstream.ok || !ALLOWED_TYPES.has(type)) {
+    // Followed redirects must not have led off Wikimedia: nothing from there is served.
+    if (
+      !upstream.ok ||
+      !ALLOWED_TYPES.has(type) ||
+      !isWikimediaImageUrl(upstream.url || image.url)
+    ) {
       logger.warn({ code, status: upstream.status, type }, 'upstream image rejected');
       return NextResponse.json({ error: 'Image unavailable' }, { status: 404 });
     }

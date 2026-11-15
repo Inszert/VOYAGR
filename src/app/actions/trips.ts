@@ -84,7 +84,12 @@ export async function createTripAction(
   const parsed = parseTripForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  const trip = await service().createTrip(user.id, parsed.value);
+  let trip;
+  try {
+    trip = await service().createTrip(user.id, parsed.value);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
   log.info({ userId: user.id, tripId: trip.id }, 'trip created');
 
   redirect(`/trips/${trip.id}`);
@@ -195,6 +200,14 @@ export async function removePlanItemAction(formData: FormData): Promise<void> {
 export type AddToPlanResult =
   { readonly ok: true; readonly itemId: string } | { readonly ok: false; readonly error: string };
 
+/** A place worth visiting, as the destination page offers it. */
+export interface PlanPlace {
+  readonly title: string;
+  readonly kind: 'activity';
+  /** Where the place is described (its Wikipedia article), or null. */
+  readonly url: string | null;
+}
+
 /**
  * "Add to my plan", for the UI to wire to a partner offer or a trip card.
  *
@@ -202,16 +215,23 @@ export type AddToPlanResult =
  * partner's site, so nothing is added silently and nothing claims a booking.
  * Only the offer id and trip id come from the caller; the title and link come
  * from the partner registry.
+ *
+ * A place is an idea too: only its name and where it is described come from the
+ * request, and the service holds both to what a place could legitimately be.
  */
-export async function addToMyPlanAction(input: {
-  readonly offerId: string;
-  readonly tripId: string;
-}): Promise<AddToPlanResult> {
+export async function addToMyPlanAction(
+  input:
+    | { readonly offerId: string; readonly tripId: string }
+    | { readonly place: PlanPlace; readonly tripId: string },
+): Promise<AddToPlanResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: SIGN_IN };
 
   try {
-    const item = await service().addPartnerOfferToPlan(user.id, input.tripId, input.offerId);
+    const item =
+      'place' in input
+        ? await service().addPlaceToPlan(user.id, input.tripId, input.place)
+        : await service().addPartnerOfferToPlan(user.id, input.tripId, input.offerId);
     revalidatePath(`/trips/${input.tripId}`);
     return { ok: true, itemId: item.id };
   } catch (error) {
@@ -292,7 +312,11 @@ export async function addContactAction(
   const parsed = parseContactForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  await service().addContact(user.id, parsed.value);
+  try {
+    await service().addContact(user.id, parsed.value);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
   log.info({ userId: user.id }, 'emergency contact added');
 
   revalidatePath('/trips', 'layout');

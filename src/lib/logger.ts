@@ -44,6 +44,27 @@ export const REDACTED_PATHS = [
   '*.emergencyContacts',
   'contact.name',
   'contact.relation',
+  // Identity and one-time credentials. A verification, reset or email-change
+  // link is a working credential until it is used; an address is personal data.
+  // (The development-only console email driver logs `to` and `text` on
+  // purpose and is refused in production.)
+  'email',
+  '*.email',
+  'newEmail',
+  '*.newEmail',
+  'link',
+  '*.link',
+  'tokenHash',
+  '*.tokenHash',
+  'cookie',
+  '*.cookie',
+  'set-cookie',
+  '*.set-cookie',
+  'headers["set-cookie"]',
+  'auth',
+  '*.auth',
+  'secret',
+  '*.secret',
 ];
 
 function createRootLogger(): Logger {

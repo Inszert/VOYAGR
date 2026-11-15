@@ -29,3 +29,22 @@ describe('the process-wide throttle singleton', () => {
     expect(second.size).toBe(0);
   });
 });
+
+describe('memory is bounded by attacker-chosen keys', () => {
+  it('SignInThrottle never remembers more than MAX_THROTTLE_KEYS clients', async () => {
+    const { SignInThrottle, MAX_THROTTLE_KEYS } = await import('./throttle');
+    const throttle = new SignInThrottle();
+    for (let i = 0; i < MAX_THROTTLE_KEYS + 500; i++)
+      throttle.recordFailure(`user-${i}@example.com`);
+    expect(throttle.size).toBeLessThanOrEqual(MAX_THROTTLE_KEYS);
+  });
+
+  it('SendThrottle never remembers more than MAX_THROTTLE_KEYS windows', async () => {
+    const { SendThrottle, MAX_THROTTLE_KEYS, ACCOUNT_SEND_LIMIT } = await import('./throttle');
+    const throttle = new SendThrottle();
+    for (let i = 0; i < MAX_THROTTLE_KEYS + 500; i++) {
+      throttle.consume([{ key: `reset:account:${i}@example.com`, limit: ACCOUNT_SEND_LIMIT }]);
+    }
+    expect(throttle.size).toBeLessThanOrEqual(MAX_THROTTLE_KEYS);
+  });
+});

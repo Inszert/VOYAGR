@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Button, Icon, Popover, PopoverPanel, PopoverTrigger } from '@/components/ui';
-import { addToMyPlanAction } from '@/app/actions/trips';
+import { addToMyPlanAction, type PlanPlace } from '@/app/actions/trips';
 
 /**
  * "Add to my plan", for a partner offer, for somebody signed in.
@@ -20,12 +20,16 @@ export interface PlanTrip {
 
 export function AddToPlan({
   offerId,
+  place,
   trips,
   partner,
+  subject,
 }: {
-  offerId: string;
+  offerId?: string;
+  place?: Pick<PlanPlace, 'title' | 'url'>;
   trips: readonly PlanTrip[];
-  partner: string;
+  partner?: string;
+  subject?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -33,7 +37,12 @@ export function AddToPlan({
 
   const add = (trip: PlanTrip) => {
     startTransition(async () => {
-      const result = await addToMyPlanAction({ offerId, tripId: trip.id });
+      const result = place
+        ? await addToMyPlanAction({
+            tripId: trip.id,
+            place: { title: place.title, kind: 'activity', url: place.url },
+          })
+        : await addToMyPlanAction({ offerId: offerId ?? '', tripId: trip.id });
       setMessage(
         result.ok
           ? { ok: true, text: `Added to ${trip.name} as an idea.` }
@@ -49,8 +58,7 @@ export function AddToPlan({
         <PopoverTrigger asChild>
           <Button variant="ghost" size="md" aria-busy={pending || undefined}>
             <Icon name="plus" size={1} aria-hidden="true" />
-            Add to my plan
-            <span className="sr-only"> ({partner})</span>
+            Add to my plan <span className="sr-only">({subject ?? partner})</span>
           </Button>
         </PopoverTrigger>
         <PopoverPanel align="start" className="w-64 p-1.5" aria-label="Choose a trip">

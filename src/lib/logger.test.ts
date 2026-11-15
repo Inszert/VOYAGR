@@ -22,6 +22,16 @@ describe('log redaction', () => {
     expect(capture({ emergencyContacts: [{ phone: '+44 7700 900123' }] })).not.toContain('900123');
   });
 
+  it('never writes an email address, a one-time link or a cookie', () => {
+    expect(capture({ email: 'ada@example.com' })).not.toContain('ada@example.com');
+    expect(capture({ user: { email: 'ada@example.com' } })).not.toContain('ada@example.com');
+    expect(capture({ newEmail: 'ada@example.com' })).not.toContain('ada@example.com');
+    expect(capture({ link: 'https://x.test/reset-password?token=abc123' })).not.toContain('abc123');
+    expect(capture({ mail: { link: 'https://x.test/?token=abc123' } })).not.toContain('abc123');
+    expect(capture({ tokenHash: 'deadbeef' })).not.toContain('deadbeef');
+    expect(capture({ cookie: 'voyagr_session=s3cret' })).not.toContain('s3cret');
+  });
+
   it('still redacts the credentials it always did', () => {
     expect(capture({ password: 'hunter2' })).not.toContain('hunter2');
   });

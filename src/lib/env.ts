@@ -94,6 +94,14 @@ const envSchema = z.object({
    * the demo notices and the data-source switch can never appear.
    */
   ALLOW_MOCK_IN_PRODUCTION: booleanish.default(false),
+  /**
+   * Test-only. Makes the consented Drive script load a same-origin stub
+   * (`/api/test/drive-stub`) instead of the vendor's host, so the end-to-end
+   * suite can exercise the consent gating without contacting a third party.
+   * Honoured only together with `ALLOW_MOCK_IN_PRODUCTION`; see
+   * `src/consent/drive.ts`.
+   */
+  DRIVE_TEST_STUB: booleanish.default(false),
   HOTEL_PROVIDER: providerName,
   /**
    * `open-meteo` needs no credential - it is a free, keyless API - so unlike
@@ -103,7 +111,12 @@ const envSchema = z.object({
    */
   WEATHER_PROVIDER: z.enum(['mock', 'live', 'open-meteo']).default('open-meteo'),
   TRANSFER_PROVIDER: providerName,
-  PLACES_PROVIDER: providerName,
+  /**
+   * `wikidata` needs no credential - the Wikidata Query Service is free and
+   * keyless, and its data is CC0 - which is why it is the production default
+   * where the other slots without a live adapter default to `absent`.
+   */
+  PLACES_PROVIDER: z.enum(['mock', 'live', 'absent', 'wikidata']).default('mock'),
   /**
    * Which exchange-rate source a search converts foreign quotes against.
    *
@@ -255,7 +268,7 @@ function productionAwareDefaults(source: Record<string, unknown>): Record<string
       ? {
           HOTEL_PROVIDER: 'absent',
           TRANSFER_PROVIDER: 'absent',
-          PLACES_PROVIDER: 'absent',
+          PLACES_PROVIDER: 'wikidata',
           STAY_PROVIDERS: 'absent',
         }
       : {}),

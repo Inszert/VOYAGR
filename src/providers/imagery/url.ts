@@ -12,3 +12,26 @@
 export function imageryUrlFor(code: string): string {
   return `/api/imagery/${encodeURIComponent(code.toUpperCase())}`;
 }
+
+/**
+ * Whether the image proxy may fetch this address.
+ *
+ * The upstream address comes out of a Wikipedia API response, which is data we
+ * do not control: a poisoned or compromised response must not be able to point
+ * the server at an internal host (`http://169.254.169.254/`, `localhost`) and
+ * have the bytes handed back. Only `https` on Wikimedia's own domain is
+ * fetched.
+ */
+export function isWikimediaImageUrl(value: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== 'https:') return false;
+  if (parsed.username !== '' || parsed.password !== '') return false;
+
+  return parsed.hostname === 'wikimedia.org' || parsed.hostname.endsWith('.wikimedia.org');
+}

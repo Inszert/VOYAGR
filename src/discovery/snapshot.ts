@@ -2,7 +2,7 @@ import { cacheKey, getCacheStore, loadAndStore, readThrough, type CacheStore } f
 import { addDays } from '@/core/dates';
 import type { Freshness } from '@/core/freshness';
 import type { IsoDate, IsoDateTime } from '@/core/trip/types';
-import { SEARCH_FORM_DEFAULTS } from '@/components/search/search-form';
+import { searchFormDefaults } from '@/search/form-defaults';
 import { getLogger } from '@/lib/logger';
 import { listPlaceableDestinations, resolveDestinationNames } from '@/search/destination-names';
 import { runSearch } from '@/search/orchestrator';
@@ -171,7 +171,7 @@ export interface DiscoverySource {
  * exactly the validation a typed search does and cannot drift from it.
  */
 export function buildDiscoveryQuery(input: DiscoveryInput): Record<string, string> {
-  const defaults = { ...SEARCH_FORM_DEFAULTS, ...input.defaults };
+  const defaults = { ...searchFormDefaults(input.today), ...input.defaults };
   const values: Record<string, string> = {};
 
   for (const key of USER_OWNED) values[key] = defaults[key]!;

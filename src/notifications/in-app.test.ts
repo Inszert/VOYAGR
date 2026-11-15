@@ -47,3 +47,25 @@ describe('loadNotificationFeed', () => {
     expect(feed.unread).toBe(NOTIFICATION_LIST_LIMIT);
   });
 });
+
+describe('appRelativeUrl', () => {
+  it('keeps a path on this site', async () => {
+    const { appRelativeUrl } = await import('./in-app');
+    expect(appRelativeUrl('/?origins=VIE')).toBe('/?origins=VIE');
+    expect(appRelativeUrl('/watches')).toBe('/watches');
+    expect(appRelativeUrl(null)).toBeNull();
+  });
+
+  it.each([
+    'javascript:alert(1)',
+    'https://evil.example/',
+    '//evil.example/',
+    `/${String.fromCharCode(92)}evil.example`,
+    'data:text/html,x',
+    `/ok${String.fromCharCode(10)}Set-Cookie: x`,
+    '',
+  ])('drops %j', async (value) => {
+    const { appRelativeUrl } = await import('./in-app');
+    expect(appRelativeUrl(value)).toBeNull();
+  });
+});

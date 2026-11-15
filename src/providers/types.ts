@@ -246,12 +246,71 @@ export interface PlacesQuery {
   readonly maxResults?: number;
 }
 
+/**
+ * The groups a destination's things to do are sorted into.
+ *
+ * Six, so the filter row stays one line on a phone. The slug is what the URL
+ * carries (`?kind=museums`); the label is in `src/discovery/things-to-do.ts`.
+ */
+export const THING_KINDS = [
+  'sights',
+  'museums',
+  'outdoors',
+  'neighbourhoods',
+  'food',
+  'culture',
+] as const;
+export type ThingKind = (typeof THING_KINDS)[number];
+
+/**
+ * A real, named place worth a visit, as an open dataset describes it.
+ *
+ * Deliberately not a `Place`: nothing here is rated, priced or reviewed,
+ * because the sources behind it do not say. Every fact the source did not
+ * state is an explicit `null`, never a default.
+ */
+export interface ThingToDo {
+  /** The source's own identifier (a Wikidata item id), stable across refreshes. */
+  readonly id: string;
+  readonly providerId: string;
+  readonly name: string;
+  readonly kind: ThingKind;
+  /** The source's own short description, as given. Null when it gave none. */
+  readonly description: string | null;
+  readonly latitude: number;
+  readonly longitude: number;
+  /** Great-circle distance from the destination's centre, in whole metres. */
+  readonly distanceFromCentreMetres: number;
+  /** How widely documented the place is: the number of Wikipedia editions that cover it. */
+  readonly notability: number;
+  readonly wikipediaUrl: string | null;
+  /** A Wikimedia Commons file name (no `File:` prefix), or null when the source has no picture. */
+  readonly imageFile: string | null;
+}
+
+export interface ThingsToDoQuery {
+  readonly destination: AirportCode;
+  /** The name of the destination city, to find its own centre rather than its airport's. */
+  readonly destinationName: string;
+  /** `[longitude, latitude]` of the destination as the product holds it. */
+  readonly position: readonly [number, number];
+  readonly maxResults?: number;
+}
+
 export interface PlacesProvider extends ProviderAdapter {
   readonly metadata: ProviderMetadata & { kind: 'places' };
   searchPlaces(
     query: PlacesQuery,
     options?: ProviderRequestOptions,
   ): Promise<ProviderResult<readonly Place[]>>;
+  /**
+   * Notable things to see and do around a destination, best known first.
+   * An empty list is a real answer; a failure is an `err`, never a throw.
+   */
+  thingsToDo(
+    query: ThingsToDoQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly ThingToDo[]>>;
 }
 
 /** Union of every adapter shape, for registry bookkeeping. */

@@ -42,6 +42,26 @@ export default defineConfig({
 
   use: {
     baseURL,
+    /*
+     * Every test starts with the cookie question already answered (declined),
+     * so the consent banner is not sitting over the controls under test. The
+     * consent spec opts out with an empty storage state and tests the banner.
+     */
+    storageState: {
+      cookies: [
+        {
+          name: 'voyagr-consent',
+          value: 'declined',
+          domain: '127.0.0.1',
+          path: '/',
+          expires: -1,
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax',
+        },
+      ],
+      origins: [],
+    },
     // Trace is the primary debugging artifact: it carries the DOM, network and
     // console, and needs no extra binaries.
     trace: 'on-first-retry',
@@ -119,6 +139,12 @@ export default defineConfig({
        * by name - the one place that does.
        */
       ALLOW_MOCK_IN_PRODUCTION: 'true',
+      /*
+       * Exercises the cookie-consent gating with no third-party request: once
+       * a visitor accepts, a same-origin stub stands in for the Drive script.
+       * Honoured only together with ALLOW_MOCK_IN_PRODUCTION above.
+       */
+      DRIVE_TEST_STUB: 'true',
       FLIGHT_PROVIDER: 'mock',
       HOTEL_PROVIDER: 'mock',
       WEATHER_PROVIDER: 'mock',

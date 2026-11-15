@@ -81,7 +81,7 @@ interface QueryResponse {
  * because attribution belongs in our own markup and a third party's HTML does
  * not go into a page unexamined.
  */
-function plainText(value: unknown): string | null {
+export function plainText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
 
   const text = value

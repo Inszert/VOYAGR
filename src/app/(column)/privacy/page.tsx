@@ -18,8 +18,9 @@ const sections: readonly LegalSection[] = [
   {
     id: 'without-an-account',
     title: 'Searching without an account',
-    // No analytics, no advertising, no tracking cookies: none is loaded
-    // anywhere in `src/`. Fonts are self-hosted and photographs proxied.
+    // No analytics and no advertising of our own. The one partner script loads
+    // only after consent (`src/consent/`, `affiliate-drive.tsx`). Fonts are
+    // self-hosted and photographs proxied.
     body: (
       <>
         <p>
@@ -29,10 +30,12 @@ const sections: readonly LegalSection[] = [
           search to an account.
         </p>
         <p>
-          There are no analytics, advertising or tracking scripts on Voyagr, and no cookie is set
-          for a visitor who is not signed in. Fonts are served from our own address, and destination
-          photographs are fetched by our server and passed on, so your browser only talks to Voyagr
-          itself while you use the site.
+          There are no analytics or advertising scripts of our own on Voyagr. The one partner script
+          (Travelpayouts, described under <a href="#cookies">Cookies and storage on your device</a>)
+          is loaded only if you accept it, and the only cookie set for a visitor who is not signed
+          in is the one that remembers that choice. Fonts are served from our own address, and
+          destination photographs are fetched by our server and passed on, so until you accept, your
+          browser only talks to Voyagr itself while you use the site.
         </p>
       </>
     ),
@@ -81,22 +84,52 @@ const sections: readonly LegalSection[] = [
   {
     id: 'cookies',
     title: 'Cookies and storage on your device',
-    // `SESSION_COOKIE_NAME` in `src/auth/session.ts`; `DATA_SOURCE_COOKIE` in
-    // `src/providers/data-source.ts`; `public/sw.js`.
+    // `CONSENT_COOKIE` in `src/consent/cookie.ts`; `SESSION_COOKIE_NAME` in
+    // `src/auth/session.ts`; `DATA_SOURCE_COOKIE` in `src/providers/data-source.ts`;
+    // the script in `src/components/shell/affiliate-drive.tsx`; `public/sw.js`.
     body: (
       <>
+        <p>These are all of the cookies Voyagr sets:</p>
         <ul>
+          <li>
+            <strong>voyagr-consent</strong> remembers whether you accepted or declined the partner
+            script below. Its value is the single word <em>accepted</em> or <em>declined</em>: no
+            identifier and no personal data. It lasts 12 months, is sent only to Voyagr, and is set
+            when you press Accept or Decline. You can change your choice at any time with
+            &ldquo;Cookie settings&rdquo; in the footer.
+          </li>
           <li>
             <strong>voyagr_session</strong> is set when you sign in, and keeps you signed in for up
             to 30 days. It cannot be read by scripts on the page and is not sent to other sites.
-            Signing out removes it.
+            Signing out removes it. It is needed for the sign-in you asked for, so it is set without
+            asking.
           </li>
           <li>
             <strong>voyagr-data-source</strong> is set only on deployments where the developer
             switch between live and sample data is turned on, and only when you use that switch. It
-            records which one you chose.
+            records which one you chose, lasts until you close the browser, and is not set for
+            ordinary visitors.
           </li>
         </ul>
+        <p>
+          <strong>The partner script.</strong> If you accept, Voyagr loads one script from
+          Travelpayouts, the affiliate network we are paid through, from the address emrldco.com. It
+          is there to tell Travelpayouts that a booking you made on a partner&rsquo;s site came
+          through a link on Voyagr, so that the commission is credited. It may set its own cookies
+          on Travelpayouts&rsquo; domain and will see your address, browser details and the page you
+          are on. Voyagr gives it no name, email address or account information, and builds no
+          advertising profile from it. If you decline, or have not chosen, it is not loaded and your
+          browser makes no request to Travelpayouts&rsquo; script address. If you later withdraw
+          your acceptance, the script stops loading, but cookies it already placed on its own domain
+          are Travelpayouts&rsquo; to remove: clear them in your browser, and see their privacy
+          notice for how they are used.
+        </p>
+        <p>
+          <strong>Partner links do not need your consent.</strong> A plain link to a partner such as{' '}
+          <em>tpk.lv</em> or <em>tp.media</em> is an ordinary link: following it loads that
+          partner&rsquo;s website in a new tab, and nothing is sent to it from Voyagr&rsquo;s pages
+          before you click. What the partner then does is covered by its own notice.
+        </p>
         <p>
           Voyagr also installs a service worker, which keeps copies of pages, map data and
           photographs you have already seen on your device so the site still works offline. Clearing
@@ -212,12 +245,12 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy"
-      updated="2026-11-14"
+      updated="2026-11-15"
       summary={
         <p>
-          Voyagr works without an account and without tracking. If you make an account, it keeps
-          what it needs to watch prices for you, tells you exactly what that is below, and removes
-          all of it when you ask.
+          Voyagr works without an account and, unless you accept one partner script, without
+          third-party tracking. If you make an account, it keeps what it needs to watch prices for
+          you, tells you exactly what that is below, and removes all of it when you ask.
         </p>
       }
       sections={sections}

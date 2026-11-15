@@ -1,5 +1,5 @@
 import { addDays, isIsoDate } from '@/core/dates';
-import { SEARCH_FORM_DEFAULTS } from '@/components/search/search-form';
+import { searchFormDefaults } from '@/search/form-defaults';
 import type { DiscoveryCategory } from './categories';
 
 /**
@@ -61,7 +61,7 @@ export function nextSeasonStart(months: readonly number[], today: string): strin
  */
 export function categoryQuery(input: PresetInput): string {
   const { category } = input;
-  const defaults = { ...SEARCH_FORM_DEFAULTS, ...input.defaults };
+  const defaults = { ...searchFormDefaults(input.today), ...input.defaults };
 
   const values: Record<string, string> = { ...defaults };
 
@@ -83,7 +83,7 @@ export function categoryQuery(input: PresetInput): string {
 
   // The category may not touch these, whatever it wanted.
   for (const key of USER_OWNED) {
-    const own = input.defaults?.[key] ?? SEARCH_FORM_DEFAULTS[key];
+    const own = input.defaults?.[key] ?? searchFormDefaults(input.today)[key];
     if (own !== undefined) values[key] = own;
   }
 

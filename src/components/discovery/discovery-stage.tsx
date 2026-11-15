@@ -214,7 +214,7 @@ export function DiscoveryStage({
           {/* The one bar. Expands in place, upward. */}
           <div
             data-globe-overlay
-            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-5 max-sm:w-auto lg:max-w-[920px]"
+            className="stage-rise pointer-events-auto w-full max-sm:absolute max-sm:inset-x-5 max-sm:bottom-[calc(1.25rem+var(--consent-h,0px))] max-sm:w-auto lg:max-w-[920px]"
             style={{ '--stage-delay': '120ms' } as React.CSSProperties}
           >
             <CompactSearch

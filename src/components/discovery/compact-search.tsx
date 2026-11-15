@@ -153,7 +153,7 @@ export function CompactSearch({
   here = action,
   variant = 'panel',
 }: CompactSearchProps) {
-  const form = readForm(values, { ...defaults, destinations: destinationsDefault });
+  const form = readForm(values, { ...defaults, destinations: destinationsDefault }, today);
   // The whole trip unless flights alone were asked for: the unit is the trip.
   const view = values.view === 'flight' ? 'flight' : 'trip';
   const style = form.value('travelStyle');

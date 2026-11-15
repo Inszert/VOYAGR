@@ -12,6 +12,29 @@ import type { NotificationRecord, Repositories } from '@/db/repository';
 /** How many alerts the centre lists. The unread count is of these, so the two always agree. */
 export const NOTIFICATION_LIST_LIMIT = 30;
 
+function hasBackslashOrControl(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (character === String.fromCharCode(92) || code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+/**
+ * A link the bell may render: a path on this site, nothing else.
+ *
+ * The pipeline writes these itself, but the column is free text and ends up in
+ * an `href`. A `javascript:` or off-site address (or a protocol-relative
+ * `//host`, or a backslash browsers read as a slash) is dropped, not repaired.
+ */
+export function appRelativeUrl(value: string | null): string | null {
+  if (value === null) return null;
+  if (!value.startsWith('/') || value.startsWith('//') || hasBackslashOrControl(value)) {
+    return null;
+  }
+  return value;
+}
+
 export interface NotificationView {
   readonly id: string;
   readonly severity: NotificationRecord['severity'];
@@ -39,7 +62,7 @@ export async function loadNotificationFeed(
     severity: record.severity,
     title: record.title,
     body: record.body,
-    url: record.url,
+    url: appRelativeUrl(record.url),
     createdAt: record.createdAt,
     read: record.readAt !== null,
   }));

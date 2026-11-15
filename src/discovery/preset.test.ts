@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addDays, isAfter } from '@/core/dates';
 import { parseSearchForm } from '@/search/schema';
 import { DISCOVERY_CATEGORIES, findCategory } from './categories';
 import { categoryQuery, nextSeasonStart } from './preset';
@@ -116,7 +117,9 @@ describe('seasonal categories', () => {
     expect(beach.months).toEqual([]);
 
     const values = new URLSearchParams(categoryQuery({ category: beach, today: TODAY }));
-    expect(values.get('earliestDeparture')).toBe('2026-06-01');
+    // The default window follows today (two weeks out), never a fixed past date.
+    expect(values.get('earliestDeparture')).toBe(addDays(TODAY, 14));
+    expect(isAfter(values.get('earliestDeparture')!, TODAY)).toBe(true);
   });
 });
 

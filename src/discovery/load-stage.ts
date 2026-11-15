@@ -6,7 +6,7 @@ import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
 import type { IsoDate, IsoDateTime, SearchProfile } from '@/core/trip/types';
 import { getCurrentUser } from '@/auth/current-user';
 import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
-import { SEARCH_FORM_DEFAULTS } from '@/components/search/search-form';
+import { searchFormDefaults } from '@/search/form-defaults';
 import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
@@ -250,7 +250,7 @@ export async function loadStagePage(
 
   const origins = outcome
     ? (profile?.origins ?? [])
-    : (snapshot?.assumptions.origins ?? [defaults.origins ?? SEARCH_FORM_DEFAULTS.origins!]);
+    : (snapshot?.assumptions.origins ?? [defaults.origins ?? searchFormDefaults(today).origins!]);
 
   /*
    * What a chip or card does. After a search: narrow the results already on

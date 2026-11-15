@@ -5,6 +5,7 @@ import type { FlexDayPrice } from '@/core/flex-dates';
 import type { FlightOffer, IsoDate, IsoDateTime } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
 import { createLimiterPool, type LimiterPool } from '@/lib/concurrency';
+import { FixedWindowLimiter } from '@/lib/fixed-window';
 import { getLogger } from '@/lib/logger';
 import { isOk } from '@/lib/result';
 import { concurrencyFor } from '@/providers/rate';
@@ -58,7 +59,39 @@ export interface DayPriceQuery {
   readonly maxNights?: number;
 }
 
+/**
+ * How many months of provider loads one process will start per minute.
+ *
+ * The cache absorbs repeats, but a caller who varies the query (another
+ * origin, another month, another currency) misses it every time, and each miss
+ * is a burst of vendor calls. The concurrency limiter bounds how many run at
+ * once, not how many are queued behind them, so on its own it lets a flood
+ * grow a queue and burn the vendor's rate allowance for every user. This is the
+ * ceiling on cost: past it a month simply reports that it could not be loaded.
+ * Cache hits do not count. A real session needs a handful a minute.
+ */
+export const DAY_PRICE_LOADS_PER_MINUTE = 120;
+
+declare global {
+  var __voyagrDayPriceBudget: FixedWindowLimiter | undefined;
+}
+
+function admitFromSharedBudget(): boolean {
+  globalThis.__voyagrDayPriceBudget ??= new FixedWindowLimiter({
+    max: DAY_PRICE_LOADS_PER_MINUTE,
+    windowMs: 60_000,
+    maxKeys: 1,
+  });
+  return globalThis.__voyagrDayPriceBudget.take('loads').allowed;
+}
+
 export interface DayPriceDeps {
+  /**
+   * Asked before a cache miss goes to the provider. Defaults to the shared
+   * per-process budget; a caller that injects its own `store` (a test) gets no
+   * budget unless it passes one.
+   */
+  readonly admit?: () => boolean;
   readonly flights?: FlightProvider;
   readonly store?: CacheStore;
   readonly pool?: LimiterPool;
@@ -258,7 +291,16 @@ export async function loadMonthDayPrices(
         freshMs: DAY_PRICES_FRESH_MS,
         staleMs: DAY_PRICES_STALE_MS,
         now,
-        load: () => fetchMonth(query, flights, pool),
+        load: () => {
+          const admit = deps.admit ?? (deps.store ? undefined : admitFromSharedBudget);
+          if (admit && !admit()) {
+            throw new AppError('RATE_LIMITED', 'Day-price load budget spent', {
+              publicMessage: 'Prices are busy right now. Try again shortly.',
+              retryable: true,
+            });
+          }
+          return fetchMonth(query, flights, pool);
+        },
       },
     );
 

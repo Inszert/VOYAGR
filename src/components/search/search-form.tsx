@@ -9,6 +9,7 @@ import {
   RadioChip,
   Select,
 } from '@/components/ui';
+import { searchFormDefaults } from '@/search/form-defaults';
 import { FLEXIBILITY_HINTS, FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS } from '@/search/flexibility';
 import {
   OPTIMISATION_MODES,
@@ -45,26 +46,13 @@ export interface SearchFormProps {
    * wins, then what you saved, then what we guessed for a stranger.
    */
   defaults?: Readonly<Record<string, string>>;
+  /**
+   * Today, as an ISO date, read once by the server. The system defaults'
+   * dates are derived from it; the form never asks the clock itself.
+   */
+  today: string;
   errors?: SearchFormErrors;
 }
-
-export const SEARCH_FORM_DEFAULTS: Readonly<Record<string, string>> = {
-  origins: 'VIE',
-  destinations: 'AYT, CHQ, SPU',
-  flexibility: 'custom',
-  departureDate: '2026-06-06',
-  returnDate: '2026-06-13',
-  earliestDeparture: '2026-06-01',
-  latestReturn: '2026-06-30',
-  minNights: '2',
-  maxNights: '7',
-  passengers: '2',
-  currency: 'EUR',
-  targetBudget: '650',
-  maxBudget: '850',
-  travelStyle: 'balanced',
-  optimisationMode: 'best_value',
-};
 
 /**
  * How a form reads its values.
@@ -83,8 +71,9 @@ export interface FormReader {
 export function readForm(
   values: Readonly<Record<string, string | undefined>>,
   defaults: Readonly<Record<string, string>> = {},
-  systemDefaults: Readonly<Record<string, string>> = SEARCH_FORM_DEFAULTS,
+  today: string,
 ): FormReader {
+  const systemDefaults = searchFormDefaults(today);
   // A GET form always submits its text inputs, so this marks a real submission.
   const submitted = typeof values.origins === 'string';
 
@@ -359,8 +348,8 @@ export function PreferenceFields({ form, errors = {} }: FieldsetProps) {
   );
 }
 
-export function SearchForm({ values, defaults = {}, errors = {} }: SearchFormProps) {
-  const form = readForm(values, defaults);
+export function SearchForm({ values, defaults = {}, today, errors = {} }: SearchFormProps) {
+  const form = readForm(values, defaults, today);
 
   return (
     <Card as="section" aria-labelledby="search-form-heading" elevation="raised">

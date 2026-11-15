@@ -4,7 +4,7 @@ import { money } from '@/core/money';
 import { createMemoryRepositories } from '@/db/memory';
 import type { Repositories } from '@/db/repository';
 import { AppError } from '@/lib/errors';
-import { TripHubService } from './service';
+import { TRIP_LIMITS, TripHubService } from './service';
 
 let repositories: Repositories;
 let service: TripHubService;
@@ -157,6 +157,44 @@ describe('access', () => {
   });
 });
 
+describe('malformed ids and ceilings', () => {
+  it('treats an id that is not a UUID as not found, before any query', async () => {
+    const user = await aUser();
+    const trip = await service.createTrip(user.id, tripForm);
+
+    for (const bad of ['1', "x'; DROP TABLE trips;--", '../../etc', '', 'a'.repeat(500)]) {
+      expect(await code(service.access(user.id, bad))).toBe('NOT_FOUND');
+      expect(await code(service.removePlanItem(user.id, trip.id, bad))).toBe('NOT_FOUND');
+      expect(await code(service.removeExpense(user.id, trip.id, bad))).toBe('NOT_FOUND');
+    }
+    // Removing a contact by a malformed id is a quiet no-op, like any id that is not yours.
+    await expect(service.removeContact(user.id, 'nope')).resolves.toBeUndefined();
+  });
+
+  it('caps how many people a trip, and how many contacts an account, can hold', async () => {
+    const user = await aUser();
+    const trip = await service.createTrip(user.id, tripForm);
+
+    for (let i = 1; i < TRIP_LIMITS.membersPerTrip; i++) {
+      await service.addMember(user.id, trip.id, { name: `Guest ${i}`, accountEmail: null });
+    }
+    expect(
+      await code(service.addMember(user.id, trip.id, { name: 'One too many', accountEmail: null })),
+    ).toBe('VALIDATION_ERROR');
+
+    const contact = { name: 'Mum', relation: 'Parent', phone: '+43 1 234 5678' };
+    for (let i = 0; i < TRIP_LIMITS.contactsPerUser; i++)
+      await service.addContact(user.id, contact);
+    expect(await code(service.addContact(user.id, contact))).toBe('VALIDATION_ERROR');
+  });
+
+  it('caps how many trips an account can create', async () => {
+    const user = await aUser();
+    for (let i = 0; i < TRIP_LIMITS.tripsPerUser; i++) await service.createTrip(user.id, tripForm);
+    expect(await code(service.createTrip(user.id, tripForm))).toBe('VALIDATION_ERROR');
+  });
+});
+
 describe('plan', () => {
   it('stores a partner offer as an idea with the registry link, never as booked', async () => {
     const owner = await aUser();
@@ -169,6 +207,63 @@ describe('plan', () => {
     expect(item.partnerOfferId).toBe('intui-transfer');
     expect(item.outboundUrl).toMatch(/^https:\/\//);
     expect(item.price).toBeNull();
+  });
+
+  it('adds a place as an idea, with its Wikipedia page as the link', async () => {
+    const owner = await aUser();
+    const trip = await service.createTrip(owner.id, tripForm);
+
+    const item = await service.addPlaceToPlan(owner.id, trip.id, {
+      title: "  Hadrian's Gate ",
+      kind: 'activity',
+      url: 'https://en.wikipedia.org/wiki/Hadrian%27s_Gate',
+    });
+
+    expect(item).toMatchObject({
+      kind: 'activity',
+      title: "Hadrian's Gate",
+      status: 'idea',
+      partnerOfferId: null,
+      price: null,
+      outboundUrl: 'https://en.wikipedia.org/wiki/Hadrian%27s_Gate',
+    });
+    await expect(
+      service.addPlaceToPlan(owner.id, trip.id, { title: 'No page', kind: 'activity', url: null }),
+    ).resolves.toMatchObject({ outboundUrl: null });
+  });
+
+  it('refuses a place whose name or link is not what a place could be', async () => {
+    const owner = await aUser();
+    const trip = await service.createTrip(owner.id, tripForm);
+    const add = (title: string, url: string | null, kind: 'activity' = 'activity') =>
+      code(service.addPlaceToPlan(owner.id, trip.id, { title, kind, url }));
+
+    expect(await add('', null)).toBe('VALIDATION_ERROR');
+    expect(await add('x'.repeat(141), null)).toBe('VALIDATION_ERROR');
+    expect(await add('x'.repeat(140), null)).toBe('NO_ERROR');
+    expect(await add('Two\nlines', null)).toBe('VALIDATION_ERROR');
+    expect(await add('Place', 'https://evil.example/wiki/X')).toBe('VALIDATION_ERROR');
+    expect(await add('Place', 'http://en.wikipedia.org/wiki/X')).toBe('VALIDATION_ERROR');
+    expect(await add('Place', 'https://en.wikipedia.org.evil.example/wiki/X')).toBe(
+      'VALIDATION_ERROR',
+    );
+    expect(await add('Place', 'https://u:p@en.wikipedia.org/wiki/X')).toBe('VALIDATION_ERROR');
+    expect(await add('Place', 'javascript:alert(1)')).toBe('VALIDATION_ERROR');
+    expect(await add('Place', 'https://de.wikipedia.org/wiki/X')).toBe('NO_ERROR');
+    expect(await add('Place', 'https://www.wikidata.org/wiki/Q1')).toBe('NO_ERROR');
+    expect(await add('Place', null, 'stay' as 'activity')).toBe('VALIDATION_ERROR');
+  });
+
+  it('does not let a stranger add a place to a trip', async () => {
+    const owner = await aUser();
+    const stranger = await aUser();
+    const trip = await service.createTrip(owner.id, tripForm);
+
+    expect(
+      await code(
+        service.addPlaceToPlan(stranger.id, trip.id, { title: 'X', kind: 'activity', url: null }),
+      ),
+    ).toBe('NOT_FOUND');
   });
 
   it('rejects an unknown partner offer', async () => {

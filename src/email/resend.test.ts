@@ -136,6 +136,41 @@ describe('ResendEmailProvider', () => {
     }
   });
 
+  const NL = String.fromCharCode(10);
+  const CRLF = String.fromCharCode(13, 10);
+
+  it.each([
+    'a@b.test, c@d.test',
+    'Victim <a@b.test>',
+    `a@b.test${NL}Bcc: x@y.test`,
+    `a@b.test${CRLF}`,
+    '"a b"@c.test',
+    'no-at-sign',
+    '@b.test',
+    'a@',
+    '',
+  ])('refuses the recipient %j without calling the vendor', async (to) => {
+    const { provider, fetch } = providerAnswering(Response.json({ id: 'abc' }));
+
+    const result = await provider.send({ ...MESSAGE, to });
+
+    expect(result.ok).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a subject or header with a line break', async () => {
+    const { provider, fetch } = providerAnswering(Response.json({ id: 'abc' }));
+
+    expect((await provider.send({ ...MESSAGE, subject: `Hi${CRLF}Bcc: x@y.test` })).ok).toBe(false);
+    expect(
+      (await provider.send({ ...MESSAGE, headers: { 'X-One': `a${NL}Bcc: x@y.test` } })).ok,
+    ).toBe(false);
+    expect((await provider.send({ ...MESSAGE, headers: { [`X-One${NL}Bcc`]: 'a' } })).ok).toBe(
+      false,
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('declares that it sends real email', () => {
     expect(new ResendEmailProvider({ apiKey: KEY, from: 'a@b.invalid' }).sendsRealEmail).toBe(true);
   });

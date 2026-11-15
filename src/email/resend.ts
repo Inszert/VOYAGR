@@ -21,6 +21,62 @@ const log = getLogger('email.resend');
 
 const ENDPOINT = 'https://api.resend.com/emails';
 
+/**
+ * One bare mailbox: no display name, no list, no line break.
+ *
+ * The recipient is always an address the application validated as an email, so
+ * this is the second line of defence, not the first. It matters because Resend
+ * accepts `Name <a@b>` and a list: a value with a comma, an angle bracket or a
+ * newline would turn one verification mail into mail to somebody else, or inject
+ * a header, should an upstream validator ever be loosened.
+ */
+const FORBIDDEN_IN_MAILBOX = new Set([
+  '<',
+  '>',
+  ',',
+  ';',
+  '"',
+  "'",
+  '(',
+  ')',
+  '[',
+  ']',
+  String.fromCharCode(92),
+]);
+
+function hasControlOrSpace(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function isBareMailbox(value: string): boolean {
+  if (value.length === 0 || value.length > 254 || hasControlOrSpace(value)) return false;
+  for (const character of value) if (FORBIDDEN_IN_MAILBOX.has(character)) return false;
+
+  const at = value.indexOf('@');
+  return at > 0 && at === value.lastIndexOf('@') && at < value.length - 1;
+}
+
+function hasLineBreakOrControl(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function rejected(reason: string) {
+  return err(
+    new AppError('VALIDATION_ERROR', `Email not sent: ${reason}`, {
+      publicMessage: 'The email could not be sent.',
+      context: { provider: 'resend' },
+    }),
+  );
+}
+
 /** Long enough for a slow day at the vendor, short enough that a request does not hang on it. */
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -46,6 +102,17 @@ export class ResendEmailProvider implements EmailProvider {
   async send(message: EmailMessage): ReturnType<EmailProvider['send']> {
     const { apiKey, from, replyTo, timeoutMs = DEFAULT_TIMEOUT_MS } = this.options;
     const doFetch = this.options.fetch ?? fetch;
+
+    // Refused before anything is sent, and without echoing the offending value.
+    if (!isBareMailbox(message.to)) {
+      return rejected('recipient is not a single plain address');
+    }
+    if (hasLineBreakOrControl(message.subject)) return rejected('subject contains a line break');
+    for (const [name, value] of Object.entries(message.headers ?? {})) {
+      if (!/^[A-Za-z0-9-]+$/.test(name) || hasLineBreakOrControl(value)) {
+        return rejected('a header is malformed');
+      }
+    }
 
     const body = {
       from,

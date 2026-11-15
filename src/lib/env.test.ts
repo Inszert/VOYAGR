@@ -71,9 +71,13 @@ describe('provider defaults by environment', () => {
     expect([
       production.HOTEL_PROVIDER,
       production.TRANSFER_PROVIDER,
-      production.PLACES_PROVIDER,
       production.STAY_PROVIDERS,
-    ]).toEqual(['absent', 'absent', 'absent', 'absent']);
+    ]).toEqual(['absent', 'absent', 'absent']);
+    // Places have a real, keyless source, so production reads it rather than saying nothing.
+    expect(production.PLACES_PROVIDER).toBe('wikidata');
+    expect(parseEnv({ NODE_ENV: 'production', PLACES_PROVIDER: 'absent' }).PLACES_PROVIDER).toBe(
+      'absent',
+    );
 
     const development = parseEnv({ NODE_ENV: 'development' });
     expect([

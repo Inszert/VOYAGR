@@ -280,7 +280,7 @@ describe('TripCard', () => {
 
 describe('SearchForm', () => {
   it('gives every control a real label', () => {
-    render(<SearchForm values={{}} />);
+    render(<SearchForm today="2026-06-01" values={{}} />);
 
     expect(screen.getByRole('textbox', { name: /Departure airports/ })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: /Travellers/ })).toBeInTheDocument();
@@ -290,7 +290,13 @@ describe('SearchForm', () => {
   });
 
   it('marks an invalid field and announces why', () => {
-    render(<SearchForm values={{ origins: 'NOPE' }} errors={{ origins: 'Use three letters.' }} />);
+    render(
+      <SearchForm
+        today="2026-06-01"
+        values={{ origins: 'NOPE' }}
+        errors={{ origins: 'Use three letters.' }}
+      />,
+    );
 
     const input = screen.getByRole('textbox', { name: /Departure airports/ });
     expect(input).toHaveAttribute('aria-invalid', 'true');
@@ -305,7 +311,11 @@ describe('SearchForm', () => {
   it('keeps what the user typed when the form comes back rejected', () => {
     // Retyping a whole form because one field was wrong is its own punishment.
     render(
-      <SearchForm values={{ origins: 'BTS', passengers: '4' }} errors={{ passengers: 'No.' }} />,
+      <SearchForm
+        today="2026-06-01"
+        values={{ origins: 'BTS', passengers: '4' }}
+        errors={{ passengers: 'No.' }}
+      />,
     );
 
     expect(screen.getByRole('textbox', { name: /Departure airports/ })).toHaveValue('BTS');
@@ -477,7 +487,7 @@ describe('the flexibility control', () => {
   it('offers the presets in the open, not behind a disclosure', () => {
     // Section 8: flexible dates are not an advanced option. A control a user
     // has to go looking for is one most users never find.
-    render(<SearchForm values={{}} />);
+    render(<SearchForm today="2026-06-01" values={{}} />);
 
     const group = screen.getByRole('group', { name: 'How flexible are the dates?' });
 
@@ -489,7 +499,7 @@ describe('the flexibility control', () => {
   it('names each choice with what it actually does', () => {
     // "± 3 days" alone cannot be told apart from every other product's "± 3
     // days", so the name carries the meaning as well as the label.
-    render(<SearchForm values={{}} />);
+    render(<SearchForm today="2026-06-01" values={{}} />);
 
     expect(
       screen.getByRole('radio', { name: /three days either side.*as short as two nights/i }),
@@ -497,7 +507,7 @@ describe('the flexibility control', () => {
   });
 
   it('is one choice rather than several', () => {
-    render(<SearchForm values={{}} />);
+    render(<SearchForm today="2026-06-01" values={{}} />);
 
     // Radios, not checkboxes: the options are mutually exclusive, and a
     // checkbox behaving like a radio is a lie told to a screen reader.
@@ -505,7 +515,7 @@ describe('the flexibility control', () => {
   });
 
   it('restores the chosen preset from the submitted values', () => {
-    render(<SearchForm values={{ origins: 'VIE', flexibility: 'weekend' }} />);
+    render(<SearchForm today="2026-06-01" values={{ origins: 'VIE', flexibility: 'weekend' }} />);
 
     expect((screen.getByRole('radio', { name: /A weekend/ }) as HTMLInputElement).checked).toBe(
       true,

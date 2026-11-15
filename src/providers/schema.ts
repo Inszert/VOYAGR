@@ -3,6 +3,7 @@ import { minorUnitExponent } from '@/core/money';
 import { isLocalDateTime } from '@/core/dates';
 import type { StayLinkOffer } from '@/core/stay/types';
 import type { FlightOffer, HotelOffer, TransferOffer } from '@/core/trip/types';
+import { THING_KINDS } from './types';
 
 /**
  * What a provider is allowed to hand us.
@@ -75,6 +76,17 @@ const isoDateTime = z
  * - so it is refused at the boundary rather than guessed at downstream.
  */
 const localDateTime = z.string().refine(isLocalDateTime, 'must be a zoneless local date-time');
+
+/**
+ * A file on Wikimedia Commons, without its `File:` prefix.
+ *
+ * Narrow on purpose: this string is used to build a request, so it may hold
+ * letters, digits and the punctuation file names really use, and never a slash,
+ * a percent sign, a `..` or a control character. Exported because the image
+ * route holds a request to exactly the same rule.
+ */
+export const COMMONS_FILE_NAME =
+  /^(?!.*\.\.)[\p{L}\p{N}][\p{L}\p{N} _.,'()&!+-]{0,180}\.(?:jpe?g|png|webp)$/iu;
 
 const airport = z.string().regex(/^[A-Z]{3}$/, 'must be a three-letter IATA airport code');
 
@@ -179,6 +191,41 @@ export const stayLinkOfferSchema = z
   .strict();
 
 /**
+ * A place worth a visit, from an open dataset.
+ *
+ * Every optional fact is `.nullable()` and not optional, for the rule at the
+ * top of this file. `wikipediaUrl` goes straight into an `href`, so it is held
+ * to https on Wikipedia itself; `imageFile` ends up in a request to Wikimedia
+ * Commons, so it is held to a plain file name with an image extension.
+ */
+export const thingToDoSchema = z
+  .object({
+    id: z.string().regex(/^Q[1-9]\d{0,12}$/, 'must be a Wikidata item id'),
+    providerId: z.string().min(1),
+    name: z.string().trim().min(1).max(200),
+    kind: z.enum(THING_KINDS),
+    description: z.string().trim().min(1).max(400).nullable(),
+    latitude: z.number().finite().min(-90).max(90),
+    longitude: z.number().finite().min(-180).max(180),
+    distanceFromCentreMetres: z.number().int().min(0).max(1_000_000),
+    notability: z.number().int().min(0),
+    wikipediaUrl: z
+      .string()
+      .url()
+      .refine(
+        (value) => /^https:\/\/[a-z-]+\.wikipedia\.org\/wiki\//.test(value),
+        'must be a Wikipedia article',
+      )
+      .nullable(),
+    imageFile: z
+      .string()
+      .max(200)
+      .regex(COMMONS_FILE_NAME, 'must be a Commons image file name')
+      .nullable(),
+  })
+  .strict();
+
+/**
  * A price whose currency the domain cannot hold.
  *
  * `minorUnitExponent` falls back to 2 for anything it does not know, which is
@@ -247,6 +294,7 @@ function readId(offer: unknown): string | null {
 export type ValidatedFlightOffer = z.infer<typeof flightOfferSchema>;
 export type ValidatedHotelOffer = z.infer<typeof hotelOfferSchema>;
 export type ValidatedTransferOffer = z.infer<typeof transferOfferSchema>;
+export type ValidatedThingToDo = z.infer<typeof thingToDoSchema>;
 export type ValidatedStayLinkOffer = z.infer<typeof stayLinkOfferSchema>;
 
 /*

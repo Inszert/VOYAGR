@@ -11,6 +11,8 @@ import { getActiveDataSource } from '@/providers/request-source';
 import { SeasonalAmbience } from '@/components/discovery/seasonal-ambience';
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
 import { AffiliateDrive } from '@/components/shell/affiliate-drive';
+import { ConsentBanner, CookieSettingsButton } from '@/components/shell/consent-banner';
+import { getConsent } from '@/consent/server';
 import './globals.css';
 
 const inter = Inter({
@@ -52,7 +54,11 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [user, dataSource] = await Promise.all([getCurrentUser(), getActiveDataSource()]);
+  const [user, dataSource, consent] = await Promise.all([
+    getCurrentUser(),
+    getActiveDataSource(),
+    getConsent(),
+  ]);
 
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
@@ -117,6 +123,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       </a>
                     </li>
                     <li>
+                      <CookieSettingsButton className="hover:text-text min-h-6 underline-offset-4 hover:underline" />
+                    </li>
+                    <li>
                       <a
                         href="/status"
                         className="hover:text-text underline-offset-4 hover:underline"
@@ -131,6 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </footer>
         </div>
 
+        <ConsentBanner initialChoice={consent} />
         <SeasonalAmbience />
         <ServiceWorkerRegistrar />
       </body>

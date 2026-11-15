@@ -11,6 +11,23 @@
  * small enough to move.
  */
 
+/**
+ * Most keys either throttle will remember. A key is chosen by the caller (an
+ * address typed into a form), so without a ceiling a loop of distinct values
+ * grows the map until the process runs out of memory. Past the ceiling the
+ * expired entries go first and then the oldest: forgetting one client's count
+ * is the safe direction, refusing everybody is not.
+ */
+export const MAX_THROTTLE_KEYS = 10_000;
+
+function evictOldest(map: Map<string, unknown>): void {
+  while (map.size >= MAX_THROTTLE_KEYS) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
+
 export interface ThrottleDecision {
   readonly allowed: boolean;
   /** Seconds until the next attempt is permitted. Zero when allowed. */
@@ -68,6 +85,10 @@ export class SignInThrottle {
     // A window that never resets would lock out a user who mistypes once a
     // month; one that resets on success would let an attacker interleave.
     if (!existing || now - existing.firstAt > this.windowMs) {
+      if (!existing && this.attempts.size >= MAX_THROTTLE_KEYS) {
+        this.prune();
+        evictOldest(this.attempts);
+      }
       this.attempts.set(key, { count: 1, firstAt: now, lockedUntil: 0 });
       return;
     }
@@ -202,6 +223,11 @@ export class SendThrottle {
 
     if (retryAfterMs > 0) {
       return { allowed: false, retryAfterSeconds: Math.ceil(retryAfterMs / 1000) };
+    }
+
+    if (this.windows.size >= MAX_THROTTLE_KEYS) {
+      this.prune();
+      evictOldest(this.windows);
     }
 
     for (const { key, limit } of entries) {

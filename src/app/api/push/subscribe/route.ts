@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/auth/current-user';
 import { getRepositories } from '@/db';
 import { AppError, toProblemDetails } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
+import { isPublicPushEndpoint } from '@/notifications/push-endpoint';
 
 /**
  * Push subscription management.
@@ -29,7 +30,8 @@ const subscriptionSchema = z.object({
   endpoint: z
     .string()
     .url()
-    .refine((value) => value.startsWith('https://'), 'A push endpoint must be https'),
+    .max(2048)
+    .refine(isPublicPushEndpoint, 'A push endpoint must be a public https address'),
   keys: z.object({
     p256dh: z.string().min(1).max(255),
     auth: z.string().min(1).max(255),

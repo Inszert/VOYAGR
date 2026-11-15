@@ -59,6 +59,7 @@ export function createAbsentPlacesProvider(): PlacesProvider {
     metadata: absentMetadata('places'),
     checkHealth: absentHealth,
     searchPlaces: async () => ok([]),
+    thingsToDo: async () => ok([]),
   };
 }
 

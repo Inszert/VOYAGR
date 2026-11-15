@@ -34,6 +34,23 @@ import type { PlanItemKind, PlanItemStatus } from './types';
  * not shared.
  */
 
+/** Where a place's own page may live: Wikipedia in any language, or Wikidata. */
+function isPlaceSourceUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+
+  return (
+    url.protocol === 'https:' &&
+    url.username === '' &&
+    url.password === '' &&
+    (/^[a-z-]+\.wikipedia\.org$/.test(url.hostname) || url.hostname === 'www.wikidata.org')
+  );
+}
+
 const CATEGORY_TO_KIND: Readonly<Partial<Record<PartnerCategory, PlanItemKind>>> = {
   transfer: 'transfer',
   esim: 'esim',
@@ -41,6 +58,25 @@ const CATEGORY_TO_KIND: Readonly<Partial<Record<PartnerCategory, PlanItemKind>>>
   activities: 'activity',
   stay: 'stay',
 };
+
+/**
+ * Every id here is a UUID the server made. A value of any other shape cannot
+ * name a row, so it is "not found" before it reaches a query: Postgres would
+ * otherwise answer a malformed id with a type error, a 500 instead of the 404
+ * that keeps ids unprobeable.
+ */
+const ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ceilings, so one account cannot fill the database. Generous for a person, fatal for a script. */
+export const TRIP_LIMITS = {
+  tripsPerUser: 100,
+  membersPerTrip: 30,
+  contactsPerUser: 20,
+} as const;
+
+function tooMany(publicMessage: string): AppError {
+  return new AppError('VALIDATION_ERROR', 'Per-account limit reached', { publicMessage });
+}
 
 export interface TripAccess {
   readonly trip: TripRecord;
@@ -77,6 +113,8 @@ export class TripHubService {
         publicMessage: 'That trip could not be found.',
       });
 
+    if (!ID_SHAPE.test(tripId)) throw notFound();
+
     const trip = await this.repositories.trips.findById(tripId);
     if (!trip) throw notFound();
 
@@ -103,7 +141,12 @@ export class TripHubService {
     return this.repositories.trips.listForUser(userId);
   }
 
-  createTrip(userId: string, input: TripFormInput): Promise<TripRecord> {
+  async createTrip(userId: string, input: TripFormInput): Promise<TripRecord> {
+    const existing = await this.repositories.trips.listForUser(userId);
+    if (existing.length >= TRIP_LIMITS.tripsPerUser) {
+      throw tooMany('You have reached the limit of trips. Delete one you no longer need.');
+    }
+
     const { ownerName, ...fields } = input;
     const record: TripInput = { ownerId: userId, ...fields };
     return this.repositories.trips.create(record, ownerName);
@@ -140,6 +183,10 @@ export class TripHubService {
       throw new AppError('VALIDATION_ERROR', 'Member name invalid', {
         publicMessage: 'Enter a name of up to 80 characters.',
       });
+    }
+
+    if (members.length >= TRIP_LIMITS.membersPerTrip) {
+      throw tooMany(`A trip can have up to ${TRIP_LIMITS.membersPerTrip} people.`);
     }
 
     let linkedUserId: string | null = null;
@@ -267,8 +314,49 @@ export class TripHubService {
     });
   }
 
+  /**
+   * A place from "Things to do", saved as an idea.
+   *
+   * Unlike a partner offer, nothing here comes from a registry we hold, so the
+   * request's two strings are held to what a place can be: a short single-line
+   * name, and a link only to Wikipedia or Wikidata, over https. The link is
+   * stored for the traveller to follow, never rendered as a partner link.
+   */
+  async addPlaceToPlan(
+    userId: string,
+    tripId: string,
+    place: { readonly title: string; readonly kind: 'activity'; readonly url: string | null },
+  ): Promise<PlanItemRecord> {
+    await this.access(userId, tripId);
+
+    const title = typeof place.title === 'string' ? place.title.trim() : '';
+    if (
+      place.kind !== 'activity' ||
+      title === '' ||
+      title.length > 140 ||
+      /[\u0000-\u001f\u007f]/.test(title) ||
+      (place.url !== null && !isPlaceSourceUrl(place.url))
+    ) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid place', {
+        publicMessage: 'That place could not be added.',
+      });
+    }
+
+    return this.repositories.planItems.create({
+      tripId,
+      kind: 'activity',
+      title,
+      date: null,
+      startsAt: null,
+      price: null,
+      partnerOfferId: null,
+      outboundUrl: place.url,
+      status: 'idea',
+    });
+  }
+
   private async requireItem(tripId: string, itemId: string): Promise<PlanItemRecord> {
-    const item = await this.repositories.planItems.findById(itemId);
+    const item = ID_SHAPE.test(itemId) ? await this.repositories.planItems.findById(itemId) : null;
     // An item of another trip is "not found" here: the id is only a claim.
     if (!item || item.tripId !== tripId) {
       throw new AppError('NOT_FOUND', 'Plan item not found', {
@@ -330,7 +418,9 @@ export class TripHubService {
   ): Promise<TripExpenseRecord> {
     await this.checkExpense(userId, tripId, input);
 
-    const existing = await this.repositories.tripExpenses.findById(expenseId);
+    const existing = ID_SHAPE.test(expenseId)
+      ? await this.repositories.tripExpenses.findById(expenseId)
+      : null;
     if (!existing || existing.tripId !== tripId) {
       throw new AppError('NOT_FOUND', 'Expense not found', {
         publicMessage: 'That expense could not be found.',
@@ -342,7 +432,9 @@ export class TripHubService {
 
   async removeExpense(userId: string, tripId: string, expenseId: string): Promise<void> {
     await this.access(userId, tripId);
-    const expense = await this.repositories.tripExpenses.findById(expenseId);
+    const expense = ID_SHAPE.test(expenseId)
+      ? await this.repositories.tripExpenses.findById(expenseId)
+      : null;
     if (!expense || expense.tripId !== tripId) {
       throw new AppError('NOT_FOUND', 'Expense not found', {
         publicMessage: 'That expense could not be found.',
@@ -383,11 +475,17 @@ export class TripHubService {
     return this.repositories.emergencyContacts.listByUser(userId);
   }
 
-  addContact(userId: string, input: ContactFormInput): Promise<EmergencyContactRecord> {
+  async addContact(userId: string, input: ContactFormInput): Promise<EmergencyContactRecord> {
+    const mine = await this.repositories.emergencyContacts.listByUser(userId);
+    if (mine.length >= TRIP_LIMITS.contactsPerUser) {
+      throw tooMany(`You can keep up to ${TRIP_LIMITS.contactsPerUser} emergency contacts.`);
+    }
+
     return this.repositories.emergencyContacts.create({ userId, ...input });
   }
 
   async removeContact(userId: string, contactId: string): Promise<void> {
+    if (!ID_SHAPE.test(contactId)) return;
     const contact = await this.repositories.emergencyContacts.findById(contactId);
     // Not yours is not found, and nothing is deleted.
     if (!contact || contact.userId !== userId) return;

@@ -1,4 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { CONSENT_COOKIE, parseConsent } from '@/consent/cookie';
+import { buildContentSecurityPolicy } from '@/consent/csp';
+import { driveCspOrigin } from '@/consent/drive';
 
 /**
  * A fresh CSP nonce, every request.
@@ -27,25 +30,23 @@ import { NextResponse, type NextRequest } from 'next/server';
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isDev = process.env.NODE_ENV === 'development';
-  // Travelpayouts Drive, production only - see src/components/shell/affiliate-drive.tsx.
-  // Its origin is spelled out here rather than imported: this file runs in the
-  // proxy runtime and must not pull in the server env module.
-  const drive = process.env.NODE_ENV === 'production' ? ' https://emrldco.com' : '';
+  /*
+   * Travelpayouts Drive: its origin is named in the policy only for a request
+   * that carries the accepted consent cookie (see src/consent/drive.ts and
+   * affiliate-drive.tsx). Everyone else gets a policy that does not mention the
+   * third party at all. The flags are read straight from the environment
+   * because this file runs in the proxy runtime and must not pull in the
+   * server env module; the semantics match `booleanish` in src/lib/env.ts.
+   */
+  const flag = (value: string | undefined) => value === 'true' || value === '1';
+  const driveOrigin = driveCspOrigin({
+    nodeEnv: process.env.NODE_ENV ?? '',
+    allowMockInProduction: flag(process.env.ALLOW_MOCK_IN_PRODUCTION),
+    testStub: flag(process.env.DRIVE_TEST_STUB),
+    consent: parseConsent(request.cookies.get(CONSENT_COOKIE)?.value),
+  });
 
-  const contentSecurityPolicy = [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}${drive}`,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
-    "font-src 'self' data:",
-    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}`,
-    "worker-src 'self'",
-    "manifest-src 'self'",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    'upgrade-insecure-requests',
-  ].join('; ');
+  const contentSecurityPolicy = buildContentSecurityPolicy({ nonce, isDev, driveOrigin });
 
   // Carried on the request so a server component can read it back with
   // `headers()` if it ever needs to nonce something itself; carried on the

@@ -191,6 +191,13 @@ describe('production serves no fixtures', () => {
     expect(registry.isFullyMocked()).toBe(false);
   });
 
+  it('resolves places to Wikidata when asked, which is real and keyless', () => {
+    const registry = new ProviderRegistry(production({ PLACES_PROVIDER: 'wikidata' }));
+
+    expect(registry.places.metadata).toMatchObject({ id: 'wikidata', isMock: false });
+    expect(() => assertNoMockInProduction(registry, production())).not.toThrow();
+  });
+
   it('answers an absent slot with nothing, so the cost line is excluded rather than zero', async () => {
     const registry = new ProviderRegistry(production());
 
