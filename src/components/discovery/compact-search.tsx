@@ -626,6 +626,10 @@ function BarSearch({
         <input
           id="hero-search-open"
           type="checkbox"
+          // Open when the search was refused. Folded, the form has nowhere to show what was
+          // wrong: on a phone every field (and so every message) is behind the toggle, and
+          // a refused search would look like a button that does nothing.
+          defaultChecked={Object.values(errors).some(Boolean)}
           className="sr-only"
           aria-label="Show every search option"
         />

@@ -3093,8 +3093,10 @@ export function GlobeStage({
             className={cn(
               'voyagr-panel stage-scope absolute right-4 z-[5] flex gap-1 rounded-(--radius-pill) p-1',
               // The box runs below the hero on a wide screen, so the corner is
-              // measured from the hero's edge, not the box's.
-              stage ? 'bottom-4 lg:bottom-[calc(8%+1.5rem)]' : 'bottom-4',
+              // measured from the hero's edge, not the box's. Below that the search bar
+              // is pinned to the bottom of the hero, full width, and the switch would sit
+              // underneath it where nothing can reach it: so it rides above the bar.
+              stage ? 'bottom-[6.5rem] lg:bottom-[calc(8%+1.5rem)]' : 'bottom-4',
             )}
           >
             {(
@@ -3109,7 +3111,7 @@ export function GlobeStage({
                 aria-pressed={projection === kind}
                 onClick={() => setProjection(kind)}
                 className={cn(
-                  'ease-standard duration-quick rounded-(--radius-pill) px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                  'ease-standard duration-quick rounded-(--radius-pill) px-3.5 py-1.5 text-xs font-semibold transition-colors max-lg:min-h-11 max-lg:min-w-11',
                   projection === kind ? 'voyagr-cta' : 'text-stage-ink-muted hover:text-stage-ink',
                 )}
               >

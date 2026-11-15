@@ -16,7 +16,7 @@ import { EXPLORE_SLOT_CLASS, StageSlot } from '@/components/discovery/stage-slot
 export default function ExploreLoading() {
   return (
     <div className="flex flex-col">
-      <section className="text-text relative -mt-[72px] overflow-x-clip pt-[72px]">
+      <section className="text-text pointer-events-none relative -mt-[72px] overflow-x-clip pt-[72px]">
         <div
           aria-hidden="true"
           className="voyagr-sky pointer-events-none absolute inset-0 -z-10"
@@ -29,7 +29,7 @@ export default function ExploreLoading() {
 
         <Container
           size="wide"
-          className="grid grid-cols-[minmax(0,1fr)] items-center gap-6 pt-6 pb-8 lg:grid-cols-[minmax(0,31rem)_minmax(0,1fr)]"
+          className="pointer-events-none grid grid-cols-[minmax(0,1fr)] items-center gap-6 pt-6 pb-8 lg:grid-cols-[minmax(0,31rem)_minmax(0,1fr)]"
         >
           <div className="flex min-w-0 flex-col gap-3">
             <Skeleton aria-hidden="true" className="h-10 w-72 max-w-full" />

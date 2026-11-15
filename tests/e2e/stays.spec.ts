@@ -1,5 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { openMenuIfPhone } from './support/menu';
+import { openSearch } from './support/searches';
 
 /**
  * The stay search, end to end, through the UI a user actually has.
@@ -15,12 +17,18 @@ test.describe('stays', () => {
   test('is offered on the front page rather than hidden', async ({ page }) => {
     await page.goto('/');
 
-    // The first question, asked before any field.
+    // The first question, asked before any field, one fold into the search.
+    await openSearch(page);
     await expect(page.getByText('What are you looking for?')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Hotels', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Flights + Hotels' })).toBeVisible();
-    // And in the navigation, like every other first-class search.
-    await expect(page.getByRole('navigation').getByRole('link', { name: 'Stays' })).toBeVisible();
+
+    // And in the navigation, like every other first-class search. Below
+    // 1024px the navigation is in the menu.
+    await openMenuIfPhone(page);
+    await expect(
+      page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Stays' }),
+    ).toBeVisible();
   });
 
   test('shows what the dates cost before showing any hotel', async ({ page }) => {

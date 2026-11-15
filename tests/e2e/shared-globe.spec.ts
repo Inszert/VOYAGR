@@ -93,7 +93,10 @@ test.describe('the persistent globe', () => {
     await back.fill(sunday);
     await page.getByRole('button', { name: 'Search trips' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`/explore\\?.*earliestDeparture=${friday}`));
+    // The two dates typed arrive as the search's own; the window around them is derived.
+    await expect(page).toHaveURL(
+      new RegExp(`/explore\\?.*departureDate=${friday}.*returnDate=${sunday}`),
+    );
     await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();
     await expectSameGlobe(page);
   });

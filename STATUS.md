@@ -9,15 +9,17 @@ Last updated: 2026-11-15.
 
 ## In progress
 
-- End-to-end and accessibility test repair (128 pass, 82 fail after the redesign); fixing real bugs found
-- Not on main yet: shared globe, phone header, remaining pages, explore fixes (on the branch, waiting for the tests)
+- Next up: "up to 30 things to do" per destination, more partners, cookie consent, hero video, final docs
 
 ## Done
 
-- One shared globe for home and explore: a search no longer reloads it (on the branch)
-- Phone header with a menu (on the branch)
-- Redesign of sign-in pages, trips hub, watches, stays, status, legal, offline and error pages (on the branch)
-- Explore: new result rows, flexible-dates strip fixed, partner grid (on the branch)
+- End-to-end and accessibility suite green: 248 passed, 0 failed (desktop and phone)
+- 8 real bugs fixed (trip page crash, globe not draggable, results page hydration error, phone layout shift, hidden Globe/Map switch, and others)
+
+- One shared globe for home and explore: a search no longer reloads it
+- Phone header with a menu
+- Redesign of sign-in pages, trips hub, watches, stays, status, legal, offline and error pages
+- Explore: new result rows, flexible-dates strip fixed, partner grid
 
 - Home page below the hero: image cards, mosaic, rail, full-bleed destination moment
 - Explore, trip card and destination page redesign (first pass); badges removed
@@ -59,6 +61,5 @@ Last updated: 2026-11-15.
 
 ## Not verified yet
 
-- e2e and accessibility suite on the new design
 - Real email delivery, live Aviasales calendar calls, Postgres migrations 0008/0009
 - Most new screens have not been reviewed in a browser

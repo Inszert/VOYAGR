@@ -118,7 +118,10 @@ export function DiscoveryStage({
     */
     <section
       aria-labelledby="stage-heading"
-      className="text-text relative -mt-[72px] overflow-x-clip"
+      // The globe is mounted before this section, so this section paints over it and would
+      // take every press meant for the planet. Pointer events pass through it; what has to
+      // be pressable (the hero's copy and search, and everything below the hero) opts back in.
+      className="text-text pointer-events-none relative -mt-[72px] overflow-x-clip"
     >
       {/*
         Space, and the light the planet is sitting in: ambient, no edge. The
@@ -143,7 +146,7 @@ export function DiscoveryStage({
       <StageSlot
         variant="stage"
         data-hero
-        className="group/hero relative h-[calc(100svh-var(--hero-top,56px))] min-h-[40rem] pt-[calc(var(--hero-top,56px)+72px)] sm:h-[calc(100svh-var(--hero-top,0px))] sm:min-h-[44rem] sm:pt-[calc(var(--hero-top,0px)+72px)] lg:overflow-clip"
+        className="group/hero relative h-[calc(100svh-var(--hero-top,0px))] min-h-[40rem] pt-[calc(var(--hero-top,0px)+72px)] sm:h-[calc(100svh-var(--hero-top,0px))] sm:min-h-[44rem] sm:pt-[calc(var(--hero-top,0px)+72px)] lg:overflow-clip"
       >
         <HeroMetrics />
 
@@ -240,7 +243,10 @@ export function DiscoveryStage({
         </Container>
       </StageSlot>
 
-      <Container size="wide" className="flex flex-col gap-8 pt-10 pb-12 lg:pb-16">
+      <Container
+        size="wide"
+        className="pointer-events-auto flex flex-col gap-8 pt-10 pb-12 lg:pb-16"
+      >
         <HeroRail items={rail} provenance={provenance} sources={sources} />
 
         <p className="text-muted max-w-[520px] text-[15px] leading-[1.6] sm:hidden">{INTRO}</p>
@@ -292,7 +298,9 @@ export function DiscoveryStage({
           <span>Imagery: NASA Earth Observatory / Blue Marble</span>
         </p>
       </Container>
-      <MorePlaces />
+      <div className="pointer-events-auto">
+        <MorePlaces />
+      </div>
     </section>
   );
 }

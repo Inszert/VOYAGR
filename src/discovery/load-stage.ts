@@ -331,11 +331,19 @@ export async function loadStagePage(
     earliestDeparture: earliest,
     latestReturn: addDays(earliest, DISCOVERY_WINDOW.lengthDays),
   };
-  const lensDefaults = { ...defaults, ...window };
+  /*
+   * The two dates a person would type, alongside the window.
+   *
+   * A lens link carries them too. Left out, they fell back to the form's
+   * built-in defaults, which are a fixed week in the past once that week has
+   * gone by - and the flexibility chips on the results ("A weekend", "± 3
+   * days") widen exactly those two dates, so a search that began on a lens
+   * would offer weekends in June.
+   */
+  const typedDates = { departureDate: addDays(today, 14), returnDate: addDays(today, 21) };
+  const lensDefaults = { ...defaults, ...window, ...typedDates };
   const formDefaults = {
     ...lensDefaults,
-    departureDate: addDays(today, 14),
-    returnDate: addDays(today, 21),
     flexibility: 'plus-minus-3',
   };
 

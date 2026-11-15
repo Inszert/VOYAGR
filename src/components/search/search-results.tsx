@@ -206,7 +206,7 @@ export function SearchResults({
             ? `${diagnostics.eligibleCount} ${diagnostics.eligibleCount === 1 ? 'trip' : 'trips'} match`
             : 'No trip matched'}
         </h2>
-        <p className="text-ink flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium">
+        <div className="text-ink flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium">
           <span>
             {profile.origins.join(', ')}
             <span aria-hidden="true" className="text-dim mx-1.5">
@@ -221,7 +221,7 @@ export function SearchResults({
           {updatedAgeMs !== undefined ? (
             <UpdatedAgo ageMs={updatedAgeMs} className="text-ink-muted" />
           ) : null}
-        </p>
+        </div>
         <p className="text-ink-muted text-sm">
           {results.length < diagnostics.eligibleCount ? `Showing the best ${results.length}. ` : ''}
           Considered {diagnostics.candidatesEvaluated} combinations across{' '}

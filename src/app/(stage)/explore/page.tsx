@@ -200,7 +200,9 @@ export default async function ExplorePage({
     <div className="flex flex-col">
       <section
         aria-labelledby="explore-heading"
-        className="text-text relative -mt-[72px] overflow-x-clip pt-[72px]"
+        // The globe is mounted before this section, so the section paints over it. Pointer
+        // events pass through; the copy column below opts back in.
+        className="text-text pointer-events-none relative -mt-[72px] overflow-x-clip pt-[72px]"
       >
         <div
           aria-hidden="true"
@@ -232,9 +234,9 @@ export default async function ExplorePage({
         */}
         <Container
           size="wide"
-          className="grid grid-cols-[minmax(0,1fr)] items-center gap-6 pt-6 pb-8 lg:grid-cols-[minmax(0,31rem)_minmax(0,1fr)]"
+          className="pointer-events-none grid grid-cols-[minmax(0,1fr)] items-center gap-6 pt-6 pb-8 lg:grid-cols-[minmax(0,31rem)_minmax(0,1fr)]"
         >
-          <div className="flex min-w-0 flex-col gap-5">
+          <div className="pointer-events-auto flex min-w-0 flex-col gap-5">
             <div>
               <h1
                 id="explore-heading"

@@ -1,5 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { axeFindings } from './support/axe';
+import { aSearch, hydrated, openSearch } from './support/searches';
 
 /**
  * Saved searches and Travel Watches end to end.
@@ -8,10 +9,9 @@ import { expect, test, type Page } from '@playwright/test';
  * its next scheduled run.
  */
 
-const A_SEARCH =
-  '/?origins=VIE&destinations=AYT%2C+CHQ&earliestDeparture=2026-06-01' +
-  '&latestReturn=2026-06-30&minNights=4&maxNights=7&passengers=2&currency=EUR' +
-  '&targetBudget=650&maxBudget=850&travelStyle=balanced&optimisationMode=best_value';
+// Dates relative to the day the suite runs - see `support/searches`.
+const SEARCH = aSearch('AYT, CHQ');
+const A_SEARCH = SEARCH.path;
 
 function newAccount() {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -23,6 +23,7 @@ async function signUp(page: Page) {
   await page.goto('/sign-up');
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.getByLabel('Password').fill(password);
+  await hydrated(page.getByRole('button', { name: 'Create account' }));
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
   return { email, password };
@@ -31,6 +32,7 @@ async function signUp(page: Page) {
 async function saveASearch(page: Page, name?: string) {
   await page.goto(A_SEARCH);
   if (name) await page.getByRole('textbox', { name: /Name this search/ }).fill(name);
+  await hydrated(page.getByRole('button', { name: 'Watch this trip' }));
   await page.getByRole('button', { name: 'Watch this trip' }).click();
   await expect(page.getByRole('heading', { name: 'We are watching this trip' })).toBeVisible();
 }
@@ -66,7 +68,7 @@ test.describe('travel watches', () => {
     await page.goto(A_SEARCH);
 
     await expect(page.getByRole('textbox', { name: /Name this search/ })).toHaveValue(
-      'AYT, CHQ in 2026-06',
+      `AYT, CHQ in ${SEARCH.month}`,
     );
   });
 
@@ -89,20 +91,15 @@ test.describe('travel watches', () => {
     await signUp(page);
 
     // The free plan allows three active watches.
-    for (const month of ['06', '07', '08']) {
-      await page.goto(
-        A_SEARCH.replace(/2026-06-01/, `2026-${month}-01`).replace(
-          /2026-06-30/,
-          `2026-${month}-28`,
-        ),
-      );
+    for (const shift of [0, 40, 80]) {
+      await page.goto(aSearch('AYT, CHQ', '/explore', shift).path);
+      await hydrated(page.getByRole('button', { name: 'Watch this trip' }));
       await page.getByRole('button', { name: 'Watch this trip' }).click();
       await expect(page.getByRole('heading', { name: 'We are watching this trip' })).toBeVisible();
     }
 
-    await page.goto(
-      A_SEARCH.replace(/2026-06-01/, '2026-09-01').replace(/2026-06-30/, '2026-09-28'),
-    );
+    await page.goto(aSearch('AYT, CHQ', '/explore', 120).path);
+    await hydrated(page.getByRole('button', { name: 'Watch this trip' }));
     await page.getByRole('button', { name: 'Watch this trip' }).click();
 
     await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toContainText(
@@ -128,6 +125,7 @@ test.describe('travel watches', () => {
     // A search with requirements that a partial replay link would have dropped.
     await page.goto(`${A_SEARCH}&requireDirectFlights=on&requireFreeCancellation=on`);
     await page.getByRole('textbox', { name: /Name this search/ }).fill('Fussy search');
+    await hydrated(page.getByRole('button', { name: 'Watch this trip' }));
     await page.getByRole('button', { name: 'Watch this trip' }).click();
     await expect(page.getByRole('heading', { name: 'We are watching this trip' })).toBeVisible();
 
@@ -141,6 +139,7 @@ test.describe('travel watches', () => {
     // no form of their own; "Change search" opens it filled in with the search
     // that ran, and the hard requirements sit behind "More options" there.
     await page.getByRole('link', { name: 'Change search' }).click();
+    await openSearch(page);
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('checkbox', { name: 'Direct flights only' })).toBeChecked();
     await expect(
@@ -171,16 +170,6 @@ test.describe('travel watches', () => {
     await saveASearch(page, 'Accessible watch');
     await page.goto('/watches');
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    const findings = results.violations.flatMap((violation) =>
-      violation.nodes.map(
-        (node) => `${violation.id} at ${node.target.join(' ')} — ${node.failureSummary?.trim()}`,
-      ),
-    );
-
-    expect(findings).toEqual([]);
+    expect(await axeFindings(page)).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { cn } from '@/lib/cn';
 import { registerStageSlot, releaseStageSlot, type StageVariant } from './stage-store';
 
 /**
@@ -19,7 +20,7 @@ export interface StageSlotProps extends React.ComponentPropsWithoutRef<'div'> {
   variant: StageVariant;
 }
 
-export function StageSlot({ variant, children, ...props }: StageSlotProps) {
+export function StageSlot({ variant, children, className, ...props }: StageSlotProps) {
   const ref = React.useRef<HTMLDivElement>(null);
 
   React.useLayoutEffect(() => {
@@ -31,7 +32,16 @@ export function StageSlot({ variant, children, ...props }: StageSlotProps) {
   }, [variant]);
 
   return (
-    <div ref={ref} data-stage-slot={variant} {...props}>
+    <div
+      ref={ref}
+      data-stage-slot={variant}
+      // The globe is mounted before the page, so a positioned slot paints over it. Left
+      // opaque to the pointer, the slot would take every press meant for the planet: the
+      // drag, the wheel, a country, a price chip. Whatever inside must be pressable
+      // (the hero's copy and search) says so itself with `pointer-events-auto`.
+      className={cn('pointer-events-none', className)}
+      {...props}
+    >
       {children}
     </div>
   );

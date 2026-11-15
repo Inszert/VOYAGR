@@ -70,11 +70,7 @@ test.describe('a destination page', () => {
   });
 
   test('is reachable from the discovery map', async ({ page }) => {
-    await page.goto(
-      '/?origins=VIE&destinations=AYT%2C+CHQ%2C+SPU&earliestDeparture=2026-06-01' +
-        '&latestReturn=2026-06-30&minNights=4&maxNights=7&passengers=2&currency=EUR' +
-        '&targetBudget=650&maxBudget=850&travelStyle=balanced&optimisationMode=best_value',
-    );
+    await page.goto('/');
 
     const map = page.getByRole('region', { name: /destinations, ranked by/ });
     await map

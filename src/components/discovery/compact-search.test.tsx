@@ -57,6 +57,21 @@ function submission(form: HTMLFormElement): Record<string, string> {
 }
 
 describe('CompactSearch', () => {
+  it('starts folded when nothing was refused', () => {
+    // On a phone every field - and so every message about one - is behind the
+    // toggle. Left folded, a refused search looks like a button that does nothing.
+    renderForm({ variant: 'bar' });
+    expect(screen.getByRole('checkbox', { name: 'Show every search option' })).not.toBeChecked();
+  });
+
+  it('shows the toggle already open when a field was refused', () => {
+    renderForm({
+      variant: 'bar',
+      errors: { origins: 'Use three-letter airport codes, such as VIE.' },
+    });
+    expect(screen.getByRole('checkbox', { name: 'Show every search option' })).toBeChecked();
+  });
+
   it('labels every visible control', () => {
     renderForm();
 

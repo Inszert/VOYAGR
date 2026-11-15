@@ -1,5 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeFindings, waitForEntranceMotion } from './support/axe';
+import { openMenuIfPhone } from './support/menu';
 import { watchRequests } from './support/requests';
 
 /**
@@ -19,16 +20,40 @@ test.describe('the explorer', () => {
     const rail = page.getByRole('region', { name: /destinations, ranked by/ });
     await expect(rail).toBeVisible();
     expect(await rail.getByRole('listitem').count()).toBeGreaterThan(1);
-    await expect(rail.getByText('Demo data').first()).toBeVisible();
+    // D20: no provenance chip - the price says "from", and the page says how
+    // old the figures are.
+    await expect(rail.getByText(/from €\d/).first()).toBeVisible();
+    await expect(rail.getByText('Demo data')).toHaveCount(0);
+    await expect(page.getByText(/^Updated .+ ago$|^Updated just now$/).first()).toBeVisible();
+  });
+
+  test('puts the pointer on the planet, not on the box it sits in', async ({ page }) => {
+    // The globe is mounted once, above the page, and the page's slot for it is
+    // laid out after it, so left opaque to the pointer the slot would take
+    // every press meant for the planet: the drag, the wheel, a country, a price
+    // chip. Hit-testing the middle of the canvas is the direct question.
+    await page.goto('/explore');
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible({ timeout: 15_000 });
+
+    const hit = await page.evaluate(() => {
+      const canvas = document.querySelector('.maplibregl-canvas');
+      if (!canvas) return 'no canvas';
+      const box = canvas.getBoundingClientRect();
+      const x = box.x + box.width / 2;
+      const y = Math.min(box.y + box.height / 2, window.innerHeight - 1);
+      const element = document.elementFromPoint(x, y);
+
+      return element?.closest('[data-stage-host]') ? 'the globe' : (element?.tagName ?? 'nothing');
+    });
+
+    expect(hit).toBe('the globe');
   });
 
   test('is reachable from the primary navigation', async ({ page }) => {
     await page.goto('/');
 
     // Below 1024px the navigation lives behind the Menu button.
-    if (!(await page.getByRole('navigation', { name: 'Primary' }).isVisible())) {
-      await page.getByRole('button', { name: 'Menu' }).click();
-    }
+    await openMenuIfPhone(page);
     await page
       .getByRole('navigation', { name: 'Primary' })
       .getByRole('link', { name: 'Explore' })
@@ -62,7 +87,7 @@ test.describe('the explorer', () => {
 
     await expect(page).toHaveURL(/country=GEO/);
     await expect(page).toHaveURL(/mapMode=cheapest/);
-    await expect(page.getByRole('region', { name: /2 places priced in Georgia/ })).toBeVisible();
+    await expect(page.getByRole('region', { name: /\d+ places? priced in Georgia/ })).toBeVisible();
   });
   /**
    * Whether anything under `/geo/` matching this shape was asked for.
@@ -124,37 +149,16 @@ test.describe('the explorer', () => {
     await expect(rail.getByText('Southern Europe, Europe')).toBeVisible();
     // Geometry is not knowledge about a place, and the rail says so.
     await expect(rail.getByText('52 regions, drawn as outlines')).toBeVisible();
-    await expect(rail.getByText('1 airport')).toBeVisible();
+    // However many airports the catalogue has in Spain today, the rail says so.
+    await expect(rail.getByText(/^\d+ airports?$/)).toBeVisible();
   });
 
   test('has no detectable accessibility violations', async ({ page }) => {
     await page.goto('/explore');
     await expect(page.locator('.maplibregl-canvas')).toBeVisible({ timeout: 15_000 });
     // Judged on the settled page, after the entrance motion has finished.
-    await page.waitForFunction(() =>
-      document.getAnimations().every((animation) => {
-        // An ambient loop never finishes, by design: the weather drifting over
-        // the page runs for as long as the page is open. What this is waiting
-        // for is the entrance motion to have settled, so a card is not sampled
-        // mid-fade and reported as low contrast - which is a question only the
-        // finite animations can answer.
-        const timing = animation.effect?.getComputedTiming();
-        if (timing && timing.iterations === Infinity) return true;
+    await waitForEntranceMotion(page);
 
-        return animation.playState === 'finished';
-      }),
-    );
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    const findings = results.violations.flatMap((violation) =>
-      violation.nodes.map(
-        (node) => `${violation.id} at ${node.target.join(' ')} — ${node.failureSummary?.trim()}`,
-      ),
-    );
-
-    expect(findings).toEqual([]);
+    expect(await axeFindings(page)).toEqual([]);
   });
 });

@@ -47,7 +47,7 @@ const PENDING_GIVE_UP_MS = 20_000;
  */
 const ROOT_CLASS: Record<StageVariant, string> = {
   stage:
-    'absolute inset-x-0 top-[calc(38svh-var(--hero-top,56px))] z-0 h-[118vw] sm:top-[calc(var(--hero-top,0px)+72px)] sm:bottom-0 sm:h-auto lg:top-[8%] lg:bottom-auto lg:h-full',
+    'absolute inset-x-0 top-[calc(38svh-var(--hero-top,0px))] z-0 h-[118vw] sm:top-[calc(var(--hero-top,0px)+72px)] sm:bottom-0 sm:h-auto lg:top-[8%] lg:bottom-auto lg:h-full',
   explorer: 'absolute inset-0',
 };
 

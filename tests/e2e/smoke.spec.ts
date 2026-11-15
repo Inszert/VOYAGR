@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeFindings, waitForEntranceMotion } from './support/axe';
 
 /**
  * Foundation smoke test.
@@ -35,36 +35,11 @@ test.describe('application shell', () => {
   test('has no detectable accessibility violations', async ({ page }) => {
     await page.goto('/');
 
-    // Contrast is judged on the settled page. The stage's entrance motion
-    // fades content in, and a card sampled mid-fade reads as low contrast
-    // without being so once it has arrived.
-    await page.waitForFunction(() =>
-      document.getAnimations().every((animation) => {
-        // An ambient loop never finishes, by design: the weather drifting over
-        // the page runs for as long as the page is open. What this is waiting
-        // for is the entrance motion to have settled, so a card is not sampled
-        // mid-fade and reported as low contrast - which is a question only the
-        // finite animations can answer.
-        const timing = animation.effect?.getComputedTiming();
-        if (timing && timing.iterations === Infinity) return true;
+    // Contrast is judged on the settled page: an entrance fade sampled halfway
+    // reads as low contrast without being so.
+    await waitForEntranceMotion(page);
 
-        return animation.playState === 'finished';
-      }),
-    );
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    // Report the rule *and the offending element* on failure. A bare rule id
-    // means someone has to reproduce the run locally to find the node.
-    const findings = results.violations.flatMap((violation) =>
-      violation.nodes.map(
-        (node) => `${violation.id} at ${node.target.join(' ')} — ${node.failureSummary?.trim()}`,
-      ),
-    );
-
-    expect(findings).toEqual([]);
+    expect(await axeFindings(page)).toEqual([]);
   });
 
   test('renders a 404 for an unknown route', async ({ page }) => {

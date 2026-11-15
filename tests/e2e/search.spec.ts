@@ -1,6 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeFindings, waitForEntranceMotion } from './support/axe';
 import { watchRequests } from './support/requests';
+import { aSearch, closeSearch, openSearch } from './support/searches';
 
 /**
  * Search end to end.
@@ -14,10 +15,20 @@ import { watchRequests } from './support/requests';
  * straight to one, which is exactly what a shared or bookmarked search does.
  */
 
-const A_SEARCH =
-  '/?origins=VIE&destinations=AYT%2C+CHQ%2C+SPU&earliestDeparture=2026-06-01' +
-  '&latestReturn=2026-06-30&minNights=4&maxNights=7&passengers=2&currency=EUR' +
-  '&targetBudget=650&maxBudget=850&travelStyle=balanced&optimisationMode=best_value';
+// Dates relative to the day the suite runs - see `support/searches`.
+const SEARCH = aSearch();
+const A_SEARCH = SEARCH.path;
+
+/**
+ * The results, once they are on the page.
+ *
+ * Counting `article`s straight after `goto` read zero on a busy machine: the
+ * count does not retry, and the results are not necessarily painted at load.
+ * Waiting for the first one is what makes a later count mean something.
+ */
+async function resultsOn(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.getByRole('article').first()).toBeVisible();
+}
 
 /**
  * Wait until the stage has finished building itself.
@@ -85,19 +96,27 @@ test.describe('discovery', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: /See where you can go/ }),
     ).toBeVisible();
-    // The globe in words: a region of destinations, each with a price and its
-    // provenance, before anyone has typed anything.
+    // The globe in words: a region of destinations, each with a price, before
+    // anyone has typed anything.
     const rail = page.getByRole('region', { name: /destinations, ranked by/ });
     await expect(rail).toBeVisible();
     expect(await rail.getByRole('listitem').count()).toBeGreaterThan(1);
-    await expect(rail.getByText('Demo data').first()).toBeVisible();
     await expect(rail.getByText(/Priced for \d travellers? from VIE/)).toBeVisible();
+
+    // D20: honesty is in the words, not a chip. Every price is a "from" price,
+    // and nothing on the rail is labelled as demo data.
+    await expect(rail.getByRole('link', { name: /, from €\d[\d,.]*/ }).first()).toBeVisible();
+    await expect(rail.getByText('Demo data')).toHaveCount(0);
+    await expect(rail.getByText('Indicative')).toHaveCount(0);
   });
 
   test('offers the lenses as links across the top of the search', async ({ page }) => {
     await page.goto('/');
 
+    // The lenses are folded into the search until it is opened.
     const lenses = page.getByRole('navigation', { name: 'Kind of trip' });
+    await expect(lenses).toBeHidden();
+    await openSearch(page);
     await expect(lenses).toBeVisible();
     await expect(lenses.getByRole('link', { name: /Beach escapes/ })).toBeVisible();
   });
@@ -106,6 +125,7 @@ test.describe('discovery', () => {
     // Section 6: choosing a category must immediately affect the search.
     await page.goto('/');
     await settled(page);
+    await openSearch(page);
     await page.getByRole('link', { name: /Travel cheaply/ }).click();
 
     // A lens is a whole search, fanned out across every destination the
@@ -117,6 +137,7 @@ test.describe('discovery', () => {
       timeout: 20_000,
     });
     await page.getByRole('link', { name: 'Change search' }).click();
+    await openSearch(page);
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('combobox', { name: 'Optimise for' })).toHaveValue('cheapest');
   });
@@ -128,13 +149,19 @@ test.describe('discovery', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: /Your trips, on the map/ }),
     ).toBeVisible();
-    await expect(page.getByRole('region', { name: /destinations, ranked by/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();
+
+    // Every destination of the search is a chip on the same globe, and a link:
+    // the canvas is decoration, the facts are in the page.
+    await expect(page.locator('a[data-destination]').first()).toBeAttached({ timeout: 20_000 });
+    await expect(page.locator('a[data-destination]')).toHaveCount(3);
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible();
   });
 
   test('works with the keyboard and carries nothing hidden', async ({ page }) => {
     await page.goto('/');
     await settled(page);
+    await openSearch(page);
 
     const lens = page.getByRole('link', { name: /City breaks/ });
     await lens.focus();
@@ -143,6 +170,7 @@ test.describe('discovery', () => {
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/travelStyle=explore/);
     await page.getByRole('link', { name: 'Change search' }).click();
+    await openSearch(page);
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('combobox', { name: 'Travel style' })).toHaveValue('explore');
   });
@@ -151,6 +179,7 @@ test.describe('discovery', () => {
 test.describe('running a search', () => {
   test('submits the form and returns ranked trips', async ({ page }) => {
     await page.goto('/');
+    await waitForEntranceMotion(page);
 
     await page.getByRole('button', { name: 'Search trips' }).click();
 
@@ -162,13 +191,27 @@ test.describe('running a search', () => {
   });
 
   test('restores a search from its URL', async ({ page }) => {
-    await page.goto(A_SEARCH);
+    // The address a search from the form produces, dates and all.
+    await page.goto(`${A_SEARCH}&departureDate=${SEARCH.earliest}&returnDate=${SEARCH.latest}`);
 
     await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();
     // The results carry no form; the one "Change search" opens is filled in
     // from the URL, so nothing about the search is lost on the way.
     await page.getByRole('link', { name: 'Change search' }).click();
+    await openSearch(page);
     await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('VIE');
+    await expect(page.getByRole('combobox', { name: /^To/ })).toHaveValue('AYT, CHQ, SPU');
+    await expect(page.getByLabel('Leaving')).toHaveValue(SEARCH.earliest);
+    await expect(page.getByLabel('Back', { exact: true })).toHaveValue(SEARCH.latest);
+  });
+
+  test('keeps an old address on the front page working', async ({ page }) => {
+    // Searches used to live at `/`. Links people saved or shared must still
+    // land on their results rather than on an empty form.
+    await page.goto(A_SEARCH.replace('/explore', '/'));
+
+    await expect(page).toHaveURL(/\/explore\?/);
+    await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();
   });
 
   test('draws each flight as a route, the way the globe does', async ({ page }) => {
@@ -213,8 +256,9 @@ test.describe('running a search', () => {
 
     await expect(top.getByRole('columnheader', { name: 'Confidence' })).toBeVisible();
     await expect(top.getByText('Of which quoted by a provider')).toBeVisible();
-    // An estimate must never be presentable as a quote.
-    await expect(top.getByText('Quoted').first()).toBeVisible();
+    // An estimate must never be presentable as a quote: every line carries its
+    // own confidence, and at least one of them is a provider's quote.
+    await expect(top.getByRole('cell', { name: /Quoted/ }).first()).toBeVisible();
   });
 
   test('shows the No-Surprise warnings without the user opening anything', async ({ page }) => {
@@ -227,6 +271,7 @@ test.describe('running a search', () => {
   test('keeps a rejected form usable and says what was wrong', async ({ page }) => {
     await page.goto('/');
 
+    await openSearch(page);
     const origins = page.getByRole('combobox', { name: /^From/ });
     await origins.fill('VIENNA');
     await page.getByRole('button', { name: 'Search trips' }).click();
@@ -299,6 +344,7 @@ test.describe('running a search', () => {
     // Section 10. Filters remove trips the search already paid for; re-running
     // it per chip would cost provider calls.
     await page.goto(A_SEARCH);
+    await resultsOn(page);
     const before = await page.getByRole('article').count();
 
     // Clicked by its label, which is what a user does: the input itself is
@@ -317,6 +363,7 @@ test.describe('running a search', () => {
     // And the search behind it is unchanged.
     await expect(page).toHaveURL(/origins=VIE/);
 
+    await resultsOn(page);
     const after = await page.getByRole('article').count();
     expect(after).toBeLessThanOrEqual(before);
   });
@@ -356,17 +403,9 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
     await expect(page.getByRole('article').first()).toBeVisible();
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
+    await waitForEntranceMotion(page);
 
-    const findings = results.violations.flatMap((violation) =>
-      violation.nodes.map(
-        (node) => `${violation.id} at ${node.target.join(' ')} — ${node.failureSummary?.trim()}`,
-      ),
-    );
-
-    expect(findings).toEqual([]);
+    expect(await axeFindings(page)).toEqual([]);
   });
 });
 
@@ -386,6 +425,7 @@ test.describe('flexible dates', () => {
     await page.goto(A_SEARCH);
 
     const section = page.getByRole('region', { name: 'Pick your dates' });
+    await resultsOn(page);
     const before = await page.getByRole('article').count();
 
     // The picks above the calendar are links that narrow to one set of dates.
@@ -394,17 +434,19 @@ test.describe('flexible dates', () => {
     await expect(page).toHaveURL(/fDates=/);
     // The search itself is untouched, so no provider call was made for this.
     await expect(page).toHaveURL(/origins=VIE/);
-    expect(await page.getByRole('article').count()).toBeLessThanOrEqual(before);
-
     await expect(page.getByRole('link', { name: 'Show every date' })).toBeVisible();
+    await resultsOn(page);
+    expect(await page.getByRole('article').count()).toBeLessThanOrEqual(before);
   });
 
   test('offers the flexibility presets without opening anything', async ({ page }) => {
     await page.goto('/');
 
-    // The presets are a radio group on the search itself, one tap each.
+    // The presets are a radio group on the search itself, one tap each, a
+    // fold away from the bar.
+    await openSearch(page);
     const flexibility = page.getByRole('radiogroup', { name: 'Dates' }).first();
-    await expect(flexibility).toBeAttached();
+    await expect(flexibility).toBeVisible();
     await expect(flexibility.getByRole('radio', { name: /A long weekend/ })).toHaveCount(1);
   });
 
@@ -414,10 +456,17 @@ test.describe('flexible dates', () => {
     const earliest = new Date(Date.now() + 21 * 86_400_000).toISOString().slice(0, 10);
     const { friday, sunday } = weekendOnOrAfter(earliest);
 
+    // The preset widens the two dates a person typed, so they are in the
+    // address - as the search form writes them. A preset without them is
+    // refused by design ("Enter the date you would like to leave").
     await page.goto(
       '/explore?origins=VIE&destinations=AYT&earliestDeparture=' +
         friday +
         '&latestReturn=' +
+        sunday +
+        '&departureDate=' +
+        friday +
+        '&returnDate=' +
         sunday +
         '&minNights=2&maxNights=2&passengers=2&currency=EUR&targetBudget=650&maxBudget=850' +
         '&travelStyle=balanced&optimisationMode=best_value&flexibility=weekend',
@@ -441,12 +490,9 @@ test.describe('flexible dates', () => {
     await page.goto(A_SEARCH);
     await expect(page.getByRole('region', { name: 'Pick your dates' })).toBeVisible();
 
-    const results = await new AxeBuilder({ page })
-      .include('[aria-labelledby="date-options-heading"]')
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
+    expect(
+      await axeFindings(page, { include: '[aria-labelledby="date-options-heading"]' }),
+    ).toEqual([]);
   });
 });
 
@@ -454,17 +500,21 @@ test.describe('the globe', () => {
   test('answers "where can I go" without any JavaScript drawing it', async ({ page }) => {
     // The canvas is decoration; the rail is the content. Every destination on
     // the globe is here too, in the same order, with the same figures.
-    await page.goto(A_SEARCH);
+    await page.goto('/');
 
     const rail = page.getByRole('region', { name: /destinations, ranked by/ });
     await expect(rail).toBeVisible();
 
     const entries = rail.getByRole('listitem');
     expect(await entries.count()).toBeGreaterThan(1);
+    // Each one is a way into a search for that place, with its price in the name.
+    await expect(
+      rail.getByRole('link', { name: /^Search trips to .+, from €\d/ }).first(),
+    ).toHaveAttribute('href', /destinations=[A-Z]{3}/);
   });
 
   test('explains why each destination appears', async ({ page }) => {
-    await page.goto(`${A_SEARCH}&mapMode=cheapest`);
+    await page.goto('/explore?mapMode=cheapest');
 
     const rail = page.getByRole('region', { name: /ranked by cheapest/ });
     // Section 14: do not hide the optimisation logic.
@@ -472,9 +522,12 @@ test.describe('the globe', () => {
   });
 
   test('reorders when the ranking changes, and says so in the URL', async ({ page }) => {
-    await page.goto(A_SEARCH);
+    await page.goto('/');
 
-    await page.getByRole('link', { name: 'Fastest' }).click();
+    await page
+      .getByRole('navigation', { name: 'Rank by' })
+      .getByRole('link', { name: 'Fastest' })
+      .click();
 
     await expect(page).toHaveURL(/mapMode=fastest/);
     const rail = page.getByRole('region', { name: /ranked by fastest/ });
@@ -483,22 +536,24 @@ test.describe('the globe', () => {
 
   test('narrows to a destination without running another search', async ({ page }) => {
     await page.goto(A_SEARCH);
+    await resultsOn(page);
 
-    const rail = page.getByRole('region', { name: /destinations, ranked by/ });
-    await rail
-      .getByRole('link', { name: /^Show only trips to/ })
-      .first()
-      .click();
+    // On the results the globe's chips are the way to narrow to one place.
+    // Only the ones on the near side of the planet can be pressed.
+    const chip = page.locator('a[data-destination]').locator('visible=true').first();
+    await expect(chip).toBeVisible({ timeout: 20_000 });
+    await expect(chip).toHaveAttribute('href', /fDest=[A-Z]{3}/);
+    await chip.click();
 
     await expect(page).toHaveURL(/fDest=[A-Z]{3}/);
     await expect(page).toHaveURL(/origins=VIE/);
   });
 
   test('says what it cannot yet compare', async ({ page }) => {
-    await page.goto(A_SEARCH);
+    await page.goto('/');
 
     const rail = page.getByRole('region', { name: /destinations, ranked by/ });
-    await expect(rail.getByText('Flights only for now')).toBeVisible();
+    await expect(rail.getByText(/Flights only for now/)).toBeVisible();
   });
 
   test('draws a globe from data we ship, reaching nobody', async ({ page }) => {
@@ -520,7 +575,7 @@ test.describe('the globe', () => {
     expect(requests.external).toEqual([]);
   });
 
-  test('puts every price on the globe as a link that says where it came from', async ({ page }) => {
+  test('puts every price on the globe as a link, in the words of a price', async ({ page }) => {
     await page.goto('/');
 
     const chips = page.locator('a[data-destination]');
@@ -540,8 +595,11 @@ test.describe('the globe', () => {
     });
     expect(await chips.count()).toBe(await listed.getByRole('listitem').count());
 
+    // D20: no provenance chip. A price says "from", and the destination it
+    // belongs to is in the link.
     const chip = visible.first();
-    await expect(chip).toContainText('Demo data');
+    await expect(chip).toContainText(/from €\d/);
+    await expect(chip).not.toContainText(/Indicative|DEMO/);
     await expect(chip).toHaveAttribute('href', /destinations=[A-Z]{3}/);
   });
 
@@ -552,19 +610,29 @@ test.describe('the globe', () => {
     await page.getByRole('button', { name: 'Go' }).click();
 
     await expect(page).toHaveURL(/country=ESP/);
-    await expect(page.getByRole('region', { name: /1 place priced in Spain/ })).toBeVisible();
+    await expect(page.getByRole('region', { name: /\d+ places? priced in Spain/ })).toBeVisible();
     // The search follows the selection: its destinations are Spain's airports.
+    await openSearch(page);
     await expect(page.getByRole('combobox', { name: /^To/ })).toHaveValue('PMI');
+    await expect(page.getByText("Spain's airports, or any codes.")).toBeVisible();
 
-    await page.getByRole('link', { name: /Show the whole world/ }).click();
+    // Open, the search covers the globe's own controls on a phone; closed again,
+    // the way back to the whole world is reachable.
+    await closeSearch(page);
+
+    await page
+      .getByRole('link', { name: /Show the whole world/ })
+      .first()
+      .click();
     await expect(page).not.toHaveURL(/country=/);
   });
 
   test('says plainly when a country has nothing priced', async ({ page }) => {
-    await page.goto('/?country=KAZ');
+    // Eritrea has no airport in the catalogue, so nothing there can be priced.
+    await page.goto('/?country=ERI');
 
     await expect(
-      page.getByRole('heading', { name: 'Nothing priced in Kazakhstan yet' }),
+      page.getByRole('heading', { name: 'Nothing priced in Eritrea yet' }),
     ).toBeVisible();
   });
 
@@ -572,32 +640,12 @@ test.describe('the globe', () => {
     await page.goto('/');
     await expect(page.locator('.maplibregl-canvas')).toBeVisible({ timeout: 15_000 });
     // Judged on the settled page, after the entrance motion has finished.
-    await page.waitForFunction(() =>
-      document.getAnimations().every((animation) => {
-        // An ambient loop never finishes, by design: the weather drifting over
-        // the page runs for as long as the page is open. What this is waiting
-        // for is the entrance motion to have settled, so a card is not sampled
-        // mid-fade and reported as low contrast - which is a question only the
-        // finite animations can answer.
-        const timing = animation.effect?.getComputedTiming();
-        if (timing && timing.iterations === Infinity) return true;
+    await waitForEntranceMotion(page);
 
-        return animation.playState === 'finished';
+    expect(
+      await axeFindings(page, {
+        include: ['[aria-labelledby="stage-heading"]', '[aria-labelledby="rail-heading"]'],
       }),
-    );
-
-    const results = await new AxeBuilder({ page })
-      .include('[aria-labelledby="stage-heading"]')
-      .include('[aria-labelledby="rail-heading"]')
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    const findings = results.violations.flatMap((violation) =>
-      violation.nodes.map(
-        (node) => `${violation.id} at ${node.target.join(' ')} — ${node.failureSummary?.trim()}`,
-      ),
-    );
-
-    expect(findings).toEqual([]);
+    ).toEqual([]);
   });
 });

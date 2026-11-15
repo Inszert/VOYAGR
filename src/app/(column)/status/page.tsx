@@ -211,7 +211,14 @@ export default async function StatusPage() {
           Provider slots
         </h2>
 
-        <div className="border-border overflow-x-auto rounded-(--radius-card) border">
+        <div
+          // A region that scrolls sideways has to be reachable by keyboard, or its far columns
+          // are not available to anyone who is not using a pointer.
+          tabIndex={0}
+          role="region"
+          aria-label="Provider slots, scrollable"
+          className="border-border overflow-x-auto rounded-(--radius-card) border"
+        >
           <table className="w-full text-sm">
             <thead className="bg-surface-sunken text-ink-muted text-left">
               <tr>
@@ -290,7 +297,14 @@ export default async function StatusPage() {
           Subsystems
         </h2>
 
-        <div className="border-border overflow-x-auto rounded-(--radius-card) border">
+        <div
+          // A region that scrolls sideways has to be reachable by keyboard, or its far columns
+          // are not available to anyone who is not using a pointer.
+          tabIndex={0}
+          role="region"
+          aria-label="Subsystems, scrollable"
+          className="border-border overflow-x-auto rounded-(--radius-card) border"
+        >
           <table className="w-full text-sm">
             <thead className="bg-surface-sunken text-ink-muted text-left">
               <tr>
@@ -340,7 +354,14 @@ export default async function StatusPage() {
         ) : providerCalls.length === 0 ? (
           <p className="text-ink-muted text-sm">No provider calls in the last 24 hours.</p>
         ) : (
-          <div className="border-border overflow-x-auto rounded-(--radius-card) border">
+          <div
+            // A region that scrolls sideways has to be reachable by keyboard, or its far columns
+            // are not available to anyone who is not using a pointer.
+            tabIndex={0}
+            role="region"
+            aria-label="Provider calls, scrollable"
+            className="border-border overflow-x-auto rounded-(--radius-card) border"
+          >
             <table className="w-full text-sm tabular-nums">
               <thead className="bg-surface-sunken text-ink-muted text-left">
                 <tr>

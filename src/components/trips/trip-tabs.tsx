@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { Icon, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
+import type { TripTab } from './trip-tab';
 
 /**
  * The three parts of a trip: Plan, Money, Emergency.
@@ -14,14 +15,6 @@ import { Icon, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui'
  * The panels arrive as already-rendered server output; this component only
  * decides which one is showing.
  */
-
-export type TripTab = 'plan' | 'money' | 'emergency';
-
-export const TRIP_TABS: readonly TripTab[] = ['plan', 'money', 'emergency'];
-
-export function isTripTab(value: unknown): value is TripTab {
-  return typeof value === 'string' && (TRIP_TABS as readonly string[]).includes(value);
-}
 
 export function TripTabs({
   initial,

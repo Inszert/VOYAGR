@@ -1,5 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeFindings } from './support/axe';
+import { openSearch, hydrated } from './support/searches';
 
 /**
  * Accounts end to end.
@@ -26,6 +27,7 @@ async function signUp(page: import('@playwright/test').Page, email: string, pass
   await page.goto('/sign-up');
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.getByLabel('Password').fill(password);
+  await hydrated(page.getByRole('button', { name: 'Create account' }));
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
 }
@@ -35,7 +37,8 @@ test.describe('accounts', () => {
     const { email, password } = newAccount();
     await signUp(page, email, password);
 
-    await expect(page.getByText(email).first()).toBeVisible();
+    // In the page itself: the header repeats it, and drops it on a phone.
+    await expect(page.getByRole('main').getByText(email).first()).toBeVisible();
     // Entitlements are shown resolved from the plan, not written into the page.
     await expect(page.getByRole('heading', { name: 'Your plan' })).toBeVisible();
     await expect(page.getByText('Trips you can watch at once')).toBeVisible();
@@ -155,17 +158,7 @@ test.describe('accounts', () => {
     const { email, password } = newAccount();
     await signUp(page, email, password);
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    const findings = results.violations.flatMap((violation) =>
-      violation.nodes.map(
-        (node) => `${violation.id} at ${node.target.join(' ')} — ${node.failureSummary?.trim()}`,
-      ),
-    );
-
-    expect(findings).toEqual([]);
+    expect(await axeFindings(page)).toEqual([]);
   });
 });
 
@@ -185,6 +178,8 @@ test.describe('preferences and the search form', () => {
 
     await page.goto('/');
 
+    // Under 1024px the fields are folded behind the bar's "Edit".
+    await openSearch(page);
     await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('BTS');
     // Currency and style sit behind "More options"; opening it is what a
     // person does to check them, and hidden controls are not in the tree.
@@ -202,6 +197,7 @@ test.describe('preferences and the search form', () => {
     await expect(page.getByText('Preferences saved.')).toBeVisible();
 
     await page.goto('/');
+    await openSearch(page);
     await page.getByRole('combobox', { name: /^From/ }).fill('VIE');
     await page.getByRole('button', { name: 'Search trips' }).click();
 
@@ -209,6 +205,7 @@ test.describe('preferences and the search form', () => {
     // in the address, and in the form "Change search" opens.
     await expect(page).toHaveURL(/origins=VIE/);
     await page.getByRole('link', { name: 'Change search' }).click();
+    await openSearch(page);
     await expect(page.getByRole('combobox', { name: /^From/ })).toHaveValue('VIE');
   });
 

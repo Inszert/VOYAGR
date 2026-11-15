@@ -62,6 +62,9 @@ export function ExpensesSection({
             ledger.balances.map((group) => (
               <div
                 key={group.currency}
+                tabIndex={0}
+                role="region"
+                aria-label={`Balances in ${group.currency}`}
                 className="border-border overflow-x-auto rounded-(--radius-card) border"
               >
                 <table className="w-full text-sm">

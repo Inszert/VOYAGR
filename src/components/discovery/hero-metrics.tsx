@@ -12,8 +12,12 @@ import * as React from 'react';
  * where the planet's top sits - has to subtract it. This measures the header,
  * not a guess, and writes the answer as `--hero-top` on the root element.
  *
- * It renders nothing. Before it runs, the CSS falls back to values that are
- * right for a desktop and close for a phone.
+ * It renders nothing. Before it runs, the CSS falls back to 0px, which is what
+ * this measures at every width (the phone header is one 56px row, so the hero
+ * starts above the top of the page and the answer is clamped to nothing). A
+ * fallback that differs from the measurement is a layout shift: the search bar
+ * used to drop by 56px on a phone the moment the page hydrated, under a thumb
+ * that was already on its way to it.
  */
 export function HeroMetrics() {
   const marker = React.useRef<HTMLSpanElement>(null);
