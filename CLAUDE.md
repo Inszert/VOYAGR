@@ -242,3 +242,17 @@ browser.
 Phase 1 is not implemented. Do not add live provider integrations, booking, payments, real Travel
 Watch monitoring or a production notification pipeline unless explicitly asked. Do not add real
 credentials to any file. `.env.example` holds placeholders only.
+
+## Keep devmap.html current
+
+`devmap.html` at the repo root is the owner's visual development map: what is done, what is in
+progress, what is planned, what is failing or unverified, and the recommended next step.
+
+- When you **start** a piece of work, add or move its item to "In progress" in `devmap.html`
+  (the status data is the single `DATA` object at the top of the script).
+- When you **finish** it, move the item to "Done" with a one-line summary, and update the
+  "Recommended next step" if it changes.
+- When you find something **failing or unverified**, record it under "Failing or unverified" with
+  a severity: blocks launch, should fix, or known limit.
+- Keep the file self-contained (inline CSS and JavaScript, no external requests) so it opens from
+  disk.
