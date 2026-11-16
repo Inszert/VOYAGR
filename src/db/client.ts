@@ -92,7 +92,12 @@ export async function getPool(): Promise<Pool> {
       ssl: env.DATABASE_SSL ? { rejectUnauthorized: true } : undefined,
       // Fail fast rather than hanging a request behind an unreachable host.
       connectionTimeoutMillis: 10_000,
-      idleTimeoutMillis: 30_000,
+      // Hosted Postgres closes idle connections on its own schedule. Drop ours
+      // well before that, and keep the TCP socket alive so a quiet connection
+      // is not silently reset (the ECONNRESET errors seen on 2026-11-16).
+      idleTimeoutMillis: 10_000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000,
     });
 
     pool.on('error', (error) => {

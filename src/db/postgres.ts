@@ -1541,13 +1541,47 @@ class PostgresEmergencyContactRepository implements EmergencyContactRepository {
   }
 }
 
+/**
+ * A connection the server dropped under us (ECONNRESET, "Connection terminated
+ * unexpectedly"). Retrying on a fresh pooled connection is safe for the
+ * idempotent-or-single-row writes that use it.
+ */
+export function isConnectionDrop(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current && !seen.has(current); depth++) {
+    seen.add(current);
+    const e = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (e.code === 'ECONNRESET' || e.code === 'EPIPE') return true;
+    if (typeof e.message === 'string' && /ECONNRESET|Connection terminated/i.test(e.message)) {
+      return true;
+    }
+    current = e.cause;
+  }
+  return false;
+}
+
 class PostgresProviderRequestRepository implements ProviderRequestRepository {
   async record(entry: Omit<ProviderRequestRecord, 'createdAt'>): Promise<void> {
-    await query(
-      `INSERT INTO provider_requests (provider_id, kind, status, duration_ms, result_count)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [entry.providerId, entry.kind, entry.status, Math.round(entry.durationMs), entry.resultCount],
-    );
+    const insert = () =>
+      query(
+        `INSERT INTO provider_requests (provider_id, kind, status, duration_ms, result_count)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          entry.providerId,
+          entry.kind,
+          entry.status,
+          Math.round(entry.durationMs),
+          entry.resultCount,
+        ],
+      );
+    try {
+      await insert();
+    } catch (error) {
+      // One retry on a fresh connection; a second failure is reported as before.
+      if (!isConnectionDrop(error)) throw error;
+      await insert();
+    }
   }
 
   async summarise(since: IsoDateTime): Promise<ProviderCallSummary[]> {
