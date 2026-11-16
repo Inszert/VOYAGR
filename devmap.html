@@ -329,6 +329,7 @@ const DATA = {
 
   // Planned, not started. `note` says why, where the source does.
   planned: [
+    { text: "Redesign the emails (verification, password reset, email change) to match the site: layout, logo and copy", note: "Owner request 2026-11-17. Not started.", src: "owner request" },
     { text: "When no fares come back for a route and dates, offer a link to the provider's own live search, so the traveller can check live prices", note: "Owner request 2026-11-17. Not started. Plus the empty-state wording about cached prices.", src: "owner request" },
     { text: "Globe default: show at least 3 places on the other side of the globe and 5 far-away places, without overloading the view", note: "Owner request 2026-11-17 (read \"plains\" as \"places\"; confirm). Not started.", src: "owner request" },
     { text: "Store fetched trip results in the database, so a trip searched again within a short time is served from storage and not fetched live every 2 to 3 minutes", note: "Owner request 2026-11-17; not started.", src: "owner request" },
@@ -361,6 +362,7 @@ const DATA = {
 
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
+    { text: "After email verification the user gets no clear confirmation; add a visible success screen (e.g. \"Your email is confirmed\" with a link on to the account or search)", severity: "should fix", note: "Owner report 2026-11-17. Verification works; the step has no visible confirmation.", src: "owner report" },
     { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, which is in progress.", src: "owner report" },
     { text: "Changing the number of travellers should update the prices at once, without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started. Same fix as the season and map updates: live, without submit.", src: "owner report" },
     { text: "Globe season: changing the date to January barely shows snow; the season should be clearly visible, and it should change without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started.", src: "owner report" },
