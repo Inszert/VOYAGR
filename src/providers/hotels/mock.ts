@@ -42,6 +42,21 @@ function decodeHotelOffset(cursor: string | undefined): number {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+/**
+ * Somewhere within a few kilometres of the destination's airport.
+ *
+ * Fixture data, like every name and price here. Its own seeded source, so
+ * adding it moved no other figure the mock produces.
+ */
+function mockPosition(airport: readonly [number, number], seed: string): [number, number] {
+  const random = deterministicSource(`${seed}|position`);
+  const round = (value: number) => Math.round(value * 10_000) / 10_000;
+  return [
+    round(airport[0] + random.float(-0.06, 0.06)),
+    round(airport[1] + random.float(-0.04, 0.04)),
+  ];
+}
+
 export class MockHotelProvider implements HotelProvider {
   readonly metadata = {
     id: 'mock-hotels',
@@ -131,6 +146,11 @@ export class MockHotelProvider implements HotelProvider {
         freeCancellation,
         // The mock prices one shared room for the party; see occupancyFactor.
         rooms: 1,
+        // A mock has no photographs of anybody's hotel, and says so.
+        photoUrls: null,
+        position: mockPosition(profile.position, seed),
+        // Nor does it know neighbourhoods.
+        area: null,
         totalPrice: money(totalCents, query.currency),
         excludedFees: excludedFeesCents > 0 ? money(excludedFeesCents, query.currency) : null,
         observedAt: MOCK_OBSERVED_AT,

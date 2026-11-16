@@ -2,9 +2,10 @@ import { abs, format } from '@/core/money';
 import { Collapsible, Icon } from '@/components/ui';
 import { DestinationPicture } from './destination-picture';
 import { clock, duration } from './route-line';
-import { connectionCount } from '@/core/trip/legs';
+import { connectionCount, legArrival } from '@/core/trip/legs';
 import type { FlightLeg } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
+import { travellersLabel } from '@/core/party';
 import { shortDate } from '@/lib/display-date';
 import { tintFor } from '@/lib/tint';
 import { imageryUrlFor } from '@/providers/imagery/url';
@@ -51,7 +52,9 @@ function legSummary(leg: FlightLeg): string | null {
   if (!first || !last) return null;
 
   const stops = connectionCount(leg);
-  return `${clock(first.departsAt)} → ${clock(last.arrivesAt)} · ${duration(leg.durationMinutes)} · ${
+  // An arrival nobody stated is not printed as the departure again.
+  const arrival = legArrival(leg);
+  return `${clock(first.departsAt)} → ${arrival ? clock(arrival) : 'arrival not stated'} · ${duration(leg.durationMinutes)} · ${
     stops === 0 ? 'direct' : `${stops} stop${stops === 1 ? '' : 's'}`
   }`;
 }
@@ -133,6 +136,12 @@ export function TripRow({
                 </span>
               </p>
             ) : null}
+            {candidate.flight.ticketing === 'two_one_way' ? (
+              <p className="flex items-center gap-1.5">
+                <Icon name="ticket" size={0.95} className="text-tint-ink shrink-0" />
+                <span>Two one-way tickets</span>
+              </p>
+            ) : null}
             <p className="flex items-center gap-1.5">
               <Icon name="bed" size={0.95} className="text-tint-ink shrink-0" />
               <span className="truncate">{candidate.hotel?.name ?? 'Stay not included'}</span>
@@ -146,8 +155,8 @@ export function TripRow({
             </p>
             <p className="text-ink-muted text-xs tabular-nums">
               {view === 'flight'
-                ? `flights · whole trip ${format(cost.total)}`
-                : `total · ${format(cost.perPerson)} per traveller`}
+                ? `flights for ${travellersLabel(candidate.passengers)} · whole trip ${format(cost.total)}`
+                : `total for ${travellersLabel(candidate.passengers)} · ${format(cost.perPerson)} per person`}
             </p>
             <p
               className={cn(

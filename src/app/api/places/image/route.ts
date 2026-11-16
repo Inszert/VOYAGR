@@ -3,8 +3,10 @@ import { createLimiter, type Limiter } from '@/lib/concurrency';
 import { getLogger } from '@/lib/logger';
 import {
   THUMBNAIL_WIDTHS,
+  MAX_COMMONS_HOPS,
   commonsThumbnailUrl,
   isAllowedUpstream,
+  isCommonsRedirectHop,
   type ThumbnailWidth,
 } from '@/providers/places/commons';
 
@@ -21,9 +23,10 @@ import {
  *
  *  - the name must pass the same pattern the provider's output is held to (no
  *    slash, no `..`, no percent-escape, an image extension);
- *  - the width must be one of two we offer;
+ *  - the width must be one of the three we offer (the largest is for the slideshow);
  *  - the address asked is built here, on `commons.wikimedia.org`, and its
- *    redirect is followed by hand, once, and only to `upload.wikimedia.org`;
+ *    redirects are followed by hand: on Commons only through its own file
+ *    redirects, a few hops at most, and the bytes only from its upload hosts;
  *  - what comes back must be a JPEG, PNG or WebP under a size cap. An SVG is
  *    refused because it can carry script.
  *
@@ -37,8 +40,11 @@ const FILE_NAME_FIELD_MAX = 200;
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-/** A 640px thumbnail is tens of kilobytes; this is generous. */
-const MAX_IMAGE_BYTES = 1024 * 1024;
+/**
+ * Commons now serves 960px for a 640 request and 1280px for the slideshow's:
+ * 130-610 KB measured, so 1 MB refused some, and 2 MB leaves room.
+ */
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 const MAX_HELD_BYTES = 32 * 1024 * 1024;
 
@@ -112,15 +118,40 @@ async function download(file: string, width: ThumbnailWidth, signal: AbortSignal
 
   const headers = { 'User-Agent': 'Voyagr/1.0 (https://www.voyagrfind.com)' };
 
-  // Followed by hand: the redirect's target is the thing to check.
-  const redirect = await fetch(first, { signal, headers, redirect: 'manual', cache: 'no-store' });
-  const location = redirect.headers.get('location');
+  /*
+   * Followed by hand: every redirect's target is the thing to check.
+   *
+   * Commons now answers `Special:FilePath` with a second redirect on itself
+   * (`Special:Redirect/file/...`) before naming the thumbnail, so a hop on
+   * Commons is followed - only in those two shapes, and only a few times - and
+   * the bytes are fetched only from an upload host.
+   */
+  let current = first;
+  let target: string | null = null;
 
-  if (redirect.status < 300 || redirect.status >= 400 || !location) return null;
+  for (let hop = 0; hop < MAX_COMMONS_HOPS && target === null; hop += 1) {
+    const redirect = await fetch(current, {
+      signal,
+      headers,
+      redirect: 'manual',
+      cache: 'no-store',
+    });
+    const location = redirect.headers.get('location');
 
-  const target = new URL(location, first).toString();
-  if (!isAllowedUpstream(target)) {
-    logger.warn({ status: redirect.status }, 'commons redirected somewhere not allowed');
+    if (redirect.status < 300 || redirect.status >= 400 || !location) return null;
+
+    const next = new URL(location, current).toString();
+
+    if (isAllowedUpstream(next)) target = next;
+    else if (isCommonsRedirectHop(next)) current = next;
+    else {
+      logger.warn({ status: redirect.status }, 'commons redirected somewhere not allowed');
+      return null;
+    }
+  }
+
+  if (target === null) {
+    logger.warn({ hops: MAX_COMMONS_HOPS }, 'commons redirected too many times');
     return null;
   }
 

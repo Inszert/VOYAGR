@@ -14,6 +14,7 @@ import { PlanItemFields } from '@/components/trips/plan-item-fields';
 import { format, minorUnitExponent } from '@/core/money';
 import type { PlanItemRecord } from '@/db/repository';
 import { weekdayDate } from '@/lib/display-date';
+import { PLACE_LINK_REL, isPlaceSourceUrl } from '@/trip-hub/place-url';
 import { PLAN_KIND_LABELS, PLAN_STATUS_LABELS, type PlanItemKind } from '@/trip-hub/types';
 
 /**
@@ -66,7 +67,7 @@ export function PlanSection({
   readonly items: readonly PlanItemRecord[];
 }) {
   const groups = groupByDate(items);
-  const hasLinks = items.some((item) => item.outboundUrl);
+  const hasLinks = items.some((item) => item.outboundUrl && isAllowedPartnerUrl(item.outboundUrl));
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-14">
@@ -161,6 +162,19 @@ export function PlanSection({
                             className="text-brand-ink inline-flex min-h-11 items-center text-sm underline underline-offset-4"
                           >
                             Open the partner page
+                            <span className="sr-only"> for {item.title} (opens in a new tab)</span>
+                          </a>
+                        ) : item.outboundUrl && isPlaceSourceUrl(item.outboundUrl) ? (
+                          // A place added from "Things to do" keeps its Wikipedia or
+                          // Wikidata page. Editorial, so not marked sponsored and not
+                          // counted towards the affiliate disclosure.
+                          <a
+                            href={item.outboundUrl}
+                            rel={PLACE_LINK_REL}
+                            target="_blank"
+                            className="text-brand-ink inline-flex min-h-11 items-center text-sm underline underline-offset-4"
+                          >
+                            Read about this place
                             <span className="sr-only"> for {item.title} (opens in a new tab)</span>
                           </a>
                         ) : null}

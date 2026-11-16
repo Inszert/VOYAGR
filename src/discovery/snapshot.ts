@@ -1,6 +1,13 @@
-import { cacheKey, getCacheStore, loadAndStore, readThrough, type CacheStore } from '@/cache';
+import {
+  cacheKey,
+  getCacheStore,
+  loadAndStore,
+  readThrough,
+  type CacheEntry,
+  type CacheStore,
+} from '@/cache';
 import { addDays } from '@/core/dates';
-import type { Freshness } from '@/core/freshness';
+import { ageOf, freshnessOf, type Freshness } from '@/core/freshness';
 import type { IsoDate, IsoDateTime } from '@/core/trip/types';
 import { searchFormDefaults } from '@/search/form-defaults';
 import { getLogger } from '@/lib/logger';
@@ -156,9 +163,35 @@ export interface DiscoverySnapshot {
   readonly assumptions: DiscoveryAssumptions;
 }
 
+/** What a page view found in the cache. */
+export interface DiscoveryRead {
+  /** Null when nothing is cached at all, or the source could not be read. */
+  readonly snapshot: DiscoverySnapshot | null;
+  /** Nothing is cached yet and the worker has been asked: the page says prices are loading. */
+  readonly pending: boolean;
+  /** What was served is not a fresh entry for this input's day, so the worker should be asked. */
+  readonly refreshWanted: boolean;
+}
+
 /** Where the front page's prices come from. One implementation today. */
 export interface DiscoverySource {
-  /** Null when no snapshot could be made; the globe then shows places without prices. */
+  /**
+   * What a page view uses: reads the cache and never runs the search.
+   *
+   * The full-catalogue search is up to 2000 provider calls. At 00:00 UTC the
+   * key rolls over with the date, and a page that loaded on a miss would make
+   * the first visitor of the day pay for it - and every visitor, until it
+   * finished. So a miss is answered from yesterday's entry (stale, and dated by
+   * its own `observedAt`), then from the default profile's entry, and only with
+   * nothing at all is it `pending`. Filling the cache is the worker's job
+   * (`cache.refresh`). The one exception is `source: 'mock'`: fixtures call no
+   * provider, so there is no quota to protect and the page may build them.
+   */
+  read(input: DiscoveryInput): Promise<DiscoveryRead>;
+  /**
+   * Null when no snapshot could be made; the globe then shows places without prices.
+   * May run the search: for fixtures and tests, never for a page view of a live source.
+   */
   load(input: DiscoveryInput): Promise<DiscoverySnapshot | null>;
   /** Re-price and store, for the worker. False when the input made no valid search. */
   refresh(input: DiscoveryInput): Promise<boolean>;
@@ -255,6 +288,68 @@ export class SearchDiscoverySource implements DiscoverySource {
       load: () => this.run(request, source),
       now: this.now,
     };
+  }
+
+  async read(input: DiscoveryInput): Promise<DiscoveryRead> {
+    const source = input.source ?? 'api';
+
+    if (source === 'mock') {
+      return { snapshot: await this.load(input), pending: false, refreshWanted: false };
+    }
+
+    const store = this.store ?? getCacheStore();
+    const at = this.now();
+    const exact = buildDiscoveryRequest(input);
+
+    // Where to look, best first: this input today, this input yesterday, then
+    // the default profile's today and yesterday. Yesterday is the key that has
+    // just rolled over from; the default profile is what the worker keeps warm
+    // for a visitor whose own settings it does not.
+    const candidates = [
+      input,
+      { ...input, today: addDays(input.today, -1) },
+      { today: input.today, source },
+      { today: addDays(input.today, -1), source },
+    ];
+
+    const tried = new Set<string>();
+
+    for (const candidate of candidates) {
+      const request = buildDiscoveryRequest(candidate);
+      if (!request) continue;
+
+      const key = discoveryCacheKey(request, source);
+      if (tried.has(key)) continue;
+      tried.add(key);
+
+      let entry: CacheEntry<SearchOutcome> | null;
+      try {
+        entry = await store.get<SearchOutcome>(key);
+      } catch (error) {
+        log.warn({ err: error, key }, 'discovery cache read failed; treating as a miss');
+        continue;
+      }
+      if (!entry) continue;
+
+      const freshness = freshnessOf(entry.observedAt, at, { maxAgeMs: DISCOVERY_TTL_MS });
+
+      return {
+        snapshot: {
+          request,
+          outcome: entry.value,
+          ageMs: ageOf(entry.observedAt, at) ?? 0,
+          observedAt: entry.observedAt,
+          freshness,
+          assumptions: describeAssumptions(request),
+        },
+        pending: false,
+        // Today's own entry, however it was reached, needs nothing while it is
+        // fresh. Anything else - yesterday's, or an aged one - is the worker's to replace.
+        refreshWanted: !(candidate.today === input.today && freshness === 'fresh'),
+      };
+    }
+
+    return { snapshot: null, pending: exact !== null, refreshWanted: exact !== null };
   }
 
   async load(input: DiscoveryInput): Promise<DiscoverySnapshot | null> {

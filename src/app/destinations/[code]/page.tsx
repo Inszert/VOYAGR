@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { format } from '@/core/money';
-import { Button, Container, Icon, UpdatedAgo, type IconName } from '@/components/ui';
+import type * as React from 'react';
+import { Button, Container, Icon, UpdatedAgo } from '@/components/ui';
 import { costCoverage, describeExclusions } from '@/core/trip/coverage';
 import { DestinationHero } from '@/components/destination/destination-hero';
 import { WeatherSection } from '@/components/destination/weather-section';
@@ -12,12 +12,8 @@ import { countryNameFor } from '@/lib/destination-media';
 import { shortDate } from '@/lib/display-date';
 import { summariseWeather, TYPICAL_LABEL } from '@/discovery/weather-summary';
 import '@/components/search/explore.css';
-import { tintFor, type Tint } from '@/lib/tint';
+import { tintFor } from '@/lib/tint';
 import { daysBetween } from '@/core/dates';
-import { getAiProvider } from '@/ai';
-import { getEnv } from '@/lib/env';
-import { draftItinerary, itineraryRequestFor } from '@/discovery/itinerary';
-import { ItineraryView } from '@/components/discovery/itinerary-view';
 import { loadDestinationDetail } from '@/discovery/destination-detail';
 import { DestinationDetailView } from '@/components/discovery/destination-detail-view';
 import { resolveDestinationGeo } from '@/search/destination-names';
@@ -26,13 +22,19 @@ import { getActiveDataSource } from '@/providers/request-source';
 import { FindStayLink } from '@/components/stays/find-stay-link';
 import { loadStayLinks } from '@/search/stays/stay-links';
 import { offersForTrip } from '@/booking/partners';
+import '@/components/destination/destination.css';
 import { TripExtras } from '@/components/partners';
 import { buildDiscoveryQuery } from '@/discovery/snapshot';
 import { FlexDatesSection, loadFlexForTrip } from '@/components/search/flex-dates-section';
-import {
-  ThingsToDoLoaded,
-  ThingsToDoSkeleton,
-} from '@/components/destination/things-to-do-section';
+import { ThingsToDoSkeleton } from '@/components/destination/things-to-do-section';
+import { PlacesBoundary } from '@/components/destination/places-boundary';
+import { AirportTransfers } from '@/components/destination/airport-transfers';
+import { SectionBar, type SectionBarItem } from '@/components/destination/section-bar';
+import { TravellerStepper } from '@/components/destination/plan-panel-controls';
+import { slideshowFrames } from '@/components/destination/slideshow-frames';
+import { airportToCentreMetres } from '@/discovery/transfer-compare';
+import { resolveAirport } from '@/providers/reference/airports';
+import { destinationGaps } from '@/discovery/destination-gaps';
 import { loadThingsToDo, parseKind, type ThingsToDoOutcome } from '@/discovery/things-to-do';
 import { getCurrentUser } from '@/auth/current-user';
 import { getRepositories } from '@/db';
@@ -78,23 +80,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: place ? `${place.name}, ${place.country}` : 'Destination' };
 }
 
-/** A mark for each way in from the airport. */
-/** Each way in its own colour from the palette, beside its name. */
-const TRANSFER_TINT: Record<string, Tint> = {
-  public: 'sage',
-  shared: 'harbour',
-  taxi: 'sand',
-  private: 'clay',
-  walk: 'leather',
-};
+/**
+ * The hero, once the places have answered: with their photographs it is a
+ * slideshow; before then, and with fewer than three, it is the one illustration.
+ */
+async function HeroWithFrames({
+  outcome,
+  ...hero
+}: { outcome: Promise<ThingsToDoOutcome> } & React.ComponentProps<typeof DestinationHero>) {
+  const frames = slideshowFrames({
+    code: hero.code,
+    name: hero.name,
+    outcome: await outcome,
+  });
 
-const TRANSFER_ICON: Record<string, IconName> = {
-  public: 'train',
-  shared: 'bus',
-  taxi: 'car',
-  private: 'car',
-  walk: 'pin',
-};
+  return <DestinationHero {...hero} frames={frames} />;
+}
 
 export default async function DestinationPage({ params, searchParams }: PageProps) {
   const { code } = await params;
@@ -139,7 +140,8 @@ export default async function DestinationPage({ params, searchParams }: PageProp
   const hrefForKind = (next: ThingKind | null): string => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
-      if (key === 'kind' || value === undefined) continue;
+      // The open place is not part of a filter; the filter forgets it.
+      if (key === 'kind' || key === 'place' || value === undefined) continue;
       for (const entry of [value].flat()) params.append(key, entry);
     }
     if (next) params.set('kind', next);
@@ -154,20 +156,11 @@ export default async function DestinationPage({ params, searchParams }: PageProp
       : null;
 
   /*
-   * A drafted plan for the trip's own nights, or a three-night example when
-   * the page was opened without dates. A week at most: a longer draft is a
-   * page nobody reads, and each day costs the model a paragraph.
+   * The plan covers the trip's own nights, or a three-night example when the
+   * page was opened without dates. A week at most. It is built from the real
+   * places by `buildFirstPlan`, not drafted by a model: see that module.
    */
   const nights = dates ? Math.min(7, Math.max(1, daysBetween(dates.startDate, dates.endDate))) : 3;
-  const itinerary = await draftItinerary(
-    itineraryRequestFor({
-      destinationName: place.name,
-      nights,
-      travelStyle: 'balanced',
-      places: detail.places,
-      weather: detail.weather,
-    }),
-  );
 
   // Only with real dates: a link for a window nobody chose would be a guess.
   const stayLinks = dates
@@ -262,104 +255,89 @@ export default async function DestinationPage({ params, searchParams }: PageProp
           .replace('__RETURN__', flex.returnDate)
       : `/?destinations=${destination}`;
 
+  const airportPosition = resolveAirport(destination)?.position ?? null;
+  const transferPartner = offersForTrip({ categories: ['transfer'] })[0] ?? null;
+  const extras = offersForTrip();
+
+  const sections: SectionBarItem[] = [
+    { id: 'overview', label: 'Overview' },
+    ...(flex && hrefTemplate ? [{ id: 'dates', label: 'Dates' }] : []),
+    ...(detail.weather.length > 0 ? [{ id: 'weather', label: 'Weather' }] : []),
+    { id: 'things', label: 'Things to do', late: true },
+    { id: 'plan', label: 'A first plan', late: true },
+    { id: 'getting-there', label: 'Getting there' },
+    ...(extras.length > 0 ? [{ id: 'extras', label: 'Extras' }] : []),
+  ];
+
+  const heroProps = {
+    code: destination,
+    name: place.name,
+    country,
+    image,
+    weather: weatherLine,
+    dates: dates ? `${shortDate(dates.startDate)} to ${shortDate(dates.endDate)}` : null,
+  };
+
   return (
     <div data-tint={tintFor(place.adm0 ?? destination)}>
       <HeaderOffset />
-      <DestinationHero
-        code={destination}
-        name={place.name}
-        country={country}
-        image={image}
-        price={
-          flightsFrom
-            ? {
-                amount: flightsFrom,
-                covers: `Flights for ${safePassengers} ${safePassengers === 1 ? 'traveller' : 'travellers'}`,
-              }
-            : null
-        }
-        weather={weatherLine}
-        dates={dates ? `${shortDate(dates.startDate)} to ${shortDate(dates.endDate)}` : null}
+      <Suspense fallback={<DestinationHero {...heroProps} />}>
+        <HeroWithFrames outcome={things} {...heroProps} />
+      </Suspense>
+
+      <SectionBar
+        items={sections}
+        action={{
+          href: planHref,
+          label: flex ? 'See trips' : 'Search trips',
+          price: flightsFrom,
+        }}
       />
 
       <Container size="wide" className="py-12 md:py-16">
         <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_21rem] xl:grid-cols-[minmax(0,1fr)_24rem] xl:gap-16">
-          <div className="order-2 flex min-w-0 flex-col gap-14 lg:order-1">
+          <div className="order-2 flex min-w-0 flex-col gap-12 md:gap-20 lg:order-1">
             {flex && hrefTemplate ? (
-              <FlexDatesSection
-                {...flex}
-                destination={destination}
-                currency={safeCurrency}
-                passengers={safePassengers}
-                hrefTemplate={hrefTemplate}
-                preloaded={flexData}
-              />
+              <div id="dates" className="voyagr-anchor">
+                <FlexDatesSection
+                  {...flex}
+                  destination={destination}
+                  currency={safeCurrency}
+                  passengers={safePassengers}
+                  hrefTemplate={hrefTemplate}
+                  preloaded={flexData}
+                />
+              </div>
             ) : null}
 
             {/* The weather is drawn by `WeatherSection`; the rest of the detail by the shared view. */}
             <WeatherSection days={detail.weather} />
             <DestinationDetailView detail={{ ...detail, weather: [] }} />
 
+            {/* The places, and the plan made of them, share one list and one sheet. */}
             <Suspense fallback={<ThingsToDoSkeleton city={place.name} />}>
-              <ThingsToDoLoaded
+              <PlacesBoundary
                 outcome={things}
                 city={place.name}
+                centre={place.position}
                 kind={kind}
                 hrefFor={hrefForKind}
                 planTrips={planTrips}
+                initialPlaceId={single(query.place) ?? null}
+                nights={nights}
+                startDate={dates?.startDate ?? null}
+                weather={detail.weather}
               />
             </Suspense>
 
-            {itinerary ? (
-              <ItineraryView
-                itinerary={itinerary}
-                nights={nights}
-                sample={dates === null}
-                placeholder={getAiProvider().metadata.isMock && getEnv().NODE_ENV !== 'production'}
-              />
-            ) : null}
-
-            {detail.transfers.length > 0 ? (
-              <section aria-labelledby="transfers-heading" className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <h2 id="transfers-heading" className="font-display text-display-sm text-ink">
-                    Getting in from the airport
-                  </h2>
-                  <p className="text-ink-muted max-w-2xl text-sm">
-                    Priced each way, for the whole party. A trip total in a search counts both
-                    directions - this is the half of it you would pay on arrival.
-                  </p>
-                </div>
-
-                {/* One row of options, side by side, so they compare at a glance. */}
-                <ul className="divide-border border-border grid divide-y border-y sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-4">
-                  {detail.transfers.map((transfer) => (
-                    <li
-                      key={transfer.id}
-                      data-tint={TRANSFER_TINT[transfer.mode] ?? 'leather'}
-                      className="sm:border-border flex flex-col gap-2 px-1 py-5 sm:border-l sm:px-5 sm:first:border-l-0 sm:[&:nth-child(3)]:border-l-0 xl:[&:nth-child(3)]:border-l"
-                    >
-                      <span className="text-ink flex items-center gap-2.5 text-sm font-medium capitalize">
-                        <span
-                          aria-hidden="true"
-                          className="bg-tint/25 text-tint-ink grid size-9 place-items-center rounded-full"
-                        >
-                          <Icon name={TRANSFER_ICON[transfer.mode] ?? 'car'} size={1} />
-                        </span>
-                        {transfer.mode}
-                      </span>
-                      <span className="text-tint-ink text-2xl font-semibold tabular-nums">
-                        {format(transfer.pricePerDirection)}
-                        <span className="text-ink-muted text-sm font-normal"> each way</span>
-                      </span>
-                      <span className="text-ink-muted text-sm tabular-nums">
-                        about {transfer.durationMinutes} minutes
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
+            <AirportTransfers
+              offers={detail.transfers}
+              travellers={safePassengers}
+              airport={destination}
+              city={place.name}
+              distanceMetres={airportToCentreMetres(airportPosition, place.position)}
+              partner={transferPartner}
+            />
 
             {/*
               What is missing, said once and quietly. A note rather than a
@@ -387,11 +365,13 @@ export default async function DestinationPage({ params, searchParams }: PageProp
             on a wide screen and first on a phone. "from" because it is the
             cheapest quote seen; what it leaves out is said in words under it.
           */}
-          <aside aria-labelledby="plan-heading" className="order-1 lg:order-2">
-            <div className="border-border bg-surface-raised shadow-raised flex flex-col gap-5 rounded-(--radius-surface) border p-6 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+1.5rem)]">
+          <aside aria-labelledby="plan-heading" className="order-1 lg:order-2 lg:self-stretch">
+            <div className="border-border bg-surface-raised shadow-raised flex flex-col gap-5 rounded-(--radius-surface) border p-6 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+4.5rem)]">
               <h2 id="plan-heading" className="font-display text-ink text-2xl">
                 Plan a trip to {place.name}
               </h2>
+
+              <TravellerStepper value={safePassengers} />
 
               {flightsFrom ? (
                 <div className="flex flex-col gap-1">
@@ -399,7 +379,10 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                     Flights for {safePassengers} {safePassengers === 1 ? 'traveller' : 'travellers'}
                     , from
                   </p>
-                  <p className="text-ink text-3xl font-semibold tracking-tight tabular-nums">
+                  <p
+                    key={flightsFrom}
+                    className="voyagr-price-in text-ink text-3xl font-semibold tracking-tight tabular-nums"
+                  >
                     {flightsFrom}
                   </p>
                   {exclusions ? (
@@ -425,6 +408,16 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                 </a>
               </Button>
 
+              {flightsFrom ? (
+                <a
+                  href="/watches"
+                  className="text-ink inline-flex min-h-11 items-center gap-2 text-sm font-medium underline-offset-4 hover:underline"
+                >
+                  <Icon name="bell" size={0.95} aria-hidden="true" />
+                  Watch this price
+                </a>
+              ) : null}
+
               {stayLinks.length > 0 ? (
                 <div className="border-border flex flex-col gap-3 border-t pt-4">
                   <p className="text-ink text-sm font-medium">Where to stay</p>
@@ -442,8 +435,11 @@ export default async function DestinationPage({ params, searchParams }: PageProp
         </div>
 
         {/* Partner link-outs for what a search does not price. Nothing renders without a partner. */}
-        <div className="bg-surface-sunken border-border mt-16 rounded-(--radius-surface) border p-6 empty:hidden sm:p-10">
-          <TripExtras offers={offersForTrip()} today={today} />
+        <div
+          id="extras"
+          className="voyagr-anchor bg-surface-sunken border-border mt-16 rounded-(--radius-surface) border p-6 empty:hidden sm:p-10"
+        >
+          <TripExtras offers={extras} today={today} />
         </div>
       </Container>
     </div>
@@ -451,12 +447,8 @@ export default async function DestinationPage({ params, searchParams }: PageProp
 }
 
 /**
- * What the page cannot tell you, said once.
- *
- * "Places to eat, see and do" is named while the places are unknown and
- * whenever they could not be had - the source off, down or empty - and dropped
- * only once a real list is on the page above. `things` is null while that is
- * still loading, which is the pessimistic reading.
+ * What the page cannot tell you, said once. What counts as missing is
+ * `destinationGaps`; this only sets it as a sentence.
  */
 function MissingList({
   things,
@@ -465,22 +457,9 @@ function MissingList({
   things: ThingsToDoOutcome | null;
   detail: { notAvailable: readonly string[] };
 }) {
-  const placesListed = things?.status === 'ok' && things.things.length > 0;
-
   return (
     <>
-      {[
-        // A slot with no data source says so here, instead of an empty
-        // section that reads as "nothing to report".
-        ...(detail.notAvailable.includes('transfers') ? ['Airport transfer prices'] : []),
-        ...(placesListed ? [] : ['Places to eat, see and do']),
-        'Photographs of the places listed',
-        'Events',
-        'National holidays',
-        'Travel warnings',
-        'Hidden places',
-        'Recommended trip lengths',
-      ].map((missing, index, all) => (
+      {destinationGaps(things, detail.notAvailable).map((missing, index, all) => (
         <span key={missing}>
           <span className="text-ink">{missing}</span>
           {index < all.length - 1 ? ', ' : '.'}

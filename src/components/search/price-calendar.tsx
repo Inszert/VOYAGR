@@ -16,7 +16,7 @@ import {
 } from '@/core/dates';
 import type { IsoDate } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
-import type { MonthPricesJson } from '@/search/day-prices-json';
+import type { MonthPricesJson, OneWayPriceJson } from '@/search/day-prices-json';
 
 /**
  * The dates as a calendar, with what each one costs written in it.
@@ -52,8 +52,10 @@ export interface PriceCalendarOption {
   readonly nights: number;
   /** The whole-trip total, to the cent, for the day's accessible name. */
   readonly exact: string;
-  /** The same total in whole units, for the cell. */
+  /** The same total in whole units. */
   readonly whole: string;
+  /** The total per traveller, whole units: what the cell shows. */
+  readonly perPerson: string;
   /** Only for ordering days by cost. Never added to anything. */
   readonly amount: number;
   /**
@@ -105,6 +107,8 @@ export interface PriceCalendarProps {
   clearHref: string | null;
   /** The flexibility presets, each a link that searches again with it. */
   chips: readonly PriceCalendarChip[];
+  /** The party every total is for. Cells show per person; the legend says so. */
+  travellers?: number;
 }
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as const;
@@ -156,7 +160,10 @@ export function PriceCalendar({
   bestValueKey,
   clearHref,
   chips,
+  travellers,
 }: PriceCalendarProps) {
+  const partySize = travellers ?? load?.passengers ?? 1;
+  const party = `${partySize} ${partySize === 1 ? 'traveller' : 'travellers'}`;
   const chosen = searchOptions.find((option) => option.key === selected) ?? null;
 
   const [departure, setDeparture] = React.useState<IsoDate | null>(chosen?.departure ?? null);
@@ -262,6 +269,7 @@ export function PriceCalendar({
           nights: daysBetween(day, price.returnDate),
           exact: price.exact,
           whole: price.whole,
+          perPerson: price.perPerson,
           amount: price.amount,
           delta: null,
           href: load.hrefTemplate
@@ -278,6 +286,20 @@ export function PriceCalendar({
 
     return { options: [...searchOptions, ...extra], monthCheapest: cheapest };
   }, [searchOptions, loaded, load]);
+
+  /*
+   * One-way fares out, for days with no return fare at all. Never a return
+   * price: the cell says "one way" in its name and carries its own mark, it is
+   * not a button, and it never sets the scale or a "cheapest".
+   */
+  const oneWayByDay = React.useMemo(() => {
+    const map = new Map<IsoDate, OneWayPriceJson>();
+    for (const entry of Object.values(loaded)) {
+      if (entry === 'failed' || !entry.oneWay) continue;
+      for (const [day, fare] of Object.entries(entry.oneWay)) map.set(day, fare);
+    }
+    return map;
+  }, [loaded]);
 
   const loading = (day: IsoDate) =>
     load !== undefined && day >= load.today && loaded[day.slice(0, 7)] === undefined;
@@ -469,6 +491,33 @@ export function PriceCalendar({
                         );
                       }
 
+                      // Only a one-way fare out: said as such, and not a choice.
+                      const oneWay = phase === 'leave' ? oneWayByDay.get(day) : undefined;
+                      if (!option && oneWay) {
+                        return (
+                          <span
+                            key={day}
+                            role="gridcell"
+                            aria-label={`${spoken(day)}, no return fare seen; one way from ${oneWay.perPerson} per person`}
+                            className={cn(
+                              'text-ink-muted border-hairline flex min-h-14 flex-col items-stretch rounded-(--radius-control) border border-dotted p-1.5 md:min-h-16',
+                              between(day) && 'bg-accent-to/10',
+                            )}
+                          >
+                            <span aria-hidden="true" className="text-sm">
+                              {number}
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="mt-auto text-[10px] leading-tight tabular-nums md:text-[11px]"
+                            >
+                              <span className="mr-0.5">→</span>
+                              {oneWay.perPerson}
+                            </span>
+                          </span>
+                        );
+                      }
+
                       // A day with nothing priced: a number, no price, not a button.
                       if (!option) {
                         return (
@@ -517,7 +566,7 @@ export function PriceCalendar({
                             )}
                           >
                             {flightOnly ? <span className="mr-0.5">✈</span> : null}
-                            {option.whole}
+                            {option.perPerson}
                           </span>
                           {/*
                         Once a departure is chosen, each return is read
@@ -540,8 +589,8 @@ export function PriceCalendar({
                           <span className="sr-only">
                             {spoken(day)},{' '}
                             {flightOnly
-                              ? `flights only ${option.exact}, indicative - choosing it searches these dates for the whole trip`
-                              : `whole trip ${option.exact}`}
+                              ? `flights only ${option.perPerson} per person, ${option.exact} for ${party}, indicative - choosing it searches these dates for the whole trip`
+                              : `whole trip ${option.perPerson} per person, ${option.exact} for ${party}`}
                             {phase === 'leave' && !flightOnly
                               ? ' at the cheapest'
                               : `, ${option.nights} nights`}
@@ -608,6 +657,7 @@ export function PriceCalendar({
 
       {/* What the marks mean. Text, so colour is not the only thing saying it. */}
       <ul className="text-ink-muted flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
+        <li className="text-ink">Prices per person, for {party}</li>
         <li>
           <span aria-hidden="true">▼ </span>Cheapest dates, and the cheapest flight in each month
         </li>
@@ -620,6 +670,9 @@ export function PriceCalendar({
         <li>
           <span aria-hidden="true">✈ </span>Flights only - no whole trip priced yet; choosing it
           searches those dates
+        </li>
+        <li>
+          <span aria-hidden="true">→ </span>One way from - no return fare seen for that day yet
         </li>
         <li>A day with no price was not priced - it is not cheap, and it cannot be chosen</li>
       </ul>

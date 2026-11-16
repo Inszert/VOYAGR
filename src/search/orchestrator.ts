@@ -38,14 +38,18 @@ import type {
 } from '@/providers/types';
 import { collectPages } from '@/providers/paging';
 import { assembleRouteCandidates, flightMatchesWindow, interleave } from './assemble';
-import { calendarFlightsFromOffers, windowsFromOffers } from './derive-windows';
+import {
+  calendarFlightsFromOffers,
+  otherStayLengthsFromOffers,
+  windowsFromOffers,
+} from './derive-windows';
 import { evaluateTrip } from './evaluate';
 import {
   combineProvenance,
   provenanceForMode,
   type SourceAttribution,
 } from '@/core/trip/provenance';
-import { buildSearchPlan } from './plan';
+import { buildSearchPlan, enumerateDateWindows } from './plan';
 import type {
   CalendarFlight,
   DateWindow,
@@ -57,6 +61,9 @@ import type {
   SearchPlan,
   SearchRequest,
 } from './types';
+import { getCacheStore, type CacheStore } from '@/cache';
+import { pairOneWayFares, withPairs } from '@/core/trip/one-way-pair';
+import { loadOneWayMonth } from './one-way';
 
 /**
  * Search orchestration (implementation plan 1.1).
@@ -81,6 +88,9 @@ const log = getLogger('search.orchestrator');
 /** The shortest and longest stay the calendar will show a flight price for. */
 const CALENDAR_MIN_NIGHTS = 2;
 const CALENDAR_MAX_NIGHTS = 14;
+
+/** How many other stay lengths an empty result offers instead. */
+const OTHER_STAYS_SHOWN = 4;
 
 /**
  * Stands in when a page call failed.
@@ -117,6 +127,81 @@ export interface SearchDependencies {
    * must never be able to break one.
    */
   readonly observe?: (call: ProviderCallObservation) => void;
+  /** Where one-way months are cached. Defaults to the shared store. */
+  readonly oneWayStore?: CacheStore;
+}
+
+/**
+ * At most this many places get one-way fares asked for. Two calls per month
+ * pair per place (out and back), so a named search of one to three places
+ * pays a handful of calls and an "anywhere" search of forty pays none.
+ */
+export const ONE_WAY_MAX_DESTINATIONS = 3;
+
+/**
+ * Trips of two one-way tickets, for the months the windows touch.
+ *
+ * The vendor's round-trip cache is sparse and its one-way cache dense (VIE-KZN,
+ * November 2026: 2 round-trip rows against single flights on 13 outbound and
+ * 8 return days). Every call goes through `callProvider`, so it takes its
+ * limiter slot and counts against `maxProviderCalls`; each month and
+ * direction is cached on its own (`loadOneWayMonth`).
+ */
+async function fetchOneWayPairs(
+  plan: SearchPlan,
+  deps: SearchDependencies,
+  request: SearchRequest,
+  windows: readonly DateWindow[],
+  issues: ProviderIssue[],
+  budget: CallBudget,
+): Promise<FlightOffer[]> {
+  if (!deps.flights.searchOneWay || plan.destinations.length > ONE_WAY_MAX_DESTINATIONS) return [];
+
+  const outMonths = [...new Set(windows.map((window) => window.departureDate.slice(0, 7)))];
+  const backMonths = [...new Set(windows.map((window) => window.returnDate.slice(0, 7)))];
+  const store = deps.oneWayStore ?? getCacheStore();
+  const { profile } = request;
+
+  const load = (origin: AirportCode, destination: AirportCode, month: string) =>
+    loadOneWayMonth(
+      { origin, destination, month, currency: plan.currency, passengers: plan.passengers },
+      {
+        flights: deps.flights,
+        store,
+        ...(deps.now ? { now: deps.now } : {}),
+        call: (run) =>
+          callProvider(
+            {
+              kind: 'flights' as const,
+              providerId: deps.flights.metadata.id,
+              ...pacing(deps.flights.metadata),
+              scope: `flights:one-way:${origin}-${destination}:${month}`,
+            },
+            issues,
+            budget,
+            run,
+          ),
+      },
+    );
+
+  const perRoute = await Promise.all(
+    plan.origins.flatMap((origin) =>
+      plan.destinations.map(async (destination) => {
+        const [outs, backs] = await Promise.all([
+          Promise.all(outMonths.map((month) => load(origin, destination, month))),
+          Promise.all(backMonths.map((month) => load(destination, origin, month))),
+        ]);
+        return pairOneWayFares(outs.flat(), backs.flat(), {
+          minNights: profile.minNights,
+          maxNights: profile.maxNights,
+          earliestDeparture: profile.earliestDeparture,
+          latestReturn: profile.latestReturn,
+        });
+      }),
+    ),
+  );
+
+  return perRoute.flat();
 }
 
 /** One provider call, as the search saw it end. */
@@ -999,10 +1084,20 @@ export async function runSearch(
   let windows = plan.dateWindows;
   let monthlyByDestination: Map<AirportCode, FlightOffer[]> | null = null;
   let calendarFlights: readonly CalendarFlight[] | undefined;
+  let otherStayLengths: readonly CalendarFlight[] | undefined;
+  // Everything the flight vendor returned, before any of our rules narrowed it.
+  let flightOffersFound = 0;
 
   if (deps.flights.metadata.answersByMonth) {
     const monthsSeen = new Set<string>();
-    const representatives = plan.dateWindows.filter((window) => {
+    /*
+     * Every month pair the traveller's dates allow, read off all of the
+     * windows rather than the evenly spread sample. The sample is a bound on
+     * hotel calls; here there is one call per month pair, and a pair that
+     * the sample happened to skip - the trips that leave in late November
+     * and come back in December - was a whole month of fares never asked for.
+     */
+    const representatives = enumerateDateWindows(request.profile).filter((window) => {
       const key = `${window.departureDate.slice(0, 7)}|${window.returnDate.slice(0, 7)}`;
       if (monthsSeen.has(key)) return false;
       monthsSeen.add(key);
@@ -1017,7 +1112,13 @@ export async function runSearch(
 
     const byId = new Map<string, FlightOffer>();
     for (const offer of fetched.flat()) byId.set(offer.id, offer);
-    const monthly = [...byId.values()];
+    const roundTrips = [...byId.values()];
+
+    // Two one-way tickets, kept only where no return fare is as cheap.
+    const monthly = withPairs(
+      roundTrips,
+      await fetchOneWayPairs(plan, deps, request, representatives, issues, budget),
+    );
 
     monthlyByDestination = groupByArrival(monthly);
     // What the same answer says about the days no trip is built for.
@@ -1026,7 +1127,8 @@ export async function runSearch(
     // fare is often the cheaper one, and a calendar that only knows the
     // minimum length says every day costs about the same. Choosing a day
     // searches exactly those dates, and that search holds to what they asked.
-    calendarFlights = calendarFlightsFromOffers(monthly, {
+    // Return fares only: a pair of single tickets is not a return fare.
+    calendarFlights = calendarFlightsFromOffers(roundTrips, {
       minNights: CALENDAR_MIN_NIGHTS,
       maxNights: Math.max(request.profile.maxNights, CALENDAR_MAX_NIGHTS),
     });
@@ -1044,13 +1146,27 @@ export async function runSearch(
       // that have a flight on exactly those days.
       plan.limits.calendarCoverageDays,
     );
+    flightOffersFound = monthly.length;
+
+    // Fares, but none of the length asked for: say what lengths there were,
+    // rather than letting the page conclude the vendor had nothing.
+    if (windows.length === 0 && monthly.length > 0) {
+      otherStayLengths = otherStayLengthsFromOffers(monthly, request.profile, OTHER_STAYS_SHOWN);
+    }
   }
 
   const perWindow = await Promise.all(
     windows.map(async (window) => {
       const flightsByDestination =
         monthlyByDestination ??
-        groupByArrival(await fetchFlightsForWindow(plan, deps, request, window, issues, budget));
+        groupByArrival(
+          await fetchFlightsForWindow(plan, deps, request, window, issues, budget).then(
+            (offers) => {
+              flightOffersFound += offers.length;
+              return offers;
+            },
+          ),
+        );
 
       return Promise.all(
         plan.destinations.map(async (destination): Promise<TripCandidate[]> => {
@@ -1190,6 +1306,7 @@ export async function runSearch(
      * search; the highest of them is what says whether the bound was ever
      * near its edge, which is what this diagnostic is for.
      */
+    flightOffersFound,
     peakProviderConcurrency: Math.max(
       0,
       ...[...budget.pool.limiters.values()].map((limiter) => limiter.peakInFlight),
@@ -1232,6 +1349,7 @@ export async function runSearch(
     // From every eligible trip, deliberately - not from the page above it.
     destinationSummaries: summariseDestinations(eligible),
     ...(calendarFlights ? { calendarFlights } : {}),
+    ...(otherStayLengths && otherStayLengths.length > 0 ? { otherStayLengths } : {}),
     diagnostics,
   };
 }

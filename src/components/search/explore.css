@@ -82,3 +82,107 @@
   top: var(--voyagr-header-h, 4.5rem);
   z-index: 10;
 }
+
+/*
+ * A horizontal strip that scrolls without the platform's scrollbar.
+ *
+ * The scrollbar is hidden, not the scrolling: wheel, trackpad, touch and the
+ * arrow keys (the strip takes focus) all still move it. The edges fade so a
+ * cut-off cell reads as "more this way" rather than as a clipping error.
+ */
+.voyagr-strip {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 1.25rem,
+    #000 calc(100% - 1.25rem),
+    transparent 100%
+  );
+}
+
+.voyagr-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* With the cells all in view there is nothing to fade toward. */
+@media (min-width: 64rem) {
+  .voyagr-strip {
+    mask-image: none;
+  }
+}
+
+/* The phone's summary sheet rises from the bottom instead of sliding in from the side. */
+.voyagr-sheet[data-side='bottom'][data-state='open'] {
+  animation-name: voyagr-sheet-rise;
+}
+
+.voyagr-sheet[data-side='bottom'][data-state='closed'] {
+  animation-name: voyagr-sheet-sink;
+}
+
+@keyframes voyagr-sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes voyagr-sheet-sink {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* The leg being changed opens in place. */
+.voyagr-leg-content[data-state='open'] {
+  animation: voyagr-leg-open var(--duration-settled) var(--ease-out-quart);
+}
+
+.voyagr-leg-content[data-state='closed'] {
+  animation: voyagr-leg-close var(--duration-quick) var(--ease-standard);
+}
+
+@keyframes voyagr-leg-open {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes voyagr-leg-close {
+  from {
+    height: var(--radix-collapsible-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+.voyagr-leg-content {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-leg-content[data-state='open'],
+  .voyagr-leg-content[data-state='closed'],
+  .voyagr-sheet[data-side='bottom'][data-state='open'],
+  .voyagr-sheet[data-side='bottom'][data-state='closed'] {
+    animation: none;
+  }
+}
+
+/* A gallery that snaps a photo at a time, with no scrollbar. */
+.voyagr-gallery {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.voyagr-gallery::-webkit-scrollbar {
+  display: none;
+}

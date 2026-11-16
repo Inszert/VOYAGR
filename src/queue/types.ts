@@ -13,27 +13,28 @@
 export const JOB_NAMES = [
   /** Re-run one Travel Watch and record what it finds. */
   'travel-watch.refresh',
-  /** Scan for watches that are due and enqueue a refresh for each. */
-  'travel-watch.schedule',
-  /** Compare a fresh result against history and decide whether to alert. */
-  'deal.detect',
   /** Deliver a queued notification over its channel. */
   'notification.deliver',
-  /** Probe every provider and record health. */
-  'provider.health-check',
-  /** Re-price one cache target and store the result, so pages read instead of call. */
+  /**
+   * Re-price one cache target, or pre-warm one destination's things to do
+   * (`places:<code>`), so pages read instead of call.
+   */
   'cache.refresh',
 ] as const;
+
+/*
+ * Every name above has a handler registered by `src/worker/main.ts`, and a test
+ * holds it to that. Deal detection runs inside the watch refresh and watches
+ * are found by the scheduler's sweep (`src/watches/scheduler.ts`), so neither is
+ * a job of its own; add a name here only together with the code that enqueues it.
+ */
 
 export type JobName = (typeof JOB_NAMES)[number];
 
 /** Payload shape for each job. */
 export interface JobPayloads {
   'travel-watch.refresh': { watchId: string; reason: 'scheduled' | 'manual' | 'price-alert' };
-  'travel-watch.schedule': { limit: number };
-  'deal.detect': { watchId: string; candidateId: string };
   'notification.deliver': { notificationId: string };
-  'provider.health-check': Record<string, never>;
   'cache.refresh': { targetId: string };
 }
 

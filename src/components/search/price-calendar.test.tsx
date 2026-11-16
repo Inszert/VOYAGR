@@ -20,6 +20,8 @@ const option = (
   nights: 5,
   exact: `€${amount}.00`,
   whole: `€${amount}`,
+  // The fixtures are for two travellers.
+  perPerson: `€${amount / 2}`,
   amount,
   delta,
   href: `/explore?fDates=${departure}..${returnDate}`,
@@ -46,6 +48,7 @@ function renderCalendar(selected: string | null = null) {
       cheapestKey="2026-12-12..2026-12-17"
       bestValueKey="2026-12-10..2026-12-15"
       clearHref="/explore"
+      travellers={2}
       chips={[
         { label: '± 3 days', href: '/explore?flexibility=plus-minus-3', active: true },
         { label: 'A weekend', href: '/explore?flexibility=weekend', active: false },
@@ -55,13 +58,19 @@ function renderCalendar(selected: string | null = null) {
 }
 
 describe('PriceCalendar', () => {
-  it('writes the whole-trip price in every day that was priced', () => {
+  it('writes the whole-trip price per person in every day, and the party total in its name', () => {
     renderCalendar();
 
     const day = screen.getAllByRole('gridcell', {
-      name: /12 December 2026, whole trip €300.00/,
+      name: /12 December 2026, whole trip €150 per person, €300.00 for 2 travellers/,
     })[0]!;
-    expect(day.textContent).toContain('€300');
+    const visible = [...day.querySelectorAll('[aria-hidden="true"]')]
+      .map((part) => part.textContent)
+      .join(' ');
+    expect(visible).toContain('€150');
+    expect(visible).not.toContain('€300');
+    // The basis is said once, in the legend.
+    expect(screen.getByText('Prices per person, for 2 travellers')).toBeTruthy();
   });
 
   it('shows a day nobody priced as unpriced, and does not let it be chosen', () => {
@@ -106,6 +115,7 @@ describe('PriceCalendar', () => {
     render(
       <PriceCalendar
         options={SAME_DEPARTURE}
+        travellers={2}
         selected={null}
         cheapestKey="2026-12-12..2026-12-16"
         bestValueKey={null}
@@ -119,12 +129,13 @@ describe('PriceCalendar', () => {
     // The cheaper return carries no delta - it is the thing everything else
     // is read against, not a saving over itself.
     expect(
-      screen.getAllByRole('gridcell', { name: /16 December 2026, whole trip €300.00/ })[0]!
-        .textContent,
+      screen.getAllByRole('gridcell', {
+        name: /16 December 2026, whole trip €150 per person, €300.00 for 2 travellers/,
+      })[0]!.textContent,
     ).not.toContain('+€');
 
     const dearer = screen.getAllByRole('gridcell', {
-      name: /18 December 2026, whole trip €338.00, 5 nights, \+€38 against the cheapest return/,
+      name: /18 December 2026, whole trip €169 per person, €338.00 for 2 travellers, 5 nights, \+€38 against the cheapest return/,
     })[0]!;
     expect(dearer.textContent).toContain('+€38');
   });
@@ -178,7 +189,7 @@ describe('PriceCalendar', () => {
     );
 
     const day = screen.getAllByRole('gridcell', { name: /12 December 2026/ })[0]!;
-    expect(day.textContent).toContain('€300');
+    expect(day.textContent).toContain('€150');
     expect(day.textContent).not.toContain('✈');
   });
 

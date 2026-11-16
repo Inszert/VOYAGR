@@ -239,6 +239,14 @@ export interface SearchDiagnostics {
    * intended: it must never exceed `plan.limits.providerConcurrency`.
    */
   readonly peakProviderConcurrency: number;
+  /**
+   * Flight offers the vendor returned that passed the boundary, before any
+   * window, stay length or rule was applied. Zero with no issues means the
+   * vendor truly had nothing; more than zero with no trips means something
+   * of ours - the stay length, the dates - narrowed them all away, and the
+   * empty state must say which. Optional only for results cached before it.
+   */
+  readonly flightOffersFound?: number;
   readonly issues: readonly ProviderIssue[];
   /** True when any provider call failed, so the result set is incomplete. */
   readonly degraded: boolean;
@@ -338,5 +346,13 @@ export interface SearchOutcome {
    * from a vendor that answers by the month; absent otherwise.
    */
   readonly calendarFlights?: readonly CalendarFlight[];
+  /**
+   * Fares the vendor had inside the traveller's dates at a stay length they
+   * did not ask for, nearest length first. Present only when no window of
+   * the asked length could be built, so an empty result can say "the vendor
+   * has 6 nights from EUR 488" rather than "nothing". Flights alone, never a
+   * trip total.
+   */
+  readonly otherStayLengths?: readonly CalendarFlight[];
   readonly diagnostics: SearchDiagnostics;
 }

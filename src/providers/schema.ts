@@ -86,7 +86,7 @@ const localDateTime = z.string().refine(isLocalDateTime, 'must be a zoneless loc
  * route holds a request to exactly the same rule.
  */
 export const COMMONS_FILE_NAME =
-  /^(?!.*\.\.)[\p{L}\p{N}][\p{L}\p{N} _.,'()&!+-]{0,180}\.(?:jpe?g|png|webp)$/iu;
+  /^(?!.*\.\.)[\p{L}\p{N}][\p{L}\p{N} _.,'()&!+–—’-]{0,180}\.(?:jpe?g|png|webp)$/iu;
 
 const airport = z.string().regex(/^[A-Z]{3}$/, 'must be a three-letter IATA airport code');
 
@@ -95,7 +95,8 @@ const segment = z
     origin: airport,
     destination: airport,
     departsAt: localDateTime,
-    arrivesAt: localDateTime,
+    // Required and nullable: a vendor that does not state the arrival says null.
+    arrivesAt: localDateTime.nullable(),
     carrier: z.string().min(1),
     flightNumber: z.string().min(1),
   })
@@ -125,6 +126,9 @@ export const flightOfferSchema = z
     // Required, and null when unstated: a missing key is an adapter bug.
     expiresAt: isoDateTime.nullable(),
     deepLink: z.string().url().optional(),
+    // Set only by the search when it pairs two one-way fares; never by a vendor.
+    ticketing: z.literal('two_one_way').optional(),
+    returnDeepLink: z.string().url().optional(),
   })
   .strict();
 
@@ -141,6 +145,11 @@ export const hotelOfferSchema = z
     boardType: z.enum(['room_only', 'breakfast', 'half_board', 'full_board', 'all_inclusive']),
     freeCancellation: z.boolean(),
     rooms: z.number().int().min(1).max(20).nullable(),
+    // Required and nullable, like every fact a provider may not state. Photos
+    // are https only: they are put straight into an <img>.
+    photoUrls: z.array(z.string().url().startsWith('https://')).max(20).nullable(),
+    position: z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]).nullable(),
+    area: z.string().min(1).max(80).nullable(),
     totalPrice: price,
     excludedFees: price.nullable(),
     observedAt: isoDateTime,
@@ -226,6 +235,35 @@ export const thingToDoSchema = z
   .strict();
 
 /**
+ * A place to stay, listed from an open map - not a price.
+ *
+ * What OpenStreetMap states about a hotel and nothing more: a name, where it
+ * is, and the stars, address and website only where a mapper recorded them,
+ * each `.nullable()` rather than optional. There is no price field at all: a
+ * listing is a place, and a price comes only from a priced provider. `website`
+ * goes into an `href`, so it is held to http(s).
+ */
+export const stayListingSchema = z
+  .object({
+    id: z.string().regex(/^osm:(node|way|relation)\/\d{1,15}$/, 'must be an OSM element id'),
+    providerId: z.string().min(1),
+    name: z.string().trim().min(1).max(200),
+    kind: z.enum(['hotel', 'guest_house', 'hostel', 'apartment']),
+    latitude: z.number().finite().min(-90).max(90),
+    longitude: z.number().finite().min(-180).max(180),
+    stars: z.number().min(1).max(5).nullable(),
+    address: z.string().trim().min(1).max(300).nullable(),
+    website: z
+      .string()
+      .url()
+      .refine((value) => /^https?:\/\//.test(value), 'must be an http(s) URL')
+      .nullable(),
+  })
+  .strict();
+
+export type ValidatedStayListing = z.infer<typeof stayListingSchema>;
+
+/**
  * A price whose currency the domain cannot hold.
  *
  * `minorUnitExponent` falls back to 2 for anything it does not know, which is
@@ -290,6 +328,49 @@ function readId(offer: unknown): string | null {
 
   return typeof id === 'string' && id.length > 0 ? id : null;
 }
+
+/**
+ * One itinerary from the Google Flights sidecar (`services/google-flights/server.py`).
+ *
+ * The sidecar is ours but what it relays is a scrape, so it is held to the same rule as a
+ * vendor: every fact it may not have is required and nullable. `price` is a string because the
+ * adapter parses it to minor units itself, exactly; a bare number here would invite a float.
+ */
+export const googleFlightsRowSchema = z
+  .object({
+    price: z.string().min(1).nullable(),
+    currency,
+    airlines: z.array(z.string().min(1)),
+    stops: z.number().int().min(0),
+    duration_minutes: z.number().int().positive().nullable(),
+    departs_at: localDateTime.nullable(),
+    arrives_at: localDateTime.nullable(),
+    is_best: z.boolean().nullable(),
+    segments: z
+      .array(
+        z.object({
+          from_airport: airport.nullable(),
+          to_airport: airport.nullable(),
+          departs_at: localDateTime.nullable(),
+          arrives_at: localDateTime.nullable(),
+          duration_minutes: z.number().int().positive().nullable(),
+        }),
+      )
+      .min(1),
+  })
+  .passthrough();
+
+/** The sidecar's envelope. Rows stay `unknown` so one bad row cannot sink the page. */
+export const googleFlightsResponseSchema = z
+  .object({
+    currency,
+    // A UTC instant: it becomes `observedAt`, which is never a local time.
+    fetched_at: isoDateTime,
+    offers: z.array(z.unknown()),
+  })
+  .passthrough();
+
+export type ValidatedGoogleFlightsRow = z.infer<typeof googleFlightsRowSchema>;
 
 export type ValidatedFlightOffer = z.infer<typeof flightOfferSchema>;
 export type ValidatedHotelOffer = z.infer<typeof hotelOfferSchema>;

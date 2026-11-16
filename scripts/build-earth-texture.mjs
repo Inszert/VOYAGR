@@ -1,26 +1,37 @@
 /**
- * The planet's surface, as raster tiles on our own origin.
+ * The planet's surface, as raster tiles on our own origin - one set per month.
  *
- * The vector globe drew every continent as one flat fill, which reads as a
- * diagram. NASA's Blue Marble Next Generation with topography and bathymetry
- * is the opposite: relief under the forests and deserts, shelves and trenches
- * under the sea, and ice. It is public domain.
+ * The globe shows the *season* of the month somebody is travelling in, not
+ * the weather: Slovakia in January has snow on it, Italy in July is dry and
+ * warm, and neither is a forecast. NASA's Blue Marble Next Generation is a
+ * cloud-free composite for each month of 2004, with topography and bathymetry,
+ * so its twelve images carry seasonal snow cover and vegetation as they
+ * actually were in a typical year. It is public domain. The topography and
+ * bathymetry variant shades the sea floor instead of sea ice, so the oceans -
+ * and the two polar caps `globe-style.ts` paints past 85 degrees - are the same
+ * colour in every month; only the land changes with the season.
  *
- * **It runs here, not in a browser.** The 5400x2700 equirectangular image is
- * fetched once into the git-ignored `.geo-cache/` (like the Natural Earth
- * downloads), reprojected to Web Mercator - which is what MapLibre's globe
- * draws raster tiles in - and cut into 256px WebP tiles for zoom 0 to 4. Only
- * the tiles are committed. Nothing reaches NASA at runtime, which is the
+ * **It runs here, not in a browser.** Each 5400x2700 equirectangular image is
+ * fetched once into the git-ignored `.geo-cache/`, reprojected to Web
+ * Mercator - which is what MapLibre's globe draws raster tiles in - and cut
+ * into 256px WebP tiles for zoom 0 to 4 under `public/geo/earth/v2/<MM>/`.
+ * Only the tiles are committed. Nothing reaches NASA at runtime, which is the
  * property `docs/map-options.md` exists to protect.
  *
- * **Immutable.** The service worker serves `/geo/` cache-first and forever, so
- * a rebuild goes into a new `v2`, `v3`... directory and the style points at
- * it. Never rewrite `v1` in place.
+ * **Budget.** Twelve pyramids must stay under about 14 MB together, and a
+ * visit only ever fetches one of them. The script prints each month's size and
+ * the total, and fails if the total passes the budget.
  *
- *   node scripts/build-earth-texture.mjs
+ * **Immutable.** The service worker serves `/geo/` cache-first and forever. A
+ * month that already exists is skipped, never rewritten; a rebuild with
+ * different settings goes into `v3`. `v1` (August only) stays on disk until
+ * nothing points at it.
+ *
+ *   node scripts/build-earth-texture.mjs            # every month not yet built
+ *   node scripts/build-earth-texture.mjs 01 07      # just these
  */
 
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,30 +41,56 @@ import sharp from 'sharp';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const CACHE = join(ROOT, '.geo-cache');
-const SOURCE_FILE = join(CACHE, 'bmng-topo-bathy-200408-5400x2700.jpg');
-const OUT = join(ROOT, 'public', 'geo', 'earth', 'v1');
+const VERSION = 'v2';
+const OUT = join(ROOT, 'public', 'geo', 'earth', VERSION);
 
-/** NASA Earth Observatory, Blue Marble Next Generation, August 2004, topography and bathymetry. */
-const SOURCE =
-  'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/august/world.topo.bathy.200408.3x5400x2700.jpg';
+const MONTHS = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+];
+
+/** NASA Earth Observatory, Blue Marble Next Generation, 2004, topography and bathymetry. */
+function sourceUrl(index) {
+  const mm = String(index + 1).padStart(2, '0');
+  return `https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/${MONTHS[index]}/world.topo.bathy.2004${mm}.3x5400x2700.jpg`;
+}
+
+function sourceFile(index) {
+  const mm = String(index + 1).padStart(2, '0');
+  return join(CACHE, `bmng-topo-bathy-2004${mm}-5400x2700.jpg`);
+}
 
 const MAX_ZOOM = 4;
 const TILE = 256;
-const QUALITY = 78;
+/** Lower than v1's 78: twelve pyramids have to fit where one used to. */
+const QUALITY = 72;
 const MAX_LAT = 85.0511287798;
+const BUDGET_BYTES = 14 * 1024 * 1024;
 
-async function fetchSource() {
-  if (existsSync(SOURCE_FILE)) return;
+async function fetchSource(index) {
+  const file = sourceFile(index);
+  if (existsSync(file)) return;
   await mkdir(CACHE, { recursive: true });
-  console.log(`fetching ${SOURCE}`);
-  const response = await fetch(SOURCE);
-  if (!response.ok) throw new Error(`${response.status} fetching ${SOURCE}`);
-  await writeFile(SOURCE_FILE, Buffer.from(await response.arrayBuffer()));
+  const url = sourceUrl(index);
+  console.log(`fetching ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status} fetching ${url}`);
+  await writeFile(file, Buffer.from(await response.arrayBuffer()));
 }
 
 /** Equirectangular -> Web Mercator, bilinear, one mosaic at the top zoom. */
-async function mercatorMosaic() {
-  const { data, info } = await sharp(SOURCE_FILE).removeAlpha().raw().toBuffer({
+async function mercatorMosaic(file) {
+  const { data, info } = await sharp(file).removeAlpha().raw().toBuffer({
     resolveWithObject: true,
   });
   const { width: sw, height: sh } = info;
@@ -87,15 +124,26 @@ async function mercatorMosaic() {
   return { buffer: out, size };
 }
 
-async function main() {
-  await fetchSource();
-  const { buffer, size } = await mercatorMosaic();
-
-  // v1 is built once. A rebuild is v2, because browsers keep v1 for ever.
-  await rm(OUT, { recursive: true, force: true });
-
+async function sizeOf(directory) {
   let total = 0;
-  let tiles = 0;
+  for (const entry of await readdir(directory, { withFileTypes: true, recursive: true })) {
+    if (entry.isFile()) total += (await stat(join(entry.parentPath, entry.name))).size;
+  }
+  return total;
+}
+
+async function buildMonth(index) {
+  const mm = String(index + 1).padStart(2, '0');
+  const out = join(OUT, mm);
+
+  // Immutable: a month that exists is never rewritten (see the header).
+  if (existsSync(out)) {
+    console.log(`${mm}: exists, skipped`);
+    return;
+  }
+
+  await fetchSource(index);
+  const { buffer, size } = await mercatorMosaic(sourceFile(index));
 
   for (let z = 0; z <= MAX_ZOOM; z += 1) {
     const side = TILE * 2 ** z;
@@ -106,22 +154,48 @@ async function main() {
       .toBuffer();
 
     for (let x = 0; x < 2 ** z; x += 1) {
-      await mkdir(join(OUT, String(z), String(x)), { recursive: true });
+      await mkdir(join(out, String(z), String(x)), { recursive: true });
 
       for (let y = 0; y < 2 ** z; y += 1) {
-        const file = join(OUT, String(z), String(x), `${y}.webp`);
         await sharp(level, { raw: { width: side, height: side, channels: 3 } })
           .extract({ left: x * TILE, top: y * TILE, width: TILE, height: TILE })
-          .webp({ quality: QUALITY, effort: 5 })
-          .toFile(file);
-
-        total += (await stat(file)).size;
-        tiles += 1;
+          .webp({ quality: QUALITY, effort: 6 })
+          .toFile(join(out, String(z), String(x), `${y}.webp`));
       }
     }
   }
 
-  console.log(`${tiles} tiles, ${(total / 1024 / 1024).toFixed(2)} MB -> ${OUT}`);
+  console.log(`${mm}: ${((await sizeOf(out)) / 1024 / 1024).toFixed(2)} MB`);
+}
+
+async function main() {
+  const wanted = process.argv.slice(2);
+  const indices = wanted.length
+    ? wanted.map((value) => Number.parseInt(value, 10) - 1)
+    : MONTHS.map((_month, index) => index);
+
+  const failed = [];
+  for (const index of indices) {
+    try {
+      await buildMonth(index);
+    } catch (error) {
+      failed.push(`${sourceUrl(index)} (${error.message})`);
+    }
+  }
+
+  if (failed.length) {
+    console.error(`could not build:\n  ${failed.join('\n  ')}`);
+    process.exitCode = 1;
+  }
+
+  if (existsSync(OUT)) {
+    const total = await sizeOf(OUT);
+    console.log(`total ${(total / 1024 / 1024).toFixed(2)} MB -> ${OUT}`);
+    if (total > BUDGET_BYTES) {
+      console.error(`over the ${(BUDGET_BYTES / 1024 / 1024).toFixed(0)} MB budget`);
+      process.exitCode = 1;
+    }
+  }
 }
 
 await main();

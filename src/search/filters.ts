@@ -1,6 +1,6 @@
 import { fromMajor, greaterThan, lessThan, type Money } from '@/core/money';
 import { localHour } from '@/core/dates';
-import { connectionCount } from '@/core/trip/legs';
+import { connectionCount, legArrival } from '@/core/trip/legs';
 import type { RankedTrip } from './types';
 
 /**
@@ -187,16 +187,11 @@ export function hasActiveFilters(filters: ResultFilters): boolean {
  * Whether this trip's outbound flight states when it lands.
  *
  * A cached-fare vendor gives a departure and a duration and no arrival, so the
- * adapter leaves the arrival equal to the departure rather than computing a
- * wall-clock sum across two time zones. Equal and a single segment is how that
- * looks; a real flight never lands the minute it leaves.
+ * adapter states the arrival as null rather than computing a wall-clock sum
+ * across two time zones. `legArrival` is the one reading of that.
  */
 export function arrivalKnown(trip: RankedTrip): boolean {
-  const { segments } = trip.candidate.flight.outbound;
-  const first = segments[0];
-  const last = segments.at(-1);
-
-  return Boolean(first && last && last.arrivesAt !== first.departsAt);
+  return legArrival(trip.candidate.flight.outbound) !== null;
 }
 
 /** Whether any trip in the set states an arrival, i.e. whether "lands by" means anything. */
@@ -255,7 +250,7 @@ export function matchesFilters(trip: RankedTrip, filters: ResultFilters): boolea
   // late, so an arrival filter cannot remove its trips - and the control is
   // not offered for it. See `anyArrivalKnown`.
   if (filters.arriveBeforeHour !== null && arrivalKnown(trip)) {
-    const arrivesAt = outbound.segments.at(-1)?.arrivesAt;
+    const arrivesAt = legArrival(outbound);
     if (!arrivesAt || localHour(arrivesAt) > filters.arriveBeforeHour) return false;
   }
 

@@ -69,6 +69,8 @@ export default async function AccountPage({
   const verified = params.verified;
   const emailChanged = params.emailChanged;
   const emailChangeFailed = emailChanged === 'invalid' || emailChanged === 'missing-token';
+  // Set by sign-up when the account was made and its verification email was not sent.
+  const verificationUnsent = params.verification === 'unsent' && !user.emailVerified;
 
   return (
     <div className="flex flex-col gap-10 lg:gap-12">
@@ -88,6 +90,12 @@ export default async function AccountPage({
       {/* What the page has to say about the address itself, in live regions. */}
       {user.emailVerified && !verified && !emailChangeFailed ? null : (
         <div className="flex max-w-[60ch] flex-col gap-2">
+          {verificationUnsent ? (
+            <p role="status" className="text-caution-ink text-sm">
+              Account created. We could not send the verification email yet — you can resend it from
+              your account page.
+            </p>
+          ) : null}
           {user.emailVerified ? null : (
             <div className="flex flex-col gap-2">
               <p className="text-caution-ink text-sm">This address has not been confirmed yet.</p>

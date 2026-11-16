@@ -54,7 +54,7 @@ export function StayHeader({
       seed={imageCode ?? name}
       image={image && imageCode ? { url: imageryUrlFor(imageCode), alt: '' } : null}
       priority
-      className="flex min-h-[12rem] flex-col justify-between gap-6 rounded-(--radius-surface) p-5 sm:min-h-[15rem] sm:p-7"
+      className="flex min-h-[10rem] flex-col justify-between gap-4 rounded-(--radius-surface) p-5 sm:min-h-[11rem] lg:min-h-[8.5rem] lg:p-5"
     >
       {/*
         Two scrims, as on the destination page: one up from the bottom where
@@ -74,7 +74,7 @@ export function StayHeader({
         <p className="text-[0.6875rem] font-medium tracking-[0.18em] text-white/70 uppercase">
           Stays
         </p>
-        <h1 className="font-display text-display-sm sm:text-display-md text-balance text-white">
+        <h1 className="font-display text-display-sm text-balance text-white">
           {name}
         </h1>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/85">

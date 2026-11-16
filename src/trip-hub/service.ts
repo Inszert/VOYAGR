@@ -18,6 +18,7 @@ import type {
   TripDetailsInput,
   TripFormInput,
 } from './parse';
+import { isPlaceSourceUrl } from './place-url';
 import type { PlanItemKind, PlanItemStatus } from './types';
 
 /**
@@ -33,23 +34,6 @@ import type { PlanItemKind, PlanItemStatus } from './types';
  * open to any member, because a shared trip that only one person can edit is
  * not shared.
  */
-
-/** Where a place's own page may live: Wikipedia in any language, or Wikidata. */
-function isPlaceSourceUrl(value: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-
-  return (
-    url.protocol === 'https:' &&
-    url.username === '' &&
-    url.password === '' &&
-    (/^[a-z-]+\.wikipedia\.org$/.test(url.hostname) || url.hostname === 'www.wikidata.org')
-  );
-}
 
 const CATEGORY_TO_KIND: Readonly<Partial<Record<PartnerCategory, PlanItemKind>>> = {
   transfer: 'transfer',

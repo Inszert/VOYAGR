@@ -1,5 +1,5 @@
 import { daysBetween, localDate } from '@/core/dates';
-import { connectionCount } from '@/core/trip/legs';
+import { connectionCount, legArrival } from '@/core/trip/legs';
 import type { FlightLeg } from '@/core/trip/types';
 import { weekdayDate } from '@/lib/display-date';
 import { clock, duration } from './route-line';
@@ -20,7 +20,8 @@ function Row({ label, leg }: { label: string; leg: FlightLeg }) {
 
   const stops = connectionCount(leg);
   const day = localDate(first.departsAt);
-  const shift = daysBetween(day, localDate(last.arrivesAt));
+  const arrival = legArrival(leg);
+  const shift = arrival ? daysBetween(day, localDate(arrival)) : 0;
 
   return (
     <li className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 py-2.5 sm:grid-cols-[3.25rem_minmax(0,1fr)_auto]">
@@ -31,11 +32,16 @@ function Row({ label, leg }: { label: string; leg: FlightLeg }) {
           →
         </span>
         <span className="sr-only"> to </span>
-        {clock(last.arrivesAt)} {last.destination}
+        {arrival ? (
+          clock(arrival)
+        ) : (
+          <span className="text-ink-muted font-normal">arrival not stated</span>
+        )}{' '}
+        {last.destination}
         {shift > 0 ? (
           <span className="text-caution-ink ml-1 text-xs">
             +{shift}
-            <span className="sr-only"> {shift === 1 ? 'day' : 'days'} later</span>
+            <span className="sr-only">{` ${shift === 1 ? 'day' : 'days'} later`}</span>
           </span>
         ) : null}
       </span>

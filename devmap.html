@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voyagr development map</title>
+<style>
+  :root {
+    --bg: #05070e;
+    --fg: #ffffff;
+    --muted: #98a0b0;
+    --accent: #c98a52;
+    --surface: #0b1020;
+    --surface-2: #101829;
+    --border: #1c2438;
+    --ok: #7fd1a0;
+    --bad: #ff8a80;
+    --warn: #e8c170;
+    --focus: #f2c49a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  .serif { font-family: Georgia, "Times New Roman", serif; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 2rem; font-weight: 600; }
+  .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; margin: 0 0 6px; }
+  .muted { color: var(--muted); }
+  .meta { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+  code { font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: .9em; color: var(--fg); background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+
+  header.top { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; }
+  header.top .facts { display: grid; gap: 6px; margin-top: 14px; }
+  header.top .facts div { overflow-wrap: anywhere; }
+  header.top .facts b { color: var(--muted); font-weight: 500; margin-right: 6px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 24px; }
+  .toolbar label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  .toolbar input[type="search"] {
+    width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 8px;
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border); font: inherit;
+  }
+  .toolbar .grow { flex: 1 1 240px; }
+  .btn {
+    min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 8px;
+    background: var(--accent); color: #05070e; border: 0; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .live { min-height: 1.5em; color: var(--muted); font-size: .9rem; margin: -12px 0 20px; overflow-wrap: anywhere; }
+  .fallback textarea {
+    width: 100%; min-height: 160px; margin-top: 8px; padding: 10px; border-radius: 8px;
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border); font: .85rem/1.4 ui-monospace, Consolas, monospace;
+  }
+
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; min-width: 0; }
+  .tile .num { font-family: Georgia, "Times New Roman", serif; font-size: 2.6rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .lbl { margin-top: 8px; font-size: .95rem; }
+  .tile .sub { color: var(--muted); font-size: .8rem; }
+  .tile .ico { color: var(--accent); margin-right: 6px; }
+
+  .next { background: linear-gradient(180deg, #161d30, var(--surface)); border: 1px solid var(--accent); border-radius: 14px; padding: 18px; }
+  .next p { margin: 8px 0 0; }
+
+  section.panel { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 8px; }
+  section.panel > h2 { margin: 0; }
+  .toggle {
+    width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left;
+    background: none; color: var(--fg); border: 0; padding: 10px 0; font: inherit; cursor: pointer;
+    font-family: Georgia, "Times New Roman", serif; font-size: 1.4rem;
+  }
+  .toggle .ico { color: var(--accent); font-family: system-ui, sans-serif; width: 1.2em; text-align: center; }
+  .toggle .count { margin-left: auto; font: .9rem system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+  .toggle .chev { color: var(--muted); font-family: system-ui, sans-serif; transition: transform .2s; }
+  .toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+  .body { padding: 4px 0 12px; }
+  .body[hidden] { display: none; }
+  .empty { color: var(--muted); margin: 6px 0; }
+  .empty[hidden] { display: none; }
+
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  ul.items > li {
+    display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 8px;
+    padding: 10px 0; border-bottom: 1px solid var(--border); min-width: 0;
+  }
+  ul.items > li[hidden] { display: none; }
+  ul.items .mark { font-weight: 700; text-align: center; }
+  ul.items .t { overflow-wrap: anywhere; }
+  ul.items .n { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+  ul.items .src { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+  .m-done { color: var(--ok); }
+  .m-prog { color: var(--accent); }
+  .m-plan { color: var(--muted); }
+  .m-fail { color: var(--bad); }
+  .m-owner { color: var(--warn); }
+  .sev { display: inline-block; font-size: .78rem; border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; margin-right: 6px; white-space: nowrap; }
+  .sev-block { color: var(--bad); }
+  .sev-fix { color: var(--warn); }
+  .sev-limit { color: var(--muted); }
+  .area { margin: 18px 0 4px; }
+  .area h3 { font-size: 1rem; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-family: system-ui, sans-serif; }
+  .area[hidden] { display: none; }
+  .kind { font-size: .75rem; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+  .hash { font-family: ui-monospace, Consolas, monospace; color: var(--accent); }
+  .timeline { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--border); }
+  .timeline > li { position: relative; padding: 10px 0 12px 14px; min-width: 0; }
+  .timeline > li[hidden] { display: none; }
+  .timeline > li::before {
+    content: ""; position: absolute; left: -26px; top: 16px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 3px var(--bg);
+  }
+  .timeline .when { color: var(--muted); font-size: .9rem; }
+  .timeline .subj { overflow-wrap: anywhere; }
+
+  footer { margin-top: 40px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 14px; }
+
+  @media (min-width: 720px) {
+    h1 { font-size: 2.6rem; }
+    .wrap { padding: 40px 32px 80px; }
+    .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .tile .num { font-size: 3.4rem; }
+    ul.items > li { grid-template-columns: 32px minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Development map</p>
+  <h1>Voyagr</h1>
+  <div class="facts" id="facts"></div>
+</header>
+
+<div class="toolbar">
+  <div class="grow">
+    <label for="q">Search items across sections</label>
+    <input type="search" id="q" placeholder="Type to filter, for example: Resend" autocomplete="off">
+  </div>
+  <button type="button" class="btn" id="copy-md">Copy as Markdown</button>
+</div>
+<p class="live" id="copy-status" role="status" aria-live="polite"></p>
+<div class="fallback" id="copy-fallback" hidden>
+  <label for="md-out" class="muted">Clipboard is not available here. The text is selected below: press Ctrl+C (or Cmd+C) to copy it.</label>
+  <textarea id="md-out" readonly></textarea>
+</div>
+
+<main id="main"></main>
+
+<footer id="foot"></footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// DATA: every fact on this page comes from this object. Edit statuses here by
+// hand; the rendering code below reads only from DATA.
+// Sources are named in each item's `src`. Counts are derived from these lists.
+// ---------------------------------------------------------------------------
+const DATA = {
+  project: "Voyagr",
+  subtitle: "AI travel deal hunter: complete trips, monitored, with alerts",
+  generated: "2026-11-16",
+  branch: "feat/voyagr-autonomous-product-completion",
+  lastCommit: { hash: "25ccd4b", subject: "docs: trip builder and destination page design specs; status" },
+  uncommittedPaths: 182,
+  uncommittedUntracked: 80,
+
+  // Recommended next step. The sources do not name one; the card says so.
+  nextStep: {
+    namesOne: false,
+    text: "The sources do not name a single recommended next step.",
+    pointer: "Closest pointer: the 'Next' line in STATUS.md, which is the destination page (slideshow, interactive things to do, day plan, airport section). Its spec is docs/design-destination.md.",
+    why: "STATUS.md lists it right after the trip-builder and globe work. It is not ranked against the owner items in 'Needs the owner', which gate going live.",
+    src: "STATUS.md; docs/design-destination.md; docs/finish-plan.md (revised order)"
+  },
+
+  // Done: only items the sources mark done, or that appear in the commits.
+  done: [
+    { area: "Data & caching", text: "Cache and background price refresh: pages stop calling Aviasales on every visit", src: "STATUS.md" },
+    { area: "Data & caching", text: "Live weather from Open-Meteo, with \"typical for these dates\" beyond the forecast", src: "STATUS.md" },
+    { area: "Data & caching", text: "Production refuses mock data", src: "STATUS.md; progress.md" },
+    { area: "Data & caching", text: "\"Updated N min ago\" line driven by each observation's observedAt", src: "progress.md (phase 2)" },
+    { area: "Data & caching", text: "ECB exchange rates, fetched daily; no rate is ever invented", src: "progress.md (2026-11-04)" },
+    { area: "Data & caching", text: "Process-wide singletons moved to globalThis (repositories, DB pool, imagery limiter)", src: "progress.md (2026-11-04)" },
+
+    { area: "Flights & prices", text: "Flexible-dates strip: \"leave 2 days earlier, save EUR 84\"", src: "STATUS.md" },
+    { area: "Flights & prices", text: "Price calendar loads every day of both visible months", src: "STATUS.md; progress.md" },
+    { area: "Flights & prices", text: "Default search dates follow today; FLEX_DAYS setting added", src: "STATUS.md; commits ff14d21, 27074b3" },
+    { area: "Flights & prices", text: "Flight prices labelled indicative, never a live quote", src: "progress.md (2026-11-03)" },
+    { area: "Flights & prices", text: "Duffel removed from the provider choice; zero outbound calls proven by test", src: "progress.md (2026-11-04)" },
+
+    { area: "Destination page", text: "Things to do: up to 30 real places per destination (Wikidata, Wikimedia photos)", src: "STATUS.md; commit ff14d21" },
+    { area: "Destination page", text: "Destination page redesign, first pass", src: "STATUS.md" },
+    { area: "Destination page", text: "Destination photographs served from our own origin via Wikimedia", src: "progress.md (2026-09-23)" },
+    { area: "Destination page", text: "16 destination illustrations, AVIF and WebP, labelled AI-generated", src: "STATUS.md; docs/design-direction.md" },
+    { area: "Destination page", text: "Weather described week by week, in words", src: "progress.md (2026-09-23)" },
+
+    { area: "Globe & home", text: "One shared globe for home and explore; a search no longer reloads it", src: "STATUS.md" },
+    { area: "Globe & home", text: "NASA surface, blue atmosphere, glowing arcs, new hero layout", src: "STATUS.md" },
+    { area: "Globe & home", text: "Arcs follow the globe when dragged; 367 airports shown as dots", src: "STATUS.md; commit b3fccb9" },
+    { area: "Globe & home", text: "Home below the hero: image cards, mosaic, rail, full-bleed moment", src: "STATUS.md; commit b3fccb9" },
+    { area: "Globe & home", text: "Globe look approved by the owner (2026-11-14)", src: "docs/finish-plan.md (additions)" },
+    { area: "Globe & home", text: "Phone header with a menu", src: "STATUS.md" },
+
+    { area: "Explore & trip builder", text: "Explore: new result rows, flexible-dates strip fixed, partner grid", src: "STATUS.md" },
+    { area: "Explore & trip builder", text: "Trip card and explore redesign, first pass; provenance badges removed", src: "STATUS.md; commit b3fccb9" },
+    { area: "Explore & trip builder", text: "Swap flight, hotel or dates on the trip being built", src: "progress.md (2026-09-23)" },
+
+    { area: "Stays", text: "Stays redesign, first pass", src: "STATUS.md" },
+    { area: "Stays", text: "Affiliate hotel links (travelpayouts-links) with no price attached", src: "progress.md (phase 3)" },
+    { area: "Stays", text: "Trips work with no priced stay; the total says the stay is not included", src: "STATUS.md; progress.md (phase 3)" },
+    { area: "Stays", text: "\"Find a stay\" partner link", src: "STATUS.md" },
+
+    { area: "Accounts & email", text: "Transactional email via Resend: welcome and verification, password reset, email change", src: "STATUS.md; progress.md" },
+    { area: "Accounts & email", text: "Sign out everywhere", src: "progress.md (2026-11-04)" },
+    { area: "Accounts & email", text: "In-app notification bell, Web Push for price drops, alert settings", src: "STATUS.md" },
+    { area: "Accounts & email", text: "Cookie consent: the Travelpayouts Drive script loads only after Accept", src: "STATUS.md; commit ff14d21" },
+    { area: "Accounts & email", text: "Travelpayouts Drive script, production only", src: "STATUS.md" },
+    { area: "Accounts & email", text: "Partner offers as native cards: Intui, AirHelp, Yesim, GigSky", src: "STATUS.md" },
+    { area: "Accounts & email", text: "A missing email setting fails the send, not every page", src: "STATUS.md; commit f22aba8" },
+
+    { area: "Trips hub", text: "Trip hub core: travel plan, shared expenses (Tricount-style), contacts", src: "STATUS.md; commit dc97376" },
+    { area: "Trips hub", text: "Emergency numbers from Wikidata; a country with none shows \"No verified number on file\"", src: "docs/finish-plan.md (D17)" },
+
+    { area: "Design & pages", text: "Redesign: sign-in, trips hub, watches, stays, status, legal, offline and error pages", src: "STATUS.md" },
+    { area: "Design & pages", text: "Provenance badges removed from every surface (D20)", src: "STATUS.md; docs/finish-plan.md" },
+    { area: "Design & pages", text: "One night palette: no light colour scheme left; leather accent", src: "progress.md; docs/design-direction.md" },
+    { area: "Design & pages", text: "Motion tokens; reduced motion shows still versions", src: "docs/design-direction.md (built)" },
+    { area: "Design & pages", text: "Card-to-destination view transition; rail entry stagger", src: "docs/design-direction.md (built)" },
+
+    { area: "Docs", text: "README, architecture, runbook, setup checklist and design docs updated", src: "STATUS.md; commit 8ffb2a8" },
+    { area: "Docs", text: "docs/provider-policy.md: one code-synced source for provider status", src: "progress.md (2026-11-04)" },
+    { area: "Docs", text: "Trip builder and destination page design specs", src: "commit 25ccd4b" },
+    { area: "Docs", text: "Finish plan (D1 to D20) and owner needs list written", src: "docs/finish-plan.md; WHAT-I-NEED-FROM-YOU.md" },
+
+    { area: "Quality", text: "Full test suite green: 273 passed, desktop and phone", src: "STATUS.md" },
+    { area: "Quality", text: "End-to-end and accessibility suite: 248 passed, 0 failed", src: "STATUS.md; docs/testing.md" },
+    { area: "Quality", text: "8 real bugs fixed in e2e triage (trip page crash, globe drag, hydration, phone layout shift)", src: "STATUS.md; commit 0093bcb" },
+    { area: "Quality", text: "Security review fixes: price-calendar abuse limit, push and image-proxy fixes, trip limits", src: "STATUS.md; commit ff14d21" },
+    { area: "Quality", text: "Trip-card crash fixed (missing roomsNote helper); 57 failing tests then passed", src: "progress.md (2026-11-03)" },
+    { area: "Quality", text: "Build fix: a half-finished worker edit dropped", src: "commit 236213f" }
+  ],
+
+  // In progress: being worked on, or uncommitted.
+  inProgress: [
+    { text: "Bug: search finds nothing for VIE to KZN", note: "Listed as in progress in STATUS.md.", src: "STATUS.md" },
+    { text: "Bug: images missing in Popular and in Things to do", note: "Listed as in progress in STATUS.md.", src: "STATUS.md" },
+    { text: "Trip builder on explore: change flight or hotel and see the price move; hotel with photos, stars, location", note: "Spec written (commit 25ccd4b). STATUS.md does not say how much is built.", src: "STATUS.md; docs/design-trip-builder.md" },
+    { text: "Prices follow the traveller count everywhere; fuller date calendar", note: "Listed as in progress.", src: "STATUS.md" },
+    { text: "Globe: more places as you rotate and zoom, never cut by a box, seasonal look by month", note: "Listed as in progress.", src: "STATUS.md" },
+    { text: "Stays redesign with a hotel map", note: "Listed as in progress.", src: "STATUS.md" },
+    { text: "Destination page: slideshow, interactive things to do, day plan, airport section", note: "Listed as the next item. Spec written; build not reported.", src: "STATUS.md; docs/design-destination.md" },
+    { text: "Paused by the usage limit: health check, midnight cache, pre-loading places, docs update", note: "STATUS.md says paused, not abandoned.", src: "STATUS.md" },
+    { text: "Working tree is not committed: 182 paths in git status (80 untracked)", note: "Many Done items may exist only in these uncommitted changes. Check before relying on the Done list.", src: "git status at generation time" }
+  ],
+
+  // Planned, not started. `note` says why, where the source does.
+  planned: [
+    { text: "Trip hub: invites, edit expenses, currency picker, \"Add to my plan\" buttons", note: "Not built (progress.md table).", src: "STATUS.md; progress.md" },
+    { text: "Promo codes on partner offers", note: "The type supports codes; none registered.", src: "STATUS.md; progress.md" },
+    { text: "More partners: hotels, car rental, tours, insurance, trains, luggage", note: "Not registered. Waiting on the owner's tick or strike list.", src: "STATUS.md; WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Priced hotel feed (LiteAPI, Amadeus or Booking.com) behind STAY_PROVIDERS", note: "Needs a key from the owner. Adapter skeleton not confirmed in sources.", src: "docs/finish-plan.md (D1, D3)" },
+    { text: "Events group in Things to do (dated feed)", note: "Needs a free Ticketmaster key. Without it the group is absent.", src: "docs/finish-plan.md (D13)" },
+    { text: "Hero video loops", note: "No video element exists. Higgsfield MCP was not connected in the earlier session.", src: "STATUS.md; docs/design-direction.md" },
+    { text: "Upscaled image masters", note: "Masters are 1024 px wide; upscaling not done.", src: "STATUS.md; docs/design-direction.md" },
+    { text: "Hero: right-edge rail of 5 live destinations", note: "Not built; a recommended-trip card sits bottom right instead.", src: "docs/design-direction.md" },
+    { text: "Hero scroll choreography (globe scales, headline fades)", note: "No such keyframes exist.", src: "docs/design-direction.md" },
+    { text: "Full-bleed destination section pinned for 150vh", note: "Not built.", src: "docs/design-direction.md" },
+    { text: "View transitions for anything beyond the card-to-destination image", note: "Not built.", src: "docs/design-direction.md" },
+    { text: "Clouds over the globe", note: "Specified in the brief; nothing draws clouds.", src: "docs/design-direction.md" },
+    { text: "Email visuals (design slice 5)", note: "Templates exist; designed imagery not checked.", src: "docs/design-direction.md" },
+    { text: "Design audit document (docs/design-audit.md)", note: "Never written.", src: "progress.md (phase 1)" },
+    { text: "Impeccable polish pass", note: "Not done as of the progress.md report.", src: "progress.md (phase 8)" },
+    { text: "Live flight and hotel providers (1.11)", note: "Deliberately not started: gated on vendor terms, especially background polling.", src: "progress.md (Not started, deliberately)" },
+    { text: "Booking and payments", note: "Deliberately not started. Nothing books anything.", src: "progress.md" },
+    { text: "Standalone trip detail route", note: "Deliberately not started: it would show different prices from the list it opens from.", src: "progress.md" },
+    { text: "Per-destination cost of living", note: "Deliberately not started: a guessed line would be worse than none.", src: "progress.md" },
+    { text: "Spec sections 15 to 22: seasonal intelligence, hidden places, events and national holidays, trip types", note: "Deliberately not started: each needs data the product does not have.", src: "progress.md" }
+  ],
+
+  // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
+  failing: [
+    { text: "Real email delivery through Resend, with a verified domain, not verified", severity: "blocks launch", src: "progress.md; STATUS.md" },
+    { text: "Postgres migrations 0008 and 0009 not run against a real database", severity: "blocks launch", src: "STATUS.md; progress.md" },
+    { text: "Travelpayouts login pending; the account-setup agent is blocked", severity: "blocks launch", src: "STATUS.md" },
+    { text: "Live Aviasales calendar calls from a deployed host not verified; real quota behaviour unknown", severity: "blocks launch", src: "progress.md" },
+    { text: "Background polling for Travel Watch: vendor terms not answered in writing; no vendor chosen", severity: "blocks launch", src: "progress.md (Next step)" },
+    { text: "Local Postgres answers ECONNRESET; DATABASE_SSL=true suggested but not tried", severity: "should fix", src: "progress.md (2026-11-03, 2026-11-04)" },
+    { text: "/api/health in production expected to answer 503 (absent slots); read from code, not run", severity: "should fix", src: "progress.md" },
+    { text: "Search finds nothing for VIE to KZN", severity: "should fix", src: "STATUS.md (bugs in progress)" },
+    { text: "Images missing in Popular and in Things to do", severity: "should fix", src: "STATUS.md (bugs in progress)" },
+    { text: "Trip builder: arrival time prints the departure time (06:10 VIE to 06:10 FCO); a defect to fix", severity: "should fix", src: "docs/design-trip-builder.md" },
+    { text: "Booking.com URL parameters not verified on a live click", severity: "should fix", src: "progress.md (phase 3)" },
+    { text: "Cache key roll-over at 00:00 UTC not verified on a live deployment", severity: "should fix", src: "progress.md" },
+    { text: "Most new screens not reviewed in a browser by a person", severity: "should fix", src: "STATUS.md; progress.md" },
+    { text: "Drive \"Verify installation\" passes only after the next deploy of this branch", severity: "should fix", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Env docs out of sync with code: HOTEL_REFRESH_MINUTES and five *_PROVIDER_API_KEY read by no code; OPEN_METEO_API_KEY unread; VAPID name mismatch", severity: "should fix", src: "progress.md (found while writing docs)" },
+    { text: "MapLibre LineAtlas runs out of space after many globe resizes; reported, not patched", severity: "should fix", src: "progress.md (2026-09-23)" },
+    { text: "npm run format:check failed on 142 files (last checked 2026-11-03)", severity: "should fix", src: "progress.md (2026-11-03)" },
+    { text: "Hotel feed absent: stays are links with no price; totals say the stay is excluded", severity: "known limit", src: "docs/finish-plan.md (D1, D2)" },
+    { text: "Google Flights sidecar blocked by an EU cookie-consent wall on its first real run; optional, off by default", severity: "known limit", src: "docs/runbook.md section 5a" },
+    { text: "Playwright bundled Chromium cannot download on this machine; suites ran on local Chrome", severity: "known limit", src: "docs/testing.md; progress.md" },
+    { text: "Test counts differ across sources (273 in STATUS; 1887 unit and 248 e2e in docs/testing.md); none re-run", severity: "known limit", src: "STATUS.md; docs/testing.md" },
+    { text: "CSP lists 'unsafe-inline' as a constraint; a nonce proxy was added later, so verify which applies", severity: "known limit", src: "progress.md (constraints; 2026-11-04)" },
+    { text: "AI_PROVIDER=anthropic is accepted by the schema and fails at startup; no adapter exists", severity: "known limit", src: "progress.md" },
+  ],
+
+  // Needs the owner: keys, DNS records, decisions. Names only, never values.
+  needsOwner: [
+    { text: "Log in to Travelpayouts in the Playwright browser window (the account-setup agent is blocked)", src: "STATUS.md" },
+    { text: "Run npm run db:migrate on production (migrations 0008 and 0009)", src: "STATUS.md" },
+    { text: "Resend account and verified domain voyagrfind.com", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "DNS records for email: TXT and MX on send, TXT on resend._domainkey, TXT on _dmarc (values from Resend)", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "A priced hotel feed key (LiteAPI recommended; Amadeus or Booking.com alternatives) and its terms", src: "STATUS.md; WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Ticketmaster Discovery API free key, for the events group", src: "docs/finish-plan.md (D13)" },
+    { text: "Tick or strike the affiliate programmes (car rental, tours, insurance, trains, luggage, and others)", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Confirm the cookie-consent approach: Drive loads only after Accept, as built", src: "WHAT-I-NEED-FROM-YOU.md; STATUS.md" },
+    { text: "Deploy this branch so the Drive installation check can pass", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Review the /privacy and /terms drafts before launch (not legal advice)", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Answer in writing whether background polling is permitted by each vendor's terms", src: "progress.md (Next step)" },
+    { text: "Optional: EMAIL_POSTAL_ADDRESS", src: "WHAT-I-NEED-FROM-YOU.md" },
+    { text: "Open-Meteo commercial plan (a few euros a month) if affiliate income counts, before launch", src: "WHAT-I-NEED-FROM-YOU.md" }
+  ],
+
+  // Last 15 commits, newest first. kind: "fix" | "feat" | "docs" | "chore" | "mixed" | "other"
+  commits: [
+    { hash: "25ccd4b", date: "2026-11-15", subject: "docs: trip builder and destination page design specs; status", kind: "docs" },
+    { hash: "236213f", date: "2026-11-15", subject: "fix(build): drop a half-finished worker edit that was committed by mistake", kind: "fix" },
+    { hash: "f22aba8", date: "2026-11-15", subject: "fix(email): a missing email setting fails the send, not every page", kind: "fix" },
+    { hash: "28d2346", date: "2026-11-15", subject: "docs(status): things to do, consent, security, tests green", kind: "docs" },
+    { hash: "ff14d21", date: "2026-11-15", subject: "feat: things to do from Wikidata, cookie consent gating Drive, security fixes, search defaults from today", kind: "mixed" },
+    { hash: "8ffb2a8", date: "2026-11-15", subject: "docs: README, architecture, runbook, setup checklist, design docs brought up to date", kind: "docs" },
+    { hash: "0093bcb", date: "2026-11-15", subject: "fix: e2e triage - hydration error on results, trip page crash, globe pointer events, phone layout shift, reachable globe switch; suite green", kind: "fix" },
+    { hash: "8e557b6", date: "2026-11-15", subject: "docs(status): branch state and e2e repair", kind: "docs" },
+    { hash: "08013a1", date: "2026-11-15", subject: "feat: shared persistent globe, phone header, remaining pages redesign, explore fix round", kind: "feat" },
+    { hash: "b3fccb9", date: "2026-11-15", subject: "feat(design): home below hero, explore, trip card and destination page redesign; badges removed; globe dots and drag-synced arcs", kind: "feat" },
+    { hash: "7960fcf", date: "2026-11-15", subject: "docs: STATUS.md - short state of the project", kind: "docs" },
+    { hash: "5f98399", date: "2026-11-14", subject: "push", kind: "other" },
+    { hash: "0669d1b", date: "2026-11-14", subject: "chore(build): NEXT_DIST_DIR for side-by-side builds", kind: "chore" },
+    { hash: "dc97376", date: "2026-11-14", subject: "feat(trips): trip hub core - travel plan, shared expenses, emergency numbers and contacts", kind: "feat" },
+    { hash: "27074b3", date: "2026-11-14", subject: "feat(env): FLEX_DAYS", kind: "feat" }
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// Rendering. Reads only from DATA. All text goes in through textContent.
+// ---------------------------------------------------------------------------
+(function () {
+  "use strict";
+
+  var KIND_LABEL = {
+    done: "done", progress: "in progress", planned: "planned", failing: "failing", owner: "needs owner"
+  };
+  var COMMIT_TAG = {
+    fix: "fix", feat: "feature", docs: "docs", chore: "build", mixed: "feature + fixes", other: "no detail"
+  };
+  var SEV_CLASS = { "blocks launch": "sev-block", "should fix": "sev-fix", "known limit": "sev-limit" };
+  var AREAS = ["Data & caching", "Flights & prices", "Destination page", "Globe & home",
+    "Explore & trip builder", "Stays", "Accounts & email", "Trips hub", "Design & pages", "Docs", "Quality"];
+
+  var state = {}; // section key -> open (true by default)
+  var manual = {}; // while searching: section key -> open, set by a click
+  var SECTIONS = [
+    { key: "summary", title: "Status summary", icon: "" },
+    { key: "next", title: "Recommended next step", icon: "" },
+    { key: "done", title: "Done", icon: "✓", list: DATA.done, count: DATA.done.length },
+    { key: "progress", title: "In progress", icon: "◐", list: DATA.inProgress, count: DATA.inProgress.length },
+    { key: "planned", title: "Planned, not started", icon: "○", list: DATA.planned, count: DATA.planned.length },
+    { key: "failing", title: "Failing or unverified", icon: "✕", list: DATA.failing, count: DATA.failing.length },
+    { key: "owner", title: "Needs the owner", icon: "⚑", list: DATA.needsOwner, count: DATA.needsOwner.length },
+    { key: "history", title: "Recent history", icon: "•", list: DATA.commits, count: DATA.commits.length }
+  ];
+  SECTIONS.forEach(function (s) { state[s.key] = true; });
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+  function query() { return (document.getElementById("q").value || "").trim().toLowerCase(); }
+  function hit(str, q) { return !q || str.toLowerCase().indexOf(q) !== -1; }
+  // While a search is active every section opens so matches are visible; a click
+  // then sets that section's state for the search, and clearing the search restores state.
+  function sectionOpen(key) {
+    if (query() !== "") return key in manual ? manual[key] : true;
+    return state[key];
+  }
+
+  function itemSearch(it) {
+    return [it.text, it.area, it.note, it.src, it.severity, it.subject, it.hash, it.date]
+      .filter(Boolean).join(" ");
+  }
+
+  function markFor(sectionKey, it) {
+    if (sectionKey === "done") return ["✓", "m-done"];
+    if (sectionKey === "progress") return ["◐", "m-prog"];
+    if (sectionKey === "planned") return ["○", "m-plan"];
+    if (sectionKey === "failing") return ["✕", "m-fail"];
+    if (sectionKey === "owner") return ["⚑", "m-owner"];
+    return ["•", ""];
+  }
+
+  function renderItem(sectionKey, it) {
+    var li = el("li");
+    li.dataset.search = itemSearch(it).toLowerCase();
+    var mk = markFor(sectionKey, it);
+    li.appendChild(el("span", "mark " + mk[1] + " ", mk[0]));
+    li.firstChild.setAttribute("aria-hidden", "true");
+    var body = el("div");
+    if (sectionKey === "history") {
+      li.remove();
+      return null;
+    }
+    if (sectionKey === "failing") {
+      var sev = el("span", "sev " + (SEV_CLASS[it.severity] || ""), it.severity);
+      body.appendChild(sev);
+    }
+    body.appendChild(el("span", "t", it.text));
+    if (it.note) body.appendChild(el("div", "n", it.note));
+    if (it.src) body.appendChild(el("div", "src", "Source: " + it.src));
+    li.appendChild(body);
+    return li;
+  }
+
+  function renderHistoryItem(c) {
+    var li = el("li");
+    li.dataset.search = itemSearch(c).toLowerCase();
+    var head = el("div");
+    head.appendChild(el("code", "hash", c.hash));
+    head.appendChild(el("span", "when", "  " + c.date));
+    head.appendChild(el("span", "kind", COMMIT_TAG[c.kind] || c.kind));
+    li.appendChild(head);
+    li.appendChild(el("div", "subj", c.subject));
+    return li;
+  }
+
+  function sectionShell(s) {
+    var sec = el("section", "panel");
+    sec.id = "sec-" + s.key;
+    var h = el("h2");
+    h.id = "h-" + s.key;
+    var btn = el("button", "toggle");
+    btn.type = "button";
+    btn.id = "btn-" + s.key;
+    btn.setAttribute("aria-controls", "body-" + s.key);
+    btn.setAttribute("aria-expanded", "true");
+    btn.dataset.sec = s.key;
+    if (s.icon) btn.appendChild(el("span", "ico", s.icon)).setAttribute("aria-hidden", "true");
+    btn.appendChild(document.createTextNode(s.title));
+    var cnt = el("span", "count");
+    cnt.dataset.count = s.key;
+    btn.appendChild(cnt);
+    var chev = el("span", "chev", "▾");
+    chev.setAttribute("aria-hidden", "true");
+    btn.appendChild(chev);
+    h.appendChild(btn);
+    sec.appendChild(h);
+    var body = el("div", "body");
+    body.id = "body-" + s.key;
+    body.setAttribute("role", "region");
+    body.setAttribute("aria-labelledby", "btn-" + s.key);
+    sec.appendChild(body);
+    return { sec: sec, body: body, btn: btn, cnt: cnt };
+  }
+
+  function buildFacts() {
+    var f = document.getElementById("facts");
+    var rows = [
+      ["Generated", DATA.generated],
+      ["Branch", DATA.branch],
+      ["Last commit", DATA.lastCommit.hash + "  " + DATA.lastCommit.subject]
+    ];
+    rows.forEach(function (r) {
+      var d = el("div");
+      d.appendChild(el("b", "", r[0] + ":"));
+      if (r[0] === "Last commit") {
+        d.appendChild(el("code", "", DATA.lastCommit.hash));
+        d.appendChild(document.createTextNode("  " + DATA.lastCommit.subject));
+      } else {
+        d.appendChild(document.createTextNode(r[1]));
+      }
+      f.appendChild(d);
+    });
+    var sub = el("p", "meta", DATA.project + ". " + DATA.subtitle + ". Development map for the owner.");
+    f.appendChild(sub);
+  }
+
+  function buildMain() {
+    var main = document.getElementById("main");
+    var q = "";
+
+    // 1. Summary tiles (counts derived from the lists)
+    var s0 = SECTIONS[0];
+    var sh0 = sectionShell(s0);
+    var tiles = el("div", "tiles");
+    var counts = [
+      ["✓", "Done", DATA.done.length, "items"],
+      ["◐", "In progress", DATA.inProgress.length, "items"],
+      ["○", "Planned (not started)", DATA.planned.length, "items"],
+      ["⚑", "Blocked or needs owner", DATA.needsOwner.length, "owner actions"]
+    ];
+    counts.forEach(function (c) {
+      var t = el("div", "tile");
+      t.appendChild(el("div", "num", String(c[2])));
+      var lbl = el("div", "lbl");
+      var ic = el("span", "ico", c[0]);
+      ic.setAttribute("aria-hidden", "true");
+      lbl.appendChild(ic);
+      lbl.appendChild(document.createTextNode(c[1]));
+      t.appendChild(lbl);
+      t.appendChild(el("div", "sub", c[3]));
+      tiles.appendChild(t);
+    });
+    sh0.body.appendChild(tiles);
+    sh0.body.appendChild(el("p", "meta", "Failing or unverified items are listed separately below: " + DATA.failing.length + " in total."));
+    sh0.cnt.textContent = "4 tiles";
+    main.appendChild(sh0.sec);
+
+    // 2. Recommended next step
+    var s1 = SECTIONS[1];
+    var sh1 = sectionShell(s1);
+    var card = el("div", "next");
+    card.appendChild(el("p", "eyebrow", DATA.nextStep.namesOne ? "Recommended" : "Not named in the sources"));
+    card.appendChild(el("p", "", DATA.nextStep.text));
+    card.appendChild(el("p", "muted", DATA.nextStep.pointer));
+    card.appendChild(el("p", "", "Why: " + DATA.nextStep.why));
+    card.appendChild(el("p", "src", "Source: " + DATA.nextStep.src));
+    sh1.body.appendChild(card);
+    sh1.cnt.textContent = "1 card";
+    main.appendChild(sh1.sec);
+
+    // 3..8 item lists
+    SECTIONS.slice(2).forEach(function (s) {
+      var sh = sectionShell(s);
+      if (s.key === "done") {
+        AREAS.forEach(function (area) {
+          var group = el("div", "area");
+          group.dataset.area = area;
+          group.appendChild(el("h3", "", area));
+          var ul = el("ul", "items");
+          DATA.done.filter(function (d) { return d.area === area; }).forEach(function (d) {
+            var li = renderItem("done", d);
+            ul.appendChild(li);
+          });
+          group.appendChild(ul);
+          sh.body.appendChild(group);
+        });
+      } else if (s.key === "history") {
+        var ol = el("ol", "timeline");
+        DATA.commits.forEach(function (c) { ol.appendChild(renderHistoryItem(c)); });
+        sh.body.appendChild(el("p", "meta", "Newest first. Fix commits are marked \"fix\"; \"feature + fixes\" marks a feat commit that also contains security or bug fixes."));
+        sh.body.appendChild(ol);
+      } else {
+        var ul2 = el("ul", "items");
+        s.list.forEach(function (it) { ul2.appendChild(renderItem(s.key, it)); });
+        sh.body.appendChild(ul2);
+      }
+      var empty = el("p", "empty", "No items match the search in this section.");
+      empty.hidden = true;
+      empty.dataset.empty = s.key;
+      sh.body.insertBefore(empty, sh.body.firstChild);
+      sh.count = s.count;
+      sh.cnt.dataset.total = String(s.count);
+      main.appendChild(sh.sec);
+      s.shell = sh;
+    });
+
+    // Uncommitted note is part of In progress; history note is in its section.
+    buildFoot();
+  }
+
+  function buildFoot() {
+    var f = document.getElementById("foot");
+    f.textContent = "Generated " + DATA.generated + " from STATUS.md, docs/finish-plan.md, progress.md, docs/design-direction.md, docs/design-trip-builder.md, docs/design-destination.md, docs/testing.md, WHAT-I-NEED-FROM-YOU.md and the last 15 commits. Nothing was re-run. Edit DATA at the top of the script to change a status.";
+  }
+
+  function applyFilter() {
+    var q = query();
+    SECTIONS.slice(2).forEach(function (s) {
+      var sh = s.shell;
+      var open = sectionOpen(s.key);
+      sh.body.hidden = !open;
+      sh.btn.setAttribute("aria-expanded", open ? "true" : "false");
+      var visible = 0;
+      var items = sh.body.querySelectorAll("li[data-search]");
+      Array.prototype.forEach.call(items, function (li) {
+        var ok = hit(li.dataset.search, q);
+        li.hidden = !ok;
+        if (ok) visible++;
+      });
+      sh.body.querySelectorAll("div.area").forEach(function (g) {
+        var any = g.querySelectorAll("li[data-search]:not([hidden])").length > 0;
+        g.hidden = !any;
+      });
+      var empty = sh.body.querySelector("p.empty[data-empty]");
+      if (empty) empty.hidden = !(q && visible === 0);
+      sh.cnt.textContent = q ? (visible + " of " + s.count + " shown") : (s.count + " items");
+    });
+    // Summary and next step sections
+    SECTIONS.slice(0, 2).forEach(function (s) {
+      var btn = document.getElementById("btn-" + s.key);
+      var body = document.getElementById("body-" + s.key);
+      var open = sectionOpen(s.key);
+      body.hidden = !open;
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+
+  function toMarkdown() {
+    var q = query();
+    var out = [];
+    out.push("# Voyagr development map (" + DATA.generated + ")");
+    out.push("");
+    out.push("Branch: " + DATA.branch);
+    out.push("Last commit: " + DATA.lastCommit.hash + " " + DATA.lastCommit.subject);
+    out.push("");
+    if (sectionOpen("summary")) {
+      out.push("## Status summary");
+      out.push("- Done: " + DATA.done.length);
+      out.push("- In progress: " + DATA.inProgress.length);
+      out.push("- Planned (not started): " + DATA.planned.length);
+      out.push("- Blocked or needs owner: " + DATA.needsOwner.length);
+      out.push("");
+    }
+    if (sectionOpen("next") && hit(DATA.nextStep.text + " " + DATA.nextStep.pointer + " " + DATA.nextStep.why, q)) {
+      out.push("## Recommended next step");
+      out.push(DATA.nextStep.text);
+      out.push(DATA.nextStep.pointer);
+      out.push("Why: " + DATA.nextStep.why);
+      out.push("");
+    }
+    SECTIONS.slice(2).forEach(function (s) {
+      if (!sectionOpen(s.key)) return;
+      var lines = [];
+      if (s.key === "done") {
+        AREAS.forEach(function (area) {
+          var items = DATA.done.filter(function (d) { return d.area === area && hit(itemSearch(d), q); });
+          if (!items.length) return;
+          lines.push("### " + area);
+          items.forEach(function (d) { lines.push("- ✓ " + d.text); });
+        });
+      } else if (s.key === "history") {
+        DATA.commits.filter(function (c) { return hit(itemSearch(c), q); })
+          .forEach(function (c) { lines.push("- " + c.hash + " (" + c.date + ") " + c.subject); });
+      } else {
+        var icon = markFor(s.key, {})[0];
+        s.list.filter(function (it) { return hit(itemSearch(it), q); }).forEach(function (it) {
+          var line = "- " + icon + " ";
+          if (it.severity) line += "[" + it.severity + "] ";
+          line += it.text;
+          if (it.note) line += " (" + it.note + ")";
+          if (it.src) line += " [source: " + it.src + "]";
+          lines.push(line);
+        });
+      }
+      if (!lines.length) return;
+      out.push("## " + s.title);
+      out.push("");
+      lines.forEach(function (l) { out.push(l); });
+      out.push("");
+    });
+    return out.join("\n");
+  }
+
+  function copyMarkdown() {
+    var md = toMarkdown();
+    var status = document.getElementById("copy-status");
+    var fb = document.getElementById("copy-fallback");
+    var ta = document.getElementById("md-out");
+    function fallback(msg) {
+      fb.hidden = false;
+      ta.value = md;
+      status.textContent = msg;
+      ta.focus();
+      ta.select();
+    }
+    function ok() {
+      fb.hidden = true;
+      status.textContent = "Copied the visible content as Markdown.";
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(md).then(ok, function () {
+        fallback("Clipboard write was refused by the browser. The text is selected below: press Ctrl+C (or Cmd+C).");
+      });
+    } else {
+      fallback("Clipboard is not available in this browser or context. The text is selected below: press Ctrl+C (or Cmd+C).");
+    }
+  }
+
+  function init() {
+    buildFacts();
+    buildMain();
+    applyFilter();
+
+    document.getElementById("main").addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("button.toggle") : null;
+      if (!b) return;
+      var key = b.dataset.sec;
+      if (query()) {
+        manual[key] = !sectionOpen(key);
+      } else {
+        state[key] = !state[key];
+      }
+      applyFilter();
+    });
+    document.getElementById("q").addEventListener("input", function () {
+      manual = {};
+      applyFilter();
+    });
+    document.getElementById("copy-md").addEventListener("click", copyMarkdown);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>

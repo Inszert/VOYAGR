@@ -34,10 +34,11 @@ Then open the file, read it, and only then commit it.
 
 ## What is here now
 
-| Cassette                   | Proves                                                              |
-| -------------------------- | ------------------------------------------------------------------- |
-| `example-paginated-search` | A cursor across two pages, and the rate-limit headers alongside it. |
-| `example-rate-limited`     | A 429 with `Retry-After`, then the successful retry.                |
+| Cassette                              | Proves                                                                                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `example-paginated-search`            | A cursor across two pages, and the rate-limit headers alongside it.                                                                                                                         |
+| `example-rate-limited`                | A 429 with `Retry-After`, then the successful retry.                                                                                                                                        |
+| `overpass-barcelona-stays` (raw body) | A real Overpass answer for central Barcelona, trimmed to 60 elements (58 nodes, 2 ways), recorded 2026-11-16. Parsing for `scripts/build-hotels.mjs`; (c) OpenStreetMap contributors, ODbL. |
 
 Both are hand-written against a fictional vendor. No provider has been chosen, so nothing real has
 been recorded yet — they exist so the harness itself is tested, and as the shape a real recording

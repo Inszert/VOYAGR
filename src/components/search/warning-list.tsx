@@ -1,29 +1,16 @@
-import { Badge, type BadgeTone } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import type { TravelWarning, WarningSeverity } from '@/core/trip/constraints';
 
 /**
- * No-Surprise Travel Check (specification section 31.5).
+ * No-Surprise Travel Check (specification section 31.5), as a plain checklist.
  *
  * Warnings are shown before the user acts, never behind a disclosure they have
- * to think to open. A self-transfer connection or a non-refundable rate is
- * exactly what someone discovers too late, so the list sits in the card itself.
- *
- * Severity is a word as well as a tone, because colour is never the only signal.
+ * to think to open. Each is one line in ink with a quiet mark; whether it is a
+ * fact ("Known") or something the provider did not state ("To check") is read
+ * out ahead of the sentence, so the distinction is in words rather than in a
+ * coloured badge. The trip builder's "Good to know" is the same idea with
+ * shorter sentences (`src/search/trip-view.ts`).
  */
-
-const SEVERITY_LABEL: Record<WarningSeverity, string> = {
-  confirmed: 'Confirmed',
-  estimated: 'Estimated',
-  possible: 'Possible',
-  needs_verification: 'Check this',
-};
-
-const SEVERITY_TONE: Record<WarningSeverity, BadgeTone> = {
-  confirmed: 'critical',
-  estimated: 'caution',
-  possible: 'caution',
-  needs_verification: 'caution',
-};
 
 /** Confirmed problems first: they are the ones that are definitely true. */
 const SEVERITY_ORDER: Record<WarningSeverity, number> = {
@@ -54,11 +41,19 @@ export function WarningList({ warnings, headingId }: WarningListProps) {
   return (
     <ul aria-labelledby={headingId} className="flex flex-col gap-2">
       {ordered.map((warning) => (
-        <li key={warning.code} className="flex flex-wrap items-start gap-2 text-sm">
-          <Badge tone={SEVERITY_TONE[warning.severity]} srPrefix="Severity">
-            {SEVERITY_LABEL[warning.severity]}
-          </Badge>
-          <span className="text-ink min-w-0 flex-1">{warning.message}</span>
+        <li key={warning.code} className="text-ink flex items-start gap-2.5 text-sm">
+          <Icon
+            name={warning.severity === 'confirmed' ? 'shield' : 'check'}
+            size={1}
+            aria-hidden="true"
+            className="text-ink-muted mt-0.5 shrink-0"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="sr-only">
+              {warning.severity === 'confirmed' ? 'Known: ' : 'To check: '}
+            </span>
+            {warning.message}
+          </span>
         </li>
       ))}
     </ul>

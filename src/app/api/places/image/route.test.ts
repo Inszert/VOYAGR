@@ -143,10 +143,10 @@ describe('GET /api/places/image', () => {
   });
 
   it('refuses an image over the size cap, declared or not', async () => {
-    vi.stubGlobal('fetch', commons({ length: String(2 * 1024 * 1024) }));
+    vi.stubGlobal('fetch', commons({ length: String(2 * 1024 * 1024 + 1) }));
     expect((await call('file=Declared%20big.jpg')).status).toBe(404);
 
-    vi.stubGlobal('fetch', commons({ body: new Uint8Array(1024 * 1024 + 1) }));
+    vi.stubGlobal('fetch', commons({ body: new Uint8Array(2 * 1024 * 1024 + 1) }));
     expect((await call('file=Undeclared%20big.jpg')).status).toBe(404);
 
     vi.stubGlobal('fetch', commons({ body: new Uint8Array(0) }));
@@ -162,5 +162,93 @@ describe('GET /api/places/image', () => {
     );
 
     expect((await call('file=Offline.jpg')).status).toBe(404);
+  });
+
+  /*
+   * The shape Commons answers with since 2026, recorded for "Colosseo 2020.jpg"
+   * on 2026-11-15: FilePath redirects to Special:Redirect on Commons itself,
+   * which redirects to the thumbnail on `thumb.wikimedia.org`. Every Rome
+   * picture failed on the first hop when only one was followed.
+   */
+  function twoHops(
+    final: string,
+    second = 'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Colosseo_2020.jpg&width=640',
+  ) {
+    return vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith('https://commons.wikimedia.org/wiki/Special:FilePath/')) {
+        return new Response(null, { status: 302, headers: { location: second } });
+      }
+      if (url.startsWith('https://commons.wikimedia.org/')) {
+        return new Response(null, { status: 302, headers: { location: final } });
+      }
+
+      return new Response(new Uint8Array([7, 8, 9]) as unknown as BodyInit, {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    });
+  }
+
+  it("follows Commons' own second redirect to the thumbnail host", async () => {
+    const fetchSpy = twoHops(
+      'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/960px-Colosseo_2020.jpg',
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const response = await call('file=Colosseo%202020.jpg&w=640');
+
+    expect(response.status).toBe(200);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([7, 8, 9]));
+    expect(fetchSpy.mock.calls.map(([url]) => new URL(String(url)).hostname)).toEqual([
+      'commons.wikimedia.org',
+      'commons.wikimedia.org',
+      'thumb.wikimedia.org',
+    ]);
+  });
+
+  it('follows a hop on Commons only when it is a file redirect', async () => {
+    const fetchSpy = twoHops(
+      UPLOAD,
+      'https://commons.wikimedia.org/w/index.php?title=Special:UserLogin',
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    expect((await call('file=Login%20page.jpg')).status).toBe(404);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up on a redirect loop on Commons rather than following it forever', async () => {
+    const loop = 'https://commons.wikimedia.org/wiki/Special:FilePath/Loop.jpg?width=640';
+    const fetchSpy = vi.fn(
+      async () => new Response(null, { status: 302, headers: { location: loop } }),
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    expect((await call('file=Loop.jpg')).status).toBe(404);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    ['spaces', 'Trevi Fountain - Roma.jpg', 'Trevi%20Fountain%20-%20Roma.jpg'],
+    ['parentheses', 'Pantheon (Rome) - Right side.jpg', 'Pantheon%20(Rome)%20-%20Right%20side.jpg'],
+    ['an apostrophe', "Castel Sant'Angelo at Night.jpg", "Castel%20Sant'Angelo%20at%20Night.jpg"],
+    ['an en dash', 'Fontana di Trevi – Roma.jpg', 'Fontana%20di%20Trevi%20%E2%80%93%20Roma.jpg'],
+    [
+      'accents',
+      'Piazza Navona Fontana dei Quattro Fiumi Roma é.JPG',
+      'Piazza%20Navona%20Fontana%20dei%20Quattro%20Fiumi%20Roma%20%C3%A9.JPG',
+    ],
+  ])('asks Commons for a name with %s, escaped once', async (_label, file, escaped) => {
+    const fetchSpy = commons();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const response = await call(new URLSearchParams({ file, w: '640' }).toString());
+
+    expect(response.status).toBe(200);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      `https://commons.wikimedia.org/wiki/Special:FilePath/${escaped}?width=640`,
+    );
   });
 });

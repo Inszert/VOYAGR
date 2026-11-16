@@ -2,11 +2,14 @@ import type { OperationPolicy, ProviderOperation } from './policy';
 import type { Result } from '@/lib/result';
 import type { ProviderMode } from '@/core/trip/provenance';
 import type { AppError } from '@/lib/errors';
+import type { Money } from '@/core/money';
 import type {
   AirportCode,
   FlightOffer,
   HotelOffer,
   IsoDate,
+  IsoDateTime,
+  OneWayFare,
   TransferOffer,
   WeatherOutlook,
 } from '@/core/trip/types';
@@ -166,6 +169,69 @@ export interface FlightProvider extends ProviderAdapter {
     query: FlightSearchQuery,
     options?: ProviderRequestOptions,
   ): Promise<ProviderResult<ProviderPage<FlightOffer>>>;
+  /**
+   * Further questions that price single days of a month, for the calendar.
+   *
+   * Optional: only a vendor whose cache can be asked by the month has any.
+   * Each source is one leaf call, so the caller wraps every one in the
+   * provider's limiter on its own; none of them is a trip offer.
+   */
+  readonly monthFareSources?: readonly MonthFareSource[];
+  /**
+   * Single flights one way for a month, for a vendor whose cache of them is
+   * denser than its cache of return fares. Optional; see `pairOneWayFares`.
+   */
+  searchOneWay?(
+    query: OneWayQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly OneWayFare[]>>;
+}
+
+export interface OneWayQuery {
+  readonly origin: AirportCode;
+  readonly destination: AirportCode;
+  /** `YYYY-MM`: every day of the month the vendor has a single flight on. */
+  readonly month: string;
+  readonly currency: string;
+  readonly passengers: number;
+}
+
+export interface MonthFareQuery {
+  readonly origin: AirportCode;
+  readonly destination: AirportCode;
+  /** `YYYY-MM`. */
+  readonly month: string;
+  readonly currency: string;
+  readonly passengers: number;
+}
+
+/**
+ * The cheapest fare a vendor has seen for one departure day.
+ *
+ * Not a `FlightOffer`: it has no itinerary to book and is only ever a "from"
+ * figure on a calendar day.
+ */
+export interface DayFare {
+  readonly departureDate: IsoDate;
+  /**
+   * The return that goes with it, or null for a **one-way** fare. A one-way
+   * figure is never a return price and is carried apart from one all the way
+   * to the page, which labels it "one way from".
+   */
+  readonly returnDate: IsoDate | null;
+  /** For the whole party, already multiplied out when the vendor quotes one traveller. */
+  readonly price: Money;
+  /** When the vendor saw the fare, or null when it did not say. */
+  readonly observedAt: IsoDateTime | null;
+}
+
+export interface MonthFareSource {
+  /** Which question this is, for logs and coverage counts. */
+  readonly id: string;
+  fetch(
+    query: MonthFareQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly DayFare[]>>;
 }
 
 // --- Hotels ----------------------------------------------------------------

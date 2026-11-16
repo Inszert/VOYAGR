@@ -1,0 +1,1017 @@
+{
+ "version": 0.6,
+ "generator": "Overpass API 0.7.62.11 87bfad18",
+ "osm3s": {
+  "timestamp_osm_base": "2026-11-16T01:37:50Z",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+ },
+ "elements": [
+  {
+   "type": "node",
+   "id": 192066541,
+   "lat": 41.3759505,
+   "lon": 2.1670539,
+   "tags": {
+    "check_date": "2025-11-03",
+    "name": "Hotel Millenni",
+    "stars": "4",
+    "tourism": "hotel",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 192067263,
+   "lat": 41.3751971,
+   "lon": 2.1682509,
+   "tags": {
+    "check_date": "2025-11-03",
+    "name": "Hotel Barcelona Universal",
+    "phone": "+34935677447",
+    "rooms": "167",
+    "stars": "4",
+    "tourism": "hotel",
+    "wikidata": "Q111389477"
+   }
+  },
+  {
+   "type": "node",
+   "id": 194544630,
+   "lat": 41.3752662,
+   "lon": 2.1673005,
+   "tags": {
+    "contact:website": "https://staytogether.es",
+    "disused:amenity": "bank",
+    "name": "Stay Together",
+    "old_name": "Banco Popular Español",
+    "tourism": "apartment"
+   }
+  },
+  {
+   "type": "node",
+   "id": 199125462,
+   "lat": 41.3747759,
+   "lon": 2.1661966,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "5-7",
+    "addr:postcode": "08004",
+    "addr:street": "Carrer del Poeta Cabanyes",
+    "check_date": "2025-11-03",
+    "name": "Hotel Paral·lel",
+    "operator": "NN Hotels",
+    "stars": "2",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 364735661,
+   "lat": 41.3939068,
+   "lon": 2.1568633,
+   "tags": {
+    "brand": "Catalonia Hotels & Resorts",
+    "brand:wikidata": "Q126180437",
+    "name": "Catalonia Diagonal Centro",
+    "old_name": "Gran Hotel Catalonia",
+    "stars": "4",
+    "tourism": "hotel",
+    "website": "https://www.cataloniahotels.com/es/hotel/catalonia-diagonal-centro"
+   }
+  },
+  {
+   "type": "node",
+   "id": 367695151,
+   "lat": 41.3802157,
+   "lon": 2.1539506,
+   "tags": {
+    "check_date": "2025-09-30",
+    "name": "Villa Emilia",
+    "tourism": "hotel",
+    "wheelchair": "yes",
+    "wikidata": "Q111389440",
+    "wikimedia_commons": "Category:Hotel Villa Emilia"
+   }
+  },
+  {
+   "type": "node",
+   "id": 536686095,
+   "lat": 41.3728426,
+   "lon": 2.1661693,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "40",
+    "addr:street": "Carrer del Roser",
+    "name": "Hostal Barcelona",
+    "tourism": "hotel",
+    "wikidata": "Q111125502"
+   }
+  },
+  {
+   "type": "node",
+   "id": 570814718,
+   "lat": 41.3796661,
+   "lon": 2.175241,
+   "tags": {
+    "addr:housenumber": "17",
+    "addr:street": "Plaça Reial",
+    "check_date": "2024-07-20",
+    "contact:email": "info@kabul.es",
+    "contact:website": "http://www.kabul.es/",
+    "name": "Hostal Kabul",
+    "tourism": "hostel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 672090818,
+   "lat": 41.3813647,
+   "lon": 2.1727626,
+   "tags": {
+    "addr:street": "La Rambla",
+    "description": "Narrow door and staircase from the street.",
+    "name": "Pensión Las Flores",
+    "tourism": "hotel",
+    "wheelchair": "no"
+   }
+  },
+  {
+   "type": "node",
+   "id": 672398204,
+   "lat": 41.3842853,
+   "lon": 2.1705638,
+   "tags": {
+    "check_date": "2024-07-06",
+    "name": "Hotel Royal",
+    "stars": "4",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 672892910,
+   "lat": 41.4011223,
+   "lon": 2.1829564,
+   "tags": {
+    "addr:housenumber": "173",
+    "addr:postcode": "08013",
+    "addr:street": "Carrer de Padilla",
+    "contact:email": "info@hotelglories.com",
+    "contact:phone": "+34 932650808",
+    "contact:website": "http://www.hotelglories.com",
+    "name": "Hotel Glòries",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 673390239,
+   "lat": 41.3960634,
+   "lon": 2.1794666,
+   "tags": {
+    "addr:housenumber": "103",
+    "addr:postcode": "08013",
+    "addr:street": "Carrer de Casp",
+    "email": "caspe@ayrehoteles.com",
+    "name": "Hotel Ayre Casp",
+    "phone": "+34 932467000",
+    "stars": "1",
+    "tourism": "hotel",
+    "website": "http://www.ayrehoteles.com",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 673978997,
+   "lat": 41.3846255,
+   "lon": 2.1681611,
+   "tags": {
+    "name": "Hosteria Grau",
+    "stars": "2",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 674096751,
+   "lat": 41.3962081,
+   "lon": 2.1609608,
+   "tags": {
+    "addr:housenumber": "265",
+    "addr:postcode": "08008",
+    "addr:street": "Carrer del Rosselló",
+    "contact:email": "reservas@hotelomm.es",
+    "contact:phone": "+34 93 4454000",
+    "contact:website": "http://www.hotelomm.es/",
+    "name": "Hotel Sir Victor",
+    "stars": "4",
+    "tourism": "hotel",
+    "wheelchair": "yes",
+    "wikidata": "Q111389474"
+   }
+  },
+  {
+   "type": "node",
+   "id": 674141698,
+   "lat": 41.3942863,
+   "lon": 2.16178,
+   "tags": {
+    "addr:housenumber": "83",
+    "addr:postcode": "08008",
+    "addr:street": "Passeig de Gràcia",
+    "contact:email": "info@derbyhotels.com",
+    "contact:phone": "+34 933668800",
+    "contact:website": "http://www.derbyhotels.es",
+    "entrance": "yes",
+    "fixme": "Hotel or apartments ? At entrance signed as luxe apartments",
+    "name": "Hotel Suites Avenue",
+    "stars": "5",
+    "tourism": "hotel",
+    "wheelchair": "yes",
+    "wikidata": "Q111389475"
+   }
+  },
+  {
+   "type": "node",
+   "id": 674650370,
+   "lat": 41.3717119,
+   "lon": 2.1808851,
+   "tags": {
+    "email": "info@grandmarinahotel.com",
+    "internet_access": "wlan",
+    "name": "Eurostars Grand Marina",
+    "name:ca": "Eurostars Grand Marina",
+    "operator": "Eurostars Hotels",
+    "operator:type": "private",
+    "operator:wikidata": "Q8846494",
+    "phone": "+34 936039000",
+    "rooms": "291",
+    "stars": "5",
+    "tourism": "hotel",
+    "website": "https://www.eurostarshotels.com/eurostars-grand-marina.html",
+    "wheelchair": "yes",
+    "wikidata": "Q111389559"
+   }
+  },
+  {
+   "type": "node",
+   "id": 691591937,
+   "lat": 41.3850332,
+   "lon": 2.1707068,
+   "tags": {
+    "check_date": "2026-01-12",
+    "name": "Hotel Continental",
+    "stars": "1",
+    "toilets:wheelchair": "yes",
+    "tourism": "hotel",
+    "wheelchair": "limited",
+    "wheelchair:description": "Step at entrance but overcome with assistance of the staff. Narrow doorways and elevator doors: fit my 60 cm wheelchair"
+   }
+  },
+  {
+   "type": "node",
+   "id": 704049114,
+   "lat": 41.3870001,
+   "lon": 2.1684561,
+   "tags": {
+    "brand": "H10 Hotels",
+    "brand:wikidata": "Q1562646",
+    "check_date": "2026-06-30",
+    "name": "H10 Catalunya Plaza",
+    "stars": "3",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 704063685,
+   "lat": 41.3908058,
+   "lon": 2.1660695,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "29-31",
+    "addr:street": "Passeig de Gràcia",
+    "brand": "Hidden Hotels",
+    "entrance": "yes",
+    "name": "Club 29",
+    "old_brand": "Sonder",
+    "old_name": "Sonder",
+    "tourism": "hotel",
+    "website": "https://hiddenhotels.com/hotel-club-29/",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 704064994,
+   "lat": 41.38971,
+   "lon": 2.1655726,
+   "tags": {
+    "addr:housenumber": "30-32",
+    "addr:postcode": "08007",
+    "addr:street": "Rambla de Catalunya",
+    "check_date": "2026-11-11",
+    "entrance": "yes",
+    "name": "Hotel Continental Palacete",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 772096087,
+   "lat": 41.3760378,
+   "lon": 2.1440163,
+   "tags": {
+    "name": "Hostal Baler",
+    "tourism": "hostel",
+    "wheelchair": "limited"
+   }
+  },
+  {
+   "type": "node",
+   "id": 813331259,
+   "lat": 41.380051,
+   "lon": 2.1710093,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "8,10,12",
+    "addr:street": "Carrer de la Junta del Comerç",
+    "brand": "Leonardo Hotels",
+    "brand:wikidata": "Q1819101",
+    "brand:wikipedia": "de:Leonardo Hotels",
+    "internet_access": "wlan",
+    "internet_access:fee": "no",
+    "name": "Leonardo Hotel Las Ramblas",
+    "name:ca": "Leonardo Hotel La Rambla",
+    "name:es": "Leonardo Hotel Las Ramblas",
+    "operator": "Leonardo Hotels",
+    "stars": "3",
+    "tourism": "hotel",
+    "website": "https://www.leonardo-hotels.de/leonardo-hotel-barcelona-las-ramblas"
+   }
+  },
+  {
+   "type": "node",
+   "id": 819552810,
+   "lat": 41.3908992,
+   "lon": 2.1706621,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "656",
+    "addr:street": "Gran Via de les Corts Catalanes",
+    "check_date": "2025-03-19",
+    "name": "Atrium Palace",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 820938971,
+   "lat": 41.3837596,
+   "lon": 2.1782779,
+   "tags": {
+    "addr:housenumber": "12",
+    "addr:postcode": "08002",
+    "addr:street": "Plaça de l'Àngel",
+    "check_date": "2023-04-28",
+    "name": "Hotel Suizo",
+    "source": "survey",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 824310260,
+   "lat": 41.3746695,
+   "lon": 2.1706835,
+   "tags": {
+    "addr:housenumber": "57-59",
+    "addr:postcode": "08001",
+    "addr:street": "Avinguda del Paral·lel",
+    "brand": "INNSiDE by Meliá",
+    "brand:wikidata": "Q115794915",
+    "check_date": "2023-04-26",
+    "name": "INNSiDE by Meliá Barcelona Apolo",
+    "name:ca": "Hotel Innside",
+    "old_name": "Tryp Apolo Barcelona",
+    "operator": "Meliá Hotels International",
+    "phone": "+34 934431122",
+    "stars": "4",
+    "tourism": "hotel",
+    "website": "https://www.melia.com/es/hoteles/espana/barcelona/hotel-barcelona-apolo-by-melia",
+    "wheelchair": "yes",
+    "wikidata": "Q111389492"
+   }
+  },
+  {
+   "type": "node",
+   "id": 824313214,
+   "lat": 41.3751599,
+   "lon": 2.1688148,
+   "tags": {
+    "name": "Auto Hogar",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 824993418,
+   "lat": 41.3836207,
+   "lon": 2.1707631,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "111",
+    "addr:postcode": "08001",
+    "addr:street": "La Rambla",
+    "brand": "Le Méridien",
+    "brand:wikidata": "Q261077",
+    "brand:wikipedia": "en:Le Méridien",
+    "check_date": "2025-09-29",
+    "email": "info.barcelona@lemeridien.com",
+    "fax": "+34 933 01 77 76",
+    "name": "Le Méridien Barcelona",
+    "phone": "+34 933 18 62 00",
+    "tourism": "hotel",
+    "website": "https://www.marriott.com/hotels/travel/bcnmd-le-meridien-barcelona/?scid=bb1a189a-fec3-4d19-a255-54ba596febe2",
+    "wheelchair": "yes",
+    "wikidata": "Q111389526",
+    "wikimedia_commons": "Category:Le Méridien Barcelona"
+   }
+  },
+  {
+   "type": "node",
+   "id": 921135618,
+   "lat": 41.3933159,
+   "lon": 2.1660451,
+   "tags": {
+    "addr:housenumber": "135",
+    "addr:postcode": "08009",
+    "addr:street": "Carrer de Pau Claris",
+    "name": "Barcelona City Hotel(Hotel Universal)",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 943001388,
+   "lat": 41.3803276,
+   "lon": 2.1791762,
+   "tags": {
+    "addr:housenumber": "37",
+    "addr:postcode": "08002",
+    "addr:street": "Carrer d'Avinyó",
+    "contact:email": "info@hostalbaires.com",
+    "contact:website": "http://www.hostalbaires.com/",
+    "name": "Hostal Baires",
+    "tourism": "hostel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 983154644,
+   "lat": 41.3854111,
+   "lon": 2.1660268,
+   "tags": {
+    "brand": "Grupotel Hotels & Resorts",
+    "brand:wikidata": "Q126182068",
+    "name": "Grupotel Gravina Hotel",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 983274432,
+   "lat": 41.3853032,
+   "lon": 2.1655507,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "5-7",
+    "addr:postcode": "08001",
+    "addr:street": "Carrer de Gravina",
+    "air_conditioning": "yes",
+    "brand": "chic&basic",
+    "description": "El Hotel chic&basic Reding está situado en la Calle Gravina, en pleno corazón de la ciudad de Barcelona, cerca de Plaza de Catalunya, un hotel en el Raval. Una ubicación excelente para los amantes del arte, la vida local y la cultura urbana.",
+    "image": "https://www.chicandbasic.com/data/webp/big-2cbreding-habitaciondoble-twin-lateral708.jpg-cffa1ac91eb3f51b292cc4161cb0a776.webp",
+    "internet_access": "wlan",
+    "internet_access:fee": "no",
+    "name": "chic&basic Reding Hotel",
+    "opening_hours": "24/7",
+    "operator": "chic&basic Hotels",
+    "payment:cash": "yes",
+    "payment:contactless": "yes",
+    "payment:credit_cards": "yes",
+    "payment:debit_cards": "yes",
+    "payment:mastercard": "yes",
+    "payment:visa": "yes",
+    "phone": "+34 934 12 10 97",
+    "reservation": "yes",
+    "smoking": "outside",
+    "source": "survey;local knowledge",
+    "toilets:wheelchair": "yes",
+    "tourism": "hotel",
+    "website": "https://www.chicandbasic.com/es/hotel-reding-barcelona/",
+    "wheelchair": "limited"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1072835643,
+   "lat": 41.3862014,
+   "lon": 2.1711443,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "19",
+    "addr:postcode": "08002",
+    "addr:street": "Plaça de Catalunya",
+    "check_date": "2025-09-29",
+    "name": "Olivia Plaza Hotel",
+    "operator": "Olivia Hotel",
+    "phone": "+34933168700",
+    "smoking": "no",
+    "tourism": "hotel",
+    "website": "http://www.oliviaplazahotel.es",
+    "wheelchair": "yes",
+    "wikidata": "Q111389534"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1082354554,
+   "lat": 41.3804713,
+   "lon": 2.1707294,
+   "tags": {
+    "addr:housenumber": "63",
+    "addr:street": "Carrer de l'Hospital",
+    "contact:email": "reservas@center-ramblas.com",
+    "contact:website": "http://www.center-ramblas.com/",
+    "name": "Center Ramblas",
+    "tourism": "hostel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1193524889,
+   "lat": 41.3809414,
+   "lon": 2.1531619,
+   "tags": {
+    "name": "Atenea Calabria",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1223692092,
+   "lat": 41.3762298,
+   "lon": 2.1571681,
+   "tags": {
+    "addr:housenumber": "23-25",
+    "addr:street": "Carrer de Rocafort",
+    "bicycle:rental": "yes",
+    "level": "7",
+    "name": "Evenia Rocafort",
+    "phone": "+34902021506",
+    "stars": "3",
+    "tourism": "hotel",
+    "website": "https://www.eveniahotels.com/",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1231242161,
+   "lat": 41.3873794,
+   "lon": 2.1604124,
+   "tags": {
+    "addr:city": "Barcelona",
+    "air_conditioning": "yes",
+    "check_date": "2026-08-26",
+    "lgbtq": "primary",
+    "name": "AXEL Hotel",
+    "rooftop": "yes",
+    "stars": "4",
+    "tourism": "hotel",
+    "website": "https://www.axelhotels.com/en/axel-hotel-barcelona/hotel",
+    "wikidata": "Q4034646",
+    "wikipedia": "en:Axel Hotels"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1250904945,
+   "lat": 41.3796666,
+   "lon": 2.1734692,
+   "tags": {
+    "addr:housenumber": "12",
+    "addr:street": "Carrer de la Unió",
+    "contact:website": "http://www.idealhostel.com/",
+    "name": "Ideal Youth Hostel",
+    "tourism": "hostel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1251513184,
+   "lat": 41.3795792,
+   "lon": 2.1344573,
+   "tags": {
+    "check_date": "2025-08-19",
+    "name": "Alberguinn - Sants Youth Hostel",
+    "tourism": "hostel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1263169474,
+   "lat": 41.3944811,
+   "lon": 2.1723148,
+   "tags": {
+    "name": "Mediterranean Youth Hostel",
+    "tourism": "hostel",
+    "website": "https://www.mediterraneanhostel.com/",
+    "website:reviews": "http://www.hostelworld.com/hosteldetails.php/Mediterranean-Youth-Hostel/Barcelona/6053",
+    "wikidata": "Q111125431"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1307755891,
+   "lat": 41.373363,
+   "lon": 2.1473387,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "322-324",
+    "addr:street": "Gran Via de les Corts Catalanes",
+    "entrance": "yes",
+    "name": "Ayre Hotel Gran Via",
+    "phone": "+34 933 67 55 00",
+    "tourism": "hotel",
+    "wikidata": "Q111389420"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1309602319,
+   "lat": 41.3814535,
+   "lon": 2.1738688,
+   "tags": {
+    "addr:housenumber": "19",
+    "addr:postcode": "08002",
+    "addr:street": "Carrer de la Boqueria",
+    "email": "hingles@hotelingles.net",
+    "fax": "+34933023338",
+    "internet_access": "wlan",
+    "internet_access:fee": "no",
+    "name": "Hotel Inglés",
+    "phone": "+34933173770",
+    "stars": "1",
+    "tourism": "hotel",
+    "website": "http://www.hotelingles.net/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1374340447,
+   "lat": 41.3819104,
+   "lon": 2.1707337,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "30",
+    "addr:postcode": "08001",
+    "addr:street": "Carrer de Jerusalem",
+    "email": "info@lapalmerabcn.com",
+    "name": "Hostal la Palmera",
+    "phone": "+34 93 667 02 48",
+    "stars": "2",
+    "tourism": "hotel",
+    "website": "https://www.lapalmerabcn.com/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1374631955,
+   "lat": 41.3788851,
+   "lon": 2.1547217,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "454",
+    "addr:postcode": "08015",
+    "addr:street": "Gran Via de les Corts Catalanes",
+    "entrance": "yes",
+    "name": "Aparthotel Eric Vökel Gran Vía Suites",
+    "smoking": "no",
+    "tourism": "hotel",
+    "website": "https://www.ericvokel.com/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1386884268,
+   "lat": 41.3870752,
+   "lon": 2.1723258,
+   "tags": {
+    "designation": "3 stars",
+    "name": "Hotel Denit",
+    "source": "www.denit.com",
+    "tourism": "hotel",
+    "wheelchair": "yes",
+    "wikidata": "Q112011991"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1415156469,
+   "lat": 41.4156176,
+   "lon": 2.1464272,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "41-51",
+    "addr:postcode": "08023",
+    "addr:street": "Passeig de la Mare de Déu del Coll",
+    "email": "barcelona.xanascat@gencat.cat",
+    "internet_access": "yes",
+    "name": "Barcelona Xanascat",
+    "phone": "+34 934 83 83 63",
+    "tourism": "hostel",
+    "website": "https://xanascat.gencat.cat"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1417833791,
+   "lat": 41.3890859,
+   "lon": 2.1429632,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "119",
+    "addr:postcode": "08029",
+    "addr:street": "Avinguda de Josep Tarradellas",
+    "brand": "Casual Hoteles",
+    "email": "colours@casualhoteles.com",
+    "internet_access": "yes",
+    "internet_access:fee": "yes",
+    "name": "Casual Colours Barcelona",
+    "name:en": "Casual Colours Barcelona",
+    "operator": "Casual Hoteles",
+    "phone": "+34 934 39 42 07",
+    "tourism": "hotel",
+    "website": "https://www.casualhoteles.com/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1434058713,
+   "lat": 41.3958561,
+   "lon": 2.1609782,
+   "tags": {
+    "addr:housenumber": "102",
+    "addr:postcode": "08008",
+    "addr:street": "Passeig de Gràcia",
+    "check_date": "2025-05-28",
+    "contact:email": "hotelpdg@terra.es",
+    "contact:phone": "+34 932155828",
+    "entrance": "yes",
+    "name": "Hotel Paseo de Gracia",
+    "name:ca": "Hotel Passeig de Gràcia",
+    "name:es": "Hotel Paseo de Gracia",
+    "stars": "3",
+    "tourism": "hotel",
+    "website": "https://www.hotelpaseodegracia.es/",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1474078091,
+   "lat": 41.3910913,
+   "lon": 2.1593029,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "216",
+    "addr:postcode": "08008",
+    "addr:street": "Carrer de Mallorca",
+    "internet_access": "wlan",
+    "name": "Hotel Balmes",
+    "old_name": "Hotel Barcelona Center",
+    "operator": "Derby Hotels",
+    "phone": "+34 93 451 19 14",
+    "rooms": "111",
+    "stars": "4",
+    "tourism": "hotel",
+    "website": "https://www.derbyhotels.com/en/hotels/balmes-hotel/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1474078097,
+   "lat": 41.3918188,
+   "lon": 2.156787,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "83",
+    "addr:postcode": "08008",
+    "addr:street": "Carrer d'Enric Granados",
+    "fax": "+34 93 492 96 90",
+    "name": "Hotel Granados 83",
+    "operator": "Derby Hotels",
+    "phone": "+34 93 492 96 70",
+    "stars": "4",
+    "tourism": "hotel",
+    "website": "http://www.derbyhotels.com/es/hotel-granados-83/",
+    "wikidata": "Q111389460"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1474078098,
+   "lat": 41.3926948,
+   "lon": 2.156347,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "205",
+    "addr:postcode": "08008",
+    "addr:street": "Carrer del Rosselló",
+    "brand": "Room Mate",
+    "brand:wikidata": "Q26260849",
+    "description": "Boutique hotel in Barcelona City Center.",
+    "email": "emma@room-matehotels.com",
+    "fax": "+34 932 385 005",
+    "internet_access": "yes",
+    "internet_access:fee": "no",
+    "name": "Room Mate Emma Hotel",
+    "operator": "Room Mate",
+    "phone": "+34 932 385 606",
+    "stars": "3",
+    "tourism": "hotel",
+    "website": "https://room-matehotels.com/en/emma/",
+    "wheelchair": "yes",
+    "wikidata": "Q111389459"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1575500554,
+   "lat": 41.37476,
+   "lon": 2.1608854,
+   "tags": {
+    "air_conditioning": "yes",
+    "bar": "yes",
+    "check_date": "2023-04-26",
+    "name": "Hotel Concordia",
+    "stars": "4",
+    "tourism": "hotel",
+    "wikidata": "Q111389456"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1576997687,
+   "lat": 41.382434,
+   "lon": 2.1623751,
+   "tags": {
+    "addr:housenumber": "12",
+    "addr:street": "Carrer de Casanova",
+    "name": "Apartaments Casanova",
+    "name:ca": "Apartaments Casanova",
+    "toilets:wheelchair": "yes",
+    "tourism": "hotel",
+    "wheelchair": "yes"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1576997688,
+   "lat": 41.3824642,
+   "lon": 2.1623216,
+   "tags": {
+    "addr:housenumber": "13",
+    "addr:street": "Carrer de Casanova",
+    "check_date": "2025-09-14",
+    "internet_access": "wlan",
+    "internet_access:fee": "no",
+    "name": "Hostal Centric",
+    "tourism": "hotel",
+    "website": "https://www.hostalcentric.com/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1591951065,
+   "lat": 41.4060153,
+   "lon": 2.1447934,
+   "tags": {
+    "addr:housenumber": "11-13",
+    "addr:street": "Carrer de Ballester",
+    "name": "Hostal Putxet",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1636935328,
+   "lat": 41.3863262,
+   "lon": 2.1681968,
+   "tags": {
+    "check_date": "2026-09-10",
+    "name": "Hotel Catalonia Plaça Catalunya",
+    "stars": "4",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1636988219,
+   "lat": 41.3874373,
+   "lon": 2.1680369,
+   "tags": {
+    "name": "Hotel Ginebra",
+    "stars": "1",
+    "tourism": "hotel",
+    "website": "https://hotelginebra.com.es/es/hotel/"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1654457782,
+   "lat": 41.3918486,
+   "lon": 2.1573697,
+   "tags": {
+    "addr:city": "Barcelona",
+    "addr:housenumber": "83",
+    "addr:postcode": "08008",
+    "addr:street": "Carrer de Provença",
+    "check_date": "2024-08-06",
+    "fax": "+34 93 487 25 18",
+    "name": "Hotel América Barcelona",
+    "phone": "+34 93 487 62 92",
+    "stars": "4",
+    "tourism": "hotel",
+    "website": "https://www.hotelamericabarcelona.com/",
+    "wikidata": "Q111662158"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1672212505,
+   "lat": 41.3811573,
+   "lon": 2.176401,
+   "tags": {
+    "addr:housenumber": "16",
+    "addr:street": "Carrer d'Avinyó",
+    "brand": "Catalonia Hotels & Resorts",
+    "brand:wikidata": "Q126180437",
+    "name": "Catalonia Avinyó",
+    "tourism": "hotel"
+   }
+  },
+  {
+   "type": "way",
+   "id": 35816740,
+   "center": {
+    "lat": 41.3868899,
+    "lon": 2.1962221
+   },
+   "tags": {
+    "brand": "The Ritz-Carlton",
+    "brand:wikidata": "Q782200",
+    "brand:wikipedia": "en:The Ritz-Carlton Hotel Company",
+    "building": "yes",
+    "building:levels": "44",
+    "height": "154",
+    "name": "Hotel Arts",
+    "name:ca": "Hotel Arts",
+    "source": "Catastro Spain",
+    "tourism": "hotel",
+    "website": "https://hotelartsbarcelona.com",
+    "wikidata": "Q1425790",
+    "wikimedia_commons": "Category:Hotel Arts",
+    "wikipedia": "ca:Hotel Arts"
+   }
+  },
+  {
+   "type": "way",
+   "id": 37206564,
+   "center": {
+    "lat": 41.3790266,
+    "lon": 2.1696373
+   },
+   "tags": {
+    "building": "hotel",
+    "building:levels": "13",
+    "building:levels:underground": "2",
+    "contact:email": "raval@barcelo.com",
+    "contact:website": "https://barceloraval.com/",
+    "name": "Barceló Raval",
+    "name:ca": "Barceló Raval",
+    "operator": "Barceló",
+    "phone": "+34933201490",
+    "source": "Catastro Spain",
+    "swimming_pool": "yes",
+    "tourism": "hotel",
+    "wheelchair": "yes",
+    "wikidata": "Q111389493",
+    "wikimedia_commons": "Category:Hotel Barceló Raval"
+   }
+  }
+ ]
+}

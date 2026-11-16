@@ -5,6 +5,7 @@ import type { FlexOption, FlexSaving } from '@/core/flex-dates';
 import { cn } from '@/lib/cn';
 import { shortDate, weekdayDate } from '@/lib/display-date';
 import { formatWhole } from '@/search/day-prices-json';
+import { travellersLabel } from '@/core/party';
 
 /**
  * "Fly a few days earlier or later": the same trip, moved, with what each move
@@ -28,6 +29,8 @@ export interface FlexDatesStripProps {
   hrefFor: (option: FlexOption) => string;
   /** Why there are no prices, when the provider could not be read. */
   reason?: string | null;
+  /** The party every price is for, said once above the strip. */
+  travellers?: number;
   className?: string;
 }
 
@@ -57,7 +60,14 @@ function differenceOf(
   return { text: 'Same price', tone: 'quiet' };
 }
 
-export function FlexDatesStrip({ options, best, ageMs, hrefFor, className }: FlexDatesStripProps) {
+export function FlexDatesStrip({
+  options,
+  best,
+  ageMs,
+  hrefFor,
+  travellers = 1,
+  className,
+}: FlexDatesStripProps) {
   if (options.length <= 1) return null;
 
   // Every day unknown: a heading over a row of dashes tells nobody anything.
@@ -73,99 +83,114 @@ export function FlexDatesStrip({ options, best, ageMs, hrefFor, className }: Fle
           Fly a few days earlier or later
         </h2>
 
+        {/* The basis, once: what every figure below is the price of. */}
+        <p className="text-ink-muted text-sm">Return flights, for {travellersLabel(travellers)}.</p>
+
         {best ? <p className="text-ink text-sm font-medium">{flexSentence(best)}</p> : null}
 
         <UpdatedAgo ageMs={ageMs} />
       </div>
 
-      <ul
-        className={cn(
-          'flex min-w-0 gap-2 overflow-x-auto pb-2',
-          // Scrolls and snaps on a phone; on a wider screen the cells share the row.
-          'snap-x snap-mandatory sm:snap-none',
-        )}
+      {/*
+        A row that scrolls without a scrollbar: the edges fade where there is
+        more, the row itself takes focus so arrow keys move it, and every
+        priced day is a link that scrolls into view when tabbed to.
+      */}
+      <div
+        role="group"
+        aria-label="Dates a few days either side"
+        tabIndex={0}
+        className="voyagr-strip focus-visible:outline-accent-to -mx-1 min-w-0 rounded-(--radius-card) focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        {options.map((option) => {
-          const chosen = option.offset === 0;
-          const difference = differenceOf(option);
-          const label = [
-            `Leave ${weekdayDate(option.departureDate)}, back ${weekdayDate(option.returnDate)}`,
-            option.price ? format(option.price) : 'no price yet',
-            chosen ? 'your dates' : '',
-            difference?.text.toLowerCase() ?? '',
-          ]
-            .filter(Boolean)
-            .join(', ');
+        <ul
+          className={cn(
+            'flex min-w-0 gap-2 px-1 py-1',
+            // Scrolls and snaps on a phone; on a wider screen the cells share the row.
+            'snap-x snap-mandatory sm:snap-none',
+          )}
+        >
+          {options.map((option) => {
+            const chosen = option.offset === 0;
+            const difference = differenceOf(option);
+            const label = [
+              `Leave ${weekdayDate(option.departureDate)}, back ${weekdayDate(option.returnDate)}`,
+              option.price ? format(option.price) : 'no price yet',
+              chosen ? 'your dates' : '',
+              difference?.text.toLowerCase() ?? '',
+            ]
+              .filter(Boolean)
+              .join(', ');
 
-          const body = (
-            <>
-              {chosen ? (
-                <span className="text-ink text-[11px] font-semibold tracking-[0.1em] uppercase">
-                  Your dates
+            const body = (
+              <>
+                {chosen ? (
+                  <span className="text-ink text-[11px] font-semibold tracking-[0.1em] uppercase">
+                    Your dates
+                  </span>
+                ) : null}
+                <span className="text-ink text-sm font-medium">
+                  {weekdayDate(option.departureDate)}
                 </span>
-              ) : null}
-              <span className="text-ink text-sm font-medium">
-                {weekdayDate(option.departureDate)}
-              </span>
-              <span className="text-ink-muted text-xs tabular-nums">
-                back {shortDate(option.returnDate)}
-              </span>
-
-              {option.price ? (
-                <Price amount={formatWhole(option.price)} size="sm" className="mt-1" />
-              ) : (
-                <span aria-hidden="true" className="text-dim mt-1 text-base">
-                  &ndash;
+                <span className="text-ink-muted text-xs tabular-nums">
+                  back {shortDate(option.returnDate)}
                 </span>
-              )}
 
-              {difference ? (
-                <span
-                  className={cn(
-                    'text-xs font-medium tabular-nums',
-                    difference.tone === 'save' ? 'text-positive-ink' : 'text-ink-muted',
-                  )}
-                >
-                  {difference.text}
-                </span>
-              ) : null}
-            </>
-          );
+                {option.price ? (
+                  <Price amount={formatWhole(option.price)} size="sm" className="mt-1" />
+                ) : (
+                  <span aria-hidden="true" className="text-dim mt-1 text-base">
+                    &ndash;
+                  </span>
+                )}
 
-          const cell = cn(
-            'flex min-h-28 w-full flex-col items-start gap-0.5 rounded-(--radius-card) border p-3 text-left',
-            // The chosen day is told apart by weight and by its words, not by colour alone.
-            chosen ? 'border-ink border-2' : 'border-hairline',
-            option.price
-              ? 'ease-standard duration-quick hover:border-border-strong transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-to'
-              : 'border-dashed',
-          );
+                {difference ? (
+                  <span
+                    className={cn(
+                      'text-xs font-medium tabular-nums',
+                      difference.tone === 'save' ? 'text-positive-ink' : 'text-ink-muted',
+                    )}
+                  >
+                    {difference.text}
+                  </span>
+                ) : null}
+              </>
+            );
 
-          return (
-            <li key={option.departureDate} className="w-28 min-w-28 flex-1 snap-start">
-              {option.price ? (
-                <a
-                  href={hrefFor(option)}
-                  aria-label={label}
-                  aria-current={chosen ? 'true' : undefined}
-                  className={cell}
-                >
-                  {body}
-                </a>
-              ) : (
-                <div
-                  role="group"
-                  aria-label={label}
-                  aria-current={chosen ? 'true' : undefined}
-                  className={cell}
-                >
-                  {body}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+            const cell = cn(
+              'flex min-h-28 w-full flex-col items-start gap-0.5 rounded-(--radius-card) border p-3 text-left',
+              // The chosen day is told apart by weight and by its words, not by colour alone.
+              chosen ? 'border-ink border-2' : 'border-hairline',
+              option.price
+                ? 'ease-standard duration-quick hover:border-border-strong transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-to'
+                : 'border-dashed',
+            );
+
+            return (
+              <li key={option.departureDate} className="w-28 min-w-28 flex-1 snap-start">
+                {option.price ? (
+                  <a
+                    href={hrefFor(option)}
+                    aria-label={label}
+                    aria-current={chosen ? 'true' : undefined}
+                    className={cell}
+                  >
+                    {body}
+                  </a>
+                ) : (
+                  <div
+                    role="group"
+                    aria-label={label}
+                    aria-current={chosen ? 'true' : undefined}
+                    className={cell}
+                  >
+                    {body}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </section>
   );
 }

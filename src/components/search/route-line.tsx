@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { daysBetween, localDate, localHour, minutesIntoLocalDay } from '@/core/dates';
-import { connectionCount, connectionsUnitemised } from '@/core/trip/legs';
+import { connectionCount, connectionsUnitemised, legArrival } from '@/core/trip/legs';
 import type { FlightLeg } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
@@ -75,7 +75,9 @@ export function RouteLine({ leg, label, className }: RouteLineProps) {
   // Calendar days between the two local dates - the "+1" on a red-eye. Both
   // are the provider's own dates, compared with `daysBetween`, never a `Date`.
   const departureDay = localDate(first.departsAt);
-  const dayShift = daysBetween(departureDay, localDate(last.arrivesAt));
+  // Null when the provider did not say when the flight lands.
+  const arrival = legArrival(leg);
+  const dayShift = arrival ? daysBetween(departureDay, localDate(arrival)) : 0;
 
   return (
     <div role="group" aria-labelledby={labelId} className={cn('flex flex-col gap-3', className)}>
@@ -149,11 +151,15 @@ export function RouteLine({ leg, label, className }: RouteLineProps) {
 
         <div className="text-right">
           <p className="text-ink text-lg leading-none font-semibold tabular-nums">
-            <span>{clock(last.arrivesAt)}</span>
+            {arrival ? (
+              <span>{clock(arrival)}</span>
+            ) : (
+              <span className="text-ink-muted text-sm font-normal">Arrival not stated</span>
+            )}
             {dayShift > 0 ? (
               <sup className="text-caution-ink ml-0.5 text-[10px] font-semibold">
                 +{dayShift}
-                <span className="sr-only"> {dayShift === 1 ? 'day' : 'days'} later</span>
+                <span className="sr-only">{` ${dayShift === 1 ? 'day' : 'days'} later`}</span>
               </sup>
             ) : null}
           </p>

@@ -1,4 +1,5 @@
 import { add, money, sum, zero, type Money } from '../money';
+import { perTraveller } from '../party';
 import type { CostCategory, CostConfidence, CostLine, TripCandidate } from './types';
 
 /**
@@ -284,9 +285,10 @@ export function computeTripCost(
     estimatedTotal,
     total,
     excluded,
-    // Integer division truncates deliberately: a per-person figure is an
-    // indication, and the authoritative number remains `total`.
-    perPerson: money(Math.trunc(total.amount / passengers), currency),
+    // Rounded down to the minor unit by `perTraveller`, which documents the
+    // remainder: a per-person figure is an indication, and the authoritative
+    // number remains `total`.
+    perPerson: perTraveller(total, passengers).each,
     perNight: money(Math.trunc(total.amount / nights), currency),
     byCategory: groupByCategory(counted, currency),
     lines,

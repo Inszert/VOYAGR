@@ -1,10 +1,8 @@
 # Architecture
 
-> **Not yet reflected here:** uncommitted work that was in the tree while this was written (a cookie-consent banner gating the Drive script, a Wikidata places provider with `PLACES_PROVIDER=wikidata` and a `places` cache kind, a `DRIVE_TEST_STUB` test variable). Sections on cookie consent, places and the env table describe commit `0093bcb`; reconcile them when that work is committed.
-
 How Voyagr is put together, and why. The product itself is defined in
 `PRODUCT-SPECIFICATION.md`; this document covers engineering decisions. Brought up to date with the
-code at commit `0093bcb` (2026-11-15). Where something is not built or not verified, it says so.
+code as of 2026-11-15 (after commit `ff14d21`). Where something is not built or not verified, it says so.
 
 ---
 
@@ -30,9 +28,9 @@ enforced structurally:
 - `src/ai/guardrails.ts` validates model output, converts intent into `Money` deterministically, and
   scans generated prose for figures absent from its source facts.
 
-Today the only AI provider is a deterministic mock. `AI_PROVIDER=anthropic` is a valid value that
-fails at startup with "The Anthropic AI adapter is not implemented yet"; it never falls back to the
-mock silently.
+Today the only AI provider is a deterministic mock. `AI_PROVIDER=anthropic` is rejected by
+environment validation (`src/lib/env.ts`) with "anthropic is not implemented yet", so the process
+stops at startup rather than quietly serving mock output. The schema widens when an adapter exists.
 
 ---
 
@@ -109,11 +107,11 @@ Every external source implements an interface in `src/providers/types.ts` and re
 
 Three kinds of answer exist for a slot:
 
-| Mode     | Meaning                                                          | Where allowed                                    |
-| -------- | ---------------------------------------------------------------- | ------------------------------------------------ |
-| `mock`   | Fixtures                                                         | Dev and tests; production only with the opt-in   |
-| `live`   | A real vendor answered (flights are labelled `indicative`)       | Everywhere it is configured                      |
-| `absent` | No data source; adapter answers with nothing; cost is `excluded` | Production default for hotels, transfers, places |
+| Mode     | Meaning                                                          | Where allowed                                  |
+| -------- | ---------------------------------------------------------------- | ---------------------------------------------- |
+| `mock`   | Fixtures                                                         | Dev and tests; production only with the opt-in |
+| `live`   | A real vendor answered (flights are labelled `indicative`)       | Everywhere it is configured                    |
+| `absent` | No data source; adapter answers with nothing; cost is `excluded` | Production default for hotels, transfers       |
 
 The rule lives in `src/providers/mock-policy.ts`: `mockAllowed(env)` is true outside production, and
 in production only when `ALLOW_MOCK_IN_PRODUCTION=true`. That flag exists for the end-to-end suite,
@@ -122,21 +120,25 @@ the Travelpayouts Drive script.
 
 What a production process does, per slot:
 
-| Slot              | Configuration                                    | Result in production                                            |
-| ----------------- | ------------------------------------------------ | --------------------------------------------------------------- |
-| Flights           | `aviasales` + `AVIASALES_API_TOKEN`              | Live (indicative). No token: startup error                      |
-| Flights           | `mock` (the default)                             | Startup error. `live`: "not implemented" error                  |
-| Weather           | `open-meteo` (the default)                       | Live, keyless                                                   |
-| Hotels (priced)   | default                                          | `absent`; an explicit `mock` is refused; `live` not implemented |
-| Transfers, places | default, or `mock`                               | `absent` (a `mock` here becomes absent, not an error)           |
-| Stays (`/stays`)  | default `absent`; `travelpayouts-links` optional | Link-out offers with no price; an explicit `mock` is refused    |
-| FX                | `ecb` (the default)                              | Live, keyless                                                   |
-| Email             | `resend` + `RESEND_API_KEY`                      | `console` is refused at startup                                 |
+| Slot             | Configuration                                    | Result in production                                            |
+| ---------------- | ------------------------------------------------ | --------------------------------------------------------------- |
+| Flights          | `aviasales` + `AVIASALES_API_TOKEN`              | Live (indicative). No token: startup error                      |
+| Flights          | `mock` (the default)                             | Startup error. `live`: "not implemented" error                  |
+| Weather          | `open-meteo` (the default)                       | Live, keyless                                                   |
+| Hotels (priced)  | default                                          | `absent`; an explicit `mock` is refused; `live` not implemented |
+| Transfers        | default, or `mock`                               | `absent` (a `mock` here becomes absent, not an error)           |
+| Places           | `wikidata` (the production default)              | Live, keyless (section 5). `mock` becomes `absent`; `absent` ok |
+| Stays (`/stays`) | default `absent`; `travelpayouts-links` optional | Link-out offers with no price; an explicit `mock` is refused    |
+| FX               | `ecb` (the default)                              | Live, keyless                                                   |
+| Email            | `resend` + `RESEND_API_KEY`                      | `console` is refused: sends fail (3.7)                          |
 
 `assertNoMockInProduction()` in the registry constructor is the backstop: if any slot ends up a
 mock, the registry throws and names it. Env defaults for production are set in `productionAwareDefaults`
-in `src/lib/env.ts`. The worker resolves the email provider at startup too, so a production worker
-with no real email provider stops immediately.
+in `src/lib/env.ts`. An email setting that cannot deliver (`console` in production, or `resend` with no
+`RESEND_API_KEY`) does not stop the process: `src/email/registry.ts` returns a provider whose every
+`send` fails with the configuration error, and logs it once at error level. The worker resolves it at
+startup so the problem is logged then; sign-up still creates the account and price refresh keeps
+running, while no mail is delivered.
 
 Duffel is prohibited (zero paid search cost, 2026-11-04); `FLIGHT_PROVIDER` has no `duffel` value.
 Provider input is untrusted and schema-checked in `src/providers/schema.ts`.
@@ -151,10 +153,10 @@ one contract suite. With `DATABASE_URL` unset nothing loads `pg`. Money is `BIGI
 
 `src/queue/` has a job contract with an in-process driver and a BullMQ driver. `QUEUE_DRIVER=bullmq`
 without `REDIS_URL` is a hard error. The job names are `travel-watch.refresh`,
-`travel-watch.schedule`, `deal.detect`, `notification.deliver`, `provider.health-check` and
-`cache.refresh`. The worker registers handlers for three of them: `travel-watch.refresh`,
-`notification.deliver` and `cache.refresh`. The others are declared in the contract and have no
-handler in the worker.
+`notification.deliver` and `cache.refresh`, and the worker registers a handler for each (a test holds
+the two lists equal). A name is added to the contract only together with the code that enqueues it:
+deal detection runs inside the watch refresh, and due watches are found by the scheduler sweep, so
+neither is a job of its own.
 
 ### 3.10 PWA
 
@@ -191,18 +193,31 @@ after its stale window.
 **Keys:** `voyagr:v1:<kind>:<first 128 bits of SHA-256 of the key-sorted JSON of the query>`. `v1`
 is the stored shape; bump it when that changes. The data source (`api` / `mock`) is part of the
 query, so one is never served under the other's label. Because the discovery query contains dates
-derived from "today" (UTC), the discovery key changes at 00:00 UTC every day.
+derived from "today" (UTC), the discovery key changes at 00:00 UTC every day; the next section says
+what a page does in the gap.
+
+**A page view never runs the full-catalogue search.** That search is up to 2000 provider calls, so
+`SearchDiscoverySource.read` (`src/discovery/snapshot.ts`) only reads the cache. It looks, in order, at
+today's entry for the visitor's own settings, yesterday's, then the default profile's for today and
+yesterday, and serves the first it finds. An entry that is not today's, or has aged, is served as it is
+and labelled by its own `observedAt` ("Updated 90 min ago"), and the page enqueues the same
+`cache.refresh` job the worker's schedule uses (same dedupe key, `src/cache/request-refresh.ts`) and
+moves on. With nothing cached at all - first boot - the globe shows the places without prices and a
+"Prices are loading" line. The one exception is the fixtures source (`mock`): it calls no provider, so
+there is no quota to protect and a page may build it. With `QUEUE_DRIVER=memory` in the web process
+nothing consumes the job, so run the worker (or accept an unpriced globe) outside the end-to-end suite.
 
 **TTLs** (constants in `src/discovery/snapshot.ts`, `src/search/cache.ts`, `src/search/day-prices.ts`,
 `src/core/trip/weather-window.ts`):
 
-| Kind        | Query                                          | Fresh   | Stale window | Written by                   |
-| ----------- | ---------------------------------------------- | ------- | ------------ | ---------------------------- |
-| `discovery` | discovery request + source                     | 60 min  | 24 h         | page (on a miss), worker     |
-| `search`    | search request + source                        | 5 min   | none         | page only                    |
-| `flex`      | one month of per-day prices (day-prices)       | 60 min  | 24 h         | page or API route, on a miss |
-| `weather`   | forecast (a day of the trip is within 15 days) | 3 h     | 3 h          | page, on a miss              |
-| `weather`   | climate average (all dates beyond 15 days)     | 30 days | 60 days      | page, on a miss              |
+| Kind        | Query                                             | Fresh   | Stale window | Written by                         |
+| ----------- | ------------------------------------------------- | ------- | ------------ | ---------------------------------- |
+| `discovery` | discovery request + source                        | 60 min  | 24 h         | worker (a page only reads)         |
+| `search`    | search request + source                           | 5 min   | none         | page only                          |
+| `flex`      | one month of per-day prices (day-prices)          | 60 min  | 24 h         | page or API route, on a miss       |
+| `weather`   | forecast (a day of the trip is within 15 days)    | 3 h     | 3 h          | page, on a miss                    |
+| `weather`   | climate average (all dates beyond 15 days)        | 30 days | 60 days      | page, on a miss                    |
+| `places`    | a destination's things to do, and Commons credits | 7 days  | 30 days      | worker pre-warm, or page on a miss |
 
 Explicit user searches stay live: remembered five minutes by query key, no stale window, because a
 search is a question about now. They are cached at the page, never inside `runSearch`, because a
@@ -210,12 +225,25 @@ Travel Watch refresh exists to find out whether the price moved.
 
 **The refresh.** The worker enqueues one `cache.refresh` job per target every `PRICE_REFRESH_MINUTES`
 (default 30), spread evenly across the interval and deduplicated by target id. On start it runs a
-round at once (the first target, `recommended`, with no delay). The target list is code,
+round at once (the first target, `recommended`, with no delay). It also looks at the UTC date every
+30 seconds and starts a round the moment the date changes (`checkRollover` in `src/cache/refresh.ts`,
+the clock injected), so the new day's keys are filled within the first minutes after 00:00 UTC rather than
+within the next interval; until then pages serve yesterday's entry, labelled. The target list is code,
 `src/cache/targets.ts`: `recommended` (what the globe and the recommended trip show an anonymous
 visitor), `origin:X` for `POPULAR_ORIGINS` (LHR, JFK, CDG, AMS, FRA), and `collection:<name>` for
 `COLLECTIONS` (`beach-escapes`, `city-breaks`, `winter-sun`). A failed refresh throws so the queue
-retries with backoff, and the old entry keeps being served. Only `discovery` entries are refreshed
-by the worker. `flex`, `weather` and `search` entries are filled by visits.
+retries with backoff, and the old entry keeps being served. `discovery` entries and `places` entries are
+refreshed by the worker; `flex`, `weather` and `search` entries are filled by visits.
+
+**Pre-warming things to do.** The first look at a city asks Wikidata a heavy question (15 to 45
+seconds), so the worker asks it first. Every `PLACES_REFRESH_HOURS` (default 168, a week) and at
+start it enqueues `cache.refresh` jobs with ids `places:<airport code>`: up to 40 destinations per round
+(`PLACES_DESTINATIONS_PER_ROUND`) from the catalogue, the themed collections first, skipping any whose
+entry is still fresh, a minute apart. The lookups go one at a time through the places provider's
+limiter. The destination page keeps its Suspense skeleton for a cache miss. At 40 a round the whole
+catalogue takes several rounds to cover; lower `PLACES_REFRESH_HOURS` to cover it sooner. Wikidata
+etiquette (a descriptive User-Agent naming the app, one query at a time, low rate, long cache) is
+in the comments of `src/providers/places/wikidata.ts` and `src/cache/refresh.ts`.
 
 **Quota maths.** Calls per hour = sum of target call ceilings x 60 / `PRICE_REFRESH_MINUTES`. A
 ceiling is the most a refresh can spend, not a forecast. Values come from `src/cache/targets.ts` and
@@ -232,6 +260,15 @@ ceiling is the most a refresh can spend, not a forecast. Values come from `src/c
 | Aviasales limit (600 per minute, as declared in `aviasales.ts`) | 36,000 calls per hour                                                                           |
 | Headroom                                                        | about 31%, before user searches                                                                 |
 
+**Two one-way tickets (user searches).** When the round-trip cache has no fare for a pair of days,
+`runSearch` also asks the one-way cache (`searchOneWay`) for each route, in both directions, for
+every month the windows leave in and come back in, and pairs single flights into trips marked
+`two_one_way` (`src/core/trip/one-way-pair.ts`; a return fare that is cheaper or equal wins). That
+is `origins x destinations x (departure months + return months)` extra calls, only for searches of
+at most `ONE_WAY_MAX_DESTINATIONS` (3) places, each counted against `maxProviderCalls` and cached per
+route, direction and month (`flex`, 60 min fresh, 24 h stale). A one-place search over one month
+adds 2 calls. The snapshot's "anywhere" search adds none.
+
 Below about 21 minutes the ceiling exceeds the limit. `src/cache/refresh.test.ts` asserts the default
 stays inside it. User searches spend from the same per-provider limiter and are not in this figure.
 The 600 per minute figure is what the adapter declares; this file does not claim it was re-measured.
@@ -241,9 +278,19 @@ of a month, behind both the price calendar (`/api/price-calendar`) and the flexi
 neither repeats the other's call. For a vendor that answers by month (Aviasales in `calendar`
 window mode, `metadata.answersByMonth`) it makes **two** calls per destination per month: one for
 returns within the month, one for returns running into the next, because the vendor filters the
-return by month too. A vendor that does not (the mock) is asked one call per day. The API route
-accepts at most 5 destinations, so one month costs at most 10 Aviasales calls, then is cached for an
-hour (stale for a day more). A day with no price is absent, not zero.
+return by month too, plus **three** day questions (`monthFareSources` in `aviasales.ts`): one-way
+`prices_for_dates` (`one_way=true`), `v1/prices/calendar` and `v2/prices/latest`; the last two answer
+by city and are kept only where the city is the code asked. Per day the cheapest fare wins and keeps
+its own observed time; one-way fares are stored apart and shown as "one way from", never as a return
+price. So five calls per destination per month. A vendor that does not (the mock) is asked one call
+per day. The API route accepts at most 5 destinations, so one month costs at most 25 Aviasales
+calls, then is cached for an hour (stale for a day more); every figure is a party total and the
+party is in the cache key. A day with no price is absent, not zero. The route is unauthenticated, so
+it is bounded (`docs/security.md`, section 10): a month outside this month through twelve months ahead
+is a 400 before any provider work, each client gets 60 requests a minute (429 with `Retry-After`; a
+request with no client address shares no bucket), and a per-process budget of 120 cache misses a
+minute (`DAY_PRICE_LOADS_PER_MINUTE`) makes a month past it answer "could not be loaded" instead of
+calling the vendor. Cache hits cost nothing.
 
 ---
 
@@ -290,8 +337,20 @@ a climate average (three real past years) beyond it, labelled "Typical for these
 tier is scoped to non-commercial use; whether affiliate revenue counts is unresolved (see
 `WHAT-I-NEED-FROM-YOU.md`).
 
-**Places and transfers.** No live adapter. In production both are `absent`. Partner links
-(section 9) answer the transfer need. "Up to 30 things to do" (D13) is planned, not built.
+**Places.** Wikidata (`PLACES_PROVIDER=wikidata`, the production default; keyless, CC0), in
+`src/providers/places/wikidata.ts`. Places are ranked by sitelink count, a public count and not a
+rating; there are no restaurants, prices or reviews, so `searchPlaces` answers an empty list and the
+destination page's "cannot tell you yet" note keeps naming what is missing (photographs are dropped
+from that note once a listed place has one). `loadThingsToDo` (`src/discovery/things-to-do.ts`) reads
+the `places` cache and shows up to 30. Pictures come from Wikimedia Commons by file name and are
+served from our own origin by `/api/places/image` (a Commons file name and one of two widths in; the
+upstream address is built on the server, redirects are followed once and only to
+`upload.wikimedia.org`, JPEG, PNG and WebP only, size-capped), so the visitor's browser contacts
+neither Wikidata nor Wikimedia and `img-src` stays at `'self'`. Author and licence are read from the
+Commons API and printed beside each picture. `mock` resolves to `absent` in production.
+
+**Transfers.** No live adapter. In production the slot is `absent`. Partner links (section 9) answer
+the transfer need.
 
 **Currency.** `src/core/fx.ts` with ECB daily rates (`FX_PROVIDER=ecb`), table cached on
 `globalThis`, last good table kept on a failed refresh.
@@ -302,13 +361,20 @@ tier is scoped to non-commercial use; whether affiliate revenue counts is unreso
 
 `npm run worker` starts, in one process:
 
-| Component              | Interval                | Does                                                                                                                                                    |
-| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Watch scheduler        | every 60 s              | Finds due Travel Watches and enqueues `travel-watch.refresh`                                                                                            |
-| `travel-watch.refresh` | per job                 | Re-prices a watch, records price history, detects a better deal, writes a notification, enqueues `notification.deliver`                                 |
-| `notification.deliver` | per job                 | Sends a Web Push for a recorded notification; stamps `deliveredAt` only on real delivery                                                                |
-| `cache.refresh`        | `PRICE_REFRESH_MINUTES` | Section 4                                                                                                                                               |
-| Maintenance            | 6 h / 24 h              | Deletes expired sessions (6 h); price history older than 90 days except each watch's cheapest ever, and provider request logs older than 30 days (24 h) |
+| Component              | Interval                                                             | Does                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Watch scheduler        | every 60 s                                                           | Finds due Travel Watches and enqueues `travel-watch.refresh`                                                                                            |
+| `travel-watch.refresh` | per job                                                              | Re-prices a watch, records price history, detects a better deal, writes a notification, enqueues `notification.deliver`                                 |
+| `notification.deliver` | per job                                                              | Sends a Web Push for a recorded notification; stamps `deliveredAt` only on real delivery                                                                |
+| `cache.refresh`        | `PRICE_REFRESH_MINUTES`, the UTC date change, `PLACES_REFRESH_HOURS` | Section 4: prices, and pre-warming things to do                                                                                                         |
+| Maintenance            | 6 h / 24 h                                                           | Deletes expired sessions (6 h); price history older than 90 days except each watch's cheapest ever, and provider request logs older than 30 days (24 h) |
+
+**Health.** `GET /api/health` answers 200 with `status: ok` when the database (if configured) is
+reachable and every _configured_ provider is healthy, and 503 with `degraded` otherwise. A slot that
+is `absent` is configuration, not an outage: it is listed with status `absent` and never degrades the
+status, so a production deployment with no hotel, transfer or stay source is healthy. A configured
+provider that is down or degraded still degrades it. The rule is `summariseProviderHealth` in
+`src/providers/health-summary.ts`; `/status` shows the same slots as "Absent".
 
 At start the worker also sweeps due watches once. The web process and the worker must share
 `DATABASE_URL` and `REDIS_URL`, and `QUEUE_DRIVER=bullmq`, or the web side enqueues into a queue the
@@ -363,13 +429,23 @@ Offers render as our own components (`PartnerOfferCard`, `PartnerOfferRow`, `Tri
 `rel="sponsored"` and a disclosure that these are partner links. `src/booking/handoff.ts` checks
 hrefs before they are rendered.
 
-**Drive script.** `src/components/shell/affiliate-drive.tsx` adds the Travelpayouts Drive script from
-`https://emrldco.com` on every page, only when `NODE_ENV=production` and
-`ALLOW_MOCK_IN_PRODUCTION` is not set. It is loaded by `src` with the request's CSP nonce.
-`src/proxy.ts` adds that origin to `script-src` and `connect-src` whenever `NODE_ENV=production`
-(including the e2e build, where the script itself is off). It is the only third-party origin in the
-CSP. `img-src` is `'self' blob: data:`. **There is no cookie-consent banner**: the script loads
-without consent. Whether to gate it on consent is an open owner decision (`STATUS.md`).
+**Cookie consent and the Drive script.** The Travelpayouts Drive script from `https://emrldco.com`
+loads only for a request that carries `voyagr-consent=accepted`. A banner asks once; the choice is
+one word in a cookie (`accepted` or `declined`) that lasts 12 months, is `SameSite=Lax`, `Secure` in
+production and readable by the banner, set by a server action (so Next's origin check is the CSRF
+defence). `src/consent/` holds it: `cookie.ts` (the choice), `drive.ts` (`driveScriptSrc`, the one
+function that decides whether and from where the script loads, and `driveCspOrigin`) and `csp.ts`.
+`AffiliateDrive` renders the `<script>` tag server-side from that answer, with the request's CSP nonce,
+so before a choice or after a decline there is no tag in the HTML and no request to `emrldco.com`.
+`src/proxy.ts` builds the CSP per request from the same answer: only a consenting request has
+`https://emrldco.com` in `script-src` and `connect-src`; everyone else gets a policy that does not
+mention it. It is the only third-party origin the CSP ever names. `img-src` is `'self' blob: data:`.
+Accepting reloads the page, because a CSP belongs to the document response and a refreshed render
+cannot widen an already-loaded page. The script loads in real production only, not with
+`ALLOW_MOCK_IN_PRODUCTION`. `DRIVE_TEST_STUB` (test only, honoured only together with
+`ALLOW_MOCK_IN_PRODUCTION`) swaps the vendor URL for the same-origin stub `/api/test/drive-stub`, so the
+end-to-end suite can prove the gating without contacting a third party. Partner link-outs
+(`tpk.lv`, `tp.media`) are plain links and need no consent.
 
 **Security headers.** HSTS, frame-ancestors and Permissions-Policy are static in `next.config.ts`;
 the CSP is per request in `src/proxy.ts` because `script-src` carries a nonce. `style-src` keeps
@@ -383,7 +459,7 @@ Routes `/trips` and `/trips/[id]` (migration 0009: `trips`, `trip_members`, `pla
 `trip_expenses`, `emergency_contacts`).
 
 - **Plan.** Items (flight, stay, transfer, eSIM, insurance, activity and so on) added by the user.
-  Nothing is added silently and nothing is marked booked unless the user says so. A service method
+  Nothing is added silently and nothing is marked booked unless the user says so. A place added from "Things to do" keeps its Wikipedia or Wikidata page as the item's link: `isPlaceSourceUrl` (`src/trip-hub/place-url.ts`, https and an exact host, no credentials) is checked when it is saved and again when the plan renders it, as a plain `noopener noreferrer` link that opens in a new tab and is not counted as an affiliate link. A service method
   and server action to add a partner offer to a plan exist, and an "Add to my plan" control is on
   the results page for signed-in users; its coverage elsewhere has not been reviewed in a browser.
 - **Expenses.** Tricount-style. All arithmetic is in `src/core/expenses/` on `Money`: split,
@@ -391,7 +467,9 @@ Routes `/trips` and `/trips/[id]` (migration 0009: `trips`, `trip_members`, `pla
   conservation (shares sum to the amount; balances sum to zero).
 - **Access.** `TripHubService` decides access, not the pages: every method takes the session user's
   id and starts by proving membership; a non-member gets `NOT_FOUND`, the same as a missing trip.
-  Only the owner deletes the trip or changes members.
+  Only the owner deletes the trip or changes members. A non-UUID id is "not found" before any query, and
+  there are ceilings: 100 trips per account, 30 people per trip and 20 emergency contacts per account
+  (the actions turn a limit into a message, not a 500).
 - **Emergency numbers.** From Wikidata property P2852 (CC0), numbers read from P1329, retrieved
   2026-11-14, written by `node scripts/build-emergency.mjs` to
   `src/trip-hub/emergency.generated.json` and schema-checked at load. A country with no entry shows
@@ -502,6 +580,39 @@ start on a mock flight, weather or email provider, and never shows a fixture pri
 D1 to D20 are in `docs/finish-plan.md` with their reasons. The deployment itself has not happened;
 see `SETUP-CHECKLIST.md` and `docs/runbook.md`.
 
+## 15a. Google Flights sidecar (owner-approved exception, off by default)
+
+Aviasales is a sparse cache of other people's searches, so on 2026-11-16 the owner approved a second
+flight source with eyes open: Google Flights, scraped by the unofficial `fast-flights` library. It
+breaks `docs/provider-policy.md` (unclear terms; Google's do not permit automated access) and is
+recorded there as an exception. Nothing reaches it unless `GOOGLE_FLIGHTS_SIDECAR_URL` is set and the
+registry is told to select it.
+
+```
+search -> CombinedFlightProvider -> aviasales adapter        -> Travelpayouts Data API
+                                 -> google-flights adapter   -> sidecar (127.0.0.1:8765) -> Google
+```
+
+- **Sidecar** (`services/google-flights/`): Python, standard-library HTTP server around
+  `fast-flights==3.1.0`. Loopback only unless a key is set; `X-Voyagr-Sidecar-Key` shared secret;
+  one upstream request per 3 s per process; 10 minute in-memory cache; never logs a query string.
+- **Adapter** (`src/providers/flights/google-flights.ts`): returns `Result`, schema-checks every row
+  (`googleFlightsRowSchema`), parses the price string to exact minor units
+  (`price-text.ts`), declares `indicative` and 10 calls a minute. The library lists only _outbound_
+  itineraries for a return, so a return is searched as two one-way queries and paired by
+  `pairOneWayFares`: every result is `ticketing: 'two_one_way'`. The library states no flight number
+  (shown as an em dash), no baggage, and no expiry (`expiresAt` is `null`).
+- **Combiner** (`src/providers/flights/combined.ts`): `combineFlightOffers` is pure. Same airports,
+  stops and local departure/arrival within 5 minutes on both legs is one itinerary; the cheaper
+  price wins (an equal price prefers one return ticket over two singles) and `reportedBy` lists
+  every provider that had it. A different currency goes through `src/core/fx.ts` or is dropped with
+  a named reason. `CombinedFlightProvider` gives each source its own limiter from the search's
+  `LimiterPool` and degrades when one fails.
+- **What it cannot do:** answer a month (no day-price calendar, no `searchOneWay`), name a flight
+  number, promise a price (there is no quote, only a listing) or keep working: a block shows up as
+  `PROVIDER_UNAVAILABLE` ("Google Flights is blocking the scraper"). It was blocked on its first
+  real run, by Google's EU cookie-consent page; see `docs/runbook.md`, section 5a.
+
 ---
 
 ## 16. Cross-cutting concerns
@@ -523,5 +634,5 @@ and `cause`. `toProblemDetails()` is client-safe.
 
 Multi-country trips: `TripCandidate` models one origin, one destination, one flight and at most one
 hotel. Ground transport such as car rental, rail and ferry would be a new provider kind. Also not
-built: booking, payments, a priced hotel feed, an AI adapter, cookie consent, rate limiting on the
-search page, audit logging. See `docs/security.md` and `SETUP-CHECKLIST.md`.
+built: booking, payments, a priced hotel feed, an AI adapter, rate limiting on the search page,
+audit logging. See `docs/security.md` and `SETUP-CHECKLIST.md`.

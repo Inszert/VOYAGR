@@ -1285,62 +1285,10 @@
   }
 
   /*
-   * The sky on the searched dates, shown as the air around the place - never
-   * written beside it. A haze sits behind the dot: a cool one with faint
-   * streaks for rain, white with flecks for snow, a warm glow for dry. It is
-   * decoration (aria-hidden by being a pseudo-element); screen readers get the
-   * same fact as hidden text on the chip, and the rail states the figures.
+   * No weather haze around a pin. The globe shows the season of the month
+   * being travelled in, from its own photograph; the outlook for the dates is
+   * stated in words on the destination cards, never painted on the planet.
    */
-  .voyagr-chip[data-sky] .voyagr-chip-dot {
-    position: relative;
-  }
-
-  .voyagr-chip[data-sky] .voyagr-chip-dot::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 11rem;
-    height: 11rem;
-    translate: -50% -50%;
-    border-radius: 50%;
-    z-index: -2;
-    pointer-events: none;
-    -webkit-mask-image: radial-gradient(circle, #000 15%, transparent 68%);
-    mask-image: radial-gradient(circle, #000 15%, transparent 68%);
-  }
-
-  .voyagr-chip[data-sky='rainy'] .voyagr-chip-dot::before {
-    /* A cool, soft haze. No streaks: hard stripes read as a rendering glitch. */
-    background: radial-gradient(
-      circle,
-      color-mix(in oklab, var(--color-stage-sky-rain) 55%, transparent),
-      transparent 70%
-    );
-  }
-
-  .voyagr-chip[data-sky='snowy'] .voyagr-chip-dot::before {
-    background:
-      radial-gradient(
-          circle,
-          color-mix(in oklab, var(--color-stage-sky-snow) 90%, transparent) 0 1px,
-          transparent 1.6px
-        )
-        0 0 / 11px 13px,
-      radial-gradient(
-        circle,
-        color-mix(in oklab, var(--color-stage-sky-snow) 55%, transparent),
-        transparent 70%
-      );
-  }
-
-  .voyagr-chip[data-sky='dry'] .voyagr-chip-dot::before {
-    background: radial-gradient(
-      circle,
-      color-mix(in oklab, var(--color-stage-sky-dry) 55%, transparent),
-      transparent 70%
-    );
-  }
 
   /* Inside the country that is open. Brighter, and larger than its own ring. */
   .voyagr-chip-on .voyagr-chip-dot {
@@ -1943,9 +1891,94 @@
  * `visibility: hidden` also takes it out of the tab order and the
  * accessibility tree, and the rail beside the globe still lists it.
  */
-.maplibregl-marker-covered,
-.voyagr-chip-collided {
+.maplibregl-marker-covered {
   visibility: hidden;
+}
+
+/*
+ * A label the view no longer has room for fades out over 220ms rather than
+ * vanishing, and a label that gains a place fades in (`@starting-style`).
+ * The fade is on the link inside the marker, because MapLibre owns the
+ * marker element's own opacity and transform. `visibility` follows the fade,
+ * so a hidden label is out of the tab order and the accessibility tree.
+ *
+ * The transition list repeats the chip's own transform and halo: this rule is
+ * unlayered and replaces the layered one's `transition` outright.
+ */
+.voyagr-chip-host > .voyagr-chip,
+.voyagr-label-host > .voyagr-chip {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 220ms var(--ease-out-quart),
+    visibility 0s linear 0s,
+    transform var(--duration-quick) var(--ease-out-quart),
+    text-shadow var(--duration-quick) var(--ease-out-quart);
+}
+
+@starting-style {
+  .voyagr-chip-host > .voyagr-chip,
+  .voyagr-label-host > .voyagr-chip {
+    opacity: 0;
+  }
+}
+
+/*
+ * A hidden pin still has a box. Without this, a pin that lost its place to a
+ * better-ranked neighbour sat invisibly over the neighbour and took its clicks.
+ */
+.voyagr-chip-collided {
+  pointer-events: none;
+}
+
+.voyagr-chip-collided > .voyagr-chip {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 220ms var(--ease-out-quart),
+    visibility 0s linear 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-chip-host > .voyagr-chip,
+  .voyagr-label-host > .voyagr-chip,
+  .voyagr-chip-collided > .voyagr-chip {
+    transition: none;
+  }
+}
+
+/*
+ * A city with no price yet: its name, quieter than a price, with a smaller
+ * dot. It is a link that asks ("See prices for Kraków, Poland"), so it keeps
+ * the chip's halo and focus ring; it never carries a figure.
+ */
+.voyagr-chip-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--color-text) 90%, transparent);
+}
+
+.voyagr-chip-name .voyagr-chip-dot {
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  background: color-mix(in oklab, var(--color-text) 80%, transparent);
+  box-shadow: 0 0 0 2px rgb(3 5 10 / 0.6);
+}
+
+.voyagr-chip-left .voyagr-chip-name {
+  flex-direction: row-reverse;
+}
+
+.voyagr-chip-name:focus-visible {
+  outline: 2px solid var(--color-stage-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /*
@@ -2009,6 +2042,105 @@
 }
 
 /*
+ * The planet is never cut off by a rectangle.
+ *
+ * The explorer's canvas runs full-bleed behind its hero section (see
+ * `stage-host.tsx`), and fades out across the margins between the section's
+ * edges and the slot the sphere rests in: a planet zoomed past its box
+ * dissolves into the page instead of stopping at a straight line. The fade
+ * never reaches into the slot, so the resting globe is untouched.
+ */
+.voyagr-stage[data-variant='explorer'] .voyagr-map,
+.voyagr-stage[data-variant='explorer'] .voyagr-arcs {
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--frame-top, 0px),
+      #000 calc(100% - max(var(--frame-bottom, 0px), 40px)),
+      transparent 100%
+    ),
+    linear-gradient(to right, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--frame-top, 0px),
+      #000 calc(100% - max(var(--frame-bottom, 0px), 40px)),
+      transparent 100%
+    ),
+    linear-gradient(to right, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%);
+  mask-composite: intersect;
+}
+
+/*
+ * The atmosphere and the arcs are drawn outside the canvas, so the canvas's
+ * fade does not reach them: the explorer's box clips them at the section's
+ * edge, which is where the canvas has already faded to nothing.
+ */
+.voyagr-stage[data-variant='explorer'] {
+  overflow: clip;
+}
+
+/*
+ * The front page crops the planet on purpose at rest: the bottom of it runs
+ * off the hero. Zoomed in, that crop became a straight edge across a ball, so
+ * the canvas's top and bottom edges fade in step with how far it is zoomed
+ * (`--zoom-bleed`, 0 at rest). At rest the gradient is the old hard edge.
+ */
+.voyagr-stage[data-variant='stage'] {
+  --stage-cut: 100%;
+}
+
+@media (min-width: 1024px) {
+  /* The box starts 8% down the hero and the hero clips it at its bottom. */
+  .voyagr-stage[data-variant='stage'] {
+    --stage-cut: 92%;
+  }
+}
+
+.voyagr-stage[data-variant='stage'][data-bled='true'] .voyagr-map {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 calc(12% * var(--zoom-bleed, 0)),
+    #000 calc(var(--stage-cut) - 16% * var(--zoom-bleed, 0)),
+    transparent var(--stage-cut)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 calc(12% * var(--zoom-bleed, 0)),
+    #000 calc(var(--stage-cut) - 16% * var(--zoom-bleed, 0)),
+    transparent var(--stage-cut)
+  );
+}
+
+/* Text over a zoomed planet keeps a dark ground: above the slot on a phone, beside it from 1024px. */
+.voyagr-explore-scrim {
+  opacity: var(--zoom-bleed, 0);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--color-surface) 84%, transparent) 0,
+    color-mix(in oklab, var(--color-surface) 84%, transparent) calc(var(--frame-top, 0px) * 0.6),
+    transparent calc(var(--frame-top, 0px) + 48px)
+  );
+  transition: opacity var(--duration-quick) var(--ease-out-quart);
+}
+
+@media (min-width: 1024px) {
+  .voyagr-explore-scrim {
+    background: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-surface) 84%, transparent) 0,
+      color-mix(in oklab, var(--color-surface) 84%, transparent) calc(var(--frame-left, 0px) * 0.55),
+      transparent calc(var(--frame-left, 0px) + 96px)
+    );
+  }
+}
+
+/*
  * The flat map has no edge.
  *
  * Zoomed past a globe, or switched to the flat map, the canvas is a rectangle
@@ -2016,7 +2148,8 @@
  * the border dissolve with it instead of being sliced off square. Off while it
  * is a globe, where the planet is meant to bleed past the box.
  */
-.voyagr-stage[data-flat='true'] .voyagr-map {
+/* Not on the explorer, whose canvas already fades at its own edges (above). */
+.voyagr-stage[data-flat='true']:not([data-variant='explorer']) .voyagr-map {
   /*
    * Eased in with how flat the planet is, not switched on at the end. The fade
    * used to start only once the globe was completely flat, so at the zoom in
@@ -2157,6 +2290,128 @@
 @media (prefers-reduced-motion: reduce) {
   .voyagr-stage-progress[data-active='true']::after {
     animation: none;
+    transform: none;
+  }
+}
+
+/*
+ * The stays map's pins and clusters.
+ *
+ * Real buttons over the canvas, so unlayered like the globe's chips: MapLibre's
+ * own stylesheet is unlayered and would outrank anything in a layer. A priced
+ * pin carries its total in tabular figures; an unpriced one is a smaller,
+ * quieter dot - the difference is shape and words (the button's name says
+ * "no price yet"), never colour alone. 44px of hit area on touch screens.
+ */
+.voyagr-stay-pin,
+.voyagr-stay-cluster {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-raised);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.45);
+  transition:
+    transform var(--duration-quick) var(--ease-out-quart),
+    border-color var(--duration-quick) var(--ease-out-quart);
+}
+
+.voyagr-stay-pin[data-priced='false'] {
+  min-width: 0.875rem;
+  min-height: 0.875rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  padding: 0;
+  background: var(--color-ink-muted);
+  border-color: var(--color-surface);
+}
+
+@media (pointer: coarse) {
+  .voyagr-stay-pin,
+  .voyagr-stay-cluster {
+    position: relative;
+  }
+
+  .voyagr-stay-pin::after,
+  .voyagr-stay-cluster::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 44px;
+    height: 44px;
+    translate: -50% -50%;
+  }
+}
+
+.voyagr-stay-cluster {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  background: var(--color-surface-sunken);
+  border-color: var(--color-brand-ink);
+}
+
+.voyagr-stay-pin:hover,
+.voyagr-stay-pin[data-highlighted],
+.voyagr-stay-pin:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--color-brand-ink);
+  z-index: 2;
+}
+
+.voyagr-stay-pin[aria-pressed='true'] {
+  background: var(--color-accent-from);
+  border-color: var(--color-brand-ink);
+  color: #fff;
+  z-index: 3;
+}
+
+.voyagr-stay-pin:focus-visible,
+.voyagr-stay-cluster:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+
+.voyagr-stay-pin[hidden] {
+  display: none;
+}
+
+/* A price is never under a cluster: priced pins sit above everything else on the map. */
+.voyagr-stay-cluster {
+  z-index: 1;
+}
+
+.voyagr-stay-pin[data-priced='true'] {
+  z-index: 3;
+}
+
+.voyagr-stay-map .maplibregl-ctrl-attrib {
+  background: rgb(5 7 14 / 0.75);
+  color: var(--color-ink-muted);
+  font-size: 11px;
+}
+
+.voyagr-stay-map .maplibregl-ctrl-attrib a {
+  color: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-stay-pin,
+  .voyagr-stay-cluster {
+    transition: none;
+  }
+
+  .voyagr-stay-pin:hover,
+  .voyagr-stay-pin[data-highlighted],
+  .voyagr-stay-pin:focus-visible {
     transform: none;
   }
 }

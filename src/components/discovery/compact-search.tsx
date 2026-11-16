@@ -759,7 +759,7 @@ function BarSearch({
           </div>
 
           {/* The bar itself. 64px on a desktop. */}
-          <div className="flex shrink-0 flex-col lg:h-16 lg:flex-row lg:items-center lg:pr-2.5">
+          <div className="flex shrink-0 flex-col lg:min-h-16 lg:flex-row lg:items-center lg:py-1 lg:pr-2.5">
             <div className="relative flex min-w-0 flex-col lg:grid lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2.35fr)_minmax(0,1.15fr)] lg:items-center">
               <div className={cell}>
                 <AirportInput

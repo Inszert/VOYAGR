@@ -59,3 +59,14 @@ export interface StayProvider {
     options?: ProviderRequestOptions,
   ): Promise<ProviderResult<StayOffer | null>>;
 }
+
+/**
+ * A place to stay that an open map lists - a name and a point, never a price.
+ *
+ * The shape `stayListingSchema` in `../schema.ts` accepts. A fact the map does
+ * not hold (stars, an address, a website) is `null`, never a default.
+ */
+export type { ValidatedStayListing as StayListing } from '../schema';
+
+/** The box a listing search covers, in degrees. */
+export type { StayArea } from '@/core/stay/listing';

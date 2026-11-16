@@ -3,6 +3,7 @@ import { checkDatabaseHealth } from '@/db';
 import { getCapabilities } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import { toLogPayload, toProblemDetails } from '@/lib/errors';
+import { reportedStatus, summariseProviderHealth } from '@/providers/health-summary';
 import { getProviderRegistry } from '@/providers/registry';
 
 /**
@@ -31,15 +32,15 @@ export async function GET() {
 
     const [database, providers] = await Promise.all([checkDatabaseHealth(), registry.checkAll()]);
 
-    const providersHealthy = Object.values(providers).every(
-      (provider) => provider.status === 'healthy',
-    );
+    // An absent slot is configuration, not an outage: it is listed but never
+    // degrades the status. A configured provider that is down still does.
+    const providerSummary = summariseProviderHealth(Object.values(providers));
 
     // Unconfigured optional dependencies are expected in the foundation and do
     // not make the service unhealthy. Only a configured-but-unreachable database
     // degrades it.
     const databaseDegraded = database.configured && !database.reachable;
-    const status = databaseDegraded || !providersHealthy ? 'degraded' : 'ok';
+    const status = databaseDegraded || !providerSummary.healthy ? 'degraded' : 'ok';
 
     return NextResponse.json(
       {
@@ -62,7 +63,7 @@ export async function GET() {
         providers: Object.fromEntries(
           Object.entries(providers).map(([kind, health]) => [
             kind,
-            { id: health.id, status: health.status },
+            { id: health.id, status: reportedStatus(health) },
           ]),
         ),
       },

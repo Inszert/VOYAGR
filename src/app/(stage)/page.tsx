@@ -194,6 +194,7 @@ export default async function DiscoverPage({
         regionSummary={stage.regionSummary}
         clearHref={page.clearCountryHref()}
         unpriced={page.unpriced}
+        pricesLoading={page.pricesLoading}
         viewAllHref={query ? `/explore?${query}` : '/explore'}
         originName={stage.originPoints[0]?.name ?? null}
         controls={{

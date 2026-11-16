@@ -1,7 +1,7 @@
 import { dayOfWeek, localHour } from '../dates';
 import { greaterThan, subtract, type Money } from '../money';
 import type { TripCost } from './cost';
-import { connectionCount } from './legs';
+import { connectionCount, legArrival } from './legs';
 import type { SearchProfile, TripCandidate } from './types';
 
 /**
@@ -358,6 +358,7 @@ export type TravelWarningCode =
   | 'ESTIMATE_HEAVY_TOTAL'
   | 'NO_TRANSFER_PRICED'
   | 'NO_STAY_PRICED'
+  | 'SEPARATE_TICKETS'
   | 'LOW_WEATHER_CONFIDENCE';
 
 export type WarningSeverity = 'confirmed' | 'estimated' | 'possible' | 'needs_verification';
@@ -382,6 +383,20 @@ export function detectTravelWarnings(candidate: TripCandidate, cost: TripCost): 
     outbound.selfTransfer === null ? null : !outbound.selfTransfer,
     inbound.selfTransfer === null ? null : !inbound.selfTransfer,
   );
+
+  /*
+   * Two one-way tickets (`pairOneWayFares`): the outbound and the return are
+   * separate bookings. A fact, not a guess, and independent of how each leg's
+   * own connections are ticketed - that stays the self-transfer check below.
+   */
+  if (candidate.flight.ticketing === 'two_one_way') {
+    warnings.push({
+      code: 'SEPARATE_TICKETS',
+      severity: 'confirmed',
+      message:
+        'Outbound and return are separate tickets: changing or missing one does not change the other.',
+    });
+  }
 
   if (selfTransfer === false) {
     warnings.push({
@@ -418,8 +433,9 @@ export function detectTravelWarnings(candidate: TripCandidate, cost: TripCost): 
     });
   }
 
-  const arrivalSegment = outbound.segments.at(-1);
-  if (arrivalSegment && localHour(arrivalSegment.arrivesAt) >= LATE_ARRIVAL_HOUR) {
+  // Only a stated arrival can be late; an unstated one is not read as the departure.
+  const arrival = legArrival(outbound);
+  if (arrival && localHour(arrival) >= LATE_ARRIVAL_HOUR) {
     warnings.push({
       code: 'LATE_ARRIVAL',
       severity: 'confirmed',

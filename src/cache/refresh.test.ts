@@ -1,7 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Job } from '@/queue/types';
-import { createCacheRefreshHandler, enqueueCacheRefresh } from './refresh';
-import { buildCacheTargets, refreshCallCeilingPerHour } from './targets';
+import {
+  createCacheRefreshHandler,
+  enqueueCacheRefresh,
+  enqueuePlacesRefresh,
+  startCacheRefresh,
+} from './refresh';
+import {
+  PLACES_DESTINATIONS_PER_ROUND,
+  buildCacheTargets,
+  parsePlacesTargetId,
+  placesTargetDestinations,
+  placesTargetId,
+  refreshCallCeilingPerHour,
+} from './targets';
 
 const job = (targetId: string): Job<'cache.refresh'> => ({
   id: '1',
@@ -63,6 +75,182 @@ describe('enqueueCacheRefresh', () => {
     expect(delays[0]!.delayMs).toBe(0);
     expect(Math.max(...delays.map((options) => options.delayMs))).toBeLessThan(30 * 60_000);
     expect(new Set(delays.map((options) => JSON.stringify(options))).size).toBe(targets.length);
+  });
+});
+
+describe('places pre-warming', () => {
+  const [first, second] = placesTargetDestinations() as [string, string];
+
+  it('warms the named destination with its own name and position', async () => {
+    const warm = vi.fn(async () => 'warmed' as const);
+
+    await createCacheRefreshHandler({ places: { warm } })(job(placesTargetId(first)));
+
+    expect(warm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destination: first,
+        destinationName: expect.any(String),
+        position: [expect.any(Number), expect.any(Number)],
+      }),
+    );
+  });
+
+  it('drops a places target that names no known destination', async () => {
+    const warm = vi.fn(async () => 'warmed' as const);
+
+    await createCacheRefreshHandler({ places: { warm } })(job('places:ZZZ'));
+
+    expect(warm).not.toHaveBeenCalled();
+  });
+
+  it('lets a failed warm throw, so the queue retries it', async () => {
+    const handler = createCacheRefreshHandler({
+      places: {
+        warm: async () => {
+          throw new Error('wikidata timed out');
+        },
+      },
+    });
+
+    await expect(handler(job(placesTargetId(first)))).rejects.toThrow('wikidata timed out');
+  });
+
+  it('enqueues no more than 40 destinations a round, a minute apart', async () => {
+    const enqueue = vi.fn(async () => 'id');
+    const destinations = Array.from({ length: 55 }, (_, index) => `D${index}`);
+
+    const count = await enqueuePlacesRefresh(
+      { enqueue },
+      { destinations, isFresh: async () => false },
+    );
+
+    expect(count).toBe(40);
+    expect(PLACES_DESTINATIONS_PER_ROUND).toBe(40);
+    const options = enqueue.mock.calls.map((call) => (call as unknown[])[2] as { delayMs: number });
+    expect(options.map((o) => o.delayMs)).toEqual(
+      Array.from({ length: 40 }, (_, index) => index * 60_000),
+    );
+  });
+
+  it('skips destinations that are still fresh and moves on to the next 40', async () => {
+    const enqueue = vi.fn(async () => 'id');
+    const fresh = new Set(['D0', 'D1']);
+
+    const count = await enqueuePlacesRefresh(
+      { enqueue },
+      {
+        destinations: ['D0', 'D1', 'D2', 'D3'],
+        isFresh: async (destination) => fresh.has(destination),
+      },
+    );
+
+    expect(count).toBe(2);
+    expect(enqueue.mock.calls.map((call) => (call as unknown[])[1])).toEqual([
+      { targetId: 'places:D2' },
+      { targetId: 'places:D3' },
+    ]);
+  });
+
+  it('enqueues nothing when everything is fresh', async () => {
+    const enqueue = vi.fn(async () => 'id');
+
+    expect(
+      await enqueuePlacesRefresh(
+        { enqueue },
+        { destinations: [first, second], isFresh: async () => true },
+      ),
+    ).toBe(0);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('parses only well-formed places ids', () => {
+    expect(parsePlacesTargetId(placesTargetId(first))).toBe(first);
+    expect(parsePlacesTargetId('places:')).toBeNull();
+    expect(parsePlacesTargetId('recommended')).toBeNull();
+  });
+});
+
+describe('the UTC date roll-over', () => {
+  const noPlaces = async () => 0;
+
+  function start(clock: { at: number }) {
+    const enqueue = vi.fn(async () => 'id');
+    const scheduler = startCacheRefresh({ enqueue }, 30, {
+      runOnStart: false,
+      now: () => clock.at,
+      enqueuePlaces: noPlaces,
+    });
+
+    return { enqueue, scheduler };
+  }
+
+  it('starts a round the moment the date changes, and only then', async () => {
+    const clock = { at: Date.parse('2026-11-14T23:59:30.000Z') };
+    const { enqueue, scheduler } = start(clock);
+
+    expect(scheduler.checkRollover()).toBe(false);
+    clock.at = Date.parse('2026-11-14T23:59:59.999Z');
+    expect(scheduler.checkRollover()).toBe(false);
+    expect(enqueue).not.toHaveBeenCalled();
+
+    clock.at = Date.parse('2026-11-15T00:00:00.000Z');
+    expect(scheduler.checkRollover()).toBe(true);
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalledTimes(buildCacheTargets().length));
+
+    // The same day again is not a second round.
+    clock.at = Date.parse('2026-11-15T12:00:00.000Z');
+    expect(scheduler.checkRollover()).toBe(false);
+
+    scheduler.stop();
+  });
+
+  it('starts one round per date change, across a month end', async () => {
+    const clock = { at: Date.parse('2026-11-30T23:59:59.000Z') };
+    const { enqueue, scheduler } = start(clock);
+
+    clock.at = Date.parse('2026-12-01T00:00:00.000Z');
+    expect(scheduler.checkRollover()).toBe(true);
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalled());
+
+    scheduler.stop();
+  });
+
+  it('puts the recommended target first, so the front page is the first thing refilled', async () => {
+    const clock = { at: Date.parse('2026-11-14T23:59:59.000Z') };
+    const { enqueue, scheduler } = start(clock);
+
+    clock.at = Date.parse('2026-11-15T00:00:00.000Z');
+    scheduler.checkRollover();
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalled());
+
+    const [name, payload, options] = enqueue.mock.calls[0] as unknown as [
+      string,
+      { targetId: string },
+      { delayMs: number },
+    ];
+    expect(name).toBe('cache.refresh');
+    expect(payload.targetId).toBe('recommended');
+    expect(options.delayMs).toBe(0);
+
+    scheduler.stop();
+  });
+
+  it('runs the places round on start, but only when places are scheduled', async () => {
+    const enqueue = vi.fn(async () => 'id');
+    const enqueuePlaces = vi.fn(async () => 0);
+    const clock = { at: Date.parse('2026-11-15T10:00:00.000Z') };
+
+    const without = startCacheRefresh({ enqueue }, 30, { now: () => clock.at, enqueuePlaces });
+    without.stop();
+    expect(enqueuePlaces).not.toHaveBeenCalled();
+
+    const withPlaces = startCacheRefresh({ enqueue }, 30, {
+      now: () => clock.at,
+      enqueuePlaces,
+      placesIntervalHours: 168,
+    });
+    withPlaces.stop();
+    expect(enqueuePlaces).toHaveBeenCalledTimes(1);
   });
 });
 

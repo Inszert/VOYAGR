@@ -85,3 +85,9 @@ yarn-error.log*
 # ---- airport reference build cache ----
 # OurAirports download, re-fetched by scripts/build-airports.mjs when absent.
 .airports-cache/
+# Overpass answers for scripts/build-hotels.mjs; only the generated file is committed.
+.hotels-cache/
+
+# ---- python sidecar ----
+services/*/.venv/
+__pycache__/

@@ -259,3 +259,6 @@ export function changedPins(
  */
 export const GLOBE_FOCUS_EVENT = 'voyagr:globe-focus';
 export const GLOBE_RELEASE_EVENT = 'voyagr:globe-release';
+
+/** Fired by the stage host when the page's box for the globe may have moved within the canvas. */
+export const STAGE_FRAME_EVENT = 'voyagr:stage-frame';

@@ -5,6 +5,14 @@ import { DatePriceGrid } from '@/components/stays/date-price-grid';
 import { RateComparison } from '@/components/stays/rate-comparison';
 import { FindStayLink } from '@/components/stays/find-stay-link';
 import { StayCard } from '@/components/stays/stay-card';
+import { StayExplorer } from '@/components/stays/stay-explorer';
+import { buildStayRows } from '@/components/stays/stay-rows';
+import { areaAround } from '@/core/stay/listing';
+import { buildStayLinkHandoff } from '@/booking/handoff';
+import { isOk } from '@/lib/result';
+import { HOTELS_CREDIT, LISTING_RADIUS_KM, loadStayListings } from '@/providers/stays/listings';
+import { getStayProviders } from '@/providers/stays/registry';
+import { resolveStayPlace } from '@/providers/stays/stay-place';
 import { StaySearchForm } from '@/components/stays/stay-search-form';
 import { StayHeader } from '@/components/stays/stay-header';
 import { StayProperty } from '@/components/stays/stay-property';
@@ -88,6 +96,53 @@ export default async function StaysPage({
    * searched on the explorer - where flights and hotels are priced together
    * - so those two tabs leave for it rather than bolting a flight form on.
    */
+  /*
+   * The hotels in the city, and the map they sit on.
+   *
+   * Only once the dates are chosen. The city is resolved to its own centre
+   * (not its airport), its places to stay are listed from OpenStreetMap -
+   * cached for a week, never fetched by the browser - and joined to whatever
+   * the priced providers quoted. A listed hotel nobody priced says "Check
+   * price" and links to the partner's search for that hotel; nothing here
+   * gives it a figure.
+   */
+  const place =
+    view.step === 'results'
+      ? resolveStayPlace({ code: view.query.destination.code, name: view.query.destination.name })
+      : null;
+  const listings = place ? loadStayListings({ code: place.code, centre: place.centre }) : null;
+  const linkProvider = getStayProviders(undefined, dataSource.effective).find(
+    (provider) => provider.searchStayLinks,
+  );
+  const partnerLinks = new Map<string, { href: string; host: string }>();
+  if (place && listings?.status === 'ok' && linkProvider?.searchStayLinks) {
+    for (const listing of listings.listings) {
+      const result = await linkProvider.searchStayLinks({
+        ...view.query,
+        destination: { ...view.query.destination, name: `${listing.name}, ${place.city}` },
+      });
+      const offer = isOk(result) ? result.value[0] : undefined;
+      const handoff = offer ? buildStayLinkHandoff(offer) : null;
+      if (handoff) {
+        partnerLinks.set(listing.name, {
+          href: handoff.url,
+          host: offer?.displayName ?? new URL(handoff.url).hostname,
+        });
+      }
+    }
+  }
+  const rows = place
+    ? buildStayRows({
+        centre: place.centre,
+        nights: view.nights,
+        stays: view.stays,
+        listings: listings?.status === 'ok' ? listings.listings : [],
+        compareHref: (key) => stayHref(params, { property: key, reference: undefined }),
+        partnerHref: (name) => partnerLinks.get(name) ?? null,
+      })
+    : [];
+  const area = place ? areaAround(place.centre, LISTING_RADIUS_KM) : null;
+
   const searchKindHref = (kind: 'flights' | 'stays' | 'both') =>
     kind === 'stays'
       ? stayHref(params, { with: undefined })
@@ -98,7 +153,7 @@ export default async function StaysPage({
       className="stage-scope bg-bg text-text min-h-screen"
       data-tint={tintFor(imageCode ?? view.query.destination.name)}
     >
-      <Container size="wide" className="flex flex-col gap-8 py-10 lg:gap-10 lg:py-16">
+      <Container size="wide" className="flex flex-col gap-8 py-10 lg:gap-5 lg:py-6">
         <header className="flex flex-col gap-4">
           <SearchKindTabs active={withFlights ? 'both' : 'stays'} hrefFor={searchKindHref} />
 
@@ -226,7 +281,7 @@ export default async function StaysPage({
           <section aria-labelledby="stays-heading" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="stays-heading" className="text-ink font-display text-display-sm">
-                {view.stays.length} places for {view.nights} nights
+                {rows.length > 0 ? rows.length : view.stays.length} places for {view.nights} nights
               </h2>
               <a
                 href={stayHref(params, { dates: undefined, property: undefined })}
@@ -266,28 +321,16 @@ export default async function StaysPage({
                 ))
               : view.links.map((link) => <FindStayLink key={link.id} offer={link} />)}
 
-            {view.stays.length === 0 && view.links.length > 0 ? null : view.stays.length === 0 ? (
-              <EmptyState
-                icon={<Icon name="bed" />}
-                title="No places came back for these dates"
-                description="The providers had nothing for this stay. Other dates, or fewer guests to a room, often do."
-                action={
-                  <Button asChild variant="secondary" size="md">
-                    <a href={stayHref(params, { dates: undefined, property: undefined })}>
-                      Change dates
-                    </a>
-                  </Button>
-                }
+            {rows.length > 0 && place && area ? (
+              <StayExplorer
+                rows={rows}
+                centre={place.centre}
+                area={area}
+                city={place.city}
+                credit={HOTELS_CREDIT}
+                listed={listings?.status === 'ok'}
               />
-            ) : (
-              /*
-                As many across as fit, and never a half-empty row.
-
-                The same grid the destination rail uses, for the same reason:
-                a search that comes back with three hotels should be three
-                wide cards, not three cards packed left against a gap that
-                reads as a loading state.
-              */
+            ) : view.stays.length > 0 ? (
               <ul className="flex flex-col gap-4">
                 {view.stays.map((stay, index) => (
                   <li key={stay.key} className="flex">
@@ -300,6 +343,31 @@ export default async function StaysPage({
                   </li>
                 ))}
               </ul>
+            ) : view.links.length > 0 ? null : (
+              <EmptyState
+                icon={<Icon name="bed" />}
+                title={
+                  !place
+                    ? `We could not place ${view.query.destination.name ?? 'that city'} on the map`
+                    : listings?.status === 'absent'
+                      ? `We do not have a list of hotels in ${place.city} yet`
+                      : 'No places came back for these dates'
+                }
+                description={
+                  !place
+                    ? 'Try the city name as it is usually written in English, for example Barcelona or Vienna.'
+                    : listings?.status === 'absent'
+                      ? 'Our hotel list covers the larger cities so far, and no provider priced a stay here for these dates.'
+                      : 'Nothing was listed or priced for this stay. Other dates, or fewer guests to a room, often do.'
+                }
+                action={
+                  <Button asChild variant="secondary" size="md">
+                    <a href={stayHref(params, { dates: undefined, property: undefined })}>
+                      Change dates
+                    </a>
+                  </Button>
+                }
+              />
             )}
           </section>
         ) : null}

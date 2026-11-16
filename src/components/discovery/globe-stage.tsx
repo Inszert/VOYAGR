@@ -10,15 +10,32 @@ import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, Marker } fr
 import { cn } from '@/lib/cn';
 import { Icon } from '@/components/ui';
 import type { DataProvenance, SourceAttribution } from '@/core/trip/provenance';
-import { bandFor, sunLatitude, type SurfaceKind } from '@/discovery/seasons';
-import { SKY_LABEL, type SkyCondition } from '@/discovery/sky-condition';
+import { bandFor, monthName, sunLatitude, type SurfaceKind } from '@/discovery/seasons';
+import type { SkyCondition } from '@/discovery/sky-condition';
 import {
   routeDashPattern,
   buildGlobeStyle,
   CITY_LIGHT_LAYERS,
   cityLightPaint,
+  earthLayer,
+  earthMonthOf,
+  earthSource,
+  earthTilesUrl,
   type GlobeColors,
 } from './globe-style';
+import {
+  chooseLabels,
+  DOT_INSET,
+  labelBudget,
+  LABEL_PLACES_URL,
+  LIMB_EXIT_COSINE,
+  parseLabelPlaces,
+  placeLinkLabel,
+  TIER_TWO_ZOOM,
+  type LabelCandidate,
+  type LabelPlace,
+  type Rect,
+} from './globe-labels';
 import {
   DUSK_STEPS,
   DUSK_STEP_ALPHA,
@@ -56,12 +73,10 @@ import {
   arcLightOpacity,
   ARC_FADE_MS,
   arcTargetOpacity,
-  insideBox,
-  labelFlips,
-  labelLimit,
-  labelShown,
   changedPins,
   heroDiameter,
+  PHONE_MAX_WIDTH,
+  STAGE_FRAME_EVENT,
   WIDE_MIN_WIDTH,
   spinFactor,
 } from './globe-motion';
@@ -250,7 +265,17 @@ function countryPadding(map: MapLibreMap): {
   bottom: number;
   left: number;
 } {
-  const { clientWidth: width, clientHeight: height } = map.getContainer();
+  const container = map.getContainer();
+  const frame = frameOf(container);
+  /*
+   * On the explorer the canvas runs past the slot, and the map's own padding
+   * (`explorerPadding`) already centres the camera on it. MapLibre adds a
+   * fit's padding to that, so this is measured against the slot alone: adding
+   * the slot's insets here as well counted them twice, and a country could not
+   * be fitted at all.
+   */
+  const width = frame?.width ?? container.clientWidth;
+  const height = frame?.height ?? container.clientHeight;
 
   return {
     top: Math.round(Math.min(70, height * 0.1)),
@@ -299,6 +324,42 @@ function stagePadding(width: number): { top: number; right: number; bottom: numb
     right: 0,
     bottom: 0,
     left: width >= WIDE_MIN_WIDTH ? Math.round(width * 0.36) : 0,
+  };
+}
+
+/**
+ * Where the page's box for the globe sits inside its canvas.
+ *
+ * On the explorer the canvas is the whole hero section so a zoomed planet is
+ * never cut off square; the slot is the part the sphere rests in. Written by
+ * the label pass's geometry refresh as `data-frame` on the map container:
+ * top, right, bottom and left insets, then the slot's width and height.
+ */
+function frameOf(container: HTMLElement) {
+  const values = container.dataset.frame?.split(',').map(Number);
+  if (!values || values.length !== 6 || values.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+  const [top, right, bottom, left, width, height] = values as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  return width > 0 && height > 0 ? { top, right, bottom, left, width, height } : null;
+}
+
+/** The camera padding that centres the sphere on the slot rather than the canvas. */
+function explorerPadding(container: HTMLElement) {
+  const frame = frameOf(container);
+  if (!frame) return { top: 0, right: 0, bottom: 0, left: 0 };
+  return {
+    top: Math.max(0, frame.top),
+    right: Math.max(0, frame.right),
+    bottom: Math.max(0, frame.bottom),
+    left: Math.max(0, frame.left),
   };
 }
 
@@ -415,7 +476,12 @@ function overview(
     ? // The painted disc is about 0.855 of `side` (see the note below), so ask
       // for the diameter the design wants divided by that.
       heroDiameter(window.innerWidth, window.innerHeight) * STAGE_FIT
-    : Math.min(container.clientWidth, container.clientHeight);
+    : (() => {
+        const frame = frameOf(container);
+        return frame
+          ? Math.min(frame.width, frame.height)
+          : Math.min(container.clientWidth, container.clientHeight);
+      })();
   // MapLibre draws the globe with the mercator world's width as its
   // circumference: 512px at zoom zero, doubling per level. So its diameter
   // is 512 · 2^zoom / π, about 163px at zoom zero.
@@ -507,8 +573,18 @@ export function GlobeStage({
   /** Which projection the camera is in, readable from the creation effect. */
   const projectionRef = React.useRef<'globe' | 'mercator'>('globe');
   const stage = variant === 'stage';
-  /** Re-runs the chip collision pass. Assigned once the map exists. */
+  /** Re-runs the label pass. Assigned once the map exists. */
   const layoutRef = React.useRef<() => void>(() => {});
+  /** Re-measures where labels may sit and what covers the globe. Resize only. */
+  const geometryRef = React.useRef<() => void>(() => {});
+  /** Each pin's size, measured once per render of the chips. */
+  const chipSizesRef = React.useRef(new Map<string, { width: number; height: number }>());
+  /** The name labels currently in the DOM, shown or fading. */
+  const namesRef = React.useRef(
+    new Map<string, { marker: Marker; place: LabelPlace; hiddenSince: number | null }>(),
+  );
+  /** Every nameable place, loaded once the planet is on screen. */
+  const catalogueRef = React.useRef<readonly LabelPlace[]>([]);
   /** Lights a country on every outline source. Assigned once the map exists. */
   const countryStateRef = React.useRef<
     (adm0: string, state: { hover?: boolean; selected?: boolean }) => void
@@ -650,6 +726,8 @@ export function GlobeStage({
           attributionControl: false,
           style: buildGlobeStyle({
             colors,
+            // The season of the month being looked at, never the weather on the day.
+            earthTilesUrl: earthTilesUrl(earthMonthOf(seasonDate)),
             landUrl,
             iceUrl,
             placesUrl,
@@ -992,169 +1070,313 @@ export function GlobeStage({
         };
 
         /*
-         * Chips must not pile up.
+         * Which places carry a label, chosen from the view.
          *
-         * Eight places within thirty degrees of each other are eight chips on
-         * top of one another at globe zoom. So, on every frame the view
-         * changes, the chips are laid out in rank order and any chip that
-         * would overlap one already placed is hidden - the same progressive
-         * disclosure section 12 asks for, decided by what fits rather than
-         * by a zoom threshold. Zooming in reveals them. The rail still lists
-         * every one, and a hidden chip leaves the tab order with its
-         * visibility.
+         * Every pass picks the labelled set again from what faces the camera:
+         * priced pins first by rank, then the largest unpriced cities as
+         * names, up to a budget that grows as the camera closes in, with
+         * hysteresis at the limb so nothing flickers (see `globe-labels.ts`).
+         * A hidden pin leaves the tab order with its visibility, and the rail
+         * still lists every one.
+         *
+         * **No layout is read per pass.** Positions come from `map.project`,
+         * sizes are measured once per chip (and by `measureText` for names),
+         * and the overlays and the region are measured only when something
+         * resizes. MapLibre already moves every marker by transform; the pass
+         * only toggles classes.
          */
-        const layoutChips = () => {
-          const ranks = new Map(latest.current.chips.map((chip) => [chip.destination, chip.rank]));
-          const ordered = [...markers.entries()].sort(
-            (a, b) => (ranks.get(a[0]) ?? 99) - (ranks.get(b[0]) ?? 99),
-          );
+        const geometry: { region: Rect | null; obstacles: Rect[] } = {
+          region: null,
+          obstacles: [],
+        };
+
+        const refreshGeometry = () => {
           const box = element.getBoundingClientRect();
+          if (box.width === 0 || box.height === 0) return;
 
-          /*
-           * Whatever is laid over the globe is laid out first.
-           *
-           * The controls, the projection toggle and the card the stage
-           * floats over the planet are all opaque, and a price underneath
-           * one of them is a price nobody can read. They are marked in the
-           * markup rather than measured by position, so moving one moves the
-           * hole it makes. Seeding the collision pass with their boxes means
-           * a chip that would land under one is hidden and its neighbour
-           * takes the space, which is what the pass already does for chips.
-           */
-          const placed: DOMRect[] = [...document.querySelectorAll('[data-globe-overlay]')]
+          const local = (rect: { left: number; top: number; right: number; bottom: number }) => ({
+            left: rect.left - box.left,
+            top: rect.top - box.top,
+            right: rect.right - box.left,
+            bottom: rect.bottom - box.top,
+          });
+
+          // Opaque panels and controls over the globe: a label under one is unreadable.
+          geometry.obstacles = [...document.querySelectorAll('[data-globe-overlay]')]
             .map((overlay) => overlay.getBoundingClientRect())
-            .filter((rect) => rect.width > 0);
-          const stage = live.current.variant === 'stage';
-          const origins = live.current.origins;
+            .filter((rect) => rect.width > 0)
+            .map(local);
 
-          /*
-           * Written only when the answer changes.
-           *
-           * This used to clear the class on every chip, measure it, and add it
-           * back: two style invalidations per chip per pass, and the clear
-           * before a measurement forced a synchronous style recalculation each
-           * time - about a thousand a second across eighty chips, which kept
-           * the main thread busy enough to halve the frame rate. Hiding a chip
-           * is `visibility`, which does not change its box, so measuring it
-           * hidden or not gives the same rectangle.
-           */
-          const setCollided = (chip: HTMLElement, on: boolean) => {
-            if (chip.classList.contains('voyagr-chip-collided') !== on) {
-              chip.classList.toggle('voyagr-chip-collided', on);
+          // Labels stay inside the page's box for the globe, not the canvas,
+          // which can run past it (full-bleed on the explorer).
+          const frame =
+            document
+              .querySelector(`[data-stage-slot='${live.current.variant}']`)
+              ?.getBoundingClientRect() ?? box;
+
+          // Where the slot sits inside the canvas, for the camera's padding and the edge fade.
+          const insets = [
+            frame.top - box.top,
+            box.right - frame.right,
+            box.bottom - frame.bottom,
+            frame.left - box.left,
+            frame.width,
+            frame.height,
+          ].map((value) => Math.round(value));
+          element.dataset.frame = insets.join(',');
+          const root = rootRef.current;
+          if (root) {
+            for (const [index, side] of ['top', 'right', 'bottom', 'left'].entries()) {
+              root.style.setProperty(`--frame-${side}`, `${Math.max(0, insets[index]!)}px`);
             }
-          };
+          }
 
-          // How many labels the globe carries at once, and which way it faces.
-          const limit = stage ? labelLimit(window.innerWidth) : Number.POSITIVE_INFINITY;
+          const margin = 8;
+          geometry.region = local({
+            left: Math.max(frame.left, box.left, 0) + margin,
+            top: Math.max(frame.top, box.top) + margin,
+            right: Math.min(frame.right, box.right, window.innerWidth) - margin,
+            bottom: Math.min(frame.bottom, box.bottom) - margin,
+          });
+        };
+        geometryRef.current = refreshGeometry;
+
+        /** A name's width without reading layout: the same font the label is set in. */
+        const measure = document.createElement('canvas').getContext('2d');
+        const nameWidths = new Map<string, number>();
+        let nameFont: string | null = null;
+        const nameWidth = (city: string) => {
+          const known = nameWidths.get(city);
+          if (known !== undefined) return known;
+          nameFont ??= `500 12px ${getComputedStyle(element).fontFamily}`;
+          let text = city.length * 7;
+          if (measure) {
+            measure.font = nameFont;
+            text = measure.measureText(city).width;
+          }
+          // Padding (8 + 8), the dot (6) and its gap (6), and a pixel of rounding.
+          const width = Math.ceil(text) + 29;
+          nameWidths.set(city, width);
+          return width;
+        };
+        const NAME_HEIGHT = 23;
+
+        /** A pin's size, measured once and kept until the chips change. */
+        const chipSize = (code: string, marker: Marker) => {
+          const known = chipSizesRef.current.get(code);
+          if (known) return known;
+          const face = marker.getElement().firstElementChild;
+          if (!face) return null;
+          const rect = face.getBoundingClientRect();
+          if (rect.width === 0) return null;
+          const size = { width: Math.ceil(rect.width), height: Math.ceil(rect.height) };
+          chipSizesRef.current.set(code, size);
+          return size;
+        };
+
+        /*
+         * Written only when the answer changes: a class change is a style
+         * invalidation, and doing it to every label on every pass was once
+         * enough to halve the frame rate.
+         */
+        const setCollided = (host: HTMLElement, on: boolean) => {
+          if (host.classList.contains('voyagr-chip-collided') !== on) {
+            host.classList.toggle('voyagr-chip-collided', on);
+          }
+        };
+
+        /** Which way the words read; the dot stays on the coordinate either way. */
+        const orient = (marker: Marker, left: boolean, width: number) => {
+          const host = marker.getElement();
+          if (host.classList.contains('voyagr-chip-left') === left) return;
+          host.classList.toggle('voyagr-chip-left', left);
+          marker.setOffset(left ? [DOT_INSET - width, 0] : [-DOT_INSET, 0]);
+        };
+
+        const names = new Map<
+          string,
+          { marker: Marker; place: LabelPlace; hiddenSince: number | null }
+        >();
+        namesRef.current = names;
+
+        const createName = (place: LabelPlace) => {
+          const host = document.createElement('div');
+          host.className = 'voyagr-label-host voyagr-chip-collided';
+
+          const link = document.createElement('a');
+          link.href = `/?edit=1&destinations=${place.code}`;
+          link.className = 'voyagr-chip voyagr-chip-name stage-scope';
+          link.dataset.destination = place.code;
+          link.setAttribute('aria-label', placeLinkLabel(place));
+
+          const dot = document.createElement('span');
+          dot.className = 'voyagr-chip-dot';
+          dot.setAttribute('aria-hidden', 'true');
+          const text = document.createElement('span');
+          text.textContent = place.city;
+          link.append(dot, text);
+          host.append(link);
+
+          const marker = new maplibre.Marker({
+            element: host,
+            anchor: 'left',
+            offset: [-DOT_INSET, 0],
+            opacityWhenCovered: 0,
+          })
+            .setLngLat([place.lng, place.lat])
+            .addTo(map);
+
+          return { marker, place, hiddenSince: null as number | null };
+        };
+
+        let shownIds = new Set<string>();
+
+        const layoutChips = () => {
+          if (!geometry.region) refreshGeometry();
+          const region = geometry.region;
+          if (!region) return;
+
+          const globe = projectionRef.current === 'globe';
           const centre = map.getCenter();
           const view = { lng: centre.lng, lat: centre.lat } as SphereFrame;
-          let shown = 0;
+          const zoomAbove = map.getZoom() - restingZoomRef.current;
+          const phone = window.innerWidth < PHONE_MAX_WIDTH;
+          const onStage = live.current.variant === 'stage';
+          /*
+           * How far from the visible edge a place is, as the cosine of its
+           * apparent angle: 1 in the middle of the disc, 0 at the limb.
+           *
+           * Measured on screen against the silhouette, not on the sphere. The
+           * camera is close enough that it sees well under a hemisphere, so a
+           * place 70 degrees round is already on the limb as drawn - a rule
+           * written in degrees on the sphere left labels hanging off the edge
+           * of the planet. The far side is cut first, cheaply.
+           */
+          const sphere = globe ? readSphere(map, true) : null;
+          const radius = sphere ? sphere.diameter / 2 : 0;
+          const points = new Map<string, { x: number; y: number } | null>();
+          const pointOf = (id: string, lng: number, lat: number) => {
+            if (points.has(id)) return points.get(id)!;
+            const point = map.project([lng, lat]);
+            const at =
+              Number.isFinite(point.x) && Number.isFinite(point.y)
+                ? { x: point.x, y: point.y }
+                : null;
+            points.set(id, at);
+            return at;
+          };
+          const face = (id: string, lng: number, lat: number) => {
+            if (!sphere || radius <= 0) return 1;
+            if (facing(lng, lat, view) < 0.1) return 0;
+            const at = pointOf(id, lng, lat);
+            if (!at) return 0;
+            const fraction = Math.hypot(at.x - sphere.x, at.y - sphere.y) / radius;
+            return fraction >= 1 ? 0 : Math.sqrt(1 - fraction * fraction);
+          };
 
-          // Which side the home airport is on, so a label can stand away from its arc.
-          const homeAt = origins[0]
-            ? map.project([...origins[0].position] as [number, number])
-            : null;
-          const homeX = homeAt ? box.left + homeAt.x : null;
-          const stageBox = (
-            (stage ? document.querySelector('[data-hero]') : null) ?? element
-          ).getBoundingClientRect();
+          const candidates: LabelCandidate[] = [];
+          const cosines = new Map<string, number>();
+          const taken = new Set<string>();
+          const takenCities = new Set<string>();
 
-          for (const [, marker] of ordered) {
-            const chipElement = marker.getElement();
+          for (const chip of latest.current.chips) {
+            taken.add(chip.destination);
+            takenCities.add(chip.name.toLowerCase());
 
-            // Behind the planet: MapLibre has hidden it already.
-            if (chipElement.classList.contains('maplibregl-marker-covered')) continue;
+            const marker = markers.get(chip.destination);
+            if (!marker || marker.getElement().hasAttribute('data-leaving')) continue;
+            const cosine = face(`pin:${chip.destination}`, chip.position[0], chip.position[1]);
+            if (cosine < LIMB_EXIT_COSINE) continue;
+            const size = chipSize(chip.destination, marker);
+            if (!size) continue;
 
-            /*
-             * Nothing hangs on the horizon.
-             *
-             * A label just inside the limb used to be drawn dim and half under
-             * the planet, a ghost over somebody else's label. It fades out as
-             * its place turns away and is gone before it gets there, and while
-             * it is gone it takes no part in the collision pass.
-             */
-            const at = marker.getLngLat();
-            const cosine = facing(at.lng, at.lat, view);
-            const face = chipElement.firstElementChild as HTMLElement | null;
-            // All or nothing: a label is fully there or it is hidden.
-            if (face && face.style.opacity !== '') face.style.opacity = '';
-            if (!labelShown(cosine)) {
-              setCollided(chipElement, true);
-              continue;
+            const id = `pin:${chip.destination}`;
+            cosines.set(id, cosine);
+            candidates.push({
+              id,
+              lng: chip.position[0],
+              lat: chip.position[1],
+              priced: true,
+              order: chip.rank,
+              width: size.width,
+              height: size.height,
+            });
+          }
+
+          // The home airport has its own node; naming it again is noise.
+          for (const origin of live.current.origins) taken.add(origin.code);
+
+          const tierTwo = zoomAbove >= TIER_TWO_ZOOM;
+          for (const place of catalogueRef.current) {
+            if (place.tier === 2 && !tierTwo) continue;
+            if (taken.has(place.code) || takenCities.has(place.city.toLowerCase())) continue;
+            const cosine = face(`name:${place.code}`, place.lng, place.lat);
+            if (cosine < LIMB_EXIT_COSINE) continue;
+
+            const id = `name:${place.code}`;
+            cosines.set(id, cosine);
+            candidates.push({
+              id,
+              lng: place.lng,
+              lat: place.lat,
+              priced: false,
+              order: -place.population,
+              width: nameWidth(place.city),
+              height: NAME_HEIGHT,
+            });
+          }
+
+          // On the front page a label stands away from its home airport's arc.
+          const home = live.current.origins[0];
+          const homeX =
+            onStage && home ? map.project([home.position[0], home.position[1]]).x : null;
+
+          const shown = chooseLabels({
+            candidates,
+            project: (candidate) => pointOf(candidate.id, candidate.lng, candidate.lat),
+            cosine: (candidate) => cosines.get(candidate.id) ?? 0,
+            previous: shownIds,
+            budget: labelBudget(zoomAbove, phone),
+            // The explorer is a page about its results: every one that fits.
+            pricedUnlimited: !onStage,
+            region,
+            obstacles: geometry.obstacles,
+            preferLeft: homeX === null ? undefined : (_candidate, x) => homeX > x,
+          });
+          shownIds = new Set(shown.keys());
+
+          for (const [code, marker] of markers) {
+            const placed = shown.get(`pin:${code}`);
+            setCollided(marker.getElement(), !placed);
+            const size = chipSizesRef.current.get(code);
+            if (placed && size) orient(marker, placed.left, size.width);
+          }
+
+          const now = performance.now();
+          for (const [id, placed] of shown) {
+            if (!id.startsWith('name:')) continue;
+            const code = id.slice(5);
+            let entry = names.get(code);
+            if (!entry) {
+              const place = catalogueRef.current.find((candidate) => candidate.code === code);
+              if (!place) continue;
+              entry = createName(place);
+              names.set(code, entry);
             }
+            entry.hiddenSince = null;
+            orient(entry.marker, placed.left, nameWidth(entry.place.city));
+            setCollided(entry.marker.getElement(), false);
+          }
 
-            let rect = chipElement.getBoundingClientRect();
-            if (rect.width === 0) continue;
-
-            /*
-             * A chip on the right of the globe reads leftwards.
-             *
-             * The label sits beside its dot, and a label that always sits to
-             * the right of it runs off the edge of the box for every place in
-             * Asia - which is how "Bangkok from EUR 1,151.80" ended up as
-             * "Bangkok from EUR 1,15". So the far side of the view turns the
-             * chip round: the dot stays on the coordinate, the words go the
-             * other way, and the marker's offset moves with them.
-             */
-            const flipped = chipElement.classList.contains('voyagr-chip-left');
-            const anchor = flipped ? rect.right - 5 : rect.left + 5;
-            const wanted = stage
-              ? labelFlips({
-                  anchorX: anchor,
-                  labelWidth: rect.width,
-                  boxLeft: box.left,
-                  boxRight: box.right,
-                  viewportWidth: window.innerWidth,
-                  preferLeft: homeX !== null && homeX > anchor,
-                })
-              : anchor > box.left + box.width * 0.6;
-
-            if (wanted !== flipped) {
-              chipElement.classList.toggle('voyagr-chip-left', wanted);
-              marker.setOffset(wanted ? [5 - rect.width, 0] : [-5, 0]);
-              rect = chipElement.getBoundingClientRect();
-            }
-
-            /*
-             * Nothing reaches back over the copy.
-             *
-             * The box no longer clips, which is what lets the planet bleed
-             * off the viewport - and which would also let a chip on the
-             * western limb slide left across the headline. A chip that would
-             * start before the box does is hidden here instead, and the rail
-             * beside the globe still lists it.
-             */
-            if (rect.left < box.left - 8) {
-              setCollided(chipElement, true);
-              continue;
-            }
-
-            // A label cut by the edge of the stage is hidden, not shown cut.
-            if (
-              stage &&
-              !insideBox(rect, {
-                ...stageBox.toJSON(),
-                right: Math.min(stageBox.right, window.innerWidth),
-              })
-            ) {
-              setCollided(chipElement, true);
-              continue;
-            }
-
-            const collides =
-              shown >= limit ||
-              placed.some(
-                (other) =>
-                  rect.left < other.right + 4 &&
-                  rect.right > other.left - 4 &&
-                  rect.top < other.bottom + 4 &&
-                  rect.bottom > other.top - 4,
-              );
-
-            setCollided(chipElement, collides);
-            if (!collides) {
-              placed.push(rect);
-              shown += 1;
+          // Faded out, then removed once it has been gone a while: the DOM holds
+          // what is on screen and what just left, never the whole catalogue.
+          for (const [code, entry] of names) {
+            if (shown.has(`name:${code}`)) continue;
+            setCollided(entry.marker.getElement(), true);
+            entry.hiddenSince ??= now;
+            if (now - entry.hiddenSince > 2_000) {
+              entry.marker.remove();
+              names.delete(code);
             }
           }
         };
@@ -1171,14 +1393,11 @@ export function GlobeStage({
         };
 
         /*
-         * Throttled while the globe is moving, immediate when it stops.
-         *
-         * The pass measures every chip, and measuring after a class change
-         * forces a reflow - doing that on all sixteen every frame of a spin
-         * is the one thing on this surface that could cost frames. Six times
-         * a second is quick enough that a chip never visibly lingers.
+         * One pass per camera move, at most ten a second while it moves and
+         * once more when it stops. MapLibre moves the labels every frame; this
+         * only decides which of them are shown.
          */
-        const THROTTLE_MS = 160;
+        const THROTTLE_MS = 100;
         let lastLayout = 0;
 
         const onMove = () => {
@@ -1189,10 +1408,9 @@ export function GlobeStage({
         /*
          * What the middle of the view is over.
          *
-         * Read from the same pure model the bands were built from, so the
-         * snow falling over the globe and the ice drawn on it can never
-         * disagree. Only on `moveend`, because the weather does not need to
-         * change sixty times a second while somebody spins the planet.
+         * Read from the same pure model the bands were built from. Only on
+         * `moveend`, because the page's tint does not need to change sixty
+         * times a second while somebody spins the planet.
          */
         const readBiome = () => {
           setBiome(bandFor(map.getCenter().lat, sunLatitude(live.current.seasonDate)).kind);
@@ -1213,7 +1431,12 @@ export function GlobeStage({
           const opening = live.current;
           // The opening view is already the right composition for this page.
           previousVariant.current = opening.variant;
-          if (opening.variant === 'stage') map.setPadding(stagePadding(window.innerWidth));
+          refreshGeometry();
+          map.setPadding(
+            opening.variant === 'stage'
+              ? stagePadding(window.innerWidth)
+              : explorerPadding(element),
+          );
           map.jumpTo(
             overview(
               element,
@@ -1243,6 +1466,7 @@ export function GlobeStage({
             frame = window.requestAnimationFrame(() => {
               if (cancelled) return;
               map.resize();
+              refreshGeometry();
               // While the camera is easing between compositions it owns the
               // padding and the zoom; refitting here would snap it.
               if (reframingRef.current) {
@@ -1254,7 +1478,7 @@ export function GlobeStage({
               map.setPadding(
                 now.variant === 'stage'
                   ? stagePadding(window.innerWidth)
-                  : { top: 0, right: 0, bottom: 0, left: 0 },
+                  : explorerPadding(element),
               );
 
               const fitted = overview(
@@ -1272,9 +1496,21 @@ export function GlobeStage({
             });
           });
           observer.observe(element);
+
+          // The slot moved inside an unchanged canvas: re-measure, and re-centre on it.
+          const onFrame = () => {
+            refreshGeometry();
+            if (live.current.variant === 'explorer' && !reframingRef.current) {
+              map.setPadding(explorerPadding(element));
+            }
+            scheduleLayout();
+          };
+          window.addEventListener(STAGE_FRAME_EVENT, onFrame);
+
           stopResizing = () => {
             window.cancelAnimationFrame(frame);
             observer.disconnect();
+            window.removeEventListener(STAGE_FRAME_EVENT, onFrame);
           };
 
           if (initial.selectedCountry) {
@@ -1306,6 +1542,21 @@ export function GlobeStage({
           if (navigator.webdriver)
             (window as unknown as { __voyagrMap?: MapLibreMap }).__voyagrMap = map;
           readBiome();
+
+          /*
+           * The places that can be named, once the planet is up: a hundred
+           * kilobytes nobody needs before the first paint. A failed fetch
+           * leaves the priced pins, which is what the globe showed before.
+           */
+          void fetch(LABEL_PLACES_URL)
+            .then((response) => (response.ok ? response.json() : null))
+            .then((value: unknown) => {
+              if (cancelled) return;
+              catalogueRef.current = parseLabelPlaces(value);
+              scheduleLayout();
+            })
+            .catch(() => {});
+
           setStatus('ready');
         });
 
@@ -1356,6 +1607,8 @@ export function GlobeStage({
       stopSpin?.();
       stopResizing?.();
       for (const marker of markers.values()) marker.remove();
+      for (const entry of namesRef.current.values()) entry.marker.remove();
+      namesRef.current.clear();
       markers.clear();
       mapRef.current?.remove();
       mapRef.current = null;
@@ -1544,6 +1797,91 @@ export function GlobeStage({
 
     return () => window.clearInterval(timer);
   }, [seasonDate, status]);
+
+  /* ------------------------------------------------------------------ */
+  /* The season of the travel month.                                     */
+  /* ------------------------------------------------------------------ */
+  /**
+   * A different month is a different photograph, cross-faded.
+   *
+   * The planet shows the typical look of the month being travelled in - NASA's
+   * Blue Marble for that month, snow where it snows then - never the weather on
+   * the day. Picking other dates moves the month; the new month's tiles are
+   * added above the old ones at zero opacity, and once they have arrived they
+   * fade up over 600ms (at once under reduced motion) and the old layer is
+   * removed. Only the month in use is ever fetched.
+   */
+  const month = earthMonthOf(seasonDate);
+  const earthRef = React.useRef<{ month: string; layer: string; source: string } | null>(null);
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready') return;
+
+    // The style opened on the month it was created with, as `earth`.
+    earthRef.current ??= {
+      month: earthMonthOf(live.current.seasonDate),
+      layer: 'earth',
+      source: 'earth',
+    };
+    const current = earthRef.current;
+    if (current.month === month) return;
+
+    const next = { month, layer: `earth-${month}`, source: `earth-${month}` };
+    const duration = prefersReducedMotion() ? 0 : 600;
+
+    try {
+      if (map.getLayer(next.layer)) map.removeLayer(next.layer);
+      if (map.getSource(next.source)) map.removeSource(next.source);
+      map.addSource(next.source, earthSource(month));
+      const layer = earthLayer(next.layer, next.source, 0);
+      map.addLayer(
+        {
+          ...layer,
+          paint: { ...layer.paint, 'raster-opacity-transition': { duration, delay: 0 } },
+        },
+        map.getLayer('poles') ? 'poles' : undefined,
+      );
+    } catch {
+      return;
+    }
+    earthRef.current = next;
+
+    let started = false;
+    let removeTimer = 0;
+    const start = () => {
+      if (started) return;
+      started = true;
+      map.off('sourcedata', onData);
+      if (!map.getLayer(next.layer)) return;
+      map.setPaintProperty(next.layer, 'raster-opacity', 1);
+      removeTimer = window.setTimeout(() => {
+        // Everything under the month now in use goes: a quick second change
+        // can leave more than one older month behind it.
+        for (const layer of map.getStyle().layers ?? []) {
+          if (layer.id !== next.layer && (layer.id === 'earth' || layer.id.startsWith('earth-'))) {
+            map.removeLayer(layer.id);
+          }
+        }
+        for (const id of Object.keys(map.getStyle().sources ?? {})) {
+          if (id !== next.source && (id === 'earth' || id.startsWith('earth-'))) {
+            map.removeSource(id);
+          }
+        }
+      }, duration + 100);
+    };
+    const onData = (event: { sourceId?: string }) => {
+      if (event.sourceId === next.source && map.isSourceLoaded(next.source)) start();
+    };
+    map.on('sourcedata', onData);
+    // Tiles that never arrive must not leave the old month up for good.
+    const fallback = window.setTimeout(start, 3_000);
+
+    return () => {
+      map.off('sourcedata', onData);
+      window.clearTimeout(fallback);
+      window.clearTimeout(removeTimer);
+    };
+  }, [month, status]);
 
   /* ------------------------------------------------------------------ */
   /* The atmosphere, and the traffic over it.                            */
@@ -1787,6 +2125,20 @@ export function GlobeStage({
       write('--globe-cx', `${sphere.x.toFixed(1)}px`);
       write('--globe-cy', `${sphere.y.toFixed(1)}px`);
       write('--globe-shown', sphere.shown.toFixed(3));
+
+      /*
+       * How far past its resting size the planet has been zoomed, 0 to 1.
+       *
+       * The canvas's edges fade with it (`data-bled` in `globals.css`), so a
+       * zoomed planet dissolves at the edge of its box instead of being cut by
+       * it, and the scrim behind the page's text comes up only once the planet
+       * can reach under it. A flag as well as the number: a mask over a WebGL
+       * canvas costs a composite every frame and is off while it is not needed.
+       */
+      const bleed = Math.max(0, Math.min(1, (map.getZoom() - restingZoomRef.current) / 0.8));
+      write('--zoom-bleed', (Math.round(bleed * 20) / 20).toFixed(2));
+      const bled = bleed > 0.02 ? 'true' : 'false';
+      if (root.dataset.bled !== bled) root.dataset.bled = bled;
 
       /*
        * Once the planet has flattened into a map, the map has edges.
@@ -2152,11 +2504,10 @@ export function GlobeStage({
 
     // The canvas is still the old size until the observer fires next frame.
     map.resize();
+    geometryRef.current();
 
     const padding =
-      variant === 'stage'
-        ? stagePadding(window.innerWidth)
-        : { top: 0, right: 0, bottom: 0, left: 0 };
+      variant === 'stage' ? stagePadding(window.innerWidth) : explorerPadding(map.getContainer());
 
     if (selectedCountry || flownRef.current || projectionRef.current !== 'globe') {
       map.setPadding(padding);
@@ -2225,6 +2576,7 @@ export function GlobeStage({
 
     /** Capitals once the countries are named, airports once they are close. */
     const CAPITAL_ZOOM = 3.8;
+    const NAME_CITIES = false as boolean;
     const AIRPORT_ZOOM = 4.6;
 
     /**
@@ -2376,7 +2728,12 @@ export function GlobeStage({
          * they arrive in that order as the view closes in, each one only once
          * the last has stopped being enough.
          */
-        if (map.getZoom() >= CAPITAL_ZOOM) {
+        /*
+         * Off: cities are named by the label pass now, from the view, with
+         * their own link. A second, unlinked capital name beside a city label
+         * was the same word twice.
+         */
+        if (NAME_CITIES && map.getZoom() >= CAPITAL_ZOOM) {
           const airports = map.getZoom() >= AIRPORT_ZOOM;
 
           for (const feature of map.querySourceFeatures('places')) {
@@ -2502,7 +2859,7 @@ export function GlobeStage({
            */
           const placed: DOMRect[] = [
             ...document.querySelectorAll('[data-globe-overlay]'),
-            ...document.querySelectorAll('.voyagr-chip-host'),
+            ...document.querySelectorAll('.voyagr-chip-host, .voyagr-label-host'),
           ]
             .map((node) => node.getBoundingClientRect())
             .filter((rect) => rect.width > 0);
@@ -2684,8 +3041,10 @@ export function GlobeStage({
     };
   }, [biome]);
 
-  /* After the chips have rendered into their hosts, lay them out once more. */
+  /* After the chips have rendered into their hosts, measure them again and lay them out. */
   React.useEffect(() => {
+    chipSizesRef.current.clear();
+    geometryRef.current();
     layoutRef.current();
   }, [hosts, chips]);
 
@@ -2703,7 +3062,10 @@ export function GlobeStage({
 
     // The overlays belong to whichever page is showing, so this is re-read
     // whenever the page (and with it the variant) changes.
-    const observer = new ResizeObserver(() => layoutRef.current());
+    const observer = new ResizeObserver(() => {
+      geometryRef.current();
+      layoutRef.current();
+    });
     for (const overlay of document.querySelectorAll('[data-globe-overlay]')) {
       observer.observe(overlay);
     }
@@ -2950,6 +3312,7 @@ export function GlobeStage({
   return (
     <div
       ref={rootRef}
+      data-variant={variant}
       className={cn(
         /*
          * No border, no corner radius, no background - and no clipping.
@@ -3019,7 +3382,20 @@ export function GlobeStage({
       <div aria-hidden="true" className="voyagr-orb voyagr-orb-air z-[1]" />
       <div aria-hidden="true" className="voyagr-orb voyagr-orb-rim z-[1]" />
 
+      {/* Dark behind the explorer's text, once a zoomed planet can reach under it. */}
+      {variant === 'explorer' ? (
+        <div
+          aria-hidden="true"
+          className="voyagr-explore-scrim pointer-events-none absolute inset-0 z-[3]"
+        />
+      ) : null}
+
       <svg ref={arcsRef} aria-hidden="true" focusable="false" className="voyagr-arcs" />
+
+      {/* The canvas is decoration; what it shows of the season is said here. */}
+      <p aria-live="polite" className="sr-only">
+        The globe shows a typical {monthName(Number(month))}.
+      </p>
 
       {status === 'failed' ? (
         <p
@@ -3143,7 +3519,6 @@ export function GlobeStage({
             data-destination={chip.destination}
             data-lnglat={`${chip.position[0]},${chip.position[1]}`}
             data-highlighted={chip.highlighted ? 'true' : undefined}
-            data-sky={chip.condition ?? undefined}
             className={cn(
               // `stage-scope` so the provenance badge inside picks up the
               // glass palette; a badge drawn for a page is unreadable here.
@@ -3166,14 +3541,6 @@ export function GlobeStage({
               <span className="text-[14px] leading-tight font-semibold text-white">
                 {chip.name}
               </span>
-              {/*
-                The sky there on the searched dates is shown, not written: a
-                haze around the place (see `data-sky` in `globals.css`). Screen
-                readers get it in words, because they cannot see the haze.
-              */}
-              {chip.condition ? (
-                <span className="sr-only">Expected weather: {SKY_LABEL[chip.condition]}</span>
-              ) : null}
               {/*
                 No price, no price line. A destination's own page knows the
                 place but not what a trip there costs, and a chip carrying an

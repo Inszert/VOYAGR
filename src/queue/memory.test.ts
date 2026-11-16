@@ -29,12 +29,12 @@ describe('MemoryQueueDriver', () => {
     const queue = new MemoryQueueDriver();
     let attempts = 0;
 
-    queue.register('deal.detect', async () => {
+    queue.register('notification.deliver', async () => {
       attempts += 1;
       throw new Error('provider unavailable');
     });
 
-    await queue.enqueue('deal.detect', { watchId: 'w1', candidateId: 'c1' }, { attempts: 3 });
+    await queue.enqueue('notification.deliver', { notificationId: 'n1' }, { attempts: 3 });
 
     // Each retry is delayed by backoff, so the queue is drained repeatedly with
     // the clock advanced rather than by sleeping.
@@ -56,12 +56,12 @@ describe('MemoryQueueDriver', () => {
     const queue = new MemoryQueueDriver();
     let attempts = 0;
 
-    queue.register('deal.detect', async () => {
+    queue.register('notification.deliver', async () => {
       attempts += 1;
       if (attempts === 1) throw new Error('transient');
     });
 
-    await queue.enqueue('deal.detect', { watchId: 'w1', candidateId: 'c1' });
+    await queue.enqueue('notification.deliver', { notificationId: 'n1' });
 
     vi.useFakeTimers();
     try {
@@ -119,8 +119,8 @@ describe('MemoryQueueDriver', () => {
     const queue = new MemoryQueueDriver();
     const handler = vi.fn(async () => {});
 
-    queue.register('provider.health-check', handler);
-    await queue.enqueue('provider.health-check', {}, { delayMs: 60_000 });
+    queue.register('cache.refresh', handler);
+    await queue.enqueue('cache.refresh', { targetId: 'recommended' }, { delayMs: 60_000 });
 
     await queue.drain();
     expect(handler).not.toHaveBeenCalled();
@@ -132,12 +132,12 @@ describe('MemoryQueueDriver', () => {
     const queue = new MemoryQueueDriver();
 
     queue.register('travel-watch.refresh', async () => {});
-    queue.register('deal.detect', async () => {
+    queue.register('notification.deliver', async () => {
       throw new Error('always fails');
     });
 
     await queue.enqueue('travel-watch.refresh', { watchId: 'w1', reason: 'manual' });
-    await queue.enqueue('deal.detect', { watchId: 'w1', candidateId: 'c1' }, { attempts: 1 });
+    await queue.enqueue('notification.deliver', { notificationId: 'n1' }, { attempts: 1 });
     await queue.drain();
 
     const stats = await queue.stats();

@@ -198,6 +198,16 @@ describe('production serves no fixtures', () => {
     expect(() => assertNoMockInProduction(registry, production())).not.toThrow();
   });
 
+  it('marks absent slots in the probe results so health can tell them from an outage', async () => {
+    const registry = new ProviderRegistry(production({ PLACES_PROVIDER: 'absent' }));
+    const checked = await registry.checkAll();
+
+    expect(checked.hotels?.mode).toBe('absent');
+    expect(checked.transfers?.mode).toBe('absent');
+    expect(checked.places?.mode).toBe('absent');
+    expect(checked.weather?.mode).not.toBe('absent');
+  });
+
   it('answers an absent slot with nothing, so the cost line is excluded rather than zero', async () => {
     const registry = new ProviderRegistry(production());
 

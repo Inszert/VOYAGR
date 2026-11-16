@@ -92,6 +92,41 @@ export function buildCacheTargets(): readonly CacheTarget[] {
   ];
 }
 
+/** The most destinations one places round enqueues, so one round is a bounded number of queries. */
+export const PLACES_DESTINATIONS_PER_ROUND = 40;
+
+/** Target ids for a places lookup read `places:<airport code>`. */
+export const PLACES_TARGET_PREFIX = 'places:';
+
+/**
+ * The destinations whose things to do are kept warm, most visited first.
+ *
+ * The themed collections come first - they are what the front pages link to -
+ * then the rest of the catalogue in its own order. The same places the price
+ * targets above are about, so the list cannot drift from them.
+ */
+export function placesTargetDestinations(): string[] {
+  const placeable = listPlaceableDestinations();
+  const known = new Set(placeable);
+  const featured = Object.values(COLLECTIONS)
+    .flat()
+    .filter((code) => known.has(code));
+
+  return [...new Set([...featured, ...placeable])];
+}
+
+export function placesTargetId(destination: string): string {
+  return `${PLACES_TARGET_PREFIX}${destination}`;
+}
+
+/** The destination a `places:` target names, or null when the id is not one. */
+export function parsePlacesTargetId(id: string): string | null {
+  if (!id.startsWith(PLACES_TARGET_PREFIX)) return null;
+
+  const code = id.slice(PLACES_TARGET_PREFIX.length);
+  return placesTargetDestinations().includes(code) ? code : null;
+}
+
 export function findCacheTarget(id: string): CacheTarget | undefined {
   return buildCacheTargets().find((target) => target.id === id);
 }

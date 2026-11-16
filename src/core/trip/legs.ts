@@ -1,4 +1,20 @@
-import type { FlightLeg } from './types';
+import type { FlightLeg, LocalDateTime } from './types';
+
+/**
+ * When a leg lands, on the destination's clock, or null when nobody said.
+ *
+ * The one place that answers it. Null when the provider did not state the
+ * arrival, and also for the shape results cached before that was fixed carry:
+ * a single segment whose arrival equals its departure. No flight lands the
+ * minute it leaves, so that pair is the departure repeated, not an arrival.
+ */
+export function legArrival(leg: FlightLeg): LocalDateTime | null {
+  const first = leg.segments[0];
+  const last = leg.segments.at(-1);
+  if (!first || !last || last.arrivesAt === null) return null;
+  if (leg.segments.length === 1 && last.arrivesAt === first.departsAt) return null;
+  return last.arrivesAt;
+}
 
 /**
  * How many connections a leg has.

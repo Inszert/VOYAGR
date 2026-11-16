@@ -65,7 +65,10 @@ export type IconName =
   | 'eye'
   | 'eye-off'
   | 'phone'
-  | 'users';
+  | 'users'
+  | 'bag'
+  | 'ticket'
+  | 'cloud';
 
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
   name: IconName;
@@ -323,6 +326,22 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   /** Lucide's `check`. A selected option in a custom listbox. */
   check: <path d="M20 6 9 17l-5-5" />,
+  // A suitcase: baggage allowances.
+  bag: (
+    <>
+      <rect x="5" y="7" width="14" height="13" rx="2" />
+      <path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M9 11v5M15 11v5" />
+    </>
+  ),
+  // A ticket stub: how a journey is ticketed.
+  ticket: (
+    <>
+      <path d="M3 7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4Z" />
+      <path d="M14 6v2M14 11v2M14 16v2" />
+    </>
+  ),
+  // A cloud: weather that is typical rather than forecast.
+  cloud: <path d="M17.5 19H8a5 5 0 1 1 1.3-9.83A6 6 0 0 1 20.9 11 4 4 0 0 1 17.5 19Z" />,
   /** Lucide's `eye` and `eye-off`: the password field's reveal control. */
   eye: (
     <>

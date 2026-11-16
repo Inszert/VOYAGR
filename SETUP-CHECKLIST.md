@@ -1,9 +1,6 @@
 # Voyagr - going-live checklist
 
-> **Not yet reflected here:** uncommitted work that was in the tree while this was written (a cookie-consent banner gating the Drive script, a Wikidata places provider with `PLACES_PROVIDER=wikidata` and a `places` cache kind, a `DRIVE_TEST_STUB` test variable). Sections on cookie consent, places and the env table describe commit `0093bcb`; reconcile them when that work is committed.
-
-
-Rewritten 2026-11-15 against the code at `0093bcb`. Nothing here has been done yet: no host is
+Brought up to date 2026-11-15 with the code after `ff14d21`. Nothing here has been done yet: no host is
 chosen, no account created by the code, no deployment made. Tick items as they happen.
 
 Who does what: the accounts, keys and DNS records are the owner's. The table of what each one
@@ -25,7 +22,7 @@ storage.
 | [ ]  | Travelpayouts / Aviasales token       | `AVIASALES_API_TOKEN` (secret)                             | Required: production refuses to start without a live flight provider    |
 | [ ]  | Travelpayouts marker                  | `AVIASALES_PARTNER_ID` (public)                            | Affiliate marker in outbound and stay links                             |
 | [ ]  | Hotel programme and campaign ids      | `TRAVELPAYOUTS_HOTEL_PROGRAM_ID`, `TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID` | Only for the "Find a stay" links; unset means no stay links     |
-| [ ]  | Resend account, verified domain       | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` (secret)         | Required: production refuses `console`                                  |
+| [ ]  | Resend account, verified domain       | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` (secret)         | Required: production refuses `console` (sends fail, logged)             |
 | [ ]  | Redis                                 | `REDIS_URL` (secret), `QUEUE_DRIVER=bullmq`                | Required in practice: shared cache and queue between web and worker     |
 | [ ]  | Postgres                              | `DATABASE_URL` (secret), `DATABASE_SSL`                    | Required in practice: otherwise accounts and trips vanish on restart    |
 | [ ]  | Web Push keys (optional)              | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `npm run vapid:generate` prints a pair. Regenerating invalidates every push subscription |
@@ -33,7 +30,10 @@ storage.
 | [ ]  | Domain `voyagrfind.com`               | `NEXT_PUBLIC_APP_URL`, `PUBLIC_BASE_URL`, `EMAIL_FROM`     | `EMAIL_FROM` defaults to `Voyagr <hello@voyagrfind.com>` and must be on the verified domain |
 | [ ]  | Postal address for email footers      | `EMAIL_POSTAL_ADDRESS`                                     | Optional; a visible placeholder prints if unset                         |
 
-`AI_PROVIDER=anthropic` is not implemented and fails at startup. Leave `AI_PROVIDER` unset (mock).
+`AI_PROVIDER=anthropic` is not implemented and is rejected by environment validation at startup, naming the variable. Leave `AI_PROVIDER` unset (mock).
+
+Things to do and their photographs come from Wikidata and Wikimedia Commons (`PLACES_PROVIDER=wikidata`,
+the production default): keyless, so there is nothing to sign up for.
 
 ## 2. DNS records (email)
 
@@ -71,11 +71,15 @@ Do not set:
 
 - `ALLOW_MOCK_IN_PRODUCTION` (it exists only for the end-to-end suite and also turns off the
   Travelpayouts Drive script);
+- `DRIVE_TEST_STUB` (test only; swaps the Drive script for a same-origin stub and does nothing unless
+  `ALLOW_MOCK_IN_PRODUCTION` is also set);
 - `DATA_SOURCE_SWITCH` (leave unset; the API/MOCK switch then stays hidden in production);
 - `FLIGHT_PROVIDER=mock`, `EMAIL_PROVIDER=console`, `HOTEL_PROVIDER=mock`.
 
 `PRICE_REFRESH_MINUTES` (default 30) sets the background Aviasales spend; see the quota maths in
-`docs/architecture.md` before lowering it. Secrets come from the host's secret store, never from a
+`docs/architecture.md` before lowering it. `PLACES_REFRESH_HOURS` (default 168) sets how often the
+worker pre-warms things to do from Wikidata, 40 destinations a round; keep it long, the service asks
+to be asked rarely. Secrets come from the host's secret store, never from a
 file in the repository. `.env*` other than `.env.example` is gitignored.
 
 ## 4. Database
@@ -94,35 +98,44 @@ file in the repository. `.env*` other than `.env.example` is gitignored.
       will stop price refresh, watch checks and push delivery.
 - [ ] Confirm the log lines `worker started` and `cache refresh scheduled`.
 - [ ] Confirm there is no warning `REDIS_URL is not set` or `QUEUE_DRIVER=memory`.
+- [ ] Just after 00:00 UTC, confirm `the UTC date changed; starting a cache refresh round`. Until the
+      round lands pages serve yesterday's prices, labelled with their age; a visitor never waits on a
+      search. Without a worker the globe shows "Prices are loading" on a cold cache.
 
 ## 6. Deploy
 
 - [ ] `npm run verify` green on the commit (the owner fast-forwards `main` after each part).
 - [ ] Build with `npm run build` (not `next build` directly, so the MapLibre worker is copied), then
       `npm start`.
-- [ ] Decide the cookie-consent question (section 8) before opening to EU visitors.
+- [ ] Cookie consent is built: the Drive script loads only after "accept" (section 8). Have the legal
+      wording on the banner and `/privacy` reviewed before opening to EU visitors.
 
 ## 7. Post-deploy checks
 
-- [ ] `/status`: flights provider is live (not mock); weather live; hotels, transfers and places
-      "not available"; cache held in Redis; after one refresh interval, warm targets above 0.
-- [ ] `/api/health`: JSON shows `backgroundJobs: "bullmq"`, `redis: true`, `providersFullyMocked:
-      false`. **It will probably answer 503 `degraded`** because the `absent` slots report
-      `unavailable`; do not wire a restart-on-failure probe to it expecting 200 (not verified on a host).
+- [ ] `/status`: flights provider is live (not mock); weather and places live; hotels and transfers
+      "Absent"; cache held in Redis; after one refresh interval, warm targets above 0.
+- [ ] `/api/health`: 200, `status: ok`, JSON shows `backgroundJobs: "bullmq"`, `redis: true`,
+      `providersFullyMocked: false`; the `absent` hotel and transfer slots are listed as `absent` and do
+      not degrade it, so a restart-on-failure probe may use it. A configured provider that is down turns
+      it 503 (unit-tested; not verified on a host).
 - [ ] `/`: globe with prices and "Updated N min ago"; no "Demo data", no API/MOCK switch.
 - [ ] A search returns trips; totals say "Flights only - stay not included".
 - [ ] Sign up: the verification mail arrives; the link signs the account in as verified.
 - [ ] Password reset mail arrives.
 - [ ] Response carries a `Content-Security-Policy` with a nonce; no CSP errors in the browser console.
+- [ ] Cookie consent: before accepting, the page has no Drive `<script>` and no request to
+      `emrldco.com`; after accepting, the page reloads and the script loads.
+- [ ] A destination page lists things to do (the first visit to a city not yet pre-warmed can take
+      15 to 45 seconds against Wikidata), and a place added to a trip keeps its Wikipedia link.
 - [ ] In the Travelpayouts dashboard, run "Verify installation" for the Drive script (it passes only
       after a deploy).
 - [ ] Create a watch and confirm the worker logs a refresh for it (push needs the VAPID pair).
 
 ## 8. Decisions only the owner can make
 
-- **Cookie consent.** The Drive script and affiliate links set tracking cookies. There is no consent
-  banner; the script loads without consent. Recommendation in `WHAT-I-NEED-FROM-YOU.md`: load it only
-  after "accept". Not built.
+- **Cookie consent wording.** Built: the Drive script loads only after "accept" (cookie
+  `voyagr-consent`, 12 months), and the CSP names its origin only for a consenting request. What the
+  banner and `/privacy` say still needs legal review.
 - **Hosting target** and its spend. Check for automatic billing risk first.
 - **Priced hotel feed** and its terms.
 - **Open-Meteo commercial use.** The free tier is non-commercial; ask before the site earns revenue.
@@ -138,11 +151,16 @@ From `docs/security.md`, `docs/runbook.md` and the code:
 - Sign-in and email-send throttles are per process, in memory.
 - No audit logging. Not needed until booking or payments exist.
 - No backups, no rollback tooling, forward-only migrations.
-- No worker monitoring. The discovery cache key rolls at 00:00 UTC with no pre-warming.
+- No worker monitoring. The discovery cache key rolls at 00:00 UTC; the worker starts a round at
+  once and pages serve yesterday's entry until it lands, but a dead worker leaves them on it.
+- The anonymous price calendar is bounded (60 requests a minute per client, a month window, 120 load
+  misses a minute per process), and the trip hub caps 100 trips per account, 30 people per trip and
+  20 contacts per account (`docs/security.md`, section 10). The allowances are per process.
 - CSP keeps `'unsafe-inline'` for styles (a `style=` attribute is set by several components).
 - Real email delivery, live Aviasales calendar calls from a host, and migrations 0008 and 0009 are
   not verified.
-- No priced hotels, transfers or places data; no AI adapter; no booking or payments.
+- No priced hotels or transfers data (places are live from Wikidata, with no restaurants, prices or
+  reviews); no AI adapter; no booking or payments.
 - Not applicable yet: app-store accounts, merchant-of-record, autonomous booking, multi-region.
 
 ## 10. Verification commands

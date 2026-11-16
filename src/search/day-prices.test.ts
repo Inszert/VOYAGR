@@ -7,7 +7,12 @@ import { AppError } from '@/lib/errors';
 import { createLimiterPool } from '@/lib/concurrency';
 import { err, ok } from '@/lib/result';
 import { createMockFlightProvider } from '@/providers/flights/mock';
-import type { FlightProvider, FlightSearchQuery } from '@/providers/types';
+import type {
+  FlightProvider,
+  FlightSearchQuery,
+  MonthFareQuery,
+  MonthFareSource,
+} from '@/providers/types';
 import { loadMonthDayPrices } from './day-prices';
 
 /**
@@ -182,5 +187,129 @@ describe('the mock provider, which cannot answer by month', () => {
     // February 2027 has 28 days, and the mock has a flight on every one.
     expect(result.days.size).toBe(28);
     expect(result.days.get('2027-02-28')?.returnDate).toBe('2027-03-04');
+  });
+});
+
+describe('further day sources, merged per day', () => {
+  /** The fake vendor, plus two day sources: one cheaper on the 10th, one one-way only. */
+  function withSources(options: { failSecond?: boolean } = {}) {
+    const vendor = fakeVendor();
+    const asked: MonthFareQuery[] = [];
+    const sources: MonthFareSource[] = [
+      {
+        id: 'returns',
+        async fetch(q) {
+          asked.push(q);
+          return ok([
+            // Cheaper than the search's €110 on the 10th, seen at its own time.
+            {
+              departureDate: '2026-12-10',
+              returnDate: '2026-12-14',
+              price: money(9_000 * q.passengers, 'EUR'),
+              observedAt: '2026-11-13T00:00:00.000Z',
+            },
+            // The 5th had nothing; now it has a return.
+            {
+              departureDate: '2026-12-05',
+              returnDate: '2026-12-08',
+              price: money(15_000 * q.passengers, 'EUR'),
+              observedAt: null,
+            },
+            // Dearer than what is there: the cheaper one stays.
+            {
+              departureDate: '2026-12-11',
+              returnDate: '2026-12-14',
+              price: money(99_900, 'EUR'),
+              observedAt: null,
+            },
+            // Outside the stay bounds: dropped.
+            {
+              departureDate: '2026-12-20',
+              returnDate: '2027-01-20',
+              price: money(100, 'EUR'),
+              observedAt: null,
+            },
+          ]);
+        },
+      },
+      {
+        id: 'one-way',
+        async fetch(q) {
+          asked.push(q);
+          if (options.failSecond) return err(new AppError('PROVIDER_UNAVAILABLE', 'down'));
+          return ok([
+            {
+              departureDate: '2026-12-06',
+              returnDate: null,
+              price: money(2_800 * q.passengers, 'EUR'),
+              observedAt: '2026-11-14T00:00:00.000Z',
+            },
+            {
+              departureDate: '2026-12-06',
+              returnDate: null,
+              price: money(3_500 * q.passengers, 'EUR'),
+              observedAt: null,
+            },
+          ]);
+        },
+      },
+    ];
+    (vendor.provider as { monthFareSources?: MonthFareSource[] }).monthFareSources = sources;
+    return { ...setup(vendor), asked };
+  }
+
+  it('lets the cheapest known fare win each day, each with its own observed time', async () => {
+    const { deps, query } = withSources();
+    const result = await loadMonthDayPrices(query, deps);
+
+    expect(result.days.get('2026-12-10')).toEqual({
+      price: money(9_000, 'EUR'),
+      returnDate: '2026-12-14',
+      observedAt: '2026-11-13T00:00:00.000Z',
+    });
+    expect(result.days.get('2026-12-11')?.price).toEqual(money(11_100, 'EUR'));
+    expect(result.days.get('2026-12-05')?.price).toEqual(money(15_000, 'EUR'));
+    expect(result.days.has('2026-12-20')).toBe(true);
+    expect(result.days.get('2026-12-20')?.price).not.toEqual(money(100, 'EUR'));
+  });
+
+  it('keeps one-way fares apart, so none is ever read as a return', async () => {
+    const { deps, query } = withSources();
+    const result = await loadMonthDayPrices(query, deps);
+
+    expect(result.days.has('2026-12-06')).toBe(false);
+    expect(result.oneWay.get('2026-12-06')).toEqual({
+      price: money(2_800, 'EUR'),
+      observedAt: '2026-11-14T00:00:00.000Z',
+    });
+  });
+
+  it('a failing source is one fewer source, not a failed month', async () => {
+    const { deps, query } = withSources({ failSecond: true });
+    const result = await loadMonthDayPrices(query, deps);
+
+    expect(result.reason).toBeNull();
+    expect(result.days.get('2026-12-10')?.price).toEqual(money(9_000, 'EUR'));
+    expect(result.oneWay.size).toBe(0);
+  });
+
+  it('asks every source for the party, and a party of four never reads a party of two', async () => {
+    const { deps, query, asked, calls } = withSources();
+
+    const two = await loadMonthDayPrices({ ...query, passengers: 2 }, deps);
+    const callsForTwo = calls.length;
+    const four = await loadMonthDayPrices({ ...query, passengers: 4 }, deps);
+
+    // A cache hit would have made no call: four is its own entry.
+    expect(calls.length).toBeGreaterThan(callsForTwo);
+    expect(asked.map((q) => q.passengers)).toEqual([2, 2, 4, 4]);
+    expect(two.passengers).toBe(2);
+    expect(four.passengers).toBe(4);
+    expect(two.days.get('2026-12-05')?.price).toEqual(money(30_000, 'EUR'));
+    expect(four.days.get('2026-12-05')?.price).toEqual(money(60_000, 'EUR'));
+
+    // And reading two again is the cached two, not the four just loaded.
+    const again = await loadMonthDayPrices({ ...query, passengers: 2 }, deps);
+    expect(again.days.get('2026-12-05')?.price).toEqual(money(30_000, 'EUR'));
   });
 });

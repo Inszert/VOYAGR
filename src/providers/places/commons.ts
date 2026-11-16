@@ -27,11 +27,24 @@ const API = 'https://commons.wikimedia.org/w/api.php';
 const TITLES_PER_REQUEST = 40;
 
 /** The only widths a thumbnail may be asked for: a card, and a card on a dense screen. */
-export const THUMBNAIL_WIDTHS = [320, 640] as const;
+export const THUMBNAIL_WIDTHS = [320, 640, 1280] as const;
 export type ThumbnailWidth = (typeof THUMBNAIL_WIDTHS)[number];
 
-/** The only host a thumbnail's bytes may come from. */
-export const UPLOAD_HOST = 'upload.wikimedia.org';
+/**
+ * The hosts a thumbnail's bytes may come from.
+ *
+ * `upload` is where Commons has always stored files. `thumb` is where it now
+ * serves resized ones: measured 2026-11-15, every one of twenty Rome
+ * thumbnails ended on `thumb.wikimedia.org/wikipedia/commons/thumb/...`, and
+ * refusing it is what left "Things to do" with no pictures at all.
+ */
+export const UPLOAD_HOSTS: ReadonlySet<string> = new Set([
+  'upload.wikimedia.org',
+  'thumb.wikimedia.org',
+]);
+
+/** How many redirects on Commons itself are followed before the bytes. */
+export const MAX_COMMONS_HOPS = 3;
 
 /**
  * `Special:FilePath` is Commons' own "this file, at this width" address; it
@@ -44,23 +57,51 @@ export function commonsThumbnailUrl(file: string, width: ThumbnailWidth): string
   return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=${width}`;
 }
 
-/** True for an https URL on the upload host, with no credentials and no odd port. */
-export function isAllowedUpstream(location: string): boolean {
+function parsedHttps(location: string): URL | null {
   let url: URL;
   try {
     url = new URL(location);
   } catch {
-    return false;
+    return null;
   }
 
+  return url.protocol === 'https:' && url.port === '' && url.username === '' && url.password === ''
+    ? url
+    : null;
+}
+
+/** True for an https URL on an upload host, with no credentials and no odd port. */
+export function isAllowedUpstream(location: string): boolean {
+  const url = parsedHttps(location);
+
   return (
-    url.protocol === 'https:' &&
-    url.hostname === UPLOAD_HOST &&
-    url.port === '' &&
-    url.username === '' &&
-    url.password === '' &&
+    url !== null &&
+    UPLOAD_HOSTS.has(url.hostname) &&
     url.pathname.startsWith('/wikipedia/commons/') &&
     !url.pathname.includes('..')
+  );
+}
+
+/**
+ * True for one of Commons' own file redirects, which may be followed on the
+ * way to the bytes but never served.
+ *
+ * `Special:FilePath` used to answer with the thumbnail's address. Since 2026 it
+ * answers with a second redirect on Commons -
+ * `/w/index.php?title=Special:Redirect/file/<name>&width=640` - and only that
+ * one names the image. Following exactly these two shapes, on exactly this
+ * host, keeps the route a file fetcher rather than a general proxy.
+ */
+export function isCommonsRedirectHop(location: string): boolean {
+  const url = parsedHttps(location);
+  if (url === null || url.hostname !== 'commons.wikimedia.org') return false;
+
+  if (url.pathname.startsWith('/wiki/Special:FilePath/')) return true;
+  if (url.pathname.startsWith('/wiki/Special:Redirect/file/')) return true;
+
+  return (
+    url.pathname === '/w/index.php' &&
+    (url.searchParams.get('title') ?? '').startsWith('Special:Redirect/file/')
   );
 }
 

@@ -43,18 +43,31 @@ const envSchema = z.object({
    *
    * Together with the target list in `src/cache/targets.ts` this is the whole
    * of the provider quota the background refresh spends; the arithmetic is in
-   * `docs/architecture.md`, "Caching and refresh". `HOTEL_REFRESH_MINUTES` is
-   * reserved for stays, which have no live provider yet and so nothing to
-   * refresh.
+   * `docs/architecture.md`, "Caching and refresh".
    */
   PRICE_REFRESH_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
-  HOTEL_REFRESH_MINUTES: z.coerce.number().int().min(1).max(10080).default(360),
+  /**
+   * How often the worker pre-warms things to do for the catalogue, in hours.
+   *
+   * Long on purpose: the answers are cached for a week, and Wikidata's query
+   * service asks to be asked rarely. Each round covers at most 40 destinations
+   * that are not already fresh.
+   */
+  PLACES_REFRESH_HOURS: z.coerce.number().int().min(1).max(720).default(168),
 
   /** How many days either side of the chosen ones the flexible-dates strip shows. */
   FLEX_DAYS: z.coerce.number().int().min(0).max(7).default(3),
 
   // AI — `mock` needs no credentials.
-  AI_PROVIDER: z.enum(['mock', 'anthropic']).default('mock'),
+  AI_PROVIDER: z
+    .enum(['mock', 'anthropic'])
+    .default('mock')
+    // Refused here rather than at the first request: with no adapter behind it,
+    // accepting the value only moves the failure to startup, after validation
+    // has already said the configuration is fine. Drop this when the adapter lands.
+    .refine((value) => value !== 'anthropic', {
+      message: 'anthropic is not implemented yet; leave AI_PROVIDER unset or set it to mock',
+    }),
   AI_MODEL: z.string().min(1).default('claude-sonnet-5'),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
 
@@ -152,11 +165,6 @@ const envSchema = z.object({
     .url()
     .optional()
     .transform((value) => value?.replace(/\/$/, '')),
-  FLIGHT_PROVIDER_API_KEY: z.string().min(1).optional(),
-  HOTEL_PROVIDER_API_KEY: z.string().min(1).optional(),
-  WEATHER_PROVIDER_API_KEY: z.string().min(1).optional(),
-  TRANSFER_PROVIDER_API_KEY: z.string().min(1).optional(),
-  PLACES_PROVIDER_API_KEY: z.string().min(1).optional(),
 
   /*
    * Travelpayouts / Aviasales.
@@ -178,6 +186,15 @@ const envSchema = z.object({
    */
   AVIASALES_API_TOKEN: z.string().min(1).optional(),
   AVIASALES_PARTNER_ID: z.string().min(1).optional(),
+
+  /**
+   * The Google Flights sidecar (`services/google-flights/`), an UNOFFICIAL scraper and an
+   * owner-approved exception to `docs/provider-policy.md`. Off by default: with the URL unset
+   * nothing can reach it, and setting it does nothing until the provider is selected. The key
+   * is the shared secret the sidecar expects in `X-Voyagr-Sidecar-Key`.
+   */
+  GOOGLE_FLIGHTS_SIDECAR_URL: z.url().optional(),
+  GOOGLE_FLIGHTS_SIDECAR_KEY: z.string().min(1).optional(),
   /**
    * The Travelpayouts hotel programme and campaign that "find a stay" links are
    * wrapped in. Both are public affiliate identifiers, like the marker. Neither
@@ -220,13 +237,9 @@ export const SECRET_ENV_KEYS = [
   'DATABASE_URL',
   'REDIS_URL',
   'ANTHROPIC_API_KEY',
-  'FLIGHT_PROVIDER_API_KEY',
-  'HOTEL_PROVIDER_API_KEY',
-  'WEATHER_PROVIDER_API_KEY',
-  'TRANSFER_PROVIDER_API_KEY',
-  'PLACES_PROVIDER_API_KEY',
   // The token, not the marker: see the note beside them above.
   'AVIASALES_API_TOKEN',
+  'GOOGLE_FLIGHTS_SIDECAR_KEY',
   'VAPID_PRIVATE_KEY',
   'RESEND_API_KEY',
 ] as const satisfies readonly (keyof Env)[];

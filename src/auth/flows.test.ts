@@ -76,6 +76,7 @@ describe('account lifecycle', () => {
   it('registers, verifies, signs in, resets the password, then changes and confirms the email', async () => {
     // Register: signed in at once, one verification mail, to the right address.
     const registered = await auth.register(EMAIL, PASSWORD);
+    expect(registered.verificationEmailSent).toBe(true);
     expect(registered.user.emailVerified).toBe(false);
     expect(mail.sent).toHaveLength(1);
     expect(mail.last().to).toBe(EMAIL);
@@ -165,6 +166,8 @@ describe('account lifecycle', () => {
 
     const issued = await flaky.register(EMAIL, PASSWORD);
     expect(issued.user.email).toBe(EMAIL);
+    // Said, so the sign-up page can tell them rather than leave them waiting.
+    expect(issued.verificationEmailSent).toBe(false);
 
     await auth.resendVerificationEmail(issued.user.id);
     await auth.verifyEmail(linkIn(mail.last()).searchParams.get('token')!);

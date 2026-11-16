@@ -1,5 +1,4 @@
 import { getEnv, type Env } from '@/lib/env';
-import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { createMockAiProvider } from './providers/mock';
 import type { AiProvider } from './types';
@@ -15,22 +14,13 @@ import type { AiProvider } from './types';
 const log = getLogger('ai.factory');
 
 export function createAiProvider(env: Env = getEnv()): AiProvider {
+  // Environment validation admits only `mock` until a real adapter exists
+  // (`AI_PROVIDER=anthropic` is refused in `src/lib/env.ts`), so asking for
+  // anything else can never reach here and quietly get mock output. When an
+  // adapter lands, widen the schema and add its case to this switch.
   switch (env.AI_PROVIDER) {
     case 'mock':
       return createMockAiProvider();
-
-    case 'anthropic':
-      // Not implemented yet, and deliberately a hard failure rather than a
-      // silent fallback: configuring a live provider and quietly getting mock
-      // output would be worse than an error.
-      throw new AppError(
-        'CONFIGURATION_ERROR',
-        'The Anthropic AI adapter is not implemented yet. Set AI_PROVIDER=mock.',
-        {
-          publicMessage: 'The assistant is not configured.',
-          context: { provider: env.AI_PROVIDER },
-        },
-      );
   }
 }
 

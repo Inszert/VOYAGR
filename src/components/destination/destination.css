@@ -1,0 +1,300 @@
+/*
+ * The destination page's own motion.
+ *
+ * Durations and curves are the product's tokens (DESIGN.md, Motion). Every
+ * animation here has a still version under `prefers-reduced-motion`: the rules
+ * are not shortened to nothing, they are removed, because the slideshow's clock
+ * is an animation end and a 0.01ms animation would race through every frame.
+ */
+
+/* --- Slideshow ---------------------------------------------------------- */
+
+.voyagr-ss-frame {
+  opacity: 0;
+  transition: opacity 600ms var(--ease-standard);
+}
+
+.voyagr-ss-frame[data-active='true'] {
+  opacity: 1;
+}
+
+.voyagr-ss-img {
+  transform: scale(1.06);
+}
+
+.voyagr-ss[data-motion='on'] .voyagr-ss-frame[data-active='true'] .voyagr-ss-img {
+  animation: voyagr-ss-zoom 5s linear both;
+}
+
+.voyagr-ss[data-motion='on'] .voyagr-ss-fill[data-active='true'] {
+  animation: voyagr-ss-fill 5s linear both;
+}
+
+.voyagr-ss[data-paused='true'] .voyagr-ss-img,
+.voyagr-ss[data-paused='true'] .voyagr-ss-fill {
+  animation-play-state: paused;
+}
+
+.voyagr-ss-caption {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 600ms var(--ease-standard),
+    visibility 0s linear 600ms;
+}
+
+.voyagr-ss-caption[data-active='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+@keyframes voyagr-ss-zoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes voyagr-ss-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.voyagr-ss-fill {
+  transform-origin: left;
+}
+
+/* A finished segment stays full; a coming one is empty. Colour is never the only signal:
+   the current one is also named by aria-current and by the caption. */
+.voyagr-ss-fill[data-state='done'] {
+  transform: scaleX(1);
+}
+
+.voyagr-ss-fill[data-state='todo'] {
+  transform: scaleX(0);
+}
+
+.voyagr-ss[data-motion='off'] .voyagr-ss-fill[data-active='true'] {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-ss-frame,
+  .voyagr-ss-caption {
+    transition: none;
+  }
+
+  .voyagr-ss-img {
+    transform: none;
+    animation: none !important;
+  }
+
+  .voyagr-ss-fill {
+    animation: none !important;
+  }
+}
+
+/* --- Section bar -------------------------------------------------------- */
+
+.voyagr-secbar {
+  position: sticky;
+  top: var(--voyagr-header-h, 4.5rem);
+  z-index: 20;
+}
+
+.voyagr-secbar-scroll {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 1rem,
+    #000 calc(100% - 1.5rem),
+    transparent 100%
+  );
+}
+
+.voyagr-secbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.voyagr-secbar-line {
+  transition:
+    transform var(--duration-settled) var(--ease-out-quart),
+    width var(--duration-settled) var(--ease-out-quart);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-secbar-line {
+    transition: none;
+  }
+}
+
+/* Anchors clear the site header and the 56px section bar. */
+.voyagr-anchor {
+  scroll-margin-top: calc(var(--voyagr-header-h, 4.5rem) + 4.5rem);
+}
+
+/* --- Things to do ------------------------------------------------------- */
+
+.voyagr-place-card[data-leaving='true'] {
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 150ms var(--ease-standard),
+    transform 150ms var(--ease-standard);
+}
+
+.voyagr-place-card[data-hidden='true'] {
+  display: none;
+}
+
+.voyagr-place-img {
+  transition: transform var(--duration-settled) var(--ease-out-quart);
+}
+
+.voyagr-place-read {
+  transition:
+    transform var(--duration-settled) var(--ease-out-quart),
+    opacity var(--duration-settled) var(--ease-out-quart);
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .voyagr-place-card:hover .voyagr-place-img {
+    transform: scale(1.04);
+  }
+
+  .voyagr-place-read {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  .voyagr-place-card:hover .voyagr-place-read,
+  .voyagr-place-card:focus-within .voyagr-place-read {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.voyagr-place-card:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-place-card:active {
+    transform: none;
+  }
+}
+
+.voyagr-dot {
+  transition:
+    r var(--duration-quick) var(--ease-standard),
+    opacity var(--duration-quick) var(--ease-standard);
+}
+
+/* The detail sheet: a side panel on a desktop, a bottom sheet on a phone. */
+.voyagr-place-sheet {
+  width: min(27.5rem, 100vw);
+}
+
+@media (max-width: 767px) {
+  .voyagr-place-sheet {
+    width: 100%;
+  }
+}
+
+/* --- Plan --------------------------------------------------------------- */
+
+.voyagr-plan-day[data-fresh='true'] {
+  animation: voyagr-plan-in 220ms var(--ease-out-quart) both;
+}
+
+@keyframes voyagr-plan-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voyagr-plan-day[data-fresh='true'] {
+    animation: none;
+  }
+}
+
+/* --- Transfers ---------------------------------------------------------- */
+
+.voyagr-bar {
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .voyagr-bar {
+    animation: voyagr-bar-grow 600ms var(--ease-out-quart) both;
+  }
+}
+
+@keyframes voyagr-bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* A bottom sheet rises; the shared sheet's keyframes only know how to come in from the right. */
+@media (prefers-reduced-motion: no-preference) {
+  .voyagr-place-sheet[data-side='bottom'][data-state='open'] {
+    animation: voyagr-place-up-in 280ms var(--ease-out-expo);
+  }
+
+  .voyagr-place-sheet[data-side='bottom'][data-state='closed'] {
+    animation: voyagr-place-up-out 160ms ease-in forwards;
+  }
+}
+
+@keyframes voyagr-place-up-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes voyagr-place-up-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* On a phone the cards are one rail: the first large, the rest a swipe away. */
+@media (max-width: 639px) {
+  .voyagr-rail {
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .voyagr-rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* A price that has just changed slides in, so a new party size is seen to land. */
+@media (prefers-reduced-motion: no-preference) {
+  .voyagr-price-in {
+    animation: voyagr-plan-in 220ms var(--ease-out-quart) both;
+  }
+}

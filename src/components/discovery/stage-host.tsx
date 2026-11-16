@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { GlobeStage } from './globe-stage';
+import { STAGE_FRAME_EVENT } from './globe-motion';
 import {
   getServerStageSnapshot,
   getStageSnapshot,
@@ -99,9 +100,21 @@ export function StageHost() {
 
     const root = () => host.querySelector<HTMLElement>('.voyagr-stage');
 
+    /*
+     * On the explorer the box is the whole hero section, not the slot.
+     *
+     * A zoomed planet in a slot-sized canvas was cut off square by the slot's
+     * edges. So the canvas runs full-bleed behind the section - the heading
+     * and the text column paint over it and keep their own pointer events -
+     * the camera is padded so the sphere still sits in the slot (see
+     * `explorerPadding` in `globe-stage.tsx`), and the canvas fades out at
+     * the section's edges rather than stopping at a line.
+     */
+    const bleed = variant === 'explorer' ? slot.closest('section') : null;
+
     const place = () => {
       const c = container.getBoundingClientRect();
-      const r = slot.getBoundingClientRect();
+      const r = (bleed ?? slot).getBoundingClientRect();
       const next = {
         left: `${Math.round(r.left - c.left)}px`,
         top: `${Math.round(r.top - c.top)}px`,
@@ -166,6 +179,8 @@ export function StageHost() {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         place();
+        // The slot can move inside a box that did not change size; the globe re-measures it.
+        window.dispatchEvent(new Event(STAGE_FRAME_EVENT));
         const current = root();
         if (current && !flipping.current) lastBox.current = documentBox(current);
       });
@@ -174,6 +189,7 @@ export function StageHost() {
     const observer = new ResizeObserver(follow);
     observer.observe(slot);
     observer.observe(container);
+    if (bleed) observer.observe(bleed);
     window.addEventListener('resize', follow);
 
     return () => {

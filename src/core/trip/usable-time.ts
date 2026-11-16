@@ -1,4 +1,5 @@
 import { minutesIntoLocalDay } from '../dates';
+import { legArrival } from './legs';
 import type { TripCandidate } from './types';
 
 /**
@@ -104,7 +105,15 @@ export function computeUsableTime(
   }
 
   // --- Arrival day --------------------------------------------------------
-  const landedAt = minutesIntoLocalDay(arrivalSegment.arrivesAt);
+  /*
+   * When the provider did not state the arrival, the departure's clock face
+   * stands in for it - which is what this always read for such a leg, so no
+   * score moves - rather than a wall-clock sum across two time zones. It
+   * overstates the arrival day by the flight's length, and only that day.
+   */
+  const landedAt = minutesIntoLocalDay(
+    legArrival(candidate.flight.outbound) ?? candidate.flight.outbound.segments[0]!.departsAt,
+  );
   const settledAt = landedAt + assumptions.airportExitMinutes + assumptions.transferMinutes;
   const arrivalDayMinutes = usableMinutesBetween(settledAt, MINUTES_PER_DAY);
 

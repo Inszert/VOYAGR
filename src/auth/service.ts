@@ -74,6 +74,17 @@ export interface SessionIssued {
   readonly expiresAt: string;
 }
 
+/** A new account's session, and whether its verification email went out. */
+export interface Registered extends SessionIssued {
+  /**
+   * False when the account was created but the mail could not be sent - no
+   * email provider configured in production, or the provider failing. The
+   * sign-up page says so rather than leaving someone waiting for a message
+   * that is not coming.
+   */
+  readonly verificationEmailSent: boolean;
+}
+
 export interface AuthDependencies {
   readonly repositories: Repositories;
   readonly throttle?: SignInThrottle;
@@ -182,7 +193,7 @@ export class AuthService {
    * @throws AppError CONFLICT when the email is taken, VALIDATION_ERROR when
    *   the email or password is unusable.
    */
-  async register(rawEmail: string, password: string): Promise<SessionIssued> {
+  async register(rawEmail: string, password: string): Promise<Registered> {
     const email = normaliseEmail(rawEmail);
 
     if (!isPlausibleEmail(email)) {
@@ -218,11 +229,14 @@ export class AuthService {
     // A failed verification email must not fail the sign-up that triggered
     // it - the account is real either way, and the account page's "resend"
     // button exists precisely for this case.
-    await this.issueAndSendVerificationEmail(user).catch((error: unknown) => {
-      log.warn({ err: error, userId: user.id }, 'verification email could not be sent');
-    });
+    const verificationEmailSent = await this.issueAndSendVerificationEmail(user).catch(
+      (error: unknown) => {
+        log.warn({ err: error, userId: user.id }, 'verification email could not be sent');
+        return false;
+      },
+    );
 
-    return this.startSession(user);
+    return { ...(await this.startSession(user)), verificationEmailSent };
   }
 
   /**
@@ -281,7 +295,8 @@ export class AuthService {
     log.info({ userId: record.userId }, 'email verified');
   }
 
-  private async issueAndSendVerificationEmail(user: UserRecord): Promise<void> {
+  /** True when the provider accepted the mail; a failure is logged, never thrown. */
+  private async issueAndSendVerificationEmail(user: UserRecord): Promise<boolean> {
     // However many are outstanding, only the newest one sent should work.
     await this.repositories.emailVerification.deleteForUser(user.id);
 
@@ -302,6 +317,8 @@ export class AuthService {
     if (!result.ok) {
       log.warn({ err: result.error, userId: user.id }, 'verification email provider failed');
     }
+
+    return result.ok;
   }
 
   /**

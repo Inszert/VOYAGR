@@ -436,6 +436,7 @@ export default async function ExplorePage({
           regionSummary={stage.regionSummary}
           clearHref={page.clearCountryHref()}
           unpriced={page.unpriced}
+          pricesLoading={page.pricesLoading}
           controls={
             <StageControls
               mode={page.mode}

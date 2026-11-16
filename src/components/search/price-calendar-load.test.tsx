@@ -36,11 +36,15 @@ function month(name: string) {
       returnDate: `${name}-${String(Math.min(day + 3, 28)).padStart(2, '0')}`,
       exact: `€${amount}.00`,
       whole: `€${amount}`,
+      perPerson: `€${amount}`,
       amount,
     };
   }
 
-  return { month: name, days, reason: null };
+  // The 5th has no return fare, only a single flight out.
+  const oneWay = { [`${name}-05`]: { exact: '€28.00', perPerson: '€28', amount: 28 } };
+
+  return { month: name, passengers: 1, days, oneWay, reason: null };
 }
 
 function stubFetch(handler: (month: string) => Response | Promise<Response>) {
@@ -89,7 +93,8 @@ describe('PriceCalendar loading', () => {
   });
 
   it('prices every day the vendor has, and none the vendor has not', async () => {
-    stubFetch((name) => json(month(name)));
+    // Return fares only: no one-way fare stands in for the missing 5th.
+    stubFetch((name) => json({ ...month(name), oneWay: {} }));
 
     renderCalendar();
 
@@ -157,5 +162,18 @@ describe('PriceCalendar loading', () => {
         '/explore?departureDate=2026-12-12&returnDate=2026-12-15',
       ),
     );
+  });
+
+  it('shows a one-way fare as "one way from", never as a return price, and not as a choice', async () => {
+    stubFetch((name) => json(month(name)));
+
+    renderCalendar();
+
+    const day = await screen.findByRole('gridcell', {
+      name: '5 December 2026, no return fare seen; one way from €28 per person',
+    });
+    expect(day.tagName).toBe('SPAN');
+    expect(day.textContent).toContain('€28');
+    expect(day.getAttribute('aria-label')).not.toMatch(/whole trip|flights only|cheapest/);
   });
 });

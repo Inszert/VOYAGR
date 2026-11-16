@@ -81,7 +81,10 @@ const MODE_WORDS: Record<ProviderMode, { state: Slot['state']; detail: string }>
   indicative: { state: 'live', detail: 'Real fares from a cache, which may have moved.' },
   test: { state: 'live', detail: 'A sandbox account: real shapes, not bookable.' },
   mock: { state: 'fixture', detail: 'Sample data from fixtures, not real offers.' },
-  absent: { state: 'absent', detail: 'No provider is connected, so nothing is shown.' },
+  absent: {
+    state: 'absent',
+    detail: 'No provider is connected, so nothing is shown. This is configuration, not an outage.',
+  },
 };
 
 function slotOf(

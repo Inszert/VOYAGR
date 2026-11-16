@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { fromMajor } from '@/core/money';
 import type { FlightOffer, FlightLeg } from '@/core/trip/types';
 import { flightMatchesWindow } from './assemble';
-import { calendarFlightsFromOffers, windowsFromOffers } from './derive-windows';
+import {
+  calendarFlightsFromOffers,
+  otherStayLengthsFromOffers,
+  windowsFromOffers,
+} from './derive-windows';
 
 const leg = (from: string, to: string, day: string): FlightLeg => ({
   segments: [
@@ -187,5 +191,56 @@ describe('calendarFlightsFromOffers', () => {
 
   it('says nothing for a day with no flight rather than guessing one', () => {
     expect(calendarFlightsFromOffers([], { minNights: 1, maxNights: 30 })).toEqual([]);
+  });
+});
+
+describe('otherStayLengthsFromOffers', () => {
+  const week = { ...bounds, minNights: 7, maxNights: 7 };
+
+  it('offers the stay lengths the vendor had, nearest to the asked length first', () => {
+    const found = otherStayLengthsFromOffers(
+      [
+        offer('KZN', '2026-12-27', '2026-12-30', 394),
+        offer('KZN', '2026-12-03', '2026-12-09', 488),
+        offer('KZN', '2026-12-05', '2026-12-14', 300),
+      ],
+      week,
+      4,
+    );
+
+    expect(found.map((stay) => [stay.departureDate, stay.nights, stay.price.amount])).toEqual([
+      ['2026-12-03', 6, 48800],
+      ['2026-12-05', 9, 30000],
+      ['2026-12-27', 3, 39400],
+    ]);
+  });
+
+  it('never offers a fare outside the dates, or one the asked length already covers', () => {
+    expect(
+      otherStayLengthsFromOffers(
+        [
+          offer('KZN', '2026-11-28', '2026-12-04', 200),
+          offer('KZN', '2026-12-28', '2027-01-02', 200),
+          offer('KZN', '2026-12-01', '2026-12-08', 200),
+        ],
+        week,
+        4,
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps the cheapest fare for a pair and stops at the limit', () => {
+    const found = otherStayLengthsFromOffers(
+      [
+        offer('KZN', '2026-12-03', '2026-12-09', 488),
+        offer('KZN', '2026-12-03', '2026-12-09', 450),
+        offer('KZN', '2026-12-10', '2026-12-16', 500),
+      ],
+      week,
+      1,
+    );
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.price.amount).toBe(45000);
   });
 });

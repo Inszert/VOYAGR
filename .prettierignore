@@ -17,6 +17,8 @@ SETUP-CHECKLIST.md
 src/discovery/*.generated.json
 # Written by scripts/build-airports.mjs; one compact line is the point.
 src/providers/reference/*.generated.json
+# Written by scripts/build-hotels.mjs; a compact OpenStreetMap extract.
+src/providers/stays/*.generated.json
 # Third-party design skills, installed by `npx skills add` and `npx impeccable
 # install`. Vendored upstream content: reformatting it would produce a diff
 # against every update and say nothing about our code.

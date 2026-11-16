@@ -91,10 +91,59 @@ export interface GlobeStyleOptions {
 }
 
 /**
- * Where the planet's surface tiles live. Versioned: the service worker keeps
- * `/geo/` for ever, so a rebuilt set goes in `v2` and this changes with it.
+ * Where the planet's surface tiles live: one pyramid per month of the year.
+ *
+ * The globe shows the season of the month somebody is travelling in - snow on
+ * Slovakia in January, a dry brown Italy in July - from NASA's monthly Blue
+ * Marble composites, built by `scripts/build-earth-texture.mjs`. It is the
+ * typical look of that month, never the weather on the day.
+ *
+ * Versioned: the service worker keeps `/geo/` for ever, so a rebuilt set goes
+ * in `v3` and this changes with it. `v1` was August only.
  */
-export const EARTH_TILES_URL = '/geo/earth/v1/{z}/{x}/{y}.webp';
+export function earthTilesUrl(month: string): string {
+  if (!/^(0[1-9]|1[0-2])$/.test(month)) {
+    throw new RangeError(`earthTilesUrl() expects a two-digit month, received ${month}`);
+  }
+
+  return `/geo/earth/v2/${month}/{z}/{x}/{y}.webp`;
+}
+
+/** The month of a `YYYY-MM-DD` date, as the tiles are filed. */
+export function earthMonthOf(date: string): string {
+  const month = date.slice(5, 7);
+  return /^(0[1-9]|1[0-2])$/.test(month) ? month : '01';
+}
+
+/** The month a style opens on when it is not told one. */
+export const EARTH_TILES_URL = earthTilesUrl('08');
+
+/** The raster layer that paints a month, so the stage can cross-fade between two. */
+export function earthLayer(id: string, source: string, opacity = 1) {
+  return {
+    id,
+    type: 'raster' as const,
+    source,
+    paint: {
+      'raster-saturation': 0.15,
+      'raster-contrast': 0.1,
+      'raster-brightness-max': 0.95,
+      'raster-fade-duration': 300,
+      'raster-opacity': opacity,
+    },
+  };
+}
+
+/** A month's raster source. */
+export function earthSource(month: string) {
+  return {
+    type: 'raster' as const,
+    tiles: [earthTilesUrl(month)],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 4,
+  };
+}
 
 /**
  * The two poles, which Web Mercator cannot reach.
@@ -397,11 +446,8 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
        */
       poles: { type: 'geojson', data: POLAR_CAPS },
       earth: {
-        type: 'raster',
+        ...earthSource('08'),
         tiles: [options.earthTilesUrl ?? EARTH_TILES_URL],
-        tileSize: 256,
-        minzoom: 0,
-        maxzoom: 4,
       },
       land: { type: 'geojson', data: options.landUrl },
       ice: { type: 'geojson', data: options.iceUrl },
@@ -579,17 +625,7 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
        * globe shows while its tiles are still arriving, and under the night,
        * the lights and everything the product itself draws.
        */
-      {
-        id: 'earth',
-        type: 'raster',
-        source: 'earth',
-        paint: {
-          'raster-saturation': 0.15,
-          'raster-contrast': 0.1,
-          'raster-brightness-max': 0.95,
-          'raster-fade-duration': 300,
-        },
-      },
+      earthLayer('earth', 'earth'),
       {
         id: 'poles',
         type: 'fill',

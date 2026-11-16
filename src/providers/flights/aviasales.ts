@@ -1,14 +1,25 @@
 import { z } from 'zod';
 import { fromMajor } from '@/core/money';
-import type { FlightOffer, IsoDate, LocalDateTime } from '@/core/trip/types';
+import { forParty } from '@/core/party';
+import type {
+  FlightOffer,
+  IsoDate,
+  IsoDateTime,
+  LocalDateTime,
+  OneWayFare,
+} from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { err, ok } from '@/lib/result';
 import type { FetchLike } from '../http/types';
 import { redactUrl } from '../http/redact';
 import type {
+  DayFare,
   FlightProvider,
   FlightSearchQuery,
+  MonthFareQuery,
+  MonthFareSource,
+  OneWayQuery,
   ProviderHealth,
   ProviderPage,
   ProviderRequestOptions,
@@ -40,6 +51,13 @@ import type {
  * - There is no baggage or ticketing information in the response, so
  *   `cabinBaggageIncluded`, `checkedBaggageIncluded` and `selfTransfer` are
  *   all `null`: the vendor did not say, and the domain has a branch for that.
+ *   Nor is there an arrival time, so `arrivesAt` is `null` too.
+ * - **A price is for one adult.** The cache is of other people's searches,
+ *   and the link the vendor builds for every row ends in the passenger count
+ *   - `/search/VIE0112FCO1` - which is `1` on every row recorded. A
+ *   `FlightOffer` is priced for the whole party, so the fare is multiplied out
+ *   by `forParty`, exactly; it was once passed through as the party's total,
+ *   which priced four travellers' flights as one.
  *
  * The token authenticates and never leaves the server. The partner marker is
  * an affiliate identifier that belongs in the outbound link a traveller
@@ -191,6 +209,8 @@ export function mapOffer(
   currency: string,
   observedAt: string,
   providerId: string,
+  /** The party the offer is for. The vendor's fare is for one of them. */
+  passengers = 1,
 ): { offer: FlightOffer } | { skipped: SkipReason } {
   const parsed = priceSchema.safeParse(raw);
   if (!parsed.success) return { skipped: 'malformed' };
@@ -204,12 +224,12 @@ export function mapOffer(
   const flightNumber = `${price.airline}${price.flight_number}`;
 
   /*
-   * The arrival is not in the response, so it is the departure plus the
-   * stated duration - and that is arithmetic on a wall clock across two
-   * timezones, which is exactly what `core/dates.ts` exists to forbid.
-   * `FlightLeg.durationMinutes` carries the real figure; the arrival field is
-   * left equal to the departure rather than computed wrongly, and the
-   * duration is what every engine actually reads.
+   * The arrival is not in the response. The departure plus the stated
+   * duration would be arithmetic on a wall clock across two time zones,
+   * which is exactly what `core/dates.ts` exists to forbid, so the arrival is
+   * `null`: unknown. (It was once set equal to the departure, and a card then
+   * printed "06:10 VIE -> 06:10 FCO" for a 1h 45m flight.)
+   * `FlightLeg.durationMinutes` carries the real figure.
    */
   const leg = (
     from: string,
@@ -230,7 +250,7 @@ export function mapOffer(
         origin: from,
         destination: to,
         departsAt: at,
-        arrivesAt: at,
+        arrivesAt: null,
         carrier: price.airline,
         flightNumber,
       },
@@ -253,13 +273,311 @@ export function mapOffer(
       providerId,
       outbound: leg(from, to, departsAt, price.duration_to, price.transfers),
       inbound: leg(to, from, returnsAt, price.duration_back, price.return_transfers),
-      // `fromMajor`, never a float: the vendor quotes whole currency units.
-      price: fromMajor(price.price, currency),
+      // `fromMajor`, never a float: the vendor quotes whole currency units,
+      // for one adult; `forParty` makes it the party's total, exactly.
+      price: forParty(fromMajor(price.price, currency), passengers),
       observedAt: observedFromLink(price.link, observedAt),
       // Cached prices come with no promise of how long they hold.
       expiresAt: null,
       ...(price.link ? { deepLink: `https://www.aviasales.com${price.link}` } : {}),
     } as FlightOffer,
+  };
+}
+
+/*
+ * --- Single days of a month, for the calendar ---------------------------
+ *
+ * `prices_for_dates` asked for a month answers with whole round trips, and
+ * only on the days somebody happened to search a return. Measured for
+ * VIE-FCO in December 2026 (`tests/fixtures/providers/aviasales-day-coverage-vie-fco.json`):
+ * 16 departure days with a return of 2 to 14 nights. Three further questions
+ * are asked here, each recorded in that cassette:
+ *
+ *  - `prices_for_dates` with `one_way=true`: the cheapest single flight out on
+ *    each day, airport by airport - 30 of 31 days, 15 of them days with no
+ *    return fare at all. A one-way fare is never a return price: it becomes a
+ *    `DayFare` with `returnDate: null`, and the page labels it "one way from".
+ *  - `v1/prices/calendar` (documented: "Tickets for each day of a month"),
+ *    asked by departure day with returns in the month.
+ *  - `v2/prices/latest` (documented: the latest prices found), asked for the
+ *    month.
+ *
+ * The last two answer **by city**, not by airport: asked for FCO they reply
+ * for ROM, which includes Ciampino. A Ciampino fare is not a Fiumicino fare,
+ * so their rows are kept only where the city they name is the code that was
+ * asked (VIE, KZN) and dropped - counted, not guessed at - where it is not.
+ * `v2/prices/month-matrix` is documented too, but answered only one-way fares
+ * by city, which the airport-level one-way question already covers.
+ *
+ * Every fare here is for one adult, like every price this API serves, and is
+ * multiplied out for the party by `forParty`.
+ */
+
+const DATA_API = 'https://api.travelpayouts.com';
+
+const dayPrefix = z.string().regex(/^\d{4}-\d{2}-\d{2}/);
+
+/** A `prices_for_dates` row as a day fare: the same fields, the return optional. */
+const v3DayRow = z.object({
+  origin: z.string().length(3),
+  destination: z.string().length(3),
+  origin_airport: z.string().length(3).optional(),
+  destination_airport: z.string().length(3).optional(),
+  departure_at: dayPrefix,
+  return_at: dayPrefix.optional(),
+  price: z.number().positive().finite(),
+  link: z.string().optional(),
+});
+
+/** `v1/prices/calendar`: `data` is keyed by day. */
+const v1CalendarRow = z.object({
+  origin: z.string().length(3),
+  destination: z.string().length(3),
+  departure_at: dayPrefix,
+  return_at: dayPrefix.optional(),
+  price: z.number().positive().finite(),
+});
+
+/** `v2/prices/latest`: `return_date` is `""` for a one-way fare. */
+const v2LatestRow = z.object({
+  origin: z.string().length(3),
+  destination: z.string().length(3),
+  depart_date: dayPrefix,
+  return_date: z.string(),
+  value: z.number().positive().finite(),
+  found_at: z.string().optional(),
+});
+
+const dayEnvelope = z.object({
+  success: z.boolean().optional(),
+  currency: z.string().length(3).optional(),
+  data: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]),
+});
+
+/** An instant only when it says which zone it is in; otherwise unknown. */
+function instantOrNull(value: string | undefined): IsoDateTime | null {
+  if (!value || !/(?:Z|[+-]\d{2}:?\d{2})$/.test(value)) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+
+/** The airport asked for, or its city when the city is what was asked. */
+function sameEnd(asked: string, city: string, airport: string | undefined): boolean {
+  return airport === asked || city === asked;
+}
+
+export interface DayRowsOutcome {
+  readonly fares: DayFare[];
+  /** Rows that failed the schema or priced another airport. Counted, never silent. */
+  readonly dropped: number;
+}
+
+export type DayRowReader = (
+  raw: unknown,
+  query: MonthFareQuery,
+  currency: string,
+  fetchedAt: IsoDateTime,
+) => DayFare | 'drop';
+
+export const readV3DayRow: DayRowReader = (raw, query, currency, fetchedAt) => {
+  const row = v3DayRow.safeParse(raw);
+  if (!row.success) return 'drop';
+  const r = row.data;
+  if (!sameEnd(query.origin, r.origin, r.origin_airport)) return 'drop';
+  if (!sameEnd(query.destination, r.destination, r.destination_airport)) return 'drop';
+
+  const observed = observedFromLink(r.link, fetchedAt);
+  return {
+    departureDate: r.departure_at.slice(0, 10),
+    returnDate: r.return_at ? r.return_at.slice(0, 10) : null,
+    price: forParty(fromMajor(r.price, currency), query.passengers),
+    // `observedFromLink` falls back to the fetch, which is not when the
+    // vendor saw the fare; that fallback is reported as unknown here.
+    observedAt: observed === fetchedAt ? null : observed,
+  };
+};
+
+export const readV1CalendarRow: DayRowReader = (raw, query, currency) => {
+  const row = v1CalendarRow.safeParse(raw);
+  if (!row.success) return 'drop';
+  const r = row.data;
+  if (r.origin !== query.origin || r.destination !== query.destination) return 'drop';
+
+  return {
+    departureDate: r.departure_at.slice(0, 10),
+    returnDate: r.return_at ? r.return_at.slice(0, 10) : null,
+    price: forParty(fromMajor(r.price, currency), query.passengers),
+    // The calendar says when a price expires, never when it was found.
+    observedAt: null,
+  };
+};
+
+export const readV2LatestRow: DayRowReader = (raw, query, currency) => {
+  const row = v2LatestRow.safeParse(raw);
+  if (!row.success) return 'drop';
+  const r = row.data;
+  if (r.origin !== query.origin || r.destination !== query.destination) return 'drop';
+
+  return {
+    departureDate: r.depart_date.slice(0, 10),
+    returnDate: /^\d{4}-\d{2}-\d{2}/.test(r.return_date) ? r.return_date.slice(0, 10) : null,
+    price: forParty(fromMajor(r.value, currency), query.passengers),
+    // Sent without a zone in the recording, which makes it no instant at all.
+    observedAt: instantOrNull(r.found_at),
+  };
+};
+
+interface DayQuestion {
+  readonly id: string;
+  readonly url: (query: MonthFareQuery) => URL;
+  readonly read: DayRowReader;
+}
+
+const DAY_QUESTIONS: readonly DayQuestion[] = [
+  {
+    id: 'aviasales.prices_for_dates.one_way',
+    url: (q) => {
+      const url = new URL('/aviasales/v3/prices_for_dates', DATA_API);
+      url.searchParams.set('origin', q.origin);
+      url.searchParams.set('destination', q.destination);
+      url.searchParams.set('departure_at', q.month);
+      url.searchParams.set('one_way', 'true');
+      url.searchParams.set('currency', q.currency.toLowerCase());
+      url.searchParams.set('unique', 'false');
+      url.searchParams.set('sorting', 'price');
+      url.searchParams.set('limit', '1000');
+      url.searchParams.set('direct', 'false');
+      return url;
+    },
+    read: readV3DayRow,
+  },
+  {
+    id: 'aviasales.prices.calendar',
+    url: (q) => {
+      const url = new URL('/v1/prices/calendar', DATA_API);
+      url.searchParams.set('origin', q.origin);
+      url.searchParams.set('destination', q.destination);
+      url.searchParams.set('depart_date', q.month);
+      url.searchParams.set('return_date', q.month);
+      url.searchParams.set('calendar_type', 'departure_date');
+      url.searchParams.set('currency', q.currency.toLowerCase());
+      return url;
+    },
+    read: readV1CalendarRow,
+  },
+  {
+    id: 'aviasales.prices.latest',
+    url: (q) => {
+      const url = new URL('/v2/prices/latest', DATA_API);
+      url.searchParams.set('origin', q.origin);
+      url.searchParams.set('destination', q.destination);
+      url.searchParams.set('period_type', 'month');
+      url.searchParams.set('beginning_of_period', `${q.month}-01`);
+      url.searchParams.set('one_way', 'false');
+      url.searchParams.set('currency', q.currency.toLowerCase());
+      url.searchParams.set('limit', '1000');
+      url.searchParams.set('show_to_affiliates', 'true');
+      url.searchParams.set('sorting', 'price');
+      return url;
+    },
+    read: readV2LatestRow,
+  },
+];
+
+/** Every row of a day answer, whichever envelope the endpoint uses; null for an unrecognised body. */
+export function readDayRows(
+  body: unknown,
+  query: MonthFareQuery,
+  read: DayRowReader,
+  fetchedAt: IsoDateTime,
+): DayRowsOutcome | null {
+  const parsed = dayEnvelope.safeParse(body);
+  if (!parsed.success) return null;
+
+  const currency = parsed.data.currency?.toUpperCase() ?? query.currency.toUpperCase();
+  const rows = Array.isArray(parsed.data.data) ? parsed.data.data : Object.values(parsed.data.data);
+
+  const fares: DayFare[] = [];
+  let dropped = 0;
+  for (const raw of rows) {
+    const fare = read(raw, query, currency, fetchedAt);
+    if (fare === 'drop') dropped += 1;
+    else fares.push(fare);
+  }
+  return { fares, dropped };
+}
+
+/*
+ * --- Single flights, for trips built from two one-way tickets -------------
+ *
+ * The same one-way question the calendar asks, read as flights rather than as
+ * day prices. Measured for VIE-KZN in November 2026 (by the search's own
+ * debugging): two round-trip rows for the month, against single flights on 13
+ * outbound days and 8 return days. Recorded for VIE-FCO in
+ * `aviasales-day-coverage-vie-fco.json`.
+ */
+const oneWayRow = z.object({
+  origin: z.string().length(3),
+  destination: z.string().length(3),
+  origin_airport: z.string().length(3).optional(),
+  destination_airport: z.string().length(3).optional(),
+  departure_at: z.string().min(1),
+  airline: z.string().min(1),
+  flight_number: z.union([z.string(), z.number()]),
+  price: z.number().positive().finite(),
+  transfers: z.number().int().min(0),
+  duration_to: z.number().int().positive().optional(),
+  duration: z.number().int().positive().optional(),
+  link: z.string().optional(),
+});
+
+/** One recorded one-way row as a `OneWayFare`, or why not. Counted, never silent. */
+export function mapOneWay(
+  raw: unknown,
+  query: OneWayQuery,
+  currency: string,
+  fetchedAt: IsoDateTime,
+  providerId: string,
+): OneWayFare | 'malformed' | 'other_airport' {
+  const parsed = oneWayRow.safeParse(raw);
+  if (!parsed.success) return 'malformed';
+  const r = parsed.data;
+
+  const from = r.origin_airport ?? r.origin;
+  const to = r.destination_airport ?? r.destination;
+  if (!sameEnd(query.origin, r.origin, r.origin_airport)) return 'other_airport';
+  if (!sameEnd(query.destination, r.destination, r.destination_airport)) return 'other_airport';
+
+  const departsAt = toLocalDateTime(r.departure_at);
+  const minutes = r.duration_to ?? r.duration;
+  if (!departsAt || !minutes) return 'malformed';
+
+  const flightNumber = `${r.airline}${r.flight_number}`;
+  return {
+    id: `${providerId}:${from}-${to}:${r.departure_at}:${flightNumber}:one-way`,
+    providerId,
+    leg: {
+      ...(r.transfers > 0 ? { connectionsStated: r.transfers } : {}),
+      segments: [
+        {
+          origin: from,
+          destination: to,
+          departsAt,
+          // Not in the response, and not derivable without the destination's zone.
+          arrivesAt: null,
+          carrier: r.airline,
+          flightNumber,
+        },
+      ],
+      durationMinutes: minutes,
+      cabinBaggageIncluded: null,
+      checkedBaggageIncluded: null,
+      selfTransfer: null,
+    },
+    // For one adult, like every price here; the party's total exactly.
+    price: forParty(fromMajor(r.price, currency), query.passengers),
+    observedAt: observedFromLink(r.link, fetchedAt),
+    ...(r.link ? { deepLink: `https://www.aviasales.com${r.link}` } : {}),
   };
 }
 
@@ -302,6 +620,9 @@ export class AviasalesFlightProvider implements FlightProvider {
   private readonly fetchImpl: FetchLike;
   private readonly now: () => Date;
 
+  /** See "Single days of a month" above. Each is one leaf call. */
+  readonly monthFareSources: readonly MonthFareSource[];
+
   constructor(options: AviasalesOptions) {
     if (!options.token) {
       throw new AppError('CONFIGURATION_ERROR', 'Aviasales provider needs AVIASALES_API_TOKEN.');
@@ -313,6 +634,128 @@ export class AviasalesFlightProvider implements FlightProvider {
     this.partnerId = options.partnerId;
     this.fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
     this.now = options.now ?? (() => new Date());
+    this.monthFareSources = DAY_QUESTIONS.map((question) => ({
+      id: question.id,
+      fetch: (query: MonthFareQuery, requestOptions?: ProviderRequestOptions) =>
+        this.askDays(question, query, requestOptions),
+    }));
+  }
+
+  /** Single flights one way for a month: one call, rows schema-checked, never a throw. */
+  async searchOneWay(
+    query: OneWayQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly OneWayFare[]>> {
+    const url = DAY_QUESTIONS[0]!.url(query);
+    url.searchParams.set('token', this.token);
+    if (this.partnerId) url.searchParams.set('marker', this.partnerId);
+    const href = url.toString();
+
+    try {
+      const response = await this.fetchImpl(href, {
+        headers: { Accept: 'application/json' },
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
+      if (!response.ok) {
+        log.warn(
+          { status: response.status, url: redactUrl(href) },
+          'aviasales one-way error status',
+        );
+        return err(
+          new AppError(
+            response.status === 429 ? 'PROVIDER_UNAVAILABLE' : 'PROVIDER_ERROR',
+            `Aviasales responded with ${response.status}.`,
+          ),
+        );
+      }
+
+      const body = responseSchema.safeParse(await response.json());
+      if (!body.success) {
+        return err(new AppError('PROVIDER_ERROR', 'Aviasales returned an unrecognised response.'));
+      }
+
+      const currency = body.data.currency?.toUpperCase() ?? query.currency.toUpperCase();
+      const fetchedAt = this.now().toISOString();
+      const fares: OneWayFare[] = [];
+      let dropped = 0;
+      for (const raw of body.data.data) {
+        const fare = mapOneWay(raw, query, currency, fetchedAt, this.metadata.id);
+        if (typeof fare === 'string') dropped += 1;
+        else fares.push(fare);
+      }
+      if (dropped > 0) log.info({ dropped, kept: fares.length }, 'aviasales one-way rows not used');
+      return ok(fares);
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      log.warn({ err: error, url: redactUrl(href) }, 'aviasales one-way request failed');
+      return err(
+        new AppError(
+          aborted ? 'PROVIDER_TIMEOUT' : 'PROVIDER_UNAVAILABLE',
+          aborted ? 'Aviasales did not answer in time.' : 'Aviasales could not be reached.',
+        ),
+      );
+    }
+  }
+
+  /** One day question: one call, its rows schema-checked, never a throw. */
+  private async askDays(
+    question: DayQuestion,
+    query: MonthFareQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly DayFare[]>> {
+    const url = question.url(query);
+    url.searchParams.set('token', this.token);
+    if (this.partnerId) url.searchParams.set('marker', this.partnerId);
+    const href = url.toString();
+
+    try {
+      const response = await this.fetchImpl(href, {
+        headers: { Accept: 'application/json' },
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
+
+      if (!response.ok) {
+        log.warn(
+          { status: response.status, url: redactUrl(href), source: question.id },
+          'aviasales day prices responded with an error status',
+        );
+        return err(
+          new AppError(
+            response.status === 429 ? 'PROVIDER_UNAVAILABLE' : 'PROVIDER_ERROR',
+            `Aviasales responded with ${response.status}.`,
+          ),
+        );
+      }
+
+      const read = readDayRows(
+        await response.json(),
+        query,
+        question.read,
+        this.now().toISOString(),
+      );
+      if (!read) {
+        return err(new AppError('PROVIDER_ERROR', 'Aviasales returned an unrecognised response.'));
+      }
+      if (read.dropped > 0) {
+        log.info(
+          { source: question.id, dropped: read.dropped, kept: read.fares.length },
+          'aviasales day rows not used',
+        );
+      }
+      return ok(read.fares);
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      log.warn(
+        { err: error, url: redactUrl(href), source: question.id },
+        'aviasales day request failed',
+      );
+      return err(
+        new AppError(
+          aborted ? 'PROVIDER_TIMEOUT' : 'PROVIDER_UNAVAILABLE',
+          aborted ? 'Aviasales did not answer in time.' : 'Aviasales could not be reached.',
+        ),
+      );
+    }
   }
 
   async checkHealth(_options?: ProviderRequestOptions): Promise<ProviderHealth> {
@@ -394,7 +837,7 @@ export class AviasalesFlightProvider implements FlightProvider {
       };
 
       for (const raw of body.data.data) {
-        const mapped = mapOffer(raw, currency, observedAt, this.metadata.id);
+        const mapped = mapOffer(raw, currency, observedAt, this.metadata.id, query.passengers);
 
         if ('offer' in mapped) {
           const arrival = mapped.offer.outbound.segments.at(-1)?.destination.toUpperCase();

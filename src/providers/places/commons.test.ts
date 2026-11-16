@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { FetchLike } from '../http/types';
 import { placeImageUrl } from './image-url';
-import { commonsThumbnailUrl, fetchCommonsCredits, isAllowedUpstream } from './commons';
+import {
+  commonsThumbnailUrl,
+  fetchCommonsCredits,
+  isAllowedUpstream,
+  isCommonsRedirectHop,
+} from './commons';
 
 describe('commonsThumbnailUrl', () => {
   it('names the file on Commons at one of the offered widths, escaped', () => {
@@ -31,6 +36,15 @@ describe('commonsThumbnailUrl', () => {
   });
 });
 
+describe('file names with typographic punctuation', () => {
+  it('accepts an en dash, an em dash and a curly apostrophe, and still refuses a slash', () => {
+    for (const name of ['Roma – Colosseo.jpg', 'Foro—Romano.jpg', 'Saint’s Gate.jpg']) {
+      expect(commonsThumbnailUrl(name, 640), name).toContain('Special:FilePath/');
+    }
+    expect(commonsThumbnailUrl('a/b–c.jpg', 640)).toBeNull();
+  });
+});
+
 describe('isAllowedUpstream', () => {
   it('allows only https on the upload host under the commons path', () => {
     expect(
@@ -38,6 +52,15 @@ describe('isAllowedUpstream', () => {
         'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/X.jpg/640px-X.jpg',
       ),
     ).toBe(true);
+  });
+
+  it('allows the thumbnail host Commons now serves resized files from', () => {
+    expect(
+      isAllowedUpstream(
+        'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/960px-Colosseo_2020.jpg',
+      ),
+    ).toBe(true);
+    expect(isAllowedUpstream('https://thumb.wikimedia.org/other/a.jpg')).toBe(false);
   });
 
   it('refuses another host, a look-alike, another scheme, credentials, a port and a traversal', () => {
@@ -159,5 +182,32 @@ describe('fetchCommonsCredits', () => {
 
     expect(down.ok).toBe(false);
     expect(thrown.ok).toBe(false);
+  });
+});
+
+describe('isCommonsRedirectHop', () => {
+  it("accepts only Commons' own file redirects", () => {
+    expect(
+      isCommonsRedirectHop(
+        'https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Colosseo_2020.jpg&width=640',
+      ),
+    ).toBe(true);
+    expect(
+      isCommonsRedirectHop('https://commons.wikimedia.org/wiki/Special:FilePath/a.jpg?width=640'),
+    ).toBe(true);
+  });
+
+  it('refuses any other page, host or scheme', () => {
+    for (const url of [
+      'https://commons.wikimedia.org/w/index.php?title=Special:UserLogin',
+      'https://commons.wikimedia.org/w/api.php?action=query',
+      'https://commons.wikimedia.org.evil.example/w/index.php?title=Special:Redirect/file/a.jpg',
+      'http://commons.wikimedia.org/wiki/Special:FilePath/a.jpg',
+      'https://user:pw@commons.wikimedia.org/wiki/Special:FilePath/a.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/a.jpg',
+      'not a url',
+    ]) {
+      expect(isCommonsRedirectHop(url), url).toBe(false);
+    }
   });
 });

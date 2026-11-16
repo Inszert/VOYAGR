@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { initials } from '@/components/discovery/initials';
 import type { HomeCard } from './card-data';
+import { RemotePicture } from './remote-picture';
 import type { MosaicSlot } from './mosaic';
 import './home.css';
 
@@ -96,20 +97,7 @@ export function HomePicture({
     );
   }
 
-  if (image?.kind === 'remote') {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- our own proxy route, already sized by the provider
-      <img
-        src={image.src}
-        alt={imageAlt(card)}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        className="home-card__img"
-      />
-    );
-  }
-
-  return (
+  const tile = (
     <span
       aria-hidden="true"
       className="home-card__initials font-display text-ink-muted grid place-items-center"
@@ -117,6 +105,20 @@ export function HomePicture({
       {initials(card.country)}
     </span>
   );
+
+  if (image?.kind === 'remote') {
+    return (
+      <RemotePicture
+        src={image.src}
+        alt={imageAlt(card)}
+        priority={priority}
+        className="home-card__img"
+        fallback={tile}
+      />
+    );
+  }
+
+  return tile;
 }
 
 /** "from" sits back; the figure is what the eye lands on. Never taken apart for its number. */

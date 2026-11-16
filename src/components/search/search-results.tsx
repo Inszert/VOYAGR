@@ -10,13 +10,13 @@ import {
   applyFilters,
   hasActiveFilters,
   parseSort,
-  RESULT_SORTS,
   sortTrips,
   type ResultFilters,
 } from '@/search/filters';
 import { EmptyState } from '@/components/ui';
 import { buildDateBreakdown } from '@/search/date-options';
 import { DateOptions } from './date-options';
+import { EmptySearch } from './empty-search';
 import { ResultFiltersPanel } from './result-filters';
 import { SortSelect } from './sort-select';
 import type { RankedTrip, SearchOutcome } from '@/search/types';
@@ -24,7 +24,7 @@ import type { SearchProfile } from '@/core/trip/types';
 import type { StayLinkOffer } from '@/core/stay/types';
 import type { DestinationImage } from '@/providers/imagery/types';
 import { offersFor } from '@/booking/partners';
-import { TripCard } from './trip-card';
+import { YourTrip } from './your-trip';
 import { TripRow } from './trip-row';
 import { buildTrip } from '@/search/trip-builder';
 import { dealAgainstTypical } from '@/search/deal-score';
@@ -164,7 +164,6 @@ export function SearchResults({
     : null;
   const others = focus ? results.filter((trip) => trip !== focus) : results;
   const closeCalls = focus ? nearMisses.filter((trip) => trip !== focus) : nearMisses;
-  const building = focus !== null && focus.candidate.id === focusId;
 
   const noBuild = Object.fromEntries(BUILD_KEYS.map((key) => [key, null]));
 
@@ -418,41 +417,60 @@ export function SearchResults({
         ) : null}
 
         {built && focus ? (
-          <TripCard
-            trip={built.trip}
-            rank={results.includes(focus) ? 0 : -1}
-            lead={RESULT_SORTS.find((option) => option.value === sort)?.label}
-            deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
-            label={building ? 'Your trip' : undefined}
-            view={view}
-            provenance={diagnostics.provenance}
-            sources={diagnostics.sources}
-            reasons={explainTrip(built.trip, profile)}
-            image={images?.get(built.trip.candidate.destination) ?? null}
-            stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
-            transferOffer={offersFor('transfer')[0] ?? null}
-            country={countryOf(built.trip)}
-            planTrips={planTrips}
-            destinationHref={destinationHref(built.trip)}
-            transition
-            builder={{
-              built,
-              flightHref: (offerId) =>
+          /*
+            Your trip: the one being built, on a band of its own so it reads
+            as the answer, with the other ways to do it below. Each band runs
+            the full width; the 64px between them (40px on a phone) is the
+            separation, not a box.
+          */
+          <div
+            id="your-trip"
+            className="before:bg-bg-alt relative scroll-mt-24 py-10 before:absolute before:inset-y-0 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 lg:py-16"
+          >
+            <YourTrip
+              built={built}
+              profile={profile}
+              reasons={explainTrip(built.trip, profile)}
+              deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
+              view={view}
+              nearMiss={!results.includes(focus)}
+              stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
+              transferOffer={offersFor('transfer')[0] ?? null}
+              planTrips={planTrips}
+              destinationHref={destinationHref(built.trip)}
+              calendarHref="#date-options-heading"
+              {...(saveSearch ? { watchHref: '#save-search-heading' } : {})}
+              flightHref={(offerId) =>
                 linkWith({
                   tTrip: focus.candidate.id,
                   tFlight: offerId,
                   tHotel: searchValues.tHotel ?? null,
-                }),
-              hotelHref: (offerId) =>
+                })
+              }
+              hotelHref={(offerId) =>
                 linkWith({
                   tTrip: focus.candidate.id,
                   tHotel: offerId,
                   tFlight: searchValues.tFlight ?? null,
-                }),
-              dateHref: (choice) => linkWith({ ...noBuild, tTrip: choice.trip.candidate.id }),
-              resetHref: linkWith({ ...noBuild, tTrip: focus.candidate.id }),
-            }}
-          />
+                })
+              }
+              resetHref={linkWith({ ...noBuild, tTrip: focus.candidate.id })}
+            />
+          </div>
+        ) : null}
+
+        {others.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-dim text-[11px] font-semibold tracking-[0.18em] uppercase">
+              Compare
+            </p>
+            <h2 id="other-ways-heading" className="font-display text-ink text-display-sm">
+              Other ways to do this trip
+            </h2>
+            <p className="text-ink-muted text-sm">
+              Other dates and places this search priced. Open one to build it instead.
+            </p>
+          </div>
         ) : null}
 
         {others.length > 0 ? (
@@ -462,7 +480,7 @@ export function SearchResults({
             opens in the builder.
           */
           <ol
-            aria-label={`Other trips, ${others.length} more`}
+            aria-labelledby="other-ways-heading"
             className="grid grid-cols-1 gap-4 xl:grid-cols-2"
           >
             {others.map((trip, index) => (
@@ -474,7 +492,7 @@ export function SearchResults({
                   view={view}
                   image={images?.get(trip.candidate.destination) ?? null}
                   country={countryOf(trip)}
-                  buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#results-heading`}
+                  buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}
                 />
               </li>
             ))}
@@ -486,27 +504,11 @@ export function SearchResults({
             the dates, because a budget is usually what somebody meant and the
             calendar is usually what they can move.
           */
-          <EmptyState
-            title="Nothing came in under your limits"
-            description={
-              nearMisses.length > 0
-                ? 'These were the closest, and each one says below what ruled it out.'
-                : 'Nothing was found within the dates, the budget and the destinations you set.'
-            }
-            action={
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button asChild variant="secondary" size="md">
-                  <a href={linkWith({ ...noBuild, flexibility: 'flexible' })}>
-                    Try more flexible dates
-                  </a>
-                </Button>
-                {changeSearchHref ? (
-                  <Button asChild variant="ghost" size="md">
-                    <a href={changeSearchHref}>Change the search</a>
-                  </Button>
-                ) : null}
-              </div>
-            }
+          <EmptySearch
+            outcome={outcome}
+            profile={profile}
+            linkWith={linkWith}
+            changeSearchHref={changeSearchHref}
           />
         )}
 
@@ -525,7 +527,7 @@ export function SearchResults({
                     view={view}
                     image={images?.get(trip.candidate.destination) ?? null}
                     country={countryOf(trip)}
-                    buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#results-heading`}
+                    buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}
                   />
                 </li>
               ))}

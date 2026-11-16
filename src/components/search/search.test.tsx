@@ -15,6 +15,10 @@ import { summariseDestinations } from '@/search/destinations';
 import { buildRankedTrip } from './test-support';
 import { offersFor } from '@/booking/partners';
 
+// The trip builder changes a leg with a soft navigation; these tests render it outside an app router.
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 /**
  * Search UI tests.
  *
@@ -103,7 +107,7 @@ describe('CostBreakdown', () => {
 });
 
 describe('WarningList', () => {
-  it('states each warning with its severity as a word', () => {
+  it('states each warning as known or to check, in words rather than a badge', () => {
     const trip = buildRankedTrip({
       flight: buildFlightOffer({
         outbound: { ...buildFlightOffer().outbound, selfTransfer: true },
@@ -113,7 +117,8 @@ describe('WarningList', () => {
     render(<WarningList warnings={trip.warnings} />);
 
     expect(screen.getByText(/not protected by the airline/)).toBeInTheDocument();
-    expect(screen.getAllByText('Severity:').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Known:').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Severity/)).toBeNull();
   });
 
   it('says so plainly when nothing is flagged', () => {

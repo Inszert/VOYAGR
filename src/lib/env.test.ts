@@ -32,6 +32,25 @@ describe('parseEnv', () => {
     expect(() => parseEnv({ LOG_LEVEL: 'verbose' })).toThrow(EnvValidationError);
   });
 
+  it('rejects AI_PROVIDER=anthropic with a message that says why, until an adapter exists', () => {
+    expect(() => parseEnv({ AI_PROVIDER: 'anthropic' })).toThrow(EnvValidationError);
+    expect(() => parseEnv({ AI_PROVIDER: 'anthropic' })).toThrow(/AI_PROVIDER.*not implemented/);
+    expect(parseEnv({ AI_PROVIDER: 'mock' }).AI_PROVIDER).toBe('mock');
+  });
+
+  it('reads the places refresh interval in hours, a week by default and never below one', () => {
+    expect(parseEnv({}).PLACES_REFRESH_HOURS).toBe(168);
+    expect(parseEnv({ PLACES_REFRESH_HOURS: '24' }).PLACES_REFRESH_HOURS).toBe(24);
+    expect(() => parseEnv({ PLACES_REFRESH_HOURS: '0' })).toThrow(EnvValidationError);
+  });
+
+  it('no longer declares variables that no code read', () => {
+    const declared = Object.keys(parseEnv({}));
+
+    expect(declared).not.toContain('HOTEL_REFRESH_MINUTES');
+    expect(declared.filter((key) => key.endsWith('_PROVIDER_API_KEY'))).toEqual([]);
+  });
+
   it('rejects a malformed app URL', () => {
     expect(() => parseEnv({ NEXT_PUBLIC_APP_URL: 'not-a-url' })).toThrow(EnvValidationError);
   });
@@ -132,11 +151,8 @@ describe('getCapabilities', () => {
     ).toBe(true);
   });
 
-  it('requires both a live provider and a key for live AI', () => {
-    expect(getCapabilities(parseEnv({ AI_PROVIDER: 'anthropic' })).liveAi).toBe(false);
-    expect(
-      getCapabilities(parseEnv({ AI_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-test' })).liveAi,
-    ).toBe(true);
+  it('has no live AI while the only adapter is the mock, whatever key is set', () => {
+    expect(getCapabilities(parseEnv({ ANTHROPIC_API_KEY: 'sk-test' })).liveAi).toBe(false);
   });
 });
 

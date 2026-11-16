@@ -22,7 +22,8 @@ export const SheetClose = RadixDialog.Close;
 export interface SheetContentProps extends React.ComponentPropsWithoutRef<'div'> {
   /** The accessible name of the dialog. Required: a dialog with no name is announced as nothing. */
   title: string;
-  side?: 'right' | 'left';
+  /** `bottom` is the phone's summary sheet: full width, up to 85% of the screen. */
+  side?: 'right' | 'left' | 'bottom';
 }
 
 export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
@@ -35,8 +36,11 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
           aria-describedby={undefined}
           data-side={side}
           className={cn(
-            'voyagr-sheet bg-surface-raised text-ink border-border shadow-floating fixed inset-y-0 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto border-l',
-            side === 'right' ? 'right-0' : 'left-0',
+            'voyagr-sheet bg-surface-raised text-ink border-border shadow-floating fixed z-50 flex flex-col overflow-y-auto',
+            side === 'bottom'
+              ? 'inset-x-0 bottom-0 max-h-[85dvh] rounded-t-(--radius-shell) border-t'
+              : 'inset-y-0 w-[min(22rem,calc(100vw-2rem))] border-l',
+            side === 'right' ? 'right-0' : side === 'left' ? 'left-0' : null,
             className,
           )}
           {...props}

@@ -29,21 +29,25 @@ export default function StaysLoading() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {Array.from({ length: 3 }, (_, index) => (
-            <div
-              key={index}
-              className="border-border flex min-h-32 overflow-hidden rounded-(--radius-card) border"
-            >
-              <Skeleton className="w-28 shrink-0 rounded-none sm:w-56 md:w-64 lg:w-72" />
-              <div className="flex flex-1 flex-col gap-2.5 p-4">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="mt-4 ml-auto h-6 w-24" />
+        {/* The list on the left and the map on the right from 1024px, as the results arrive. */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div
+                key={index}
+                className="border-border grid grid-cols-[4.5rem_minmax(0,1fr)] gap-4 rounded-(--radius-card) border p-3 sm:grid-cols-[6rem_minmax(0,1fr)_auto] sm:p-4"
+              >
+                <Skeleton className="aspect-square rounded-(--radius-control)" />
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+                <Skeleton className="hidden h-6 w-24 sm:block" />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          <Skeleton className="hidden rounded-(--radius-surface) lg:block lg:h-[calc(100vh-72px-2rem)]" />
         </div>
       </Container>
     </div>

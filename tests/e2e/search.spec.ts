@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { axeFindings, waitForEntranceMotion } from './support/axe';
 import { watchRequests } from './support/requests';
 import { aSearch, closeSearch, openSearch } from './support/searches';
@@ -87,6 +87,66 @@ function weekendOnOrAfter(earliest: string): { friday: string; sunday: string } 
   return { friday: iso(friday), sunday: iso(friday + 2 * 86_400_000) };
 }
 
+/**
+ * The trip's summary: the panel beside the legs on a wide screen, the sheet
+ * the bottom bar opens on a phone.
+ */
+async function openSummary(page: Page) {
+  // The summary is drawn with the results; asking before they are on the page
+  // reads "not there" and sends a desktop down the phone's path.
+  await expect(page.getByRole('article').first()).toBeVisible();
+  const panel = page.getByRole('complementary', { name: 'Trip summary' });
+  if (await panel.isVisible()) return panel;
+  await page.locator('#your-trip').scrollIntoViewIfNeeded();
+  await page
+    .getByRole('button', { name: /per person/ })
+    .first()
+    .click();
+  return page.getByRole('dialog', { name: 'Your trip, in total' });
+}
+
+/**
+ * The search's own destinations, as they can be reached from the builder.
+ *
+ * The mock flight source answers one to three flights per route and date, so
+ * on any given day the top trip to one place may have nothing to swap to. What
+ * is under test is that a swap works when there is one, so this looks through
+ * the three places for the first whose top trip has more than one choice for
+ * the leg, and fails loudly if none does.
+ */
+async function tripWithChoices(
+  page: Page,
+  leg: RegExp,
+  change: string,
+): Promise<{ region: Locator; options: Locator }> {
+  for (const code of ['AYT', 'CHQ', 'SPU']) {
+    await page.goto(`${A_SEARCH}&fDest=${code}`);
+    const trip = page.locator('#your-trip');
+    if ((await trip.count()) === 0) continue;
+
+    const region = trip.getByRole('region', { name: leg }).first();
+    await region.getByRole('button', { name: change }).click();
+    const options = region.getByRole('radio');
+    // Open once its button says so; a place with nothing to swap to says that instead.
+    await expect(region.getByRole('button', { name: /^Done changing/ })).toBeVisible();
+    if ((await options.count()) > 1) return { region, options };
+  }
+  throw new Error(`none of the three places had a top trip with another ${change}`);
+}
+
+/** The figure a leg's row promised the whole trip would cost, and which row it was. */
+async function promisedBy(options: Locator): Promise<{ index: number; trip: string }> {
+  const count = await options.count();
+  for (let index = 0; index < count; index += 1) {
+    if (await options.nth(index).isChecked()) continue;
+    const row = await options.nth(index).locator('xpath=ancestor::label').innerText();
+    const trip = /trip (€[\d,.]+)/.exec(row)?.[1];
+    if (!trip) throw new Error(`a row promised no trip total: ${row}`);
+    return { index, trip };
+  }
+  throw new Error('every row was the current one');
+}
+
 test.describe('discovery', () => {
   test('opens on the world, priced, for someone who does not know where they want to go', async ({
     page,
@@ -154,7 +214,9 @@ test.describe('discovery', () => {
     // Every destination of the search is a chip on the same globe, and a link:
     // the canvas is decoration, the facts are in the page.
     await expect(page.locator('a[data-destination]').first()).toBeAttached({ timeout: 20_000 });
-    await expect(page.locator('a[data-destination]')).toHaveCount(3);
+    // The search's three places are pins that narrow to them; the other
+    // names on the planet are labels that open the search for that place.
+    await expect(page.locator('a[data-destination][href*="fDest="]')).toHaveCount(3);
     await expect(page.locator('.maplibregl-canvas')).toBeVisible();
   });
 
@@ -214,24 +276,25 @@ test.describe('running a search', () => {
     await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();
   });
 
-  test('draws each flight as a route, the way the globe does', async ({ page }) => {
+  test('draws each flight as a leg of one journey, with its own times', async ({ page }) => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
 
     // Both legs, each with the clock times the provider gave and what the
-    // routing actually is. The shape of the journey is the thing somebody
-    // comparing trips reads, and it is the shape they clicked to get here.
-    const legs = top.getByRole('list', { name: 'Flights' }).getByRole('listitem');
-    await expect(legs).toHaveCount(2);
-    for (const leg of await legs.all()) {
-      // Two clock faces, there and back: the provider's times, not ours.
-      await expect(leg).toContainText(/\d{2}:\d{2}.*\d{2}:\d{2}/);
+    // routing actually is: two clock faces, there and back - never the
+    // departure printed twice for the arrival.
+    for (const name of [/^Outbound/, /^Return/]) {
+      const leg = top.getByRole('region', { name }).first();
+      await expect(leg).toContainText(/\d{2}:\d{2}[\s\S]*\d{2}:\d{2}/);
+      await expect(leg.getByText(/^\d+h( \d+m)?$/).first()).toBeVisible();
+      await expect(leg.getByText(/^(Direct|\d+ stops?( in .+)?)$/).first()).toBeVisible();
     }
-    await expect(top.getByText(/\d+h( \d+m)? · (direct|\d+ stops? in)/).first()).toBeVisible();
 
     // And the price says what it is worth against the limit that was set.
-    await expect(top.getByText(/(under|over) your maximum/)).toBeVisible();
+    const summary = await openSummary(page);
+    await expect(summary.getByText(/(under|over) your maximum/)).toBeVisible();
+    await expect(summary.getByText(/^Total for \d travellers?$/)).toBeVisible();
   });
 
   test('explains why the top result ranks where it does', async ({ page }) => {
@@ -240,9 +303,8 @@ test.describe('running a search', () => {
     const top = page.getByRole('article').first();
 
     // The score and its reasons are one click away, never absent.
-    const scoreDisclosure = top.getByText(/How the score of \d+ was calculated/);
-    await scoreDisclosure.click();
     await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
+    await top.getByText(/How the score of \d+ adds up/).click();
     await expect(top.getByRole('rowheader', { name: 'Budget fit' })).toBeVisible();
     await expect(top.getByText('Complete Trip Value Score')).toBeVisible();
   });
@@ -251,7 +313,6 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
-    await top.getByText('Open the breakdown').click();
     await top.getByText('Full cost breakdown').click();
 
     await expect(top.getByRole('columnheader', { name: 'Confidence' })).toBeVisible();
@@ -265,7 +326,9 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
-    await expect(top.getByRole('heading', { name: 'Before you book' })).toBeVisible();
+    await expect(top.getByRole('heading', { name: 'Good to know' })).toBeVisible();
+    // A checklist in words, not "Severity" badges.
+    await expect(top.getByText(/Severity/)).toHaveCount(0);
   });
 
   test('keeps a rejected form usable and says what was wrong', async ({ page }) => {
@@ -297,35 +360,43 @@ test.describe('running a search', () => {
     await expect(page.getByText(/exceeds the maximum budget/).first()).toBeVisible();
   });
 
-  test('offers alternative flights priced as whole trips', async ({ page }) => {
-    // Phase 1.10: a swap recalculates everything, and the list says what the
-    // trip would cost and score - never just what the flight costs.
-    await page.goto(A_SEARCH);
+  test('offers alternative flights priced as whole trips, and swaps one in', async ({ page }) => {
+    // Phase 1.10: a swap recalculates everything, and each option says what
+    // the whole trip would cost with it - never just what the flight costs.
+    const { region, options } = await tripWithChoices(page, /^Outbound/, 'Change outbound flight');
 
-    const top = page.getByRole('article').first();
+    await expect(options.first()).toBeVisible();
+    // The current choice in a word, not by colour alone.
+    await expect(region.getByText('Selected')).toBeVisible();
+    await expect(region.getByText(/^trip €[\d,.]+$/).first()).toBeVisible();
+    await expect(region.getByText(/^(\+ €|− €)[\d,.]+$|^same price$/).first()).toBeVisible();
 
-    // Scoped to this panel: a bare `.first()` on the card would happily match
-    // text inside one of the other, still-closed disclosures. Located by the
-    // `details` element the Disclosure component is documented to render,
-    // because browsers do not agree on exposing it as a named `group` role.
-    await top.getByText('Open the breakdown').click();
-    const panel = top.locator('details:has(> summary:has-text("Change the flight"))');
-    await panel.getByText('Change the flight').click();
+    // Choosing one swaps it in, and the total becomes the figure the row promised.
+    const { index, trip } = await promisedBy(options);
+    const chosen = await options.nth(index).getAttribute('value');
+    await options.nth(index).check();
 
-    await expect(panel.getByText('Chosen')).toBeVisible();
-    await expect(panel.getByText(/total/).first()).toBeVisible();
-    await expect(panel.getByText(/score \d+/).first()).toBeVisible();
+    await expect(page).toHaveURL(/tFlight=/);
+    await expect(page.getByRole('radio', { checked: true }).first()).toHaveValue(chosen ?? '');
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: /Trip total is now/ }),
+    ).toContainText(trip);
   });
 
-  test('offers alternative hotels the same way', async ({ page }) => {
-    await page.goto(A_SEARCH);
+  test('offers alternative hotels the same way, and swaps one in', async ({ page }) => {
+    const { region, options } = await tripWithChoices(page, /^Stay/, 'Change stay');
 
-    const top = page.getByRole('article').first();
-    await top.getByText('Open the breakdown').click();
-    const panel = top.locator('details:has(> summary:has-text("Change the hotel"))');
-    await panel.getByText('Change the hotel').click();
+    await expect(region.getByText(/^(\+ €|− €)[\d,.]+$|^same price$/).first()).toBeVisible();
 
-    await expect(panel.getByText(/cheaper|more|Same price/).first()).toBeVisible();
+    const { index, trip } = await promisedBy(options);
+    const chosen = await options.nth(index).getAttribute('value');
+    await options.nth(index).check();
+
+    await expect(page).toHaveURL(/tHotel=/);
+    await expect(page.getByRole('radio', { checked: true }).first()).toHaveValue(chosen ?? '');
+    await expect(
+      page.locator('[aria-live="polite"]').filter({ hasText: /Trip total is now/ }),
+    ).toContainText(trip);
   });
 
   test('carries no demo banner or source badge on a trip', async ({ page }) => {
@@ -334,7 +405,7 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     await expect(page.getByRole('note')).toHaveCount(0);
-    const card = page.getByRole('article').first();
+    const card = await openSummary(page);
     await expect(card.getByText('from', { exact: true })).toBeVisible();
     await expect(card.getByText('Demo data')).toHaveCount(0);
     await expect(card.getByText('DEMO', { exact: false })).toHaveCount(0);
@@ -379,24 +450,65 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
 
     const top = page.getByRole('article').first();
-    await top.getByText(/How the score of \d+ was calculated/).click();
     await expect(top.getByRole('heading', { name: 'Why this trip?' })).toBeVisible();
-    // The at-a-glance figures a card should carry.
-    await expect(top.getByText('Weather').first()).toBeVisible();
-    await top.getByText('Open the breakdown').click();
-    await expect(top.getByText('Airport transfer').first()).toBeVisible();
+    // The score is explained in a sentence before it is a number.
+    await expect(top.getByText(/\d+ out of 100/)).toBeVisible();
+    // The weather, in words, and honest about being typical rather than forecast.
+    await expect(top.getByText(/typical for these dates|forecast/i).first()).toBeVisible();
+    // And what the trip costs, line by line, is one disclosure away.
+    await top.getByText('Full cost breakdown').click();
+    await expect(top.getByRole('columnheader', { name: 'Confidence' })).toBeVisible();
+    // The transfer is a line of its own there, counted or said to be left out.
+    const table = top.getByRole('table').filter({
+      has: page.getByRole('columnheader', { name: 'Confidence' }),
+    });
+    await expect(table.getByRole('rowheader', { name: 'Airport transfer' })).toBeVisible();
   });
 
   test('is operable by keyboard alone', async ({ page }) => {
     await page.goto(A_SEARCH);
+    await expect(page.getByRole('article').first()).toBeVisible();
 
-    await page.getByText('Open the breakdown').first().click();
+    // A disclosure opens with Enter.
     const summary = page.getByText('Full cost breakdown').first();
     await summary.focus();
     await expect(summary).toBeFocused();
-
     await page.keyboard.press('Enter');
     await expect(page.getByRole('columnheader', { name: 'Confidence' }).first()).toBeVisible();
+  });
+
+  test('changing a leg works from the keyboard, and keeps its place', async ({ page }) => {
+    const { region, options } = await tripWithChoices(page, /^Outbound/, 'Change outbound flight');
+    // Fold it from its own button, as a keyboard user would, to start from rest.
+    const toggle = region.getByRole('button', { name: /changing the outbound flight$/ });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(options.first()).toBeHidden();
+    await expect(region.getByRole('button', { name: 'Change outbound flight' })).toBeFocused();
+
+    // Enter opens it; Tab reaches the sort chips and then the choices.
+    await page.keyboard.press('Enter');
+    await expect(options.first()).toBeVisible();
+    for (let step = 0; step < 6; step += 1) {
+      if ((await page.evaluate(() => document.activeElement?.getAttribute('type'))) === 'radio') {
+        break;
+      }
+      await page.keyboard.press('Tab');
+    }
+    await expect(page.locator(':focus')).toHaveAttribute('type', 'radio');
+
+    // An arrow key chooses the next one, and the page that follows still has
+    // the keyboard where it was: on a choice, not on the body.
+    const before = await page.locator(':focus').getAttribute('value');
+    await page.keyboard.press('ArrowDown');
+    await expect(page).toHaveURL(/tFlight=/);
+    await expect(page.locator(':focus')).toHaveAttribute('type', 'radio');
+    await expect(page.locator(':focus')).not.toHaveAttribute('value', before ?? '');
+
+    // Escape folds the panel and hands focus back to its button.
+    await page.keyboard.press('Escape');
+    await expect(options.first()).toBeHidden();
+    await expect(region.getByRole('button', { name: 'Change outbound flight' })).toBeFocused();
   });
 
   test('has no detectable accessibility violations with results on screen', async ({ page }) => {
@@ -406,6 +518,40 @@ test.describe('running a search', () => {
     await waitForEntranceMotion(page);
 
     expect(await axeFindings(page)).toEqual([]);
+  });
+});
+
+test.describe('the trip summary on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('is a bar with the total, and a sheet that holds focus and gives it back', async ({
+    page,
+  }) => {
+    await page.goto(A_SEARCH);
+    await expect(page.getByRole('article').first()).toBeVisible();
+
+    // Away from the trip there is no bar; at it, there is, and it names the total.
+    const bar = page.getByRole('button', { name: /per person/ }).first();
+    await expect(bar).toBeHidden();
+    await page.locator('#your-trip').scrollIntoViewIfNeeded();
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText(/€[\d,.]+/);
+
+    // Opened from the keyboard, the sheet is a dialog that the focus stays inside.
+    await bar.focus();
+    await page.keyboard.press('Enter');
+    const sheet = page.getByRole('dialog', { name: 'Your trip, in total' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByText(/^Total for \d travellers?$/)).toBeVisible();
+    for (let step = 0; step < 12; step += 1) {
+      await page.keyboard.press('Tab');
+      expect(await sheet.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+    }
+
+    // Escape closes it and the keyboard is back on the bar.
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(bar).toBeFocused();
   });
 });
 
@@ -540,7 +686,10 @@ test.describe('the globe', () => {
 
     // On the results the globe's chips are the way to narrow to one place.
     // Only the ones on the near side of the planet can be pressed.
-    const chip = page.locator('a[data-destination]').locator('visible=true').first();
+    const chip = page
+      .locator('a[data-destination][href*="fDest="]')
+      .locator('visible=true')
+      .first();
     await expect(chip).toBeVisible({ timeout: 20_000 });
     await expect(chip).toHaveAttribute('href', /fDest=[A-Z]{3}/);
     await chip.click();

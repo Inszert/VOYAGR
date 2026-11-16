@@ -1,4 +1,5 @@
-import { cacheKey, getCacheStore, readThrough, type CacheStore } from '@/cache';
+import { cacheKey, getCacheStore, loadAndStore, readThrough, type CacheStore } from '@/cache';
+import { freshnessOf } from '@/core/freshness';
 import { createLimiterPool, type LimiterPool } from '@/lib/concurrency';
 import { getLogger } from '@/lib/logger';
 import { isOk } from '@/lib/result';
@@ -108,12 +109,16 @@ export interface ThingsToDoRequest {
   readonly fetchCredits?: typeof fetchCommonsCredits;
 }
 
-/** Never throws: every failure ends as a status the page can word. */
-export async function loadThingsToDo(request: ThingsToDoRequest): Promise<ThingsToDoOutcome> {
-  const provider = request.provider ?? getProviderRegistry().places;
-  if (provider.metadata.mode === 'absent') return { status: 'absent' };
+function thingsKey(provider: PlacesProvider, request: ThingsToDoRequest): string {
+  return cacheKey('places', {
+    provider: provider.metadata.id,
+    destination: request.destination,
+    position: request.position,
+  });
+}
 
-  const store = request.store ?? getCacheStore();
+/** The cache options for one destination, shared by the page and the worker so they cannot disagree. */
+function thingsCacheOptions(provider: PlacesProvider, request: ThingsToDoRequest) {
   const limiter = limiters().for(
     provider.metadata.id,
     concurrencyFor(
@@ -123,33 +128,82 @@ export async function loadThingsToDo(request: ThingsToDoRequest): Promise<Things
     ),
   );
 
+  return {
+    freshMs: THINGS_FRESH_MS,
+    staleMs: THINGS_STALE_MS,
+    // A failed load is thrown out of the loader so it is never cached as an answer.
+    load: async () => {
+      // The leaf call, and only the leaf call, holds the slot.
+      const result = await limiter.run(() =>
+        provider.thingsToDo({
+          destination: request.destination,
+          destinationName: request.destinationName,
+          position: request.position,
+          maxResults: FETCH_LIMIT,
+        }),
+      );
+      if (!isOk(result)) throw result.error;
+
+      return result.value;
+    },
+  };
+}
+
+/** True when a visitor would be served this destination without a provider call. */
+export async function isThingsToDoFresh(
+  request: ThingsToDoRequest,
+  now: () => number = Date.now,
+): Promise<boolean> {
+  const provider = request.provider ?? getProviderRegistry().places;
+  if (provider.metadata.mode === 'absent') return true;
+
+  const entry = await (request.store ?? getCacheStore())
+    .get(thingsKey(provider, request))
+    .catch(() => null);
+
+  return freshnessOf(entry?.observedAt, now(), { maxAgeMs: THINGS_FRESH_MS }) === 'fresh';
+}
+
+/**
+ * Fill the cache for one destination ahead of its first visitor.
+ *
+ * The worker's entry point. The first look at a city asks Wikidata a heavy
+ * question (15 to 45 seconds), so it is asked here, on the worker's schedule, and
+ * a page finds the answer waiting. A fresh entry is left alone; a failure throws,
+ * so the queue retries and the entry it was to replace keeps being served.
+ */
+export async function warmThingsToDo(
+  request: ThingsToDoRequest,
+): Promise<'absent' | 'fresh' | 'warmed'> {
+  const provider = request.provider ?? getProviderRegistry().places;
+  if (provider.metadata.mode === 'absent') return 'absent';
+  if (await isThingsToDoFresh(request)) return 'fresh';
+
+  const store = request.store ?? getCacheStore();
+  const loaded = await loadAndStore(
+    store,
+    thingsKey(provider, request),
+    thingsCacheOptions(provider, request),
+  );
+
+  // The pictures' credits are the other half of the first visit's wait.
+  await creditsFor(loaded.value, store, request.fetchCredits ?? fetchCommonsCredits);
+
+  return 'warmed';
+}
+
+/** Never throws: every failure ends as a status the page can word. */
+export async function loadThingsToDo(request: ThingsToDoRequest): Promise<ThingsToDoOutcome> {
+  const provider = request.provider ?? getProviderRegistry().places;
+  if (provider.metadata.mode === 'absent') return { status: 'absent' };
+
+  const store = request.store ?? getCacheStore();
+
   try {
     const cached = await readThrough(
       store,
-      cacheKey('places', {
-        provider: provider.metadata.id,
-        destination: request.destination,
-        position: request.position,
-      }),
-      {
-        freshMs: THINGS_FRESH_MS,
-        staleMs: THINGS_STALE_MS,
-        // A failed load is thrown out of the loader so it is never cached as an answer.
-        load: async () => {
-          // The leaf call, and only the leaf call, holds the slot.
-          const result = await limiter.run(() =>
-            provider.thingsToDo({
-              destination: request.destination,
-              destinationName: request.destinationName,
-              position: request.position,
-              maxResults: FETCH_LIMIT,
-            }),
-          );
-          if (!isOk(result)) throw result.error;
-
-          return result.value;
-        },
-      },
+      thingsKey(provider, request),
+      thingsCacheOptions(provider, request),
     );
 
     if (cached.value === null) {

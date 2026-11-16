@@ -31,8 +31,9 @@ QUEUE_DRIVER=memory
 # How often the worker re-prices what the front pages show, in minutes (1 to 1440).
 # This sets the background Aviasales spend: see "Quota maths" in docs/architecture.md.
 PRICE_REFRESH_MINUTES=30
-# Reserved for stays; read by no code today.
-HOTEL_REFRESH_MINUTES=360
+# How often the worker pre-warms things to do from Wikidata, in hours (1 to 720). 40 destinations a
+# round, skipping any still fresh. Keep it long: the query service asks to be asked rarely.
+PLACES_REFRESH_HOURS=168
 
 # --- Flights ------------------------------------------------------------------
 # mock | live | aviasales. Production refuses mock, and live has no adapter.
@@ -41,6 +42,14 @@ FLIGHT_PROVIDER=mock
 AVIASALES_API_TOKEN=
 # Travelpayouts affiliate marker. Public; appears in outbound links.
 AVIASALES_PARTNER_ID=
+# OPTIONAL, OFF BY DEFAULT. Google Flights through the unofficial scraper sidecar in
+# services/google-flights/ - an owner-approved exception to docs/provider-policy.md (Google's terms
+# do not permit automated access; it can be blocked at any time). Unset means it cannot be reached.
+# Even when set, nothing uses it until the provider is selected (see docs/runbook.md, 5a).
+GOOGLE_FLIGHTS_SIDECAR_URL=
+# Shared secret the sidecar expects in X-Voyagr-Sidecar-Key (set it there as VOYAGR_SIDECAR_KEY).
+# Secret. Never logged.
+GOOGLE_FLIGHTS_SIDECAR_KEY=
 # Days either side shown by the flexible-dates strip (0 to 7).
 FLEX_DAYS=3
 
@@ -55,6 +64,8 @@ TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID=
 # In production these default to absent, so a cost line is excluded rather than invented.
 HOTEL_PROVIDER=mock
 TRANSFER_PROVIDER=mock
+# Things to do and their photographs. mock | live | absent | wikidata. wikidata is keyless (CC0) and
+# is the production default; mock becomes absent in production.
 PLACES_PROVIDER=mock
 
 # --- Weather and currency -----------------------------------------------------
@@ -62,14 +73,6 @@ PLACES_PROVIDER=mock
 WEATHER_PROVIDER=open-meteo
 # ecb is keyless (daily ECB rates). mock means no rates, so foreign quotes are dropped.
 FX_PROVIDER=ecb
-
-# --- Declared but read by no code ---------------------------------------------
-# Redacted from logs if set. Leave empty.
-FLIGHT_PROVIDER_API_KEY=
-HOTEL_PROVIDER_API_KEY=
-WEATHER_PROVIDER_API_KEY=
-TRANSFER_PROVIDER_API_KEY=
-PLACES_PROVIDER_API_KEY=
 
 # --- Imagery ------------------------------------------------------------------
 # wikimedia (photo fallback when no shipped illustration exists) or none.
@@ -93,7 +96,7 @@ VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:you@example.com
 
 # --- AI -----------------------------------------------------------------------
-# mock is the only working value. anthropic is accepted by the schema and fails at startup.
+# mock is the only working value. anthropic is rejected by validation until an adapter exists.
 AI_PROVIDER=mock
 AI_MODEL=claude-sonnet-5
 ANTHROPIC_API_KEY=
@@ -104,4 +107,8 @@ ANTHROPIC_API_KEY=
 # Lets a production build serve fixtures. For the end-to-end suite only.
 # NEVER SET IN A REAL DEPLOYMENT. It also turns off the Travelpayouts Drive script.
 # ALLOW_MOCK_IN_PRODUCTION=false
+# TEST ONLY. Makes the consented Drive script load a same-origin stub (/api/test/drive-stub) instead of
+# the vendor's host, so the end-to-end suite can prove the cookie-consent gating. Honoured only
+# together with ALLOW_MOCK_IN_PRODUCTION; does nothing on a real deployment. NEVER SET THERE.
+# DRIVE_TEST_STUB=false
 ```

@@ -848,12 +848,237 @@ async function buildRegions(countries) {
   );
 }
 
-const countries = await buildCountries();
-await buildPhysical();
-await buildLand();
-await buildIce();
-await buildPlaces();
-await buildCoastline();
-await buildRegions(countries);
+/*
+ * The places the globe names as it turns: cities, each with the airport a
+ * search would take, in two tiers.
+ *
+ * The priced pins are the places the product has an answer for; everything
+ * else on the globe used to be a dim dot with no name. These are those names -
+ * "See prices for Kraków, Poland" - chosen by what is facing the camera and
+ * how far in it is zoomed (see `globe-labels.ts`). Tier 1 is shown at globe
+ * zoom; tier 2, the regional airports and smaller cities, only once somebody
+ * has zoomed in far enough to be looking at a country.
+ *
+ * Two public-domain sources, joined at build time:
+ *  - OurAirports (ODC-PDDL): every large or medium airport with scheduled
+ *    service and an IATA code - what a search can be pointed at.
+ *  - Natural Earth populated places, 10m: the city the airport serves - its
+ *    English name, its population, and where its centre is.
+ *
+ * An airport takes the largest populated place in the same country within
+ * SERVES_KM; with none, it keeps OurAirports' municipality and its own
+ * position, and a population of zero so it sorts last. Several airports in one
+ * city become one label, linked to the busiest of them. Nothing is inferred
+ * beyond that: a city has the name and the population its source states.
+ *
+ * Run alone with `node scripts/build-geo.mjs --only=label-places`; the file has
+ * its own version so it can change without rebuilding the rest.
+ */
+const LABEL_PLACES_VERSION = 1;
+const LABEL_PLACES_OUT = `public/geo/label-places.v${LABEL_PLACES_VERSION}.json`;
+const AIRPORTS_CSV = '.airports-cache/airports.csv';
+const SERVES_KM = 35;
+/** A city this size or larger is named at globe zoom whatever its airport. */
+const TIER_ONE_POPULATION = 750_000;
+/** The second tier, by population, stops here: enough to fill a zoomed country. */
+const TIER_TWO_MAX = 1_600;
+
+function parseCsvLine(line) {
+  const fields = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ',') {
+      fields.push(field);
+      field = '';
+    } else {
+      field += char;
+    }
+  }
+
+  fields.push(field);
+  return fields;
+}
+
+function kilometresBetween(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * rad;
+  const dLon = (b[0] - a[0]) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+async function buildLabelPlaces() {
+  if (!existsSync(AIRPORTS_CSV)) {
+    throw new Error(`${AIRPORTS_CSV} is missing: run node scripts/build-airports.mjs first`);
+  }
+
+  const lines = (await readFile(AIRPORTS_CSV, 'utf8')).split(/\r?\n/).filter(Boolean);
+  const header = parseCsvLine(lines[0]);
+  const col = Object.fromEntries(header.map((name, index) => [name, index]));
+
+  const airports = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const f = parseCsvLine(lines[i]);
+    const iata = f[col.iata_code];
+    const type = f[col.type];
+    if (!/^[A-Z]{3}$/.test(iata ?? '') || f[col.scheduled_service] !== 'yes') continue;
+    if (type !== 'large_airport' && type !== 'medium_airport') continue;
+
+    const lat = Number.parseFloat(f[col.latitude_deg]);
+    const lon = Number.parseFloat(f[col.longitude_deg]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+    airports.push({
+      iata,
+      large: type === 'large_airport',
+      iso2: f[col.iso_country],
+      municipality: (f[col.municipality] || '').replace(/\s*\(.*\)\s*$/, '').trim(),
+      position: [lon, lat],
+    });
+  }
+
+  const cities = (await source('ne_10m_populated_places_simple')).features
+    .map((feature) => ({
+      name: feature.properties?.name,
+      iso2: feature.properties?.iso_a2,
+      population: Number(feature.properties?.pop_max) || 0,
+      position: feature.geometry?.coordinates,
+    }))
+    .filter((city) => typeof city.name === 'string' && Array.isArray(city.position));
+
+  // A coarse grid, so each airport looks at its own neighbourhood only.
+  const grid = new Map();
+  const cell = (lon, lat) => `${Math.floor(lon)}:${Math.floor(lat)}`;
+  for (const city of cities) {
+    const key = cell(city.position[0], city.position[1]);
+    grid.set(key, [...(grid.get(key) ?? []), city]);
+  }
+
+  // Natural Earth's major airports, with its rank: which of a city's airports is its main one.
+  const major = new Map(
+    JSON.parse(await readFile(PLACES_OUT, 'utf8'))
+      .features.filter((feature) => feature.properties.kind === 'airport')
+      .map((feature) => [feature.properties.iata, Number(feature.properties.rank) || 0]),
+  );
+
+  const countries = JSON.parse(await readFile('src/discovery/countries.generated.json', 'utf8'));
+  const countryByIso2 = new Map(countries.map((country) => [country.iso2, country.shortName]));
+
+  const byCity = new Map();
+  let matched = 0;
+
+  for (const airport of airports) {
+    const [lon, lat] = airport.position;
+    let best = null;
+
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (const city of grid.get(cell(lon + dx, lat + dy)) ?? []) {
+          if (city.iso2 !== airport.iso2) continue;
+          if (kilometresBetween(airport.position, city.position) > SERVES_KM) continue;
+          if (!best || city.population > best.population) best = city;
+        }
+      }
+    }
+
+    if (best) matched += 1;
+    const name = best?.name ?? airport.municipality;
+    if (!name) continue;
+
+    const position = best?.position ?? airport.position;
+    const key = `${airport.iso2}:${name}`;
+    const score =
+      (airport.large ? 2 : 0) + (major.has(airport.iata) ? 1 + major.get(airport.iata) / 10 : 0);
+    const existing = byCity.get(key);
+
+    if (!existing || score > existing.score) {
+      byCity.set(key, {
+        code: airport.iata,
+        name,
+        country: countryByIso2.get(airport.iso2) ?? null,
+        position: [round(position[0], 100), round(position[1], 100)],
+        population: best?.population ?? 0,
+        score,
+        major: major.has(airport.iata) || Boolean(existing?.major),
+      });
+    } else if (major.has(airport.iata)) {
+      existing.major = true;
+    }
+  }
+
+  const all = [...byCity.values()];
+  const tierOne = new Set(
+    all.filter((place) => place.major || place.population >= TIER_ONE_POPULATION),
+  );
+  const tierTwo = all
+    .filter((place) => !tierOne.has(place) && place.population > 0)
+    .sort((a, b) => b.population - a.population || a.code.localeCompare(b.code))
+    .slice(0, TIER_TWO_MAX);
+
+  // Rows rather than objects: a few thousand of them, and every key repeated
+  // would be most of the file. [code, city, country, lon, lat, population, tier].
+  const rows = [...[...tierOne].map((place) => [place, 1]), ...tierTwo.map((place) => [place, 2])]
+    .sort(([a], [b]) => a.code.localeCompare(b.code))
+    .map(([place, tier]) => [
+      place.code,
+      place.name,
+      place.country,
+      place.position[0],
+      place.position[1],
+      place.population,
+      tier,
+    ]);
+
+  const text = JSON.stringify({
+    source: 'OurAirports (ODC-PDDL) and Natural Earth populated places 10m (public domain)',
+    columns: ['code', 'city', 'country', 'lon', 'lat', 'population', 'tier'],
+    rows,
+  });
+
+  if (existsSync(LABEL_PLACES_OUT) && (await readFile(LABEL_PLACES_OUT, 'utf8')) !== text) {
+    throw new Error(
+      `${LABEL_PLACES_OUT} already exists with different content. Bump LABEL_PLACES_VERSION.`,
+    );
+  }
+  await writeFile(LABEL_PLACES_OUT, text);
+
+  process.stdout.write(
+    `  ${tierOne.size} tier-1 and ${tierTwo.length} tier-2 places from ${airports.length} airports ` +
+      `(${matched} matched to a city within ${SERVES_KM} km) (${kilobytes(text)})\n`,
+  );
+}
+
+const only = process.argv.find((arg) => arg.startsWith('--only='))?.slice('--only='.length);
+
+if (only === 'label-places') {
+  await buildLabelPlaces();
+} else {
+  const countries = await buildCountries();
+  await buildPhysical();
+  await buildLand();
+  await buildIce();
+  await buildPlaces();
+  await buildCoastline();
+  await buildRegions(countries);
+  await buildLabelPlaces();
+}
 
 process.stdout.write('Geographic data rebuilt.\n');

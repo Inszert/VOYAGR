@@ -47,16 +47,23 @@ export async function signUpAction(
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
 
+  let verificationEmailSent: boolean;
+
   try {
     const issued = await getAuthService().register(email, password);
     await setSessionCookie(issued.token);
+    verificationEmailSent = issued.verificationEmailSent;
   } catch (error) {
     return { error: publicMessage(error, 'Could not create that account.'), email };
   }
 
   // Outside the try: `redirect` works by throwing, and catching it here would
   // turn a successful sign-up into "could not create that account".
-  redirect('/account');
+  //
+  // Signed in either way, so the sign-up page itself cannot be the place to
+  // say the mail failed: it sends a signed-in visitor to the account, and the
+  // re-render after this action would do exactly that. The account page says it.
+  redirect(verificationEmailSent ? '/account' : '/account?verification=unsent');
 }
 
 export async function signInAction(

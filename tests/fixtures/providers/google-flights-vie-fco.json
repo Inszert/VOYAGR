@@ -1,0 +1,216 @@
+{
+  "_note": "SYNTHETIC. Google served its cookie-consent page to the real fast-flights 3.1.0 run on 2026-11-16, so no live response could be recorded. These rows were built from the library's own result classes (fast_flights.model.Flights/SingleFlight) and passed through services/google-flights/server.py flights_to_offers, so the JSON shape is the sidecar's true output; the airlines, times and prices are invented and must not be read as real fares.",
+  "outbound": {
+    "provider": "google-flights",
+    "trip": "one-way",
+    "origin": "VIE",
+    "destination": "FCO",
+    "date": "2026-12-07",
+    "return_date": null,
+    "adults": 1,
+    "currency": "EUR",
+    "fetched_at": "2026-11-16T12:00:00Z",
+    "cached": false,
+    "offers": [
+      {
+        "price": "54",
+        "currency": "EUR",
+        "airlines": ["Ryanair"],
+        "stops": 0,
+        "duration_minutes": 110,
+        "departs_at": "2026-12-07T16:45",
+        "arrives_at": "2026-12-07T18:35",
+        "is_best": null,
+        "type": "FR",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "VIE",
+            "from_name": "Vienna International Airport",
+            "to_airport": "FCO",
+            "to_name": "Leonardo da Vinci-Fiumicino Airport",
+            "departs_at": "2026-12-07T16:45",
+            "arrives_at": "2026-12-07T18:35",
+            "duration_minutes": 110,
+            "plane_type": "Boeing 737"
+          }
+        ]
+      },
+      {
+        "price": "98",
+        "currency": "EUR",
+        "airlines": ["ITA Airways"],
+        "stops": 0,
+        "duration_minutes": 110,
+        "departs_at": "2026-12-07T12:20",
+        "arrives_at": "2026-12-07T14:10",
+        "is_best": null,
+        "type": "AZ",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "VIE",
+            "from_name": "Vienna International Airport",
+            "to_airport": "FCO",
+            "to_name": "Leonardo da Vinci-Fiumicino Airport",
+            "departs_at": "2026-12-07T12:20",
+            "arrives_at": "2026-12-07T14:10",
+            "duration_minutes": 110,
+            "plane_type": "Airbus A320"
+          }
+        ]
+      },
+      {
+        "price": "129",
+        "currency": "EUR",
+        "airlines": ["Austrian"],
+        "stops": 0,
+        "duration_minutes": 105,
+        "departs_at": "2026-12-07T06:55",
+        "arrives_at": "2026-12-07T08:40",
+        "is_best": null,
+        "type": "OS",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "VIE",
+            "from_name": "Vienna International Airport",
+            "to_airport": "FCO",
+            "to_name": "Leonardo da Vinci-Fiumicino Airport",
+            "departs_at": "2026-12-07T06:55",
+            "arrives_at": "2026-12-07T08:40",
+            "duration_minutes": 105,
+            "plane_type": "Embraer 195"
+          }
+        ]
+      },
+      {
+        "price": "211",
+        "currency": "EUR",
+        "airlines": ["Lufthansa"],
+        "stops": 1,
+        "duration_minutes": 260,
+        "departs_at": "2026-12-07T09:10",
+        "arrives_at": "2026-12-07T13:30",
+        "is_best": null,
+        "type": "LH",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "VIE",
+            "from_name": "Vienna International Airport",
+            "to_airport": "MUC",
+            "to_name": "Munich Airport",
+            "departs_at": "2026-12-07T09:10",
+            "arrives_at": "2026-12-07T10:10",
+            "duration_minutes": 60,
+            "plane_type": "Canadair Regional Jet 900"
+          },
+          {
+            "from_airport": "MUC",
+            "from_name": "Munich Airport",
+            "to_airport": "FCO",
+            "to_name": "Leonardo da Vinci-Fiumicino Airport",
+            "departs_at": "2026-12-07T11:40",
+            "arrives_at": "2026-12-07T13:30",
+            "duration_minutes": 110,
+            "plane_type": "Airbus A320"
+          }
+        ]
+      }
+    ]
+  },
+  "inbound": {
+    "provider": "google-flights",
+    "trip": "one-way",
+    "origin": "FCO",
+    "destination": "VIE",
+    "date": "2026-12-12",
+    "return_date": null,
+    "adults": 1,
+    "currency": "EUR",
+    "fetched_at": "2026-11-16T12:00:00Z",
+    "cached": false,
+    "offers": [
+      {
+        "price": "61",
+        "currency": "EUR",
+        "airlines": ["Ryanair"],
+        "stops": 0,
+        "duration_minutes": 110,
+        "departs_at": "2026-12-12T19:10",
+        "arrives_at": "2026-12-12T21:00",
+        "is_best": null,
+        "type": "FR",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "FCO",
+            "from_name": "Leonardo da Vinci-Fiumicino Airport",
+            "to_airport": "VIE",
+            "to_name": "Vienna International Airport",
+            "departs_at": "2026-12-12T19:10",
+            "arrives_at": "2026-12-12T21:00",
+            "duration_minutes": 110,
+            "plane_type": "Boeing 737"
+          }
+        ]
+      },
+      {
+        "price": "112",
+        "currency": "EUR",
+        "airlines": ["ITA Airways"],
+        "stops": 0,
+        "duration_minutes": 105,
+        "departs_at": "2026-12-12T07:30",
+        "arrives_at": "2026-12-12T09:15",
+        "is_best": null,
+        "type": "AZ",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "FCO",
+            "from_name": "Leonardo da Vinci-Fiumicino Airport",
+            "to_airport": "VIE",
+            "to_name": "Vienna International Airport",
+            "departs_at": "2026-12-12T07:30",
+            "arrives_at": "2026-12-12T09:15",
+            "duration_minutes": 105,
+            "plane_type": "Airbus A320"
+          }
+        ]
+      },
+      {
+        "price": "139",
+        "currency": "EUR",
+        "airlines": ["Austrian"],
+        "stops": 0,
+        "duration_minutes": 105,
+        "departs_at": "2026-12-12T14:05",
+        "arrives_at": "2026-12-12T15:50",
+        "is_best": null,
+        "type": "OS",
+        "carbon_grams": 95000,
+        "typical_carbon_grams": 102000,
+        "segments": [
+          {
+            "from_airport": "FCO",
+            "from_name": "Leonardo da Vinci-Fiumicino Airport",
+            "to_airport": "VIE",
+            "to_name": "Vienna International Airport",
+            "departs_at": "2026-12-12T14:05",
+            "arrives_at": "2026-12-12T15:50",
+            "duration_minutes": 105,
+            "plane_type": "Embraer 195"
+          }
+        ]
+      }
+    ]
+  }
+}

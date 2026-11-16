@@ -60,6 +60,7 @@ export async function FlexDatesSection({
       best={flex.best}
       ageMs={flex.ageMs}
       reason={flex.reason}
+      travellers={trip.passengers}
       {...(className ? { className } : {})}
       hrefFor={(option) =>
         hrefTemplate

@@ -33,7 +33,7 @@ describe('toJobId', () => {
   });
 
   it('keeps the job name readable for anyone inspecting Redis', () => {
-    expect(toJobId('deal.detect', 'x')).toContain('deal.detect');
+    expect(toJobId('cache.refresh', 'x')).toContain('cache.refresh');
   });
 });
 

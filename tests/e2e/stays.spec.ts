@@ -115,6 +115,40 @@ test.describe('stays', () => {
     await expect(page.getByLabel('Leaving')).toHaveValue(flightDate);
   });
 
+  test("puts the city's hotels on a map, credits OpenStreetMap, and opens a card per pin", async ({
+    page,
+  }) => {
+    await page.goto(`${SEARCH}&checkIn=2026-12-20&checkOut=2026-12-24&dates=confirmed`);
+
+    await expect(page.getByRole('list', { name: 'Places to stay in Barcelona' })).toBeVisible();
+    await expect(page.getByText('© OpenStreetMap contributors').first()).toBeVisible();
+    // A listed hotel nobody priced never shows a figure.
+    await expect(
+      page.getByText('No price available').or(page.getByText('Check price')).first(),
+    ).toBeVisible();
+
+    const wide = (page.viewportSize()?.width ?? 0) >= 1024;
+    const scope = wide ? page : page.getByRole('dialog');
+    if (!wide) await page.getByRole('button', { name: 'Map', exact: true }).click();
+
+    const pin = scope.locator('.voyagr-stay-pin:not([hidden])').first();
+    await expect(pin).toBeVisible({ timeout: 15_000 });
+    await expect(pin).toHaveAccessibleName(/from the centre/);
+
+    if (wide) {
+      // Focus opens the pin's card; Escape closes it.
+      await pin.focus();
+      const card = page.locator('.voyagr-stay-card');
+      await expect(card).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(card).toBeHidden();
+    } else {
+      // On a phone the map sheet shows the chosen stay in its own card.
+      await pin.click();
+      await expect(scope.getByText(/km from the centre/).first()).toBeVisible();
+    }
+  });
+
   test('has no detectable accessibility violations across the flow', async ({ page }) => {
     for (const url of [
       SEARCH,

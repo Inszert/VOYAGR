@@ -89,8 +89,14 @@ export interface FlightSegment {
   readonly destination: AirportCode;
   /** Local wall-clock time at `origin`. */
   readonly departsAt: LocalDateTime;
-  /** Local wall-clock time at `destination`. */
-  readonly arrivesAt: LocalDateTime;
+  /**
+   * Local wall-clock time at `destination`, or null when the provider did not
+   * state it. A cached-fare vendor gives a departure and a duration and no
+   * arrival, and the arrival's clock face cannot be derived from those without
+   * the destination's zone - so it is unknown, never the departure repeated.
+   * Read through `legArrival` in `./legs`.
+   */
+  readonly arrivesAt: LocalDateTime | null;
   readonly carrier: string;
   readonly flightNumber: string;
 }
@@ -140,12 +146,36 @@ export interface FlightOffer {
    */
   readonly expiresAt: IsoDateTime | null;
   readonly deepLink?: string;
+  /**
+   * How the journey is ticketed. Absent means one return ticket, which is what
+   * every vendor quote is. `two_one_way` is a trip the search assembled from
+   * two single fares (`pairOneWayFares`): two bookings, each on its own terms,
+   * and the inbound booking has its own link in `returnDeepLink`.
+   */
+  readonly ticketing?: 'two_one_way';
+  readonly returnDeepLink?: string;
+}
+
+/**
+ * One single flight's cheapest fare, as a cache of one-way prices states it.
+ * Never a return price: two of them become a trip only through
+ * `pairOneWayFares`, which says so on the offer it builds.
+ */
+export interface OneWayFare {
+  readonly id: string;
+  readonly providerId: string;
+  readonly leg: FlightLeg;
+  /** For the whole party. */
+  readonly price: Money;
+  readonly observedAt: IsoDateTime;
+  readonly deepLink?: string;
 }
 
 export interface HotelOffer {
   readonly id: string;
   readonly providerId: string;
   readonly name: string;
+  /** Official star class, 1-5, or null when the provider did not state one. */
   readonly starRating: number | null;
   /** Guest review score normalised to 0-10, or null when unrated. */
   readonly reviewScore: number | null;
@@ -159,6 +189,16 @@ export interface HotelOffer {
    * A group's price depends on it, so a trip for several people shows it.
    */
   readonly rooms: number | null;
+  /**
+   * The property's own photographs, as the provider published them, best
+   * first; null when it sent none. Never filled from anywhere else: a picture
+   * of a real hotel that is not that hotel is a false statement about it.
+   */
+  readonly photoUrls: readonly string[] | null;
+  /** Where the property is, `[longitude, latitude]` (GeoJSON order), or null. */
+  readonly position: readonly [number, number] | null;
+  /** The neighbourhood the provider names ("Old Town"), or null. */
+  readonly area: string | null;
   /** Price for the whole stay, all guests, as quoted. */
   readonly totalPrice: Money;
   /** Taxes and fees not included in `totalPrice`, when the provider says so. */

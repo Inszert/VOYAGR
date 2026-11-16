@@ -7,10 +7,13 @@ import { createAbsentPlacesProvider } from '@/providers/absent';
 import type { PlacesProvider, ThingKind, ThingToDo } from '@/providers/types';
 import {
   MAX_THINGS_SHOWN,
+  THINGS_FRESH_MS,
   countsByKind,
+  isThingsToDoFresh,
   loadThingsToDo,
   parseKind,
   placesToShow,
+  warmThingsToDo,
 } from './things-to-do';
 
 function thing(id: number, kind: ThingKind, imageFile: string | null = null): ThingToDo {
@@ -199,5 +202,71 @@ describe('loadThingsToDo', () => {
     });
 
     expect(outcome.status === 'ok' && outcome.sample).toBe(true);
+  });
+});
+
+describe('warmThingsToDo', () => {
+  it('fills the cache so the first visitor is served without a provider call', async () => {
+    const { live, thingsToDo } = provider(async () => ok([thing(1, 'sights')]));
+    const store = new MemoryCacheStore();
+
+    expect(await warmThingsToDo({ ...REQUEST, provider: live, store })).toBe('warmed');
+    const outcome = await loadThingsToDo({ ...REQUEST, provider: live, store });
+
+    expect(thingsToDo).toHaveBeenCalledTimes(1);
+    expect(outcome).toMatchObject({ status: 'ok', things: [{ id: 'Q1' }] });
+  });
+
+  it('leaves a fresh entry alone', async () => {
+    const { live, thingsToDo } = provider(async () => ok([thing(1, 'sights')]));
+    const store = new MemoryCacheStore();
+
+    await warmThingsToDo({ ...REQUEST, provider: live, store });
+
+    expect(await isThingsToDoFresh({ ...REQUEST, provider: live, store })).toBe(true);
+    expect(await warmThingsToDo({ ...REQUEST, provider: live, store })).toBe('fresh');
+    expect(thingsToDo).toHaveBeenCalledTimes(1);
+  });
+
+  it('is fresh for exactly a week and not a millisecond longer', async () => {
+    const { live, thingsToDo } = provider(async () => ok([thing(1, 'sights')]));
+    const clock = { at: Date.parse('2026-11-01T00:00:00.000Z') };
+    const store = new MemoryCacheStore({ now: () => clock.at });
+
+    await warmThingsToDo({ ...REQUEST, provider: live, store });
+
+    clock.at += THINGS_FRESH_MS;
+    expect(await isThingsToDoFresh({ ...REQUEST, provider: live, store }, () => clock.at)).toBe(
+      true,
+    );
+
+    clock.at += 1;
+    expect(await isThingsToDoFresh({ ...REQUEST, provider: live, store }, () => clock.at)).toBe(
+      false,
+    );
+    expect(thingsToDo).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not fresh when nothing is cached', async () => {
+    const { live } = provider(async () => ok([]));
+
+    expect(
+      await isThingsToDoFresh({ ...REQUEST, provider: live, store: new MemoryCacheStore() }),
+    ).toBe(false);
+  });
+
+  it('throws when the source fails, so the job retries, and caches nothing', async () => {
+    const { live } = provider(async () => err(new AppError('PROVIDER_UNAVAILABLE', 'down')));
+    const store = new MemoryCacheStore();
+
+    await expect(warmThingsToDo({ ...REQUEST, provider: live, store })).rejects.toThrow('down');
+    expect(store.size).toBe(0);
+  });
+
+  it('does nothing for an absent slot, and counts it as not needing a round', async () => {
+    const absent = createAbsentPlacesProvider();
+
+    expect(await warmThingsToDo({ ...REQUEST, provider: absent })).toBe('absent');
+    expect(await isThingsToDoFresh({ ...REQUEST, provider: absent })).toBe(true);
   });
 });

@@ -56,6 +56,8 @@ export interface DestinationRailProps {
   clearHref?: string;
   /** Prices could not be produced at all; the rail says so rather than pretending. */
   unpriced?: boolean;
+  /** With `unpriced`: nothing is cached yet and the worker is filling it, not a failure. */
+  pricesLoading?: boolean;
   /** The ranking and country controls, rendered beside the heading. */
   controls?: React.ReactNode;
   /** Where "see them all" goes, when this is a trimmed view. */
@@ -188,6 +190,7 @@ export function DestinationRail({
   regionSummary = null,
   clearHref,
   unpriced = false,
+  pricesLoading = false,
   controls,
   viewAllHref,
 }: DestinationRailProps) {
@@ -323,8 +326,9 @@ export function DestinationRail({
 
         {unpriced ? (
           <p role="status" className="text-muted text-[13px]">
-            Prices could not be produced just now, so the globe shows places without them. Try again
-            in a moment, or run a search.
+            {pricesLoading
+              ? 'Prices are loading. The globe shows the places without them for now; reload in a minute.'
+              : 'Prices could not be produced just now, so the globe shows places without them. Try again in a moment, or run a search.'}
           </p>
         ) : null}
 

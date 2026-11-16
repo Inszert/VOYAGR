@@ -40,6 +40,8 @@ export interface PopularSectionProps {
   clearHref?: string;
   /** Prices could not be produced at all; the section says so rather than pretending. */
   unpriced?: boolean;
+  /** With `unpriced`: nothing is cached yet and the worker is filling it, not a failure. */
+  pricesLoading?: boolean;
   viewAllHref?: string;
   /** The home airport's city, for "From Vienna tonight" and the empty state. */
   originName: string | null;
@@ -89,6 +91,7 @@ export function PopularSection({
   regionSummary = null,
   clearHref,
   unpriced = false,
+  pricesLoading = false,
   viewAllHref,
   originName,
   controls,
@@ -161,8 +164,9 @@ export function PopularSection({
 
         {unpriced ? (
           <p role="status" className="text-ink-muted text-[13px]">
-            Prices could not be produced just now, so the globe shows places without them. Try again
-            in a moment, or run a search.
+            {pricesLoading
+              ? 'Prices are loading. The globe shows the places without them for now; reload in a minute.'
+              : 'Prices could not be produced just now, so the globe shows places without them. Try again in a moment, or run a search.'}
           </p>
         ) : null}
 

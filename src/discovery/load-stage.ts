@@ -11,6 +11,7 @@ import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { cacheKey, getCacheStore, readThrough } from '@/cache';
+import { requestCacheRefresh } from '@/cache/request-refresh';
 import { ageOf } from '@/core/freshness';
 import { DEFAULT_SEARCH_TTL_MS } from '@/search/cache';
 import {
@@ -104,6 +105,11 @@ export interface StagePage {
   readonly dataSource: ActiveDataSource;
   /** The snapshot was attempted and could not be produced. */
   readonly unpriced: boolean;
+  /**
+   * Unpriced because nothing is cached yet (first boot), not because pricing
+   * failed: the worker has been asked and the page says so.
+   */
+  readonly pricesLoading: boolean;
   readonly stage: StageData;
   readonly carry: Readonly<Record<string, string>>;
   readonly destinationsDefault: string;
@@ -165,7 +171,20 @@ export async function loadStagePage(
 
   const user = await getCurrentUser();
   const stored = user ? await getRepositories().preferences.find(user.id) : null;
-  const defaults = preferencesToFormDefaults(readExplicitPreferences(stored));
+  /*
+   * The party in the address wins over the saved one: "4 travellers" chosen
+   * in the search bar prices the globe, the cards and every link out of them
+   * for four. The snapshot for that party is its own cache entry; until the
+   * worker has filled it, the page shows the default party's and says which
+   * party it is for (the rail's "Priced for N travellers").
+   */
+  const party = Number(values.passengers);
+  const defaults: Record<string, string> = {
+    ...preferencesToFormDefaults(readExplicitPreferences(stored)),
+    ...(Number.isSafeInteger(party) && party >= 1 && party <= 9
+      ? { passengers: String(party) }
+      : {}),
+  };
 
   const mode = parseMapMode(values.mapMode);
 
@@ -231,16 +250,32 @@ export async function loadStagePage(
         };
       }
     } else {
-      errors = parsed.error;
+      /*
+       * A form that was filled in sends every field, so a field that is simply
+       * absent from the address was never typed: the link (a globe label, a
+       * shared half-search) only carried some of the search. That is not the
+       * visitor's mistake, and Zod's own "expected string, received undefined"
+       * is not a sentence for a page - so only what was actually entered is
+       * complained about, and the rest keeps the form's defaults.
+       */
+      errors = Object.fromEntries(
+        Object.entries(parsed.error).filter(
+          ([field]) => field === 'form' || values[field] !== undefined,
+        ),
+      );
     }
   }
 
   // The stage shows the search when there is one, and the discovery snapshot
   // when there is not. Never both: two answers to "where can I go?" on one
   // page would be two different searches pretending to be one.
-  const snapshot = outcome
-    ? null
-    : await getDiscoverySource().load({ today, defaults, source: dataSource.effective });
+  const discoveryInput = { today, defaults, source: dataSource.effective };
+  const discovery = outcome ? null : await getDiscoverySource().read(discoveryInput);
+  const snapshot = discovery?.snapshot ?? null;
+
+  // The worker fills the cache; a page only says what it found missing or old.
+  // Not awaited: the visitor does not wait on the queue either.
+  if (discovery?.refreshWanted) void requestCacheRefresh(discoveryInput);
   const stageOutcome = outcome ?? snapshot?.outcome ?? null;
   const stageObservedAt = outcome ? observedAt : (snapshot?.observedAt ?? null);
   const provenance = stageOutcome?.diagnostics.provenance ?? 'unavailable';
@@ -388,6 +423,7 @@ export async function loadStagePage(
     sources,
     dataSource,
     unpriced: !outcome && snapshot === null,
+    pricesLoading: discovery?.pending ?? false,
     stage,
     carry,
     destinationsDefault,

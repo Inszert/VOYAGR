@@ -157,7 +157,9 @@ const sections: readonly LegalSection[] = [
     // `src/providers/flights/duffel.ts` and `aviasales.ts` (route, dates,
     // currency only - Aviasales not even passenger count);
     // `src/providers/weather/open-meteo.ts` (coordinates and dates only);
-    // `src/app/api/imagery/[code]/route.ts`; `src/booking/partners.ts` (plain
+    // `src/app/api/imagery/[code]/route.ts`; `src/providers/places/wikidata.ts`
+    // and `src/app/api/places/image/route.ts` (server-side only: the browser is
+    // handed `/api/places/image?...`, never a Wikimedia address); `src/booking/partners.ts` (plain
     // links with no parameter about the visitor).
     body: (
       <>
@@ -173,8 +175,10 @@ const sections: readonly LegalSection[] = [
             service. Nothing about you accompanies that request.
           </li>
           <li>
-            <strong>Wikimedia.</strong> Destination photographs come from Wikimedia Commons. Our
-            server fetches them, so Wikimedia sees our server&rsquo;s request, not yours.
+            <strong>Wikimedia and Wikidata.</strong> Destination photographs come from Wikimedia
+            Commons, and the lists of places to see and do come from Wikidata. Our server fetches
+            both, and the pictures are passed on to you from our own address, so your browser does
+            not contact Wikimedia or Wikidata. They see our server&rsquo;s request, not yours.
           </li>
           <li>
             <strong>Your browser&rsquo;s push service</strong>, if you turn on notifications, as

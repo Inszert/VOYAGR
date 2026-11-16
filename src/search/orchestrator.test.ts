@@ -12,6 +12,9 @@ import { createMockFlightProvider } from '@/providers/flights/mock';
 import { createMockHotelProvider } from '@/providers/hotels/mock';
 import { createMockTransferProvider } from '@/providers/transfers/mock';
 import { createMockWeatherProvider } from '@/providers/weather/mock';
+import { AviasalesFlightProvider } from '@/providers/flights/aviasales';
+import { loadCassette, replayingFetch } from '@/providers/http/cassette';
+import { MemoryCacheStore } from '@/cache/memory';
 import type {
   FlightProvider,
   HotelProvider,
@@ -914,5 +917,164 @@ describe('observing provider calls', () => {
     );
 
     expect(outcome.results.length).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * The owner's own search, replayed: VIE to Kazan, any 7 nights in November.
+ *
+ * Recorded 2026-11-15. The vendor's cache held exactly two round trips for
+ * the month - 27-30 Nov (3 nights, EUR 394) and 23-29 Nov (6 nights, EUR 488)
+ * - and none of seven. The result was a bare "nothing" that read as though
+ * the vendor had no flights at all.
+ */
+describe('runSearch for VIE-KZN, seven nights in November (recorded)', () => {
+  /*
+   * The owner's search. The round-trip cache had two fares for the month, of
+   * three and six nights (`aviasales-vie-kzn-month`); the one-way cache had
+   * single flights on 13 outbound and 8 return days (`aviasales-one-way-vie-kzn`),
+   * three pairs of them seven nights apart.
+   */
+  const oneWay = loadCassette('aviasales-one-way-vie-kzn');
+  const oneWayBody = (origin: string, month: string) =>
+    oneWay.exchanges.find(
+      (exchange) =>
+        exchange.note === `one-way ${origin}->${origin === 'VIE' ? 'KZN' : 'VIE'} ${month}`,
+    )?.response.body ?? '{"data":[]}';
+
+  const kazan = (options: { oneWay: boolean }) => {
+    const roundTrips = replayingFetch(loadCassette('aviasales-vie-kzn-month'));
+    return runSearch(
+      {
+        profile: buildProfile({
+          passengers: 1,
+          minNights: 7,
+          maxNights: 7,
+          earliestDeparture: '2026-11-01',
+          latestReturn: '2026-11-30',
+          targetBudget: money(335000, 'EUR'),
+          maxBudget: money(335000, 'EUR'),
+        }),
+        destinations: ['KZN'],
+        destinationNames: { KZN: 'Kazan' },
+        requestId: 'kazan',
+      },
+      {
+        ...mockDeps(),
+        flights: new AviasalesFlightProvider({
+          token: 'test-token-not-a-real-credential',
+          window: 'calendar',
+          partnerId: '780591',
+          now: () => new Date('2026-11-15T20:39:51Z'),
+          fetchImpl: (url, init) => {
+            const asked = new URL(url);
+            if (asked.searchParams.get('one_way') !== 'true') return roundTrips(url, init);
+            const body = options.oneWay
+              ? oneWayBody(
+                  asked.searchParams.get('origin')!,
+                  asked.searchParams.get('departure_at')!,
+                )
+              : '{"currency":"eur","data":[]}';
+            return Promise.resolve(new Response(body, { status: 200 }));
+          },
+        }),
+        rates: fixedRates([]),
+        oneWayStore: new MemoryCacheStore(),
+      },
+    );
+  };
+
+  it('builds the seven-night trips from two one-way tickets, and says so', async () => {
+    const outcome = await kazan({ oneWay: true });
+
+    expect(outcome.diagnostics.issues).toEqual([]);
+    expect(outcome.results.length).toBeGreaterThan(0);
+    for (const trip of outcome.results) {
+      expect(trip.candidate.dates.nights).toBe(7);
+      expect(trip.candidate.flight.ticketing).toBe('two_one_way');
+      expect(['2026-11-20', '2026-11-21', '2026-11-23']).toContain(
+        trip.candidate.dates.departureDate,
+      );
+      expect(trip.warnings.map((warning) => warning.code)).toContain('SEPARATE_TICKETS');
+      expect(trip.candidate.flight.returnDeepLink).toMatch(
+        /^https:\/\/www\.aviasales\.com\/search\/KZN/,
+      );
+    }
+  });
+
+  it('prices a pair as the two recorded fares added, nothing more', async () => {
+    const outcome = await kazan({ oneWay: true });
+    const trip = outcome.results.find(
+      (result) => result.candidate.dates.departureDate === '2026-11-20',
+    );
+    if (!trip) throw new Error('no trip on the 20th');
+
+    const cheapest = (origin: string, day: string) =>
+      Math.min(
+        ...(
+          JSON.parse(oneWayBody(origin, '2026-11')).data as {
+            departure_at: string;
+            price: number;
+          }[]
+        )
+          .filter((row) => row.departure_at.startsWith(day))
+          .map((row) => row.price),
+      );
+    expect(trip.candidate.flight.price).toEqual(
+      money((cheapest('VIE', '2026-11-20') + cheapest('KZN', '2026-11-27')) * 100, 'EUR'),
+    );
+  });
+
+  it('with no one-way fares either, builds nothing and says which stay lengths there were', async () => {
+    const outcome = await kazan({ oneWay: false });
+
+    expect(outcome.results).toEqual([]);
+    expect(outcome.diagnostics.issues).toEqual([]);
+    expect(outcome.diagnostics.flightOffersFound).toBe(2);
+    expect(
+      outcome.otherStayLengths?.map((stay) => [
+        stay.departureDate,
+        stay.returnDate,
+        stay.nights,
+        stay.price,
+      ]),
+    ).toEqual([
+      ['2026-11-23', '2026-11-29', 6, money(48800, 'EUR')],
+      ['2026-11-27', '2026-11-30', 3, money(39400, 'EUR')],
+    ]);
+  });
+});
+
+describe('runSearch against a vendor that answers by the month', () => {
+  it('asks for every month pair the dates allow, not only those the sample kept', async () => {
+    const asked: string[] = [];
+    const mock = createMockFlightProvider();
+    const monthly: FlightProvider = {
+      metadata: { ...mock.metadata, answersByMonth: true },
+      checkHealth: mock.checkHealth.bind(mock),
+      searchFlights: async (query) => {
+        asked.push(`${query.departureDate.slice(0, 7)}|${query.returnDate.slice(0, 7)}`);
+        return ok({ items: [], nextCursor: null });
+      },
+    };
+
+    // Two windows sampled out of 54: the first (1-8 Nov) and the last (24-31
+    // Dec). Every trip leaving 24-30 Nov comes back in December, and that
+    // month pair was never asked about.
+    await search(
+      {
+        profile: buildProfile({
+          minNights: 7,
+          maxNights: 7,
+          earliestDeparture: '2026-11-01',
+          latestReturn: '2026-12-31',
+        }),
+        destinations: ['AYT'],
+        limits: { maxDateWindows: 2 },
+      },
+      { flights: monthly },
+    );
+
+    expect(asked.sort()).toEqual(['2026-11|2026-11', '2026-11|2026-12', '2026-12|2026-12']);
   });
 });

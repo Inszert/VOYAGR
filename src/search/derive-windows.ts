@@ -132,6 +132,70 @@ export function windowsFromOffers(
 }
 
 /**
+ * Fares inside the traveller's dates whose stay length they did not ask for.
+ *
+ * A thin route's cache can hold a handful of round trips in a month and none
+ * of exactly the length typed: measured for VIE-KZN in November, two price
+ * points - three nights and six - against a seven-night search. The trip
+ * assembler is right to build nothing from those, and the page must not then
+ * say "nothing": the vendor had fares, at other lengths. This is what it had.
+ *
+ * Every rule of the search except the stay length still holds - the dates and
+ * the weekday rules - so a fare shown here is one the traveller could have
+ * had by changing only that. Nearest length first, then cheapest, then
+ * earliest; one per departure/return pair. The prices are the vendor's own,
+ * untouched, and are never part of a trip total.
+ */
+export function otherStayLengthsFromOffers(
+  offers: readonly FlightOffer[],
+  bounds: WindowBounds,
+  limit: number,
+): CalendarFlight[] {
+  const byPair = new Map<string, CalendarFlight>();
+
+  for (const offer of offers) {
+    const destination = flightDestination(offer);
+    const out = offer.outbound.segments[0]?.departsAt;
+    const back = offer.inbound.segments[0]?.departsAt;
+    if (!destination || !out || !back) continue;
+
+    const departureDate = localDate(out);
+    const returnDate = localDate(back);
+    const nights = daysBetween(departureDate, returnDate);
+
+    if (departureDate < bounds.earliestDeparture || returnDate > bounds.latestReturn) continue;
+    // Inside the asked range it would have been a window already.
+    if (nights >= bounds.minNights && nights <= bounds.maxNights) continue;
+    if (nights < 1) continue;
+    if (
+      bounds.departureDaysOfWeek &&
+      !bounds.departureDaysOfWeek.includes(dayOfWeek(departureDate))
+    )
+      continue;
+    if (bounds.returnDaysOfWeek && !bounds.returnDaysOfWeek.includes(dayOfWeek(returnDate)))
+      continue;
+
+    const key = `${destination}|${departureDate}|${returnDate}`;
+    const seen = byPair.get(key);
+    if (!seen || offer.price.amount < seen.price.amount) {
+      byPair.set(key, { departureDate, returnDate, nights, price: offer.price, destination });
+    }
+  }
+
+  const distance = (nights: number) =>
+    nights < bounds.minNights ? bounds.minNights - nights : nights - bounds.maxNights;
+
+  return [...byPair.values()]
+    .sort(
+      (a, b) =>
+        distance(a.nights) - distance(b.nights) ||
+        a.price.amount - b.price.amount ||
+        a.departureDate.localeCompare(b.departureDate),
+    )
+    .slice(0, limit);
+}
+
+/**
  * The cheapest flight on each departure day, for the calendar.
  *
  * Read off the same month-at-a-time answer the windows come from, but without

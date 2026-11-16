@@ -3,10 +3,11 @@ import type { TripScore } from '@/core/trip/scoring';
 /**
  * Why a trip scored what it scored (specification section 31.3).
  *
- * The score is a weighted sum and this is that sum, written out. It answers
- * "why is this 84 and not 91?" by showing every factor, how well the trip did
- * on it, how much it counted for this traveller's style, and what it therefore
- * contributed.
+ * The score is a weighted sum and this is that sum, written out: every factor,
+ * a bar filled to how well the trip did on it, and what it therefore added,
+ * strongest first. Still a table underneath - each row is a factor with its
+ * values - so it reads as one to assistive technology; it simply has no rules
+ * drawn between the rows.
  *
  * No model writes any of this. The engine produced the numbers and a test
  * asserts the score equals the sum of the contributions shown here.
@@ -20,49 +21,54 @@ export interface ScoreExplanationProps {
 }
 
 export function ScoreExplanation({ score, headingId }: ScoreExplanationProps) {
+  // Ordered by what each added, which is the order that explains the score.
+  const factors = [...score.factors].sort((a, b) => b.contribution - a.contribution);
+
   return (
     <div className="flex flex-col gap-3">
       <table aria-labelledby={headingId} className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-border border-b text-left">
-            <th scope="col" className="text-ink py-2 pr-3 font-medium">
-              Factor
-            </th>
-            <th scope="col" className="text-ink py-2 pr-3 text-right font-medium">
-              This trip
-            </th>
-            <th scope="col" className="text-ink py-2 pr-3 text-right font-medium">
-              Counts for
-            </th>
-            <th scope="col" className="text-ink py-2 text-right font-medium">
-              Adds
-            </th>
+        <thead className="sr-only">
+          <tr>
+            <th scope="col">Factor</th>
+            <th scope="col">This trip</th>
+            <th scope="col">Counts for</th>
+            <th scope="col">Adds</th>
           </tr>
         </thead>
         <tbody>
-          {score.factors.map((factor) => (
-            <tr key={factor.key} className="border-border border-b last:border-0">
-              <th scope="row" className="text-ink py-2 pr-3 text-left font-normal">
+          {factors.map((factor) => (
+            <tr key={factor.key}>
+              <th scope="row" className="text-ink w-[38%] py-1.5 pr-3 text-left font-normal">
                 {factor.label}
               </th>
-              <td className="text-ink py-2 pr-3 text-right tabular-nums">
-                {percent(factor.value)}
+              <td className="py-1.5 pr-3">
+                <span className="sr-only">{percent(factor.value)}</span>
+                <span
+                  aria-hidden="true"
+                  className="bg-surface-sunken block h-1 w-full overflow-hidden rounded-full"
+                >
+                  <span
+                    className="bg-ink-muted block h-full rounded-full"
+                    style={{ width: percent(Math.max(0, Math.min(1, factor.value))) }}
+                  />
+                </span>
               </td>
-              <td className="text-ink-muted py-2 pr-3 text-right tabular-nums">
+              <td className="text-dim w-14 py-1.5 pr-3 text-right text-xs tabular-nums">
+                <span className="sr-only">counts for </span>
                 {percent(factor.weight)}
               </td>
-              <td className="text-ink py-2 text-right tabular-nums">
-                {Math.round(factor.contribution * 100)}
+              <td className="text-ink w-10 py-1.5 text-right tabular-nums">
+                +{Math.round(factor.contribution * 100)}
               </td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="border-border border-t-2">
-            <th scope="row" colSpan={3} className="text-ink py-2 pr-3 text-left font-semibold">
+          <tr>
+            <th scope="row" colSpan={3} className="text-ink pt-3 pr-3 text-left font-semibold">
               Complete Trip Value Score
             </th>
-            <td className="text-ink py-2 text-right font-semibold tabular-nums">{score.score}</td>
+            <td className="text-ink pt-3 text-right font-semibold tabular-nums">{score.score}</td>
           </tr>
         </tfoot>
       </table>

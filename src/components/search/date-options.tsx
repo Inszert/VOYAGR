@@ -1,5 +1,6 @@
 import { abs, format, subtract, toMajor, type Money } from '@/core/money';
 import { startOfMonth } from '@/core/dates';
+import { perTraveller, travellersLabel } from '@/core/party';
 import type { SourceAttribution } from '@/core/trip/provenance';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
@@ -76,10 +77,22 @@ function whole(total: Money): string {
  * eye. Null for whichever return is cheapest, since a delta of zero against
  * itself says nothing a reader needs.
  */
-function deltaFromCheapest(total: Money, cheapest: Money): string | null {
-  const delta = subtract(total, cheapest);
+function deltaFromCheapest(total: Money, cheapest: Money, travellers: number): string | null {
+  // Per traveller, like the figure in the cell it sits under.
+  const delta = perTraveller(subtract(total, cheapest), travellers).each;
   if (delta.amount === 0) return null;
   return `${delta.amount > 0 ? '+' : '−'}${whole(abs(delta))}`;
+}
+
+/** The whole-trip total per traveller, whole units, for a cell. */
+function perPersonWhole(total: Money, travellers: number): string {
+  return whole(perTraveller(total, travellers).each);
+}
+
+/** The party the search is for, from its own values. */
+function travellersOf(searchValues: Readonly<Record<string, string | undefined>>): number {
+  const passengers = Number(searchValues.passengers ?? 1);
+  return Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 1;
 }
 
 /** The same search, with some keys replaced, and any date narrowing dropped. */
@@ -144,13 +157,11 @@ function calendarLoad(
   );
   if (destinations.length === 0) return null;
 
-  const passengers = Number(searchValues.passengers ?? 1);
-
   return {
     origin,
     destinations,
     currency: breakdown.currency,
-    passengers: Number.isSafeInteger(passengers) && passengers > 0 ? passengers : 1,
+    passengers: travellersOf(searchValues),
     minNights: CALENDAR_MIN_NIGHTS,
     maxNights: Math.max(Number(searchValues.maxNights) || 0, CALENDAR_MAX_NIGHTS),
     today: new Date().toISOString().slice(0, 10),
@@ -174,6 +185,7 @@ export function DateOptions({
   if (breakdown.options.length === 0) return null;
 
   const highlights = pickHighlights(breakdown);
+  const travellers = travellersOf(searchValues);
   const dearest = breakdown.dearest?.cheapestTotal ?? null;
 
   const priced = breakdown.options.filter(
@@ -207,8 +219,9 @@ export function DateOptions({
       nights: option.window.nights,
       exact: format(option.cheapestTotal),
       whole: whole(option.cheapestTotal),
+      perPerson: perPersonWhole(option.cheapestTotal, travellers),
       amount: toMajor(option.cheapestTotal),
-      delta: deltaFromCheapest(option.cheapestTotal, cheapestForDeparture),
+      delta: deltaFromCheapest(option.cheapestTotal, cheapestForDeparture, travellers),
       href: href(basePath, searchValues, key),
     };
   });
@@ -228,6 +241,7 @@ export function DateOptions({
     nights: flight.nights,
     exact: format(flight.price),
     whole: whole(flight.price),
+    perPerson: perPersonWhole(flight.price, travellers),
     amount: toMajor(flight.price),
     delta: null,
     href: linkWith(basePath, searchValues, {
@@ -296,7 +310,8 @@ export function DateOptions({
           </h2>
           <p className="text-ink-muted text-sm">
             Each day shows the whole trip - flights, hotel and transfer - for the cheapest trip we
-            priced on it.
+            priced on it. Days show the price per person; the trips below are totals for{' '}
+            {travellersLabel(travellers)}.
           </p>
         </div>
 
@@ -305,7 +320,8 @@ export function DateOptions({
             Cheapest dates save{' '}
             <strong className="font-display text-tint-ink text-2xl font-normal tabular-nums">
               {format(breakdown.saving)}
-            </strong>
+            </strong>{' '}
+            for {travellersLabel(travellers)}
           </p>
         ) : null}
       </div>
@@ -318,6 +334,7 @@ export function DateOptions({
         bestValueKey={bestValueKey}
         clearHref={selected ? href(basePath, searchValues, null) : null}
         chips={chips}
+        travellers={travellers}
       />
 
       {/*

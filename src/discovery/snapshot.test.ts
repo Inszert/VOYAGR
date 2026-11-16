@@ -6,6 +6,7 @@ import {
   buildDiscoveryQuery,
   buildDiscoveryRequest,
   describeAssumptions,
+  discoveryCacheKey,
   DISCOVERY_LIMITS,
   DISCOVERY_WINDOW,
   SearchDiscoverySource,
@@ -106,6 +107,157 @@ describe('SearchDiscoverySource', () => {
     expect(run).toHaveBeenCalledTimes(1);
     expect(first?.outcome).toBe(outcome);
     expect(second?.ageMs).toBeGreaterThanOrEqual(0);
+  });
+
+  describe('read, the page path', () => {
+    const DAY = '2026-11-14';
+    const NEXT_DAY = '2026-11-15';
+    const HOUR = 60 * 60 * 1000;
+
+    /** A store whose clock the test moves, with an entry written for a given day. */
+    function setup() {
+      const clock = { at: Date.parse(`${DAY}T22:30:00.000Z`) };
+      const store = new MemoryCacheStore({ now: () => clock.at });
+      const run = vi.fn(async () => outcome);
+      const source = new SearchDiscoverySource({ run, store, now: () => clock.at });
+
+      const write = async (day: string, input: Partial<Parameters<typeof source.read>[0]> = {}) => {
+        const request = buildDiscoveryRequest({ today: day, ...input })!;
+        await store.set(discoveryCacheKey(request, 'api'), outcome, { ttlMs: 25 * HOUR });
+      };
+
+      return { clock, store, run, source, write };
+    }
+
+    it('serves a fresh entry for today and asks for nothing', async () => {
+      const { source, write, run } = setup();
+      await write(DAY);
+
+      const read = await source.read({ today: DAY });
+
+      expect(read.snapshot?.outcome).toBe(outcome);
+      expect(read.snapshot?.freshness).toBe('fresh');
+      expect(read.pending).toBe(false);
+      expect(read.refreshWanted).toBe(false);
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it('at midnight serves yesterday as stale, dated by its own observation, and never searches', async () => {
+      const { source, write, clock, run } = setup();
+      await write(DAY);
+
+      // Ninety minutes later it is 00:00 UTC and today's key has no entry.
+      clock.at = Date.parse(`${NEXT_DAY}T00:00:00.000Z`);
+      const read = await source.read({ today: NEXT_DAY });
+
+      expect(run).not.toHaveBeenCalled();
+      expect(read.snapshot?.outcome).toBe(outcome);
+      expect(read.snapshot?.observedAt).toBe(`${DAY}T22:30:00.000Z`);
+      expect(read.snapshot?.ageMs).toBe(90 * 60 * 1000);
+      expect(read.snapshot?.freshness).toBe('stale');
+      expect(read.snapshot?.request.profile.earliestDeparture).toBe('2026-11-21');
+      expect(read.pending).toBe(false);
+      expect(read.refreshWanted).toBe(true);
+    });
+
+    it('asks for today’s entry even when yesterday’s was written within the last fresh hour', async () => {
+      const { source, write, clock } = setup();
+      clock.at = Date.parse(`${DAY}T23:30:00.000Z`);
+      await write(DAY);
+
+      clock.at = Date.parse(`${NEXT_DAY}T00:00:00.000Z`);
+      const read = await source.read({ today: NEXT_DAY });
+
+      // Fresh by age, but for the wrong day: the dates it priced are a day behind.
+      expect(read.snapshot?.freshness).toBe('fresh');
+      expect(read.refreshWanted).toBe(true);
+    });
+
+    it('prefers today’s entry once the worker has written it', async () => {
+      const { source, write, clock } = setup();
+      await write(DAY);
+      clock.at = Date.parse(`${NEXT_DAY}T00:10:00.000Z`);
+      await write(NEXT_DAY);
+
+      const read = await source.read({ today: NEXT_DAY });
+
+      expect(read.snapshot?.observedAt).toBe(`${NEXT_DAY}T00:10:00.000Z`);
+      expect(read.snapshot?.freshness).toBe('fresh');
+      expect(read.refreshWanted).toBe(false);
+    });
+
+    it('with nothing cached at all, says prices are pending and does not search', async () => {
+      const { source, run } = setup();
+
+      const read = await source.read({ today: NEXT_DAY });
+
+      expect(run).not.toHaveBeenCalled();
+      expect(read).toEqual({ snapshot: null, pending: true, refreshWanted: true });
+    });
+
+    it('does not reach back two days', async () => {
+      const { source, write, clock, run } = setup();
+      await write('2026-11-13');
+      clock.at = Date.parse(`${NEXT_DAY}T00:00:00.000Z`);
+
+      const read = await source.read({ today: NEXT_DAY });
+
+      expect(read.snapshot).toBeNull();
+      expect(read.pending).toBe(true);
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it('shows a visitor with their own settings the default profile when theirs is not cached', async () => {
+      const { source, write } = setup();
+      await write(DAY);
+
+      const read = await source.read({ today: DAY, defaults: { origins: 'BTS', passengers: '4' } });
+
+      expect(read.snapshot?.assumptions.origins).toEqual(['VIE']);
+      expect(read.snapshot?.assumptions.passengers).toBe(2);
+      expect(read.refreshWanted).toBe(false);
+    });
+
+    it('prefers a visitor’s own cached profile over the default one', async () => {
+      const { source, write } = setup();
+      await write(DAY);
+      await write(DAY, { defaults: { origins: 'BTS' } });
+
+      const read = await source.read({ today: DAY, defaults: { origins: 'BTS' } });
+
+      expect(read.snapshot?.assumptions.origins).toEqual(['BTS']);
+    });
+
+    it('treats a cache that cannot be read as a miss rather than failing the page', async () => {
+      const store = {
+        name: 'memory' as const,
+        get: async () => {
+          throw new Error('redis down');
+        },
+        set: async () => {
+          throw new Error('redis down');
+        },
+      };
+      const run = vi.fn(async () => outcome);
+      const source = new SearchDiscoverySource({ run, store });
+
+      expect(await source.read({ today: NEXT_DAY })).toEqual({
+        snapshot: null,
+        pending: true,
+        refreshWanted: true,
+      });
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it('may still build fixtures, which call no provider', async () => {
+      const { source, run } = setup();
+
+      const read = await source.read({ today: NEXT_DAY, source: 'mock' });
+
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(read.snapshot?.outcome).toBe(outcome);
+      expect(read.pending).toBe(false);
+    });
   });
 
   it('returns null rather than throwing when the search fails, and does not cache the failure', async () => {

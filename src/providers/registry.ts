@@ -7,6 +7,7 @@ import {
   createAbsentPlacesProvider,
   createAbsentTransferProvider,
 } from './absent';
+import type { ProviderMode } from '@/core/trip/provenance';
 import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
 import { createMockFlightProvider } from './flights/mock';
@@ -43,6 +44,13 @@ import type {
  */
 
 const log = getLogger('providers.registry');
+
+/** One probe result, carrying the mode so an absent slot can be told from a failing one. */
+export type CheckedProvider = ProviderHealth & {
+  id: string;
+  kind: ProviderKind;
+  mode: ProviderMode | undefined;
+};
 
 export class ProviderRegistry {
   readonly flights: FlightProvider;
@@ -105,14 +113,19 @@ export class ProviderRegistry {
    * A health check must never throw: a provider that fails its own probe is
    * reported as `unavailable` so the dashboard keeps working.
    */
-  async checkAll(): Promise<Record<string, ProviderHealth & { id: string; kind: ProviderKind }>> {
+  async checkAll(): Promise<Record<string, CheckedProvider>> {
     const entries = await Promise.all(
       this.all().map(async (provider) => {
         try {
           const health = await provider.checkHealth();
           return [
             provider.metadata.kind,
-            { ...health, id: provider.metadata.id, kind: provider.metadata.kind },
+            {
+              ...health,
+              id: provider.metadata.id,
+              kind: provider.metadata.kind,
+              mode: provider.metadata.mode,
+            },
           ] as const;
         } catch (error) {
           log.error({ provider: provider.metadata.id, err: error }, 'provider health check threw');
@@ -125,6 +138,7 @@ export class ProviderRegistry {
               message: 'Health check failed.',
               id: provider.metadata.id,
               kind: provider.metadata.kind,
+              mode: provider.metadata.mode,
             },
           ] as const;
         }
