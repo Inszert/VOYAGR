@@ -193,6 +193,67 @@ describe('PriceCalendar', () => {
     expect(day.textContent).not.toContain('✈');
   });
 
+  it('moves by day, week and month from the keyboard, with one tab stop', () => {
+    renderCalendar();
+
+    const cell = (day: string) =>
+      document.querySelector<HTMLElement>(`[role="gridcell"][data-day="${day}"]`)!;
+
+    // One day in the whole grid is where Tab lands; the rest are reached by arrows.
+    expect(document.querySelectorAll('[role="gridcell"][tabindex="0"]')).toHaveLength(1);
+
+    cell('2026-12-10').focus();
+    fireEvent.keyDown(cell('2026-12-10'), { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(cell('2026-12-11'));
+
+    fireEvent.keyDown(cell('2026-12-11'), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(cell('2026-12-18'));
+
+    // Monday to Sunday of that week: 2026-12-18 is a Friday.
+    fireEvent.keyDown(cell('2026-12-18'), { key: 'Home' });
+    expect(document.activeElement).toBe(cell('2026-12-14'));
+    fireEvent.keyDown(cell('2026-12-14'), { key: 'End' });
+    expect(document.activeElement).toBe(cell('2026-12-20'));
+
+    fireEvent.keyDown(cell('2026-12-20'), { key: 'PageDown' });
+    expect(document.activeElement).toBe(cell('2027-01-20'));
+  });
+
+  it('shows the dates as words, and folds the calendar behind a button on a phone', () => {
+    render(
+      <PriceCalendar
+        options={OPTIONS}
+        selected="2026-12-10..2026-12-15"
+        cheapestKey={null}
+        bestValueKey={null}
+        clearHref="/explore"
+        chips={[]}
+        travellers={2}
+      />,
+    );
+
+    expect(screen.getByText('Thu 10 Dec')).toBeTruthy();
+    expect(screen.getByText(/Tue 15 Dec/)).toBeTruthy();
+
+    const toggle = screen.getByRole('button', { name: 'Change dates' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(
+      screen.getByRole('button', { name: 'Hide the calendar' }).getAttribute('aria-expanded'),
+    ).toBe('true');
+  });
+
+  it('says in words which day is the departure and which the return', () => {
+    renderCalendar('2026-12-10..2026-12-15');
+
+    expect(
+      screen.getAllByRole('gridcell', { name: /10 December 2026.*your departure/ }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole('gridcell', { name: /15 December 2026, whole trip.*your return/ }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it('offers each flexibility as a link, and says which is on', () => {
     renderCalendar();
 

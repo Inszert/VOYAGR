@@ -363,3 +363,22 @@ request that carries `voyagr-consent=accepted`:
   contract tests run on the in-memory implementation).
 - Whether the real Drive script sets cookies or contacts hosts beyond `emrldco.com`. If it does the
   CSP blocks them until each is added deliberately.
+
+## CSP for the accepted Travelpayouts Drive script (2026-11-17)
+
+Observed on production after a visitor accepted cookies: the Drive script's own requests were
+blocked by our CSP (a blob worker, a stylesheet from `emrldco.com`, and an auth check against
+`www.travelpayouts.com`). The accepted-consent policy in `src/consent/csp.ts` now widens three
+directives, and only those:
+
+- `worker-src` adds `blob:` (the vendor script creates a worker from a blob URL).
+- `style-src` adds `https://emrldco.com` (the vendor stylesheet, `assets/tooltip-*.css`).
+- `connect-src` adds `https://www.travelpayouts.com` (the auth check, `check_auth`).
+
+No wildcards, no other hosts, and `script-src` is unchanged. This applies only to a request that
+carries `voyagr-consent=accepted` on real production, the same condition that already adds
+`emrldco.com`. A declined or unanswered visitor gets the baseline policy with none of these.
+
+Owner to confirm: that `emrldco.com` and `www.travelpayouts.com` are the complete set of hosts the
+vendor script needs. Each further host should be added deliberately, with the same accepted-only
+gating and a test.

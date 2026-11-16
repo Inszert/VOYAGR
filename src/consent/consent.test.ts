@@ -88,10 +88,28 @@ describe('buildContentSecurityPolicy', () => {
     expect(csp).toContain(`connect-src 'self' ${DRIVE_ORIGIN}`);
   });
 
+  it('widens worker, style and connect for an accepted visitor, and only those', () => {
+    const csp = buildContentSecurityPolicy({ ...base, driveOrigin: DRIVE_ORIGIN });
+    expect(csp).toContain("worker-src 'self' blob:;");
+    expect(csp).toContain(`style-src 'self' 'unsafe-inline' ${DRIVE_ORIGIN};`);
+    expect(csp).toContain(`connect-src 'self' ${DRIVE_ORIGIN} https://www.travelpayouts.com;`);
+    // No wildcards anywhere in the widened directives.
+    expect(csp).not.toMatch(/(worker|style|connect)-src[^;]*\*/);
+  });
+
   it('does not name it for anyone else', () => {
     const csp = buildContentSecurityPolicy({ ...base, driveOrigin: null });
     expect(csp).not.toContain('emrldco');
     expect(csp).toContain("script-src 'self' 'nonce-abc';");
+  });
+
+  it('does not widen worker, style or connect for a declined or unanswered visitor', () => {
+    const csp = buildContentSecurityPolicy({ ...base, driveOrigin: null });
+    expect(csp).toContain("worker-src 'self';");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline';");
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).not.toContain('blob:;');
+    expect(csp).not.toContain('travelpayouts');
   });
 
   it('keeps the baseline either way', () => {

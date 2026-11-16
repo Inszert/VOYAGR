@@ -388,6 +388,7 @@ export function SearchResults({
           selected={filters.dates}
           basePath={basePath}
           sources={diagnostics.sources}
+          {...(changeSearchHref ? { changeSearchHref } : {})}
         />
       ) : null}
 

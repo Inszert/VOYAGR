@@ -16,6 +16,7 @@ import {
 } from '@/core/dates';
 import type { IsoDate } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
+import { weekdayDate } from '@/lib/display-date';
 import type { MonthPricesJson, OneWayPriceJson } from '@/search/day-prices-json';
 
 /**
@@ -109,9 +110,22 @@ export interface PriceCalendarProps {
   chips: readonly PriceCalendarChip[];
   /** The party every total is for. Cells show per person; the legend says so. */
   travellers?: number;
+  /**
+   * The dates the search is for, when no pair has been picked here: the ones in
+   * the address. Null for either means it was not given.
+   */
+  datesFromSearch?: { readonly leave: IsoDate | null; readonly back: IsoDate | null };
 }
 
-const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as const;
+const WEEKDAYS = [
+  ['Mo', 'Monday'],
+  ['Tu', 'Tuesday'],
+  ['We', 'Wednesday'],
+  ['Th', 'Thursday'],
+  ['Fr', 'Friday'],
+  ['Sa', 'Saturday'],
+  ['Su', 'Sunday'],
+] as const;
 
 /** Monday-first column of a date, 0 to 6. */
 function column(day: IsoDate): number {
@@ -161,6 +175,7 @@ export function PriceCalendar({
   clearHref,
   chips,
   travellers,
+  datesFromSearch,
 }: PriceCalendarProps) {
   const partySize = travellers ?? load?.passengers ?? 1;
   const party = `${partySize} ${partySize === 1 ? 'traveller' : 'travellers'}`;
@@ -168,6 +183,32 @@ export function PriceCalendar({
 
   const [departure, setDeparture] = React.useState<IsoDate | null>(chosen?.departure ?? null);
   const [offset, setOffset] = React.useState(0);
+  // The collapsed state only exists on a phone: from `md` up the body is always there.
+  const [open, setOpen] = React.useState(false);
+  const bodyId = React.useId();
+  const flexId = React.useId();
+  // The day the keyboard is on. One day in the whole grid is a tab stop; arrows move it.
+  const [focusDay, setFocusDay] = React.useState<IsoDate | null>(null);
+  const pendingFocus = React.useRef(false);
+  const gridRoot = React.useRef<HTMLDivElement>(null);
+  // Whether two months are on screen, so a key can page to a month that is not hidden.
+  const [wide, setWide] = React.useState(true);
+
+  React.useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  // Focus follows a key press once the month it landed in has rendered.
+  React.useEffect(() => {
+    if (!pendingFocus.current || !focusDay) return;
+    pendingFocus.current = false;
+    gridRoot.current?.querySelector<HTMLElement>(`[data-day="${focusDay}"]`)?.focus();
+  });
 
   // Every month from the first day anyone could leave to the last they could come home.
   const months = React.useMemo(() => {
@@ -345,337 +386,544 @@ export function PriceCalendar({
     [byDay],
   );
 
+  // The pair on show: the one being picked, or else the one chosen, or else the
+  // one the search itself was asked about.
+  const phase = departure === null ? 'leave' : 'return';
+  const start = phase === 'return' ? departure : (chosen?.departure ?? null);
+  const end = chosen !== null && start === chosen.departure ? chosen.returnDate : null;
+
   const between = (day: IsoDate) =>
-    chosen !== null && isAfter(day, chosen.departure) && isBefore(day, chosen.returnDate);
+    start !== null && end !== null && isAfter(day, start) && isBefore(day, end);
 
   const shown = months.slice(offset, offset + 2);
-  const phase = departure === null ? 'leave' : 'return';
+  const visibleCount = wide ? 2 : 1;
+
+  const leaveShown = start ?? datesFromSearch?.leave ?? null;
+  const backShown = end ?? (phase === 'leave' ? (datesFromSearch?.back ?? null) : null);
+  const nightsShown =
+    leaveShown && backShown && isAfter(backShown, leaveShown)
+      ? daysBetween(leaveShown, backShown)
+      : null;
+
+  const inShown = (day: IsoDate) => shown.some((month) => month.slice(0, 7) === day.slice(0, 7));
+
+  // The one day Tab lands on: where the keyboard last was, else the day leaving,
+  // else the first day with a price, else the first of the month.
+  const tabStop: IsoDate | null = (() => {
+    if (shown.length === 0) return null;
+    if (focusDay && inShown(focusDay)) return focusDay;
+    if (start && inShown(start)) return start;
+    const priced = [...byDay.keys()].filter(inShown).sort()[0];
+    return priced ?? shown[0]!;
+  })();
+
+  const cellKeys = (day: IsoDate) => ({
+    'data-day': day,
+    tabIndex: day === tabStop ? 0 : -1,
+  });
+
+  function moveTo(next: IsoDate) {
+    const index = months.findIndex((month) => month.slice(0, 7) === next.slice(0, 7));
+    if (index === -1) return;
+
+    if (index < offset) setOffset(index);
+    else if (index >= offset + visibleCount) setOffset(index - visibleCount + 1);
+
+    pendingFocus.current = true;
+    setFocusDay(next);
+  }
+
+  function onGridKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const target = (event.target as HTMLElement).closest<HTMLElement>('[data-day]');
+    const day = target?.getAttribute('data-day') as IsoDate | null | undefined;
+    if (!day || event.altKey || event.ctrlKey || event.metaKey) return;
+
+    const next =
+      event.key === 'ArrowLeft'
+        ? addDays(day, -1)
+        : event.key === 'ArrowRight'
+          ? addDays(day, 1)
+          : event.key === 'ArrowUp'
+            ? addDays(day, -7)
+            : event.key === 'ArrowDown'
+              ? addDays(day, 7)
+              : event.key === 'Home'
+                ? addDays(day, -column(day))
+                : event.key === 'End'
+                  ? addDays(day, 6 - column(day))
+                  : event.key === 'PageUp'
+                    ? addMonths(day, event.shiftKey ? -12 : -1)
+                    : event.key === 'PageDown'
+                      ? addMonths(day, event.shiftKey ? 12 : 1)
+                      : null;
+
+    if (!next) return;
+    event.preventDefault();
+    moveTo(next);
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Flexibility, as chips: each is a new search with that much give in the dates. */}
-      {chips.length > 0 ? (
-        <div
-          role="group"
-          aria-label="How flexible are your dates"
-          className="flex flex-wrap gap-1.5"
-        >
-          {chips.map((chip) => (
-            <a
-              key={chip.label}
-              href={chip.href}
-              aria-current={chip.active ? 'true' : undefined}
-              className={cn(
-                'rounded-(--radius-pill) border px-3.5 py-2 text-[13px] font-medium whitespace-nowrap',
-                'ease-standard duration-quick transition-colors',
-                'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-2',
-                chip.active
-                  ? 'border-accent-to bg-accent-to/15 text-ink'
-                  : 'border-hairline text-ink-muted hover:border-border-strong hover:text-ink',
-              )}
-            >
-              {chip.label}
-            </a>
-          ))}
-        </div>
-      ) : null}
+      {/*
+        The dates, said once and always on screen: what leaving and coming back
+        are right now. On a phone the calendar folds away behind the button and
+        this line is all that is left of it.
+      */}
+      <div className="border-hairline flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-(--radius-card) border p-3">
+        <dl className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
+          <div className="min-w-0">
+            <dt className="text-dim text-[11px] font-semibold tracking-[0.1em] uppercase">Leave</dt>
+            <dd className="text-ink text-sm font-medium tabular-nums">
+              {leaveShown ? weekdayDate(leaveShown) : 'Not chosen'}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-dim text-[11px] font-semibold tracking-[0.1em] uppercase">
+              Come back
+            </dt>
+            <dd className="text-ink text-sm font-medium tabular-nums">
+              {backShown ? weekdayDate(backShown) : 'Not chosen'}
+              {nightsShown !== null ? (
+                <span className="text-ink-muted font-normal">
+                  {' '}
+                  · {nightsShown} {nightsShown === 1 ? 'night' : 'nights'}
+                </span>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
 
-      {/* What step this is, and what is chosen so far. */}
-      <div
-        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
-        aria-live="polite"
-      >
-        <p className="text-ink text-sm font-medium">
-          {phase === 'leave'
-            ? 'Choose the day you leave'
-            : `Leaving ${shortDay(departure!)} - now choose the day you come back`}
-        </p>
-
-        <div className="flex items-center gap-3">
-          {phase === 'return' ? (
-            <button
-              type="button"
-              onClick={() => setDeparture(null)}
-              className="text-tint-ink text-sm underline underline-offset-4"
-            >
-              Change the day you leave
-            </button>
-          ) : null}
+        <div className="flex flex-wrap items-center gap-x-4">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={() => setOpen((value) => !value)}
+            className={cn(
+              'border-hairline text-ink inline-flex min-h-11 items-center gap-2 rounded-(--radius-control) border px-4 text-sm font-medium md:hidden',
+              'ease-standard duration-quick hover:border-border-strong transition-colors',
+              'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-2',
+            )}
+          >
+            {open ? 'Hide the calendar' : 'Change dates'}
+            <Icon
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={0.9}
+              aria-hidden="true"
+              className="text-dim"
+            />
+          </button>
           {clearHref && chosen ? (
-            <a href={clearHref} className="text-ink-muted text-sm underline underline-offset-4">
+            <a
+              href={clearHref}
+              className="text-ink-muted focus-visible:outline-accent-to inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
               Show every date
             </a>
           ) : null}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
-          {shown.map((month, index) => (
-            <section
-              key={month}
-              aria-label={monthName(month)}
-              // Only the first month on a phone: one month the size of the
-              // screen beats two the size of a postage stamp.
-              className={cn('min-w-0', index === 1 && 'hidden md:block')}
+      <div id={bodyId} className={cn('flex flex-col gap-4', !open && 'max-md:hidden')}>
+        {/* Flexibility: one visible choice, in words. Each is a new search with that much give. */}
+        {chips.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p id={flexId} className="text-ink text-sm font-medium">
+              How flexible are your dates
+            </p>
+            <div
+              role="group"
+              aria-labelledby={flexId}
+              className="border-hairline grid grid-cols-2 gap-1 rounded-(--radius-card) border p-1 sm:flex sm:flex-wrap"
             >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                {/* Back from the first month shown; a spacer elsewhere keeps the title centred. */}
-                {index === 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setOffset((value) => Math.max(0, value - 1))}
-                    disabled={offset === 0}
-                    className="voyagr-popover-nav size-10!"
-                  >
-                    <Icon name="chevron-left" size={1} />
-                    <span className="sr-only">Previous month</span>
-                  </button>
-                ) : (
-                  <span aria-hidden="true" className="size-10" />
-                )}
-
-                <h3 className="font-display text-ink text-lg">{monthName(month)}</h3>
-
-                {/* Forward from the last month on show: the second on a desktop, the only one on a phone. */}
-                <button
-                  type="button"
-                  onClick={() => setOffset((value) => Math.min(months.length - 1, value + 1))}
-                  disabled={offset >= months.length - 1}
+              {chips.map((chip) => (
+                <a
+                  key={chip.label}
+                  href={chip.href}
+                  aria-current={chip.active ? 'true' : undefined}
                   className={cn(
-                    'voyagr-popover-nav size-10!',
-                    index === 0 && shown.length > 1 && 'md:invisible',
+                    'flex min-h-11 items-center justify-center gap-1.5 rounded-(--radius-control) border px-3.5 text-center text-[13px] font-medium sm:whitespace-nowrap',
+                    'ease-standard duration-quick transition-colors',
+                    'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-2',
+                    chip.active
+                      ? 'border-accent-to bg-accent-to/15 text-ink'
+                      : 'text-ink-muted hover:bg-surface-sunken hover:text-ink border-transparent',
                   )}
                 >
-                  <Icon name="chevron-right" size={1} />
-                  <span className="sr-only">Next month</span>
-                </button>
-              </div>
+                  {chip.active ? <span aria-hidden="true">✓</span> : null}
+                  {chip.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
-              <div aria-hidden="true" className="grid grid-cols-7 gap-1">
-                {WEEKDAYS.map((day) => (
-                  <span key={day} className="text-dim grid h-7 place-items-center text-[11px]">
-                    {day}
-                  </span>
-                ))}
-              </div>
+        {/* What step this is, and what is chosen so far. */}
+        <div
+          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+          aria-live="polite"
+        >
+          <p className="text-ink text-sm font-medium">
+            {phase === 'leave'
+              ? 'Choose the day you leave'
+              : `Leaving ${shortDay(departure!)} - now choose the day you come back`}
+          </p>
 
-              <div role="grid" aria-label={monthName(month)} className="grid grid-cols-7 gap-1">
-                {weeksOf(monthCells(month)).map((week, weekIndex) => (
-                  <div key={weekIndex} role="row" className="contents">
-                    {week.map((day, offset) => {
-                      const cell = weekIndex * 7 + offset;
-                      if (day === null) {
-                        return <span key={`blank-${cell}`} role="gridcell" aria-hidden="true" />;
-                      }
+          <div className="flex items-center gap-3">
+            {phase === 'return' ? (
+              <button
+                type="button"
+                onClick={() => setDeparture(null)}
+                className="text-tint-ink focus-visible:outline-accent-to inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Change the day you leave
+              </button>
+            ) : null}
+          </div>
+        </div>
 
-                      const option = byDay.get(day);
-                      const number = Number(day.slice(8, 10));
+        <div ref={gridRoot} onKeyDown={onGridKeyDown} className="flex flex-col gap-3">
+          <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+            {shown.map((month, index) => (
+              <section
+                key={month}
+                aria-label={monthName(month)}
+                // Only the first month on a phone: one month the size of the
+                // screen beats two the size of a postage stamp.
+                className={cn('min-w-0', index === 1 && 'hidden md:block')}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  {/* Back from the first month shown; a spacer elsewhere keeps the title centred. */}
+                  {index === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setOffset((value) => Math.max(0, value - 1))}
+                      disabled={offset === 0}
+                      className="voyagr-popover-nav size-11!"
+                    >
+                      <Icon name="chevron-left" size={1} />
+                      <span className="sr-only">Previous month</span>
+                    </button>
+                  ) : (
+                    <span aria-hidden="true" className="size-11" />
+                  )}
 
-                      // A month still on its way: a shimmer where the price will be, so
-                      // the cell reads as waiting rather than as having no flight.
-                      if (!option && phase === 'leave' && loading(day)) {
-                        return (
-                          <span
-                            key={day}
-                            role="gridcell"
-                            aria-busy="true"
-                            aria-label={`${spoken(day)}, loading price`}
-                            className="flex min-h-12 flex-col items-stretch gap-1.5 rounded-(--radius-control) p-1.5 md:min-h-14"
-                          >
-                            <span aria-hidden="true" className="text-dim text-sm">
-                              {number}
+                  <h3 className="font-display text-ink text-lg">{monthName(month)}</h3>
+
+                  {/* Forward from the last month on show: the second on a desktop, the only one on a phone. */}
+                  <button
+                    type="button"
+                    onClick={() => setOffset((value) => Math.min(months.length - 1, value + 1))}
+                    disabled={offset >= months.length - 1}
+                    className={cn(
+                      'voyagr-popover-nav size-11!',
+                      index === 0 && shown.length > 1 && 'md:invisible',
+                    )}
+                  >
+                    <Icon name="chevron-right" size={1} />
+                    <span className="sr-only">Next month</span>
+                  </button>
+                </div>
+
+                <div role="grid" aria-label={monthName(month)} className="grid grid-cols-7 gap-1">
+                  <div role="row" className="contents">
+                    {WEEKDAYS.map(([short, full]) => (
+                      <span
+                        key={full}
+                        role="columnheader"
+                        aria-label={full}
+                        className="text-dim grid h-7 place-items-center text-[11px]"
+                      >
+                        <span aria-hidden="true">{short}</span>
+                      </span>
+                    ))}
+                  </div>
+
+                  {weeksOf(monthCells(month)).map((week, weekIndex) => (
+                    <div key={weekIndex} role="row" className="contents">
+                      {week.map((day, offset) => {
+                        const cell = weekIndex * 7 + offset;
+                        if (day === null) {
+                          return <span key={`blank-${cell}`} role="gridcell" aria-hidden="true" />;
+                        }
+
+                        const option = byDay.get(day);
+                        const number = Number(day.slice(8, 10));
+                        const past = load !== undefined && isBefore(day, load.today);
+                        const isStart = start !== null && day === start;
+                        const isEnd = end !== null && day === end;
+
+                        // A day already gone: there is nothing to choose, and it says so.
+                        if (past && !option) {
+                          return (
+                            <span
+                              key={day}
+                              role="gridcell"
+                              aria-disabled="true"
+                              aria-label={`${spoken(day)}, in the past`}
+                              {...cellKeys(day)}
+                              className="text-dim/60 focus-visible:outline-accent-to grid min-h-12 place-items-start rounded-(--radius-control) p-1.5 text-sm focus-visible:outline-2 md:min-h-14"
+                            >
+                              <span aria-hidden="true">{number}</span>
                             </span>
-                            <Skeleton className="mt-auto h-3 w-3/4" />
-                          </span>
-                        );
-                      }
+                          );
+                        }
 
-                      // Only a one-way fare out: said as such, and not a choice.
-                      const oneWay = phase === 'leave' ? oneWayByDay.get(day) : undefined;
-                      if (!option && oneWay) {
-                        return (
-                          <span
-                            key={day}
-                            role="gridcell"
-                            aria-label={`${spoken(day)}, no return fare seen; one way from ${oneWay.perPerson} per person`}
-                            className={cn(
-                              'text-ink-muted border-hairline flex min-h-14 flex-col items-stretch rounded-(--radius-control) border border-dotted p-1.5 md:min-h-16',
-                              between(day) && 'bg-accent-to/10',
-                            )}
-                          >
-                            <span aria-hidden="true" className="text-sm">
-                              {number}
+                        // A month still on its way: a shimmer where the price will be, so
+                        // the cell reads as waiting rather than as having no flight.
+                        if (!option && phase === 'leave' && loading(day)) {
+                          return (
+                            <span
+                              key={day}
+                              role="gridcell"
+                              aria-busy="true"
+                              aria-disabled="true"
+                              aria-label={`${spoken(day)}, loading price`}
+                              {...cellKeys(day)}
+                              className="focus-visible:outline-accent-to flex min-h-12 flex-col items-stretch gap-1.5 rounded-(--radius-control) p-1.5 focus-visible:outline-2 md:min-h-14"
+                            >
+                              <span aria-hidden="true" className="text-dim text-sm">
+                                {number}
+                              </span>
+                              <Skeleton className="mt-auto h-3 w-3/4" />
                             </span>
+                          );
+                        }
+
+                        // Only a one-way fare out: said as such, and not a choice.
+                        const oneWay = phase === 'leave' ? oneWayByDay.get(day) : undefined;
+                        if (!option && oneWay) {
+                          return (
+                            <span
+                              key={day}
+                              role="gridcell"
+                              aria-disabled="true"
+                              aria-label={`${spoken(day)}, no return fare seen; one way from ${oneWay.perPerson} per person`}
+                              {...cellKeys(day)}
+                              className={cn(
+                                'text-ink-muted border-hairline focus-visible:outline-accent-to flex min-h-14 flex-col items-stretch rounded-(--radius-control) border border-dotted p-1.5 focus-visible:outline-2 md:min-h-16',
+                                between(day) && 'bg-accent-to/10',
+                              )}
+                            >
+                              <span aria-hidden="true" className="text-sm">
+                                {number}
+                              </span>
+                              <span
+                                aria-hidden="true"
+                                className="mt-auto text-[10px] leading-tight tabular-nums md:text-[11px]"
+                              >
+                                <span className="mr-0.5">→</span>
+                                {oneWay.perPerson}
+                              </span>
+                            </span>
+                          );
+                        }
+
+                        // A day with nothing priced: a number and a dash, not a button.
+                        if (!option) {
+                          const edge = isStart || isEnd;
+                          return (
+                            <span
+                              key={day}
+                              role="gridcell"
+                              aria-disabled="true"
+                              aria-label={`${spoken(day)}, ${
+                                isStart ? 'your departure, ' : isEnd ? 'your return, ' : ''
+                              }no price yet`}
+                              {...cellKeys(day)}
+                              className={cn(
+                                'focus-visible:outline-accent-to flex min-h-12 flex-col items-stretch rounded-(--radius-control) p-1.5 text-sm focus-visible:outline-2 md:min-h-14',
+                                edge
+                                  ? 'bg-accent-to border border-transparent text-white'
+                                  : cn('text-dim', between(day) && 'bg-accent-to/10'),
+                              )}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="flex w-full items-start justify-between"
+                              >
+                                <span>{number}</span>
+                                <span className="text-[10px] leading-none">
+                                  {isStart ? 'Out' : isEnd ? 'Back' : ''}
+                                </span>
+                              </span>
+                              {edge ? null : (
+                                <span
+                                  aria-hidden="true"
+                                  className="mt-auto text-[11px] leading-none"
+                                >
+                                  &ndash;
+                                </span>
+                              )}
+                            </span>
+                          );
+                        }
+
+                        const flightOnly = option.kind === 'flight';
+                        const tier = flightOnly ? 'mid' : tierOf(option.amount, sortedAmounts);
+                        const isDeparture = isStart;
+                        const isReturn =
+                          chosen !== null && day === chosen.returnDate && phase === 'return';
+                        const isLeaveEnd = isEnd && !isReturn;
+                        const isMonthLow = monthCheapest.has(option.key);
+                        const isCheapest =
+                          (!flightOnly && option.key === cheapestKey) || isMonthLow;
+                        const isBest = !flightOnly && option.key === bestValueKey;
+
+                        const body = (
+                          <>
                             <span
                               aria-hidden="true"
-                              className="mt-auto text-[10px] leading-tight tabular-nums md:text-[11px]"
+                              className="flex w-full items-start justify-between"
                             >
-                              <span className="mr-0.5">→</span>
-                              {oneWay.perPerson}
+                              <span className="text-sm font-medium">{number}</span>
+                              <span className="text-[10px] leading-none">
+                                {isDeparture
+                                  ? 'Out'
+                                  : isReturn || isLeaveEnd
+                                    ? 'Back'
+                                    : isBest
+                                      ? '★'
+                                      : isCheapest
+                                        ? '▼'
+                                        : ''}
+                              </span>
                             </span>
-                          </span>
-                        );
-                      }
-
-                      // A day with nothing priced: a number, no price, not a button.
-                      if (!option) {
-                        return (
-                          <span
-                            key={day}
-                            role="gridcell"
-                            aria-label={`${spoken(day)}, no price`}
-                            className={cn(
-                              'text-dim grid min-h-12 place-items-start rounded-(--radius-control) p-1.5 text-sm md:min-h-14',
-                              between(day) && 'bg-accent-to/10',
-                            )}
-                          >
-                            <span aria-hidden="true">{number}</span>
-                          </span>
-                        );
-                      }
-
-                      const flightOnly = option.kind === 'flight';
-                      const tier = flightOnly ? 'mid' : tierOf(option.amount, sortedAmounts);
-                      const isDeparture =
-                        (chosen !== null && day === chosen.departure) ||
-                        (phase === 'return' && day === departure);
-                      const isReturn =
-                        chosen !== null && day === chosen.returnDate && phase === 'return';
-                      const isMonthLow = monthCheapest.has(option.key);
-                      const isCheapest = (!flightOnly && option.key === cheapestKey) || isMonthLow;
-                      const isBest = !flightOnly && option.key === bestValueKey;
-
-                      const body = (
-                        <>
-                          <span
-                            aria-hidden="true"
-                            className="flex w-full items-start justify-between"
-                          >
-                            <span className="text-sm font-medium">{number}</span>
-                            <span className="text-[10px] leading-none">
-                              {isBest ? '★' : isCheapest ? '▼' : ''}
-                            </span>
-                          </span>
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              'mt-auto text-[11px] tabular-nums md:text-xs',
-                              tier === 'low' && 'font-bold',
-                              tier === 'high' && 'font-normal opacity-70',
-                            )}
-                          >
-                            {flightOnly ? <span className="mr-0.5">✈</span> : null}
-                            {option.perPerson}
-                          </span>
-                          {/*
-                        Once a departure is chosen, each return is read
-                        against the cheapest return for that same day - a
-                        smaller "+€38" beside the total, the way Kiwi shows
-                        what a night more or fewer actually costs, rather than
-                        a second total to compare by eye.
-                      */}
-                          {phase === 'return' && option.delta ? (
                             <span
                               aria-hidden="true"
                               className={cn(
-                                'text-[10px] leading-none tabular-nums',
-                                isDeparture || isReturn ? 'text-white/75' : 'text-ink-muted',
+                                'mt-auto text-[11px] tabular-nums md:text-xs',
+                                tier === 'low' && 'font-bold',
+                                tier === 'high' && 'font-normal opacity-70',
                               )}
                             >
-                              {option.delta}
+                              {flightOnly ? <span className="mr-0.5">✈</span> : null}
+                              {option.perPerson}
                             </span>
-                          ) : null}
-                          <span className="sr-only">
-                            {spoken(day)},{' '}
-                            {flightOnly
-                              ? `flights only ${option.perPerson} per person, ${option.exact} for ${party}, indicative - choosing it searches these dates for the whole trip`
-                              : `whole trip ${option.perPerson} per person, ${option.exact} for ${party}`}
-                            {phase === 'leave' && !flightOnly
-                              ? ' at the cheapest'
-                              : `, ${option.nights} nights`}
-                            {phase === 'return' && option.delta
-                              ? `, ${option.delta} against the cheapest return for this departure`
-                              : ''}
-                            {isBest
-                              ? ', best value'
-                              : isMonthLow
-                                ? ', cheapest flight this month'
-                                : isCheapest
-                                  ? ', cheapest'
-                                  : ''}
-                          </span>
-                        </>
-                      );
+                            {/*
+                              Once a departure is chosen, each return is read
+                              against the cheapest return for that same day - a
+                              smaller "+€38" beside the total, the way Kiwi shows
+                              what a night more or fewer actually costs, rather than
+                              a second total to compare by eye.
+                            */}
+                            {phase === 'return' && option.delta ? (
+                              <span
+                                aria-hidden="true"
+                                className={cn(
+                                  'text-[10px] leading-none tabular-nums',
+                                  isDeparture || isReturn ? 'text-white/75' : 'text-ink-muted',
+                                )}
+                              >
+                                {option.delta}
+                              </span>
+                            ) : null}
+                            <span className="sr-only">
+                              {spoken(day)},{' '}
+                              {flightOnly
+                                ? `flights only ${option.perPerson} per person, ${option.exact} for ${party}, indicative - choosing it searches these dates for the whole trip`
+                                : `whole trip ${option.perPerson} per person, ${option.exact} for ${party}`}
+                              {phase === 'leave' && !flightOnly
+                                ? ' at the cheapest'
+                                : `, ${option.nights} nights`}
+                              {phase === 'return' && option.delta
+                                ? `, ${option.delta} against the cheapest return for this departure`
+                                : ''}
+                              {isBest
+                                ? ', best value'
+                                : isMonthLow
+                                  ? ', cheapest flight this month'
+                                  : isCheapest
+                                    ? ', cheapest'
+                                    : ''}
+                              {isDeparture ? ', your departure' : ''}
+                              {isReturn || isLeaveEnd ? ', your return' : ''}
+                            </span>
+                          </>
+                        );
 
-                      const cellClass = cn(
-                        'flex min-h-14 flex-col items-stretch rounded-(--radius-control) border p-1.5 text-left md:min-h-16',
-                        'ease-standard duration-quick transition-colors',
-                        'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-1',
-                        isDeparture || isReturn
-                          ? 'border-accent-to bg-accent-to text-white'
-                          : flightOnly
-                            ? 'border-hairline text-ink-muted hover:border-border-strong border-dashed'
-                            : between(day)
-                              ? 'border-accent-to/30 bg-accent-to/15 text-ink'
-                              : tier === 'low'
-                                ? 'border-positive-500/40 bg-positive-500/10 text-positive-ink hover:border-positive-500'
-                                : 'border-hairline text-ink hover:border-border-strong',
-                      );
+                        const cellClass = cn(
+                          'flex min-h-14 flex-col items-stretch rounded-(--radius-control) border p-1.5 text-left md:min-h-16',
+                          'ease-standard duration-quick transition-colors',
+                          'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-1',
+                          isDeparture || isReturn
+                            ? 'border-accent-to bg-accent-to text-white'
+                            : isLeaveEnd
+                              ? 'border-accent-to text-ink border-2'
+                              : flightOnly
+                                ? 'border-hairline text-ink-muted hover:border-border-strong border-dashed'
+                                : between(day)
+                                  ? 'border-accent-to/30 bg-accent-to/15 text-ink'
+                                  : tier === 'low'
+                                    ? 'border-positive-500/40 bg-positive-500/10 text-positive-ink hover:border-positive-500'
+                                    : 'border-hairline text-ink hover:border-border-strong',
+                        );
 
-                      // Leaving is a choice made here; coming back is the link.
-                      return phase === 'leave' ? (
-                        <button
-                          key={day}
-                          type="button"
-                          role="gridcell"
-                          onClick={() => setDeparture(day)}
-                          className={cellClass}
-                        >
-                          {body}
-                        </button>
-                      ) : (
-                        <a key={day} role="gridcell" href={option.href} className={cellClass}>
-                          {body}
-                        </a>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
+                        // Leaving is a choice made here; coming back is the link.
+                        return phase === 'leave' ? (
+                          <button
+                            key={day}
+                            type="button"
+                            role="gridcell"
+                            onClick={() => setDeparture(day)}
+                            {...cellKeys(day)}
+                            className={cellClass}
+                          >
+                            {body}
+                          </button>
+                        ) : (
+                          <a
+                            key={day}
+                            role="gridcell"
+                            href={option.href}
+                            {...cellKeys(day)}
+                            className={cellClass}
+                          >
+                            {body}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
+
+        {failedMonths.length > 0 ? (
+          <p role="status" className="text-ink-muted text-sm">
+            Prices for {failedMonths.join(' and ')} could not be loaded just now. You can still pick
+            a day; it searches those dates.
+          </p>
+        ) : null}
+
+        {/* What the marks mean. Text, so colour is not the only thing saying it. */}
+        <ul className="text-ink-muted flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
+          <li className="text-ink">Prices per person, for {party}</li>
+          <li>
+            <span aria-hidden="true">▼ </span>Cheapest dates, and the cheapest flight in each month
+          </li>
+          <li>
+            <span aria-hidden="true">★ </span>Best value
+          </li>
+          <li>
+            <span className="text-positive-ink font-bold">Bold green</span> the cheaper third
+          </li>
+          <li>
+            <span aria-hidden="true">✈ </span>Flights only - no whole trip priced yet; choosing it
+            searches those dates
+          </li>
+          <li>
+            <span aria-hidden="true">→ </span>One way from - no return fare seen for that day yet
+          </li>
+          <li>
+            <span aria-hidden="true">&ndash; </span>No price yet - it is not cheap, and it cannot be
+            chosen
+          </li>
+          <li>Arrow keys move by day, Page Up and Page Down by month</li>
+        </ul>
       </div>
-
-      {failedMonths.length > 0 ? (
-        <p role="status" className="text-ink-muted text-sm">
-          Prices for {failedMonths.join(' and ')} could not be loaded just now. You can still pick a
-          day; it searches those dates.
-        </p>
-      ) : null}
-
-      {/* What the marks mean. Text, so colour is not the only thing saying it. */}
-      <ul className="text-ink-muted flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
-        <li className="text-ink">Prices per person, for {party}</li>
-        <li>
-          <span aria-hidden="true">▼ </span>Cheapest dates, and the cheapest flight in each month
-        </li>
-        <li>
-          <span aria-hidden="true">★ </span>Best value
-        </li>
-        <li>
-          <span className="text-positive-ink font-bold">Bold green</span> the cheaper third
-        </li>
-        <li>
-          <span aria-hidden="true">✈ </span>Flights only - no whole trip priced yet; choosing it
-          searches those dates
-        </li>
-        <li>
-          <span aria-hidden="true">→ </span>One way from - no return fare seen for that day yet
-        </li>
-        <li>A day with no price was not priced - it is not cheap, and it cannot be chosen</li>
-      </ul>
     </div>
   );
 }

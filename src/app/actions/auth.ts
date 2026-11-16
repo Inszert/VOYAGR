@@ -8,6 +8,12 @@ import {
   getSessionToken,
   setSessionCookie,
 } from '@/auth/current-user';
+import type { Registered } from '@/auth/service';
+import {
+  describeSignUpFailure,
+  describeUnsentVerification,
+  SIGN_UP_FAILURE_SENTENCE,
+} from '@/auth/sign-up-failure';
 import { getRepositories } from '@/db';
 import { isAppError } from '@/lib/errors';
 import { resolveClientKey } from '@/lib/client-key';
@@ -47,14 +53,33 @@ export async function signUpAction(
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
 
-  let verificationEmailSent: boolean;
+  let registered: Registered;
 
   try {
-    const issued = await getAuthService().register(email, password);
-    await setSessionCookie(issued.token);
-    verificationEmailSent = issued.verificationEmailSent;
+    registered = await getAuthService().register(email, password);
+    await setSessionCookie(registered.token);
   } catch (error) {
-    return { error: publicMessage(error, 'Could not create that account.'), email };
+    // One line, so the owner can see why in the console or host logs. Only the
+    // reason, the AppError code and a scrubbed message are logged: never the
+    // address or the password.
+    const failure = describeSignUpFailure(error);
+    log.error(
+      { reason: failure.reason, code: failure.code, message: failure.message },
+      SIGN_UP_FAILURE_SENTENCE[failure.reason],
+    );
+
+    return {
+      error: isAppError(error) ? error.publicMessage : 'Could not create that account.',
+      email,
+    };
+  }
+
+  if (!registered.verificationEmailSent) {
+    const unsent = describeUnsentVerification(registered.verificationEmailFailure);
+    log.warn(
+      { reason: 'VERIFICATION_EMAIL_NOT_SENT', code: unsent.code, message: unsent.message },
+      `Account created, but the verification email was not sent: ${unsent.message}`,
+    );
   }
 
   // Outside the try: `redirect` works by throwing, and catching it here would
@@ -63,7 +88,7 @@ export async function signUpAction(
   // Signed in either way, so the sign-up page itself cannot be the place to
   // say the mail failed: it sends a signed-in visitor to the account, and the
   // re-render after this action would do exactly that. The account page says it.
-  redirect(verificationEmailSent ? '/account' : '/account?verification=unsent');
+  redirect(registered.verificationEmailSent ? '/account' : '/account?verification=unsent');
 }
 
 export async function signInAction(

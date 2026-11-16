@@ -14,17 +14,28 @@ export interface CspInput {
   readonly driveOrigin: string | null;
 }
 
+/**
+ * What the accepted Travelpayouts Drive script needs beyond its own origin: it
+ * creates a blob worker, loads a stylesheet from its origin and checks auth
+ * against travelpayouts.com. Added only when `driveOrigin` is set, i.e. only
+ * for an accepted visitor on real production. See docs/security.md.
+ */
+const DRIVE_AUTH_ORIGIN = 'https://www.travelpayouts.com';
+
 export function buildContentSecurityPolicy({ nonce, isDev, driveOrigin }: CspInput): string {
   const drive = driveOrigin ? ` ${driveOrigin}` : '';
+  const driveStyle = driveOrigin ? ` ${driveOrigin}` : '';
+  const driveConnect = driveOrigin ? ` ${DRIVE_AUTH_ORIGIN}` : '';
+  const driveWorker = driveOrigin ? ' blob:' : '';
 
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}${drive}`,
-    "style-src 'self' 'unsafe-inline'",
+    `style-src 'self' 'unsafe-inline'${driveStyle}`,
     "img-src 'self' blob: data:",
     "font-src 'self' data:",
-    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}`,
-    "worker-src 'self'",
+    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}${driveConnect}`,
+    `worker-src 'self'${driveWorker}`,
     "manifest-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",

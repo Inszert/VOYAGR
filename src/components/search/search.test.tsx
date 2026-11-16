@@ -610,6 +610,17 @@ describe('what the dates are worth', () => {
     expect(within(section).getAllByRole('gridcell').length).toBeGreaterThan(0);
   });
 
+  it('names the journey the dates are for, as two labelled controls', async () => {
+    await renderBreakdown([tripOn(WINDOWS[0]!, 30_000)]);
+
+    const section = screen.getByRole('region', { name: 'Pick your dates' });
+    const journey = within(section).getByRole('group', { name: 'From Vienna (VIE) to anywhere' });
+
+    // Each end says what it is and goes to the search to change it.
+    expect(within(journey).getByRole('link', { name: /^From Vienna .VIE./ })).toBeTruthy();
+    expect(within(journey).getByRole('link', { name: /^To Anywhere/ })).toBeTruthy();
+  });
+
   it('admits it sampled the window rather than covering it', async () => {
     await renderBreakdown([tripOn(WINDOWS[0]!, 30_000), tripOn(WINDOWS[1]!, 40_000)]);
 

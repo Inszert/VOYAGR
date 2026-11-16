@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Voyagr development map</title>
 <style>
   :root {
+    color-scheme: dark;
     --bg: #05070e;
     --fg: #ffffff;
     --muted: #98a0b0;
@@ -13,124 +15,182 @@
     --surface: #0b1020;
     --surface-2: #101829;
     --border: #1c2438;
+    --border-strong: #2b3652;
     --ok: #7fd1a0;
     --bad: #ff8a80;
     --warn: #e8c170;
+    --plan: #8fa6d6;
     --focus: #f2c49a;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; padding: 0; }
   body {
     background: var(--bg);
     color: var(--fg);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--sans);
     font-size: 16px;
     line-height: 1.5;
     overflow-x: hidden;
     -webkit-text-size-adjust: 100%;
   }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
-  .serif { font-family: Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
   a { color: var(--accent); }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
-  h1, h2, h3 { line-height: 1.2; margin: 0; }
-  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 2rem; font-weight: 600; }
-  .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; margin: 0 0 6px; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; font-family: var(--sans); }
+  h1 { font-size: 2rem; font-weight: 650; letter-spacing: -.01em; }
+  .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; margin: 0 0 6px; font-weight: 600; }
   .muted { color: var(--muted); }
-  .meta { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
-  code { font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: .9em; color: var(--fg); background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  code { font-family: var(--mono); font-size: .9em; color: var(--accent); background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
 
-  header.top { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; }
-  header.top .facts { display: grid; gap: 6px; margin-top: 14px; }
-  header.top .facts div { overflow-wrap: anywhere; }
-  header.top .facts b { color: var(--muted); font-weight: 500; margin-right: 6px; }
+  /* Header: one line per fact */
+  header.top { border-bottom: 1px solid var(--border); padding-bottom: 18px; margin-bottom: 20px; }
+  .tagline { color: var(--muted); margin: 6px 0 0; font-size: .95rem; }
+  .facts { display: grid; gap: 4px; margin-top: 14px; min-width: 0; }
+  .fact { display: flex; gap: 10px; align-items: baseline; min-width: 0; font-size: .95rem; }
+  .fact .k { flex: 0 0 5.5rem; color: var(--muted); }
+  .fact .v { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fact .v code { margin-right: 6px; }
 
-  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 24px; }
+  /* Toolbar */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 12px; }
   .toolbar label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
   .toolbar input[type="search"] {
     width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 8px;
-    background: var(--surface); color: var(--fg); border: 1px solid var(--border); font: inherit;
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border-strong); font: inherit;
   }
-  .toolbar .grow { flex: 1 1 240px; }
+  .toolbar input[type="search"]::placeholder { color: var(--muted); opacity: 1; }
+  .toolbar .grow { flex: 1 1 240px; min-width: 0; }
   .btn {
-    min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 8px;
+    min-height: 44px; min-width: 44px; padding: 8px 18px; border-radius: 8px;
     background: var(--accent); color: #05070e; border: 0; font: inherit; font-weight: 600; cursor: pointer;
   }
-  .btn:hover { filter: brightness(1.08); }
-  .live { min-height: 1.5em; color: var(--muted); font-size: .9rem; margin: -12px 0 20px; overflow-wrap: anywhere; }
+  .btn:hover { filter: brightness(1.1); }
+  .live { min-height: 1.5em; color: var(--muted); font-size: .9rem; margin: 0 0 12px; overflow-wrap: anywhere; }
   .fallback textarea {
-    width: 100%; min-height: 160px; margin-top: 8px; padding: 10px; border-radius: 8px;
-    background: var(--surface); color: var(--fg); border: 1px solid var(--border); font: .85rem/1.4 ui-monospace, Consolas, monospace;
+    width: 100%; min-height: 160px; margin: 8px 0 16px; padding: 10px; border-radius: 8px;
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border-strong); font: .85rem/1.4 var(--mono);
   }
 
-  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; min-width: 0; }
-  .tile .num { font-family: Georgia, "Times New Roman", serif; font-size: 2.6rem; line-height: 1; font-variant-numeric: tabular-nums; }
-  .tile .lbl { margin-top: 8px; font-size: .95rem; }
-  .tile .sub { color: var(--muted); font-size: .8rem; }
-  .tile .ico { color: var(--accent); margin-right: 6px; }
+  /* Status strip */
+  .strip { margin: 8px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+  .tile {
+    display: block; min-width: 0; min-height: 44px; text-decoration: none; color: var(--fg);
+    background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--tone, var(--border-strong));
+    border-radius: 12px; padding: 14px 14px 12px;
+  }
+  a.tile:hover { background: var(--surface-2); }
+  .tile .lbl { display: flex; align-items: center; gap: 8px; font-size: .95rem; font-weight: 600; }
+  .tile .ico { color: var(--tone, var(--muted)); font-size: 1.05rem; width: 1.2em; text-align: center; }
+  .tile .num { font-size: 2.4rem; font-weight: 650; line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .tile .sub { color: var(--muted); font-size: .85rem; }
+  .t-done { --tone: var(--ok); }
+  .t-prog { --tone: var(--accent); }
+  .t-plan { --tone: var(--plan); }
+  .t-owner { --tone: var(--warn); }
+  .bar { display: flex; gap: 3px; height: 12px; margin: 14px 0 0; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+  .bar span { display: block; min-width: 3px; background: var(--tone); }
+  .bar .t-plan { background-image: repeating-linear-gradient(135deg, rgba(5,7,14,.55) 0 2px, transparent 2px 6px); }
+  .bar .t-owner { background-image: repeating-linear-gradient(45deg, rgba(5,7,14,.55) 0 2px, transparent 2px 6px); }
+  .bar-note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+  .bar-note a { color: var(--bad); }
 
-  .next { background: linear-gradient(180deg, #161d30, var(--surface)); border: 1px solid var(--accent); border-radius: 14px; padding: 18px; }
-  .next p { margin: 8px 0 0; }
+  /* Next step */
+  .next { margin-top: 24px; background: var(--surface); border: 1px solid var(--accent); border-left-width: 6px; border-radius: 12px; padding: 16px 18px; }
+  .next h2 { font-size: 1.25rem; margin-top: 2px; }
+  .next p { margin: 8px 0 0; overflow-wrap: anywhere; }
+  .next .src, .src { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
 
-  section.panel { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 8px; }
+  /* Collapsible sections */
+  section.panel { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 4px; }
   section.panel > h2 { margin: 0; }
   .toggle {
-    width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left;
-    background: none; color: var(--fg); border: 0; padding: 10px 0; font: inherit; cursor: pointer;
-    font-family: Georgia, "Times New Roman", serif; font-size: 1.4rem;
+    width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; text-align: left;
+    background: none; color: var(--fg); border: 0; padding: 8px 0; font: inherit; font-size: 1.3rem; font-weight: 650; cursor: pointer;
   }
-  .toggle .ico { color: var(--accent); font-family: system-ui, sans-serif; width: 1.2em; text-align: center; }
-  .toggle .count { margin-left: auto; font: .9rem system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
-  .toggle .chev { color: var(--muted); font-family: system-ui, sans-serif; transition: transform .2s; }
+  .toggle .ico { color: var(--accent); width: 1.2em; text-align: center; flex: 0 0 auto; }
+  .toggle .count { margin-left: auto; font-size: .9rem; font-weight: 400; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .toggle .chev { color: var(--muted); font-size: 1rem; transition: transform .2s; flex: 0 0 auto; }
   .toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
-  .body { padding: 4px 0 12px; }
-  .body[hidden] { display: none; }
+  .body { padding: 4px 0 8px; }
   .empty { color: var(--muted); margin: 6px 0; }
-  .empty[hidden] { display: none; }
+  .meta { color: var(--muted); font-size: .9rem; margin: 0 0 12px; overflow-wrap: anywhere; }
 
+  /* Marks and item rows */
   ul.items { list-style: none; margin: 0; padding: 0; }
-  ul.items > li {
-    display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 8px;
-    padding: 10px 0; border-bottom: 1px solid var(--border); min-width: 0;
-  }
-  ul.items > li[hidden] { display: none; }
-  ul.items .mark { font-weight: 700; text-align: center; }
-  ul.items .t { overflow-wrap: anywhere; }
-  ul.items .n { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
-  ul.items .src { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+  ul.items > li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0 8px; padding: 8px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+  .mark { font-weight: 700; text-align: center; }
+  .t { overflow-wrap: anywhere; }
+  .n { color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
   .m-done { color: var(--ok); }
-  .m-prog { color: var(--accent); }
-  .m-plan { color: var(--muted); }
   .m-fail { color: var(--bad); }
   .m-owner { color: var(--warn); }
-  .sev { display: inline-block; font-size: .78rem; border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; margin-right: 6px; white-space: nowrap; }
-  .sev-block { color: var(--bad); }
-  .sev-fix { color: var(--warn); }
-  .sev-limit { color: var(--muted); }
-  .area { margin: 18px 0 4px; }
-  .area h3 { font-size: 1rem; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-family: system-ui, sans-serif; }
-  .area[hidden] { display: none; }
-  .kind { font-size: .75rem; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
-  .hash { font-family: ui-monospace, Consolas, monospace; color: var(--accent); }
-  .timeline { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--border); }
-  .timeline > li { position: relative; padding: 10px 0 12px 14px; min-width: 0; }
-  .timeline > li[hidden] { display: none; }
-  .timeline > li::before {
-    content: ""; position: absolute; left: -26px; top: 16px; width: 10px; height: 10px; border-radius: 50%;
-    background: var(--accent); box-shadow: 0 0 0 3px var(--bg);
-  }
-  .timeline .when { color: var(--muted); font-size: .9rem; }
-  .timeline .subj { overflow-wrap: anywhere; }
 
-  footer { margin-top: 40px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 14px; }
+  /* Failing: severity blocks */
+  .sevblock { margin-top: 14px; border: 1px solid var(--border); border-left: 6px solid var(--tone); border-radius: 12px; background: var(--surface); padding: 12px 16px 6px; }
+  .sevblock:first-of-type { margin-top: 4px; }
+  .sevblock > h3 { display: flex; align-items: baseline; gap: 10px; font-size: 1.05rem; color: var(--tone); }
+  .sevblock > h3 .c { color: var(--muted); font-size: .85rem; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .sevblock .desc { color: var(--muted); font-size: .85rem; margin: 2px 0 4px; }
+  .sevblock ul.items > li:last-child { border-bottom: 0; }
+  .s-block { --tone: var(--bad); }
+  .s-fix { --tone: var(--warn); }
+  .s-limit { --tone: var(--plan); }
 
-  @media (min-width: 720px) {
-    h1 { font-size: 2.6rem; }
+  /* Done: compact groups */
+  .areas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 32px; }
+  .area { margin: 14px 0 0; min-width: 0; break-inside: avoid; }
+  .area h3 { display: flex; align-items: baseline; gap: 8px; font-size: .8rem; color: var(--accent); text-transform: uppercase; letter-spacing: .07em; padding-bottom: 4px; border-bottom: 1px solid var(--border-strong); }
+  .area h3 .c { color: var(--muted); font-weight: 400; letter-spacing: 0; }
+  .area ul.items > li { padding: 5px 0; border-bottom: 0; grid-template-columns: 22px minmax(0, 1fr); font-size: .93rem; }
+  .area .src { display: block; }
+
+  /* Cards: in progress and planned */
+  ul.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  ul.cards > li { display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .chip { align-self: flex-start; display: inline-flex; gap: 6px; align-items: center; font-size: .75rem; font-weight: 600; line-height: 1.4; color: var(--tone, var(--muted)); border: 1px solid currentColor; border-radius: 999px; padding: 0 9px; white-space: nowrap; }
+  ul.cards .t { font-weight: 550; }
+  ul.cards .src { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); }
+  ul.cards .n + .src { margin-top: auto; }
+
+  /* Owner checklist */
+  ul.checklist { list-style: none; margin: 0; padding: 0; }
+  ul.checklist > li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 0 10px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+  .box { width: 20px; height: 20px; margin-top: 2px; border: 2px solid var(--warn); border-radius: 5px; }
+  ul.checklist .t { font-weight: 700; }
+
+  /* Timeline */
+  ol.timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--border-strong); }
+  ol.timeline > li { position: relative; padding: 8px 0 12px 18px; min-width: 0; }
+  ol.timeline > li::before { content: ""; position: absolute; left: -22px; top: 15px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--bg); }
+  .tl-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: .88rem; color: var(--muted); }
+  .tl-head code { color: var(--accent); }
+  .tl-head .when { font-variant-numeric: tabular-nums; }
+  .k-fix { --tone: var(--bad); }
+  .k-feat { --tone: var(--ok); }
+  .k-docs { --tone: var(--plan); }
+  .k-chore, .k-other { --tone: var(--muted); }
+  .subj { overflow-wrap: anywhere; margin-top: 2px; }
+
+  footer { margin-top: 40px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 14px; overflow-wrap: anywhere; }
+
+  @media (min-width: 768px) {
     .wrap { padding: 40px 32px 80px; }
-    .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-    .tile .num { font-size: 3.4rem; }
-    ul.items > li { grid-template-columns: 32px minmax(0, 1fr); }
+    h1 { font-size: 2.5rem; }
+    .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .tile .num { font-size: 2.8rem; }
+    ul.cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .areas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1200px) {
+    ul.cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   }
 </style>
 </head>
@@ -140,6 +200,7 @@
 <header class="top">
   <p class="eyebrow">Development map</p>
   <h1>Voyagr</h1>
+  <p class="tagline" id="tagline"></p>
   <div class="facts" id="facts"></div>
 </header>
 
@@ -254,6 +315,7 @@ const DATA = {
 
   // In progress: being worked on, or uncommitted.
   inProgress: [
+    { text: "Pick your dates: instant redesign of the date and from/to selection", note: "Owner request 2026-11-17. Started now.", src: "owner request" },
     { text: "Bug: search finds nothing for VIE to KZN", note: "Listed as in progress in STATUS.md.", src: "STATUS.md" },
     { text: "Bug: images missing in Popular and in Things to do", note: "Listed as in progress in STATUS.md.", src: "STATUS.md" },
     { text: "Trip builder on explore: change flight or hotel and see the price move; hotel with photos, stars, location", note: "Spec written (commit 25ccd4b). STATUS.md does not say how much is built.", src: "STATUS.md; docs/design-trip-builder.md" },
@@ -267,6 +329,14 @@ const DATA = {
 
   // Planned, not started. `note` says why, where the source does.
   planned: [
+    { text: "When no fares come back for a route and dates, offer a link to the provider's own live search, so the traveller can check live prices", note: "Owner request 2026-11-17. Not started. Plus the empty-state wording about cached prices.", src: "owner request" },
+    { text: "Globe default: show at least 3 places on the other side of the globe and 5 far-away places, without overloading the view", note: "Owner request 2026-11-17 (read \"plains\" as \"places\"; confirm). Not started.", src: "owner request" },
+    { text: "Store fetched trip results in the database, so a trip searched again within a short time is served from storage and not fetched live every 2 to 3 minutes", note: "Owner request 2026-11-17; not started.", src: "owner request" },
+    { text: "Trip style selector on Discover for the selected place or city: chill, hike, city, food and others; choosing one builds the trip for that style", note: "Owner request 2026-11-17; not started.", src: "owner request" },
+    { text: "Slider per part of the trip (flights, stay, activities, transfers and more) to set how much of each to include; the trip is generated from those settings", note: "Owner request 2026-11-17; not started.", src: "owner request" },
+    { text: "Things to do in Chicago: the map works but its design should be better", note: "Owner report 2026-11-17; not started.", src: "owner request" },
+    { text: "Day by day: signed-in users create and edit their own plan", note: "Owner request 2026-11-17; not started.", src: "owner request" },
+    { text: "Arrival: public transport option", note: "Owner request 2026-11-17; not started.", src: "owner request" },
     { text: "Trip hub: invites, edit expenses, currency picker, \"Add to my plan\" buttons", note: "Not built (progress.md table).", src: "STATUS.md; progress.md" },
     { text: "Promo codes on partner offers", note: "The type supports codes; none registered.", src: "STATUS.md; progress.md" },
     { text: "More partners: hotels, car rental, tours, insurance, trains, luggage", note: "Not registered. Waiting on the owner's tick or strike list.", src: "STATUS.md; WHAT-I-NEED-FROM-YOU.md" },
@@ -291,6 +361,17 @@ const DATA = {
 
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
+    { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, which is in progress.", src: "owner report" },
+    { text: "Changing the number of travellers should update the prices at once, without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started. Same fix as the season and map updates: live, without submit.", src: "owner report" },
+    { text: "Globe season: changing the date to January barely shows snow; the season should be clearly visible, and it should change without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started.", src: "owner report" },
+    { text: "Places like Larnaca do not mention their beaches in things to do; beaches are missing from the place lists", severity: "should fix", note: "Owner report 2026-11-17. Not started.", src: "owner report" },
+    { text: "Watch this price does nothing (no action on the price panel)", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
+    { text: "Changing from or to does not redraw the map and connections until a search is pushed", severity: "should fix", note: "Owner report 2026-11-17. Wanted: live update.", src: "owner report" },
+    { text: "Changing a search reloads the whole page visually, even though only part changes", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
+    { text: "Searches are not saved to the database; they should be saved often", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
+    { text: "Globe cannot be zoomed with the scroll wheel", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
+    { text: "Some places still have no image, e.g. Malta", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
+    { text: "Slideshow images are low quality (higher-resolution source or upscaling needed)", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
     { text: "Real email delivery through Resend, with a verified domain, not verified", severity: "blocks launch", src: "progress.md; STATUS.md" },
     { text: "Postgres migrations 0008 and 0009 not run against a real database", severity: "blocks launch", src: "STATUS.md; progress.md" },
     { text: "Travelpayouts login pending; the account-setup agent is blocked", severity: "blocks launch", src: "STATUS.md" },
@@ -359,25 +440,26 @@ const DATA = {
 (function () {
   "use strict";
 
-  var KIND_LABEL = {
-    done: "done", progress: "in progress", planned: "planned", failing: "failing", owner: "needs owner"
-  };
   var COMMIT_TAG = {
-    fix: "fix", feat: "feature", docs: "docs", chore: "build", mixed: "feature + fixes", other: "no detail"
+    fix: "fix", feat: "feat", docs: "docs", chore: "build", mixed: "feat + fixes", other: "no detail"
   };
-  var SEV_CLASS = { "blocks launch": "sev-block", "should fix": "sev-fix", "known limit": "sev-limit" };
+  var COMMIT_CLASS = { fix: "k-fix", feat: "k-feat", mixed: "k-feat", docs: "k-docs", chore: "k-chore", other: "k-other" };
+  var SEV_ORDER = ["blocks launch", "should fix", "known limit"];
+  var SEV_META = {
+    "blocks launch": { title: "Blocks launch", cls: "s-block", desc: "Must be resolved or verified before going live." },
+    "should fix": { title: "Should fix", cls: "s-fix", desc: "Real defects or unverified claims; launch is possible but poorer." },
+    "known limit": { title: "Known limit", cls: "s-limit", desc: "Understood constraints, not expected to be fixed soon." }
+  };
   var AREAS = ["Data & caching", "Flights & prices", "Destination page", "Globe & home",
     "Explore & trip builder", "Stays", "Accounts & email", "Trips hub", "Design & pages", "Docs", "Quality"];
 
-  var state = {}; // section key -> open (true by default)
+  var state = {};  // section key -> open (true by default)
   var manual = {}; // while searching: section key -> open, set by a click
   var SECTIONS = [
-    { key: "summary", title: "Status summary", icon: "" },
-    { key: "next", title: "Recommended next step", icon: "" },
+    { key: "failing", title: "Failing or unverified", icon: "✕", list: DATA.failing, count: DATA.failing.length },
     { key: "done", title: "Done", icon: "✓", list: DATA.done, count: DATA.done.length },
     { key: "progress", title: "In progress", icon: "◐", list: DATA.inProgress, count: DATA.inProgress.length },
     { key: "planned", title: "Planned, not started", icon: "○", list: DATA.planned, count: DATA.planned.length },
-    { key: "failing", title: "Failing or unverified", icon: "✕", list: DATA.failing, count: DATA.failing.length },
     { key: "owner", title: "Needs the owner", icon: "⚑", list: DATA.needsOwner, count: DATA.needsOwner.length },
     { key: "history", title: "Recent history", icon: "•", list: DATA.commits, count: DATA.commits.length }
   ];
@@ -387,6 +469,11 @@ const DATA = {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+  function decor(tag, cls, text) {
+    var n = el(tag, cls, text);
+    n.setAttribute("aria-hidden", "true");
     return n;
   }
   function query() { return (document.getElementById("q").value || "").trim().toLowerCase(); }
@@ -403,7 +490,7 @@ const DATA = {
       .filter(Boolean).join(" ");
   }
 
-  function markFor(sectionKey, it) {
+  function markFor(sectionKey) {
     if (sectionKey === "done") return ["✓", "m-done"];
     if (sectionKey === "progress") return ["◐", "m-prog"];
     if (sectionKey === "planned") return ["○", "m-plan"];
@@ -412,23 +499,41 @@ const DATA = {
     return ["•", ""];
   }
 
-  function renderItem(sectionKey, it) {
+  // A row with a mark, the text, and optional note and source.
+  function renderRow(sectionKey, it, withNote) {
     var li = el("li");
     li.dataset.search = itemSearch(it).toLowerCase();
-    var mk = markFor(sectionKey, it);
-    li.appendChild(el("span", "mark " + mk[1] + " ", mk[0]));
-    li.firstChild.setAttribute("aria-hidden", "true");
+    var mk = markFor(sectionKey);
+    li.appendChild(decor("span", "mark " + mk[1], mk[0]));
     var body = el("div");
-    if (sectionKey === "history") {
-      li.remove();
-      return null;
-    }
-    if (sectionKey === "failing") {
-      var sev = el("span", "sev " + (SEV_CLASS[it.severity] || ""), it.severity);
-      body.appendChild(sev);
-    }
     body.appendChild(el("span", "t", it.text));
-    if (it.note) body.appendChild(el("div", "n", it.note));
+    if (withNote && it.note) body.appendChild(el("div", "n", it.note));
+    if (it.src) body.appendChild(el("div", "src", "Source: " + it.src));
+    li.appendChild(body);
+    return li;
+  }
+
+  // A card for in-progress and planned items. The status is a word and an icon.
+  function renderCard(sectionKey, it) {
+    var li = el("li");
+    li.dataset.search = itemSearch(it).toLowerCase();
+    var word = sectionKey === "progress" ? "In progress" : "Planned";
+    var chip = el("span", "chip " + (sectionKey === "progress" ? "t-prog" : "t-plan"));
+    chip.appendChild(decor("span", "", markFor(sectionKey)[0]));
+    chip.appendChild(document.createTextNode(word));
+    li.appendChild(chip);
+    li.appendChild(el("div", "t", it.text));
+    if (it.note) li.appendChild(el("div", "n", it.note));
+    if (it.src) li.appendChild(el("div", "src", "Source: " + it.src));
+    return li;
+  }
+
+  function renderOwner(it) {
+    var li = el("li");
+    li.dataset.search = itemSearch(it).toLowerCase();
+    li.appendChild(decor("span", "box"));
+    var body = el("div");
+    body.appendChild(el("div", "t", it.text));
     if (it.src) body.appendChild(el("div", "src", "Source: " + it.src));
     li.appendChild(body);
     return li;
@@ -437,10 +542,10 @@ const DATA = {
   function renderHistoryItem(c) {
     var li = el("li");
     li.dataset.search = itemSearch(c).toLowerCase();
-    var head = el("div");
-    head.appendChild(el("code", "hash", c.hash));
-    head.appendChild(el("span", "when", "  " + c.date));
-    head.appendChild(el("span", "kind", COMMIT_TAG[c.kind] || c.kind));
+    var head = el("div", "tl-head");
+    head.appendChild(el("code", "", c.hash));
+    head.appendChild(el("span", "when", c.date));
+    head.appendChild(el("span", "chip " + (COMMIT_CLASS[c.kind] || "k-other"), COMMIT_TAG[c.kind] || c.kind));
     li.appendChild(head);
     li.appendChild(el("div", "subj", c.subject));
     return li;
@@ -450,21 +555,17 @@ const DATA = {
     var sec = el("section", "panel");
     sec.id = "sec-" + s.key;
     var h = el("h2");
-    h.id = "h-" + s.key;
     var btn = el("button", "toggle");
     btn.type = "button";
     btn.id = "btn-" + s.key;
     btn.setAttribute("aria-controls", "body-" + s.key);
     btn.setAttribute("aria-expanded", "true");
     btn.dataset.sec = s.key;
-    if (s.icon) btn.appendChild(el("span", "ico", s.icon)).setAttribute("aria-hidden", "true");
+    if (s.icon) btn.appendChild(decor("span", "ico", s.icon));
     btn.appendChild(document.createTextNode(s.title));
     var cnt = el("span", "count");
-    cnt.dataset.count = s.key;
     btn.appendChild(cnt);
-    var chev = el("span", "chev", "▾");
-    chev.setAttribute("aria-hidden", "true");
-    btn.appendChild(chev);
+    btn.appendChild(decor("span", "chev", "▾"));
     h.appendChild(btn);
     sec.appendChild(h);
     var body = el("div", "body");
@@ -475,109 +576,172 @@ const DATA = {
     return { sec: sec, body: body, btn: btn, cnt: cnt };
   }
 
-  function buildFacts() {
+  function buildHeader() {
+    document.getElementById("tagline").textContent = DATA.subtitle;
     var f = document.getElementById("facts");
-    var rows = [
-      ["Generated", DATA.generated],
-      ["Branch", DATA.branch],
-      ["Last commit", DATA.lastCommit.hash + "  " + DATA.lastCommit.subject]
-    ];
-    rows.forEach(function (r) {
-      var d = el("div");
-      d.appendChild(el("b", "", r[0] + ":"));
-      if (r[0] === "Last commit") {
-        d.appendChild(el("code", "", DATA.lastCommit.hash));
-        d.appendChild(document.createTextNode("  " + DATA.lastCommit.subject));
-      } else {
-        d.appendChild(document.createTextNode(r[1]));
-      }
+    function row(label, build, title) {
+      var d = el("div", "fact");
+      d.appendChild(el("span", "k", label));
+      var v = el("span", "v");
+      build(v);
+      if (title) v.title = title;
+      d.appendChild(v);
       f.appendChild(d);
-    });
-    var sub = el("p", "meta", DATA.project + ". " + DATA.subtitle + ". Development map for the owner.");
-    f.appendChild(sub);
+    }
+    row("Branch", function (v) { v.textContent = DATA.branch; }, DATA.branch);
+    row("Last commit", function (v) {
+      v.appendChild(el("code", "", DATA.lastCommit.hash));
+      v.appendChild(document.createTextNode(DATA.lastCommit.subject));
+    }, DATA.lastCommit.hash + " " + DATA.lastCommit.subject);
+    row("Date", function (v) { v.textContent = DATA.generated; });
   }
 
-  function buildMain() {
-    var main = document.getElementById("main");
-    var q = "";
-
-    // 1. Summary tiles (counts derived from the lists)
-    var s0 = SECTIONS[0];
-    var sh0 = sectionShell(s0);
-    var tiles = el("div", "tiles");
-    var counts = [
-      ["✓", "Done", DATA.done.length, "items"],
-      ["◐", "In progress", DATA.inProgress.length, "items"],
-      ["○", "Planned (not started)", DATA.planned.length, "items"],
-      ["⚑", "Blocked or needs owner", DATA.needsOwner.length, "owner actions"]
+  function buildStrip(main) {
+    var strip = el("section", "strip");
+    strip.setAttribute("aria-labelledby", "h-summary");
+    var h = el("h2", "sr-only", "Status summary");
+    h.id = "h-summary";
+    strip.appendChild(h);
+    var tiles = [
+      { icon: "✓", label: "Done", n: DATA.done.length, cls: "t-done", href: "#sec-done", sub: "items" },
+      { icon: "◐", label: "In progress", n: DATA.inProgress.length, cls: "t-prog", href: "#sec-progress", sub: "items" },
+      { icon: "○", label: "Planned", n: DATA.planned.length, cls: "t-plan", href: "#sec-planned", sub: "items" },
+      { icon: "⚑", label: "Needs you", n: DATA.needsOwner.length, cls: "t-owner", href: "#sec-owner", sub: "owner actions" }
     ];
-    counts.forEach(function (c) {
-      var t = el("div", "tile");
-      t.appendChild(el("div", "num", String(c[2])));
-      var lbl = el("div", "lbl");
-      var ic = el("span", "ico", c[0]);
-      ic.setAttribute("aria-hidden", "true");
-      lbl.appendChild(ic);
-      lbl.appendChild(document.createTextNode(c[1]));
-      t.appendChild(lbl);
-      t.appendChild(el("div", "sub", c[3]));
-      tiles.appendChild(t);
-    });
-    sh0.body.appendChild(tiles);
-    sh0.body.appendChild(el("p", "meta", "Failing or unverified items are listed separately below: " + DATA.failing.length + " in total."));
-    sh0.cnt.textContent = "4 tiles";
-    main.appendChild(sh0.sec);
+    var total = 0;
+    tiles.forEach(function (t) { total += t.n; });
+    function pct(n) { return total ? Math.round(n * 100 / total) : 0; }
 
-    // 2. Recommended next step
-    var s1 = SECTIONS[1];
-    var sh1 = sectionShell(s1);
-    var card = el("div", "next");
+    var ul = el("ul", "tiles");
+    tiles.forEach(function (t) {
+      var li = el("li");
+      var a = el("a", "tile " + t.cls);
+      a.href = t.href;
+      var lbl = el("div", "lbl");
+      lbl.appendChild(decor("span", "ico", t.icon));
+      lbl.appendChild(document.createTextNode(t.label));
+      a.appendChild(lbl);
+      a.appendChild(el("div", "num", String(t.n)));
+      a.appendChild(el("div", "sub", t.sub + " · " + pct(t.n) + "% of all"));
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    strip.appendChild(ul);
+
+    var summary = tiles.map(function (t) { return t.label + " " + t.n + " (" + pct(t.n) + "%)"; }).join(", ");
+    var bar = el("div", "bar");
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", "Share of all " + total + " items: " + summary);
+    tiles.forEach(function (t) {
+      var seg = el("span", t.cls);
+      seg.style.flexGrow = String(t.n);
+      seg.style.flexBasis = "0";
+      bar.appendChild(seg);
+    });
+    strip.appendChild(bar);
+
+    var note = el("p", "bar-note");
+    note.appendChild(document.createTextNode("Bar: share of all " + total + " items across the four tiles, left to right. "));
+    var fl = el("a", "", DATA.failing.length + " failing or unverified");
+    fl.href = "#sec-failing";
+    note.appendChild(fl);
+    note.appendChild(document.createTextNode(" are counted separately below."));
+    strip.appendChild(note);
+    main.appendChild(strip);
+  }
+
+  function buildNext(main) {
+    var card = el("section", "next");
+    card.setAttribute("aria-labelledby", "h-next");
     card.appendChild(el("p", "eyebrow", DATA.nextStep.namesOne ? "Recommended" : "Not named in the sources"));
+    var h = el("h2", "", "Recommended next step");
+    h.id = "h-next";
+    card.appendChild(h);
     card.appendChild(el("p", "", DATA.nextStep.text));
     card.appendChild(el("p", "muted", DATA.nextStep.pointer));
     card.appendChild(el("p", "", "Why: " + DATA.nextStep.why));
     card.appendChild(el("p", "src", "Source: " + DATA.nextStep.src));
-    sh1.body.appendChild(card);
-    sh1.cnt.textContent = "1 card";
-    main.appendChild(sh1.sec);
+    main.appendChild(card);
+  }
 
-    // 3..8 item lists
-    SECTIONS.slice(2).forEach(function (s) {
+  function buildFailing(body) {
+    var sevs = SEV_ORDER.slice();
+    DATA.failing.forEach(function (it) { if (sevs.indexOf(it.severity) === -1) sevs.push(it.severity); });
+    sevs.forEach(function (sev) {
+      var items = DATA.failing.filter(function (d) { return d.severity === sev; });
+      if (!items.length) return;
+      var meta = SEV_META[sev] || { title: String(sev), cls: "s-limit", desc: "" };
+      var block = el("div", "sevblock " + meta.cls);
+      block.dataset.group = "1";
+      var h = el("h3");
+      h.appendChild(decor("span", "", "✕"));
+      h.appendChild(document.createTextNode(meta.title));
+      var c = el("span", "c", String(items.length));
+      c.dataset.total = String(items.length);
+      h.appendChild(c);
+      block.appendChild(h);
+      if (meta.desc) block.appendChild(el("p", "desc", meta.desc));
+      var ul = el("ul", "items");
+      items.forEach(function (it) { ul.appendChild(renderRow("failing", it, true)); });
+      block.appendChild(ul);
+      body.appendChild(block);
+    });
+  }
+
+  function buildDone(body) {
+    var wrap = el("div", "areas");
+    var areas = AREAS.slice();
+    DATA.done.forEach(function (d) { if (areas.indexOf(d.area) === -1) areas.push(d.area); });
+    areas.forEach(function (area) {
+      var items = DATA.done.filter(function (d) { return d.area === area; });
+      if (!items.length) return;
+      var group = el("div", "area");
+      group.dataset.group = "1";
+      var h = el("h3", "", area);
+      var c = el("span", "c", String(items.length));
+      c.dataset.total = String(items.length);
+      h.appendChild(c);
+      group.appendChild(h);
+      var ul = el("ul", "items");
+      items.forEach(function (d) { ul.appendChild(renderRow("done", d, false)); });
+      group.appendChild(ul);
+      wrap.appendChild(group);
+    });
+    body.appendChild(wrap);
+  }
+
+  function buildMain() {
+    var main = document.getElementById("main");
+    buildStrip(main);
+    buildNext(main);
+
+    SECTIONS.forEach(function (s) {
       var sh = sectionShell(s);
-      if (s.key === "done") {
-        AREAS.forEach(function (area) {
-          var group = el("div", "area");
-          group.dataset.area = area;
-          group.appendChild(el("h3", "", area));
-          var ul = el("ul", "items");
-          DATA.done.filter(function (d) { return d.area === area; }).forEach(function (d) {
-            var li = renderItem("done", d);
-            ul.appendChild(li);
-          });
-          group.appendChild(ul);
-          sh.body.appendChild(group);
-        });
+      if (s.key === "failing") {
+        buildFailing(sh.body);
+      } else if (s.key === "done") {
+        buildDone(sh.body);
       } else if (s.key === "history") {
+        sh.body.appendChild(el("p", "meta", "Newest first. Labels: fix, feat, docs, build; \"feat + fixes\" marks a feature commit that also contains security or bug fixes."));
         var ol = el("ol", "timeline");
         DATA.commits.forEach(function (c) { ol.appendChild(renderHistoryItem(c)); });
-        sh.body.appendChild(el("p", "meta", "Newest first. Fix commits are marked \"fix\"; \"feature + fixes\" marks a feat commit that also contains security or bug fixes."));
         sh.body.appendChild(ol);
-      } else {
-        var ul2 = el("ul", "items");
-        s.list.forEach(function (it) { ul2.appendChild(renderItem(s.key, it)); });
-        sh.body.appendChild(ul2);
+      } else if (s.key === "progress" || s.key === "planned") {
+        var cards = el("ul", "cards");
+        s.list.forEach(function (it) { cards.appendChild(renderCard(s.key, it)); });
+        sh.body.appendChild(cards);
+      } else if (s.key === "owner") {
+        var cl = el("ul", "checklist");
+        s.list.forEach(function (it) { cl.appendChild(renderOwner(it)); });
+        sh.body.appendChild(cl);
       }
       var empty = el("p", "empty", "No items match the search in this section.");
       empty.hidden = true;
       empty.dataset.empty = s.key;
       sh.body.insertBefore(empty, sh.body.firstChild);
-      sh.count = s.count;
-      sh.cnt.dataset.total = String(s.count);
       main.appendChild(sh.sec);
       s.shell = sh;
     });
-
-    // Uncommitted note is part of In progress; history note is in its section.
     buildFoot();
   }
 
@@ -588,33 +752,26 @@ const DATA = {
 
   function applyFilter() {
     var q = query();
-    SECTIONS.slice(2).forEach(function (s) {
+    SECTIONS.forEach(function (s) {
       var sh = s.shell;
       var open = sectionOpen(s.key);
       sh.body.hidden = !open;
       sh.btn.setAttribute("aria-expanded", open ? "true" : "false");
       var visible = 0;
-      var items = sh.body.querySelectorAll("li[data-search]");
-      Array.prototype.forEach.call(items, function (li) {
+      Array.prototype.forEach.call(sh.body.querySelectorAll("li[data-search]"), function (li) {
         var ok = hit(li.dataset.search, q);
         li.hidden = !ok;
         if (ok) visible++;
       });
-      sh.body.querySelectorAll("div.area").forEach(function (g) {
-        var any = g.querySelectorAll("li[data-search]:not([hidden])").length > 0;
-        g.hidden = !any;
+      Array.prototype.forEach.call(sh.body.querySelectorAll("[data-group]"), function (g) {
+        var shown = g.querySelectorAll("li[data-search]:not([hidden])").length;
+        g.hidden = shown === 0;
+        var c = g.querySelector(".c");
+        if (c) c.textContent = q ? (shown + " of " + c.dataset.total) : c.dataset.total;
       });
       var empty = sh.body.querySelector("p.empty[data-empty]");
       if (empty) empty.hidden = !(q && visible === 0);
       sh.cnt.textContent = q ? (visible + " of " + s.count + " shown") : (s.count + " items");
-    });
-    // Summary and next step sections
-    SECTIONS.slice(0, 2).forEach(function (s) {
-      var btn = document.getElementById("btn-" + s.key);
-      var body = document.getElementById("body-" + s.key);
-      var open = sectionOpen(s.key);
-      body.hidden = !open;
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
     });
   }
 
@@ -626,26 +783,26 @@ const DATA = {
     out.push("Branch: " + DATA.branch);
     out.push("Last commit: " + DATA.lastCommit.hash + " " + DATA.lastCommit.subject);
     out.push("");
-    if (sectionOpen("summary")) {
-      out.push("## Status summary");
-      out.push("- Done: " + DATA.done.length);
-      out.push("- In progress: " + DATA.inProgress.length);
-      out.push("- Planned (not started): " + DATA.planned.length);
-      out.push("- Blocked or needs owner: " + DATA.needsOwner.length);
-      out.push("");
-    }
-    if (sectionOpen("next") && hit(DATA.nextStep.text + " " + DATA.nextStep.pointer + " " + DATA.nextStep.why, q)) {
+    out.push("## Status summary");
+    out.push("- Done: " + DATA.done.length);
+    out.push("- In progress: " + DATA.inProgress.length);
+    out.push("- Planned (not started): " + DATA.planned.length);
+    out.push("- Needs the owner: " + DATA.needsOwner.length);
+    out.push("");
+    if (hit(DATA.nextStep.text + " " + DATA.nextStep.pointer + " " + DATA.nextStep.why, q)) {
       out.push("## Recommended next step");
       out.push(DATA.nextStep.text);
       out.push(DATA.nextStep.pointer);
       out.push("Why: " + DATA.nextStep.why);
       out.push("");
     }
-    SECTIONS.slice(2).forEach(function (s) {
+    SECTIONS.forEach(function (s) {
       if (!sectionOpen(s.key)) return;
       var lines = [];
       if (s.key === "done") {
-        AREAS.forEach(function (area) {
+        var areas = AREAS.slice();
+        DATA.done.forEach(function (d) { if (areas.indexOf(d.area) === -1) areas.push(d.area); });
+        areas.forEach(function (area) {
           var items = DATA.done.filter(function (d) { return d.area === area && hit(itemSearch(d), q); });
           if (!items.length) return;
           lines.push("### " + area);
@@ -655,7 +812,7 @@ const DATA = {
         DATA.commits.filter(function (c) { return hit(itemSearch(c), q); })
           .forEach(function (c) { lines.push("- " + c.hash + " (" + c.date + ") " + c.subject); });
       } else {
-        var icon = markFor(s.key, {})[0];
+        var icon = markFor(s.key)[0];
         s.list.filter(function (it) { return hit(itemSearch(it), q); }).forEach(function (it) {
           var line = "- " + icon + " ";
           if (it.severity) line += "[" + it.severity + "] ";
@@ -700,7 +857,7 @@ const DATA = {
   }
 
   function init() {
-    buildFacts();
+    buildHeader();
     buildMain();
     applyFilter();
 

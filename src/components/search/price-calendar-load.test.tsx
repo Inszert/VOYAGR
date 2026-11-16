@@ -106,7 +106,7 @@ describe('PriceCalendar loading', () => {
 
     await waitFor(() => expect(priced()).toHaveLength(30));
     expect(
-      cells().some((cell) => cell.getAttribute('aria-label') === '5 December 2026, no price'),
+      cells().some((cell) => cell.getAttribute('aria-label') === '5 December 2026, no price yet'),
     ).toBe(true);
     expect(screen.queryByLabelText(/loading price/i)).toBeNull();
   });

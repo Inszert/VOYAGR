@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_PLAN_ID, resolveEntitlements, type Entitlements } from '@/core/entitlements';
-import { AppError } from '@/lib/errors';
+import { AppError, toAppError } from '@/lib/errors';
 import { getEnv } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import type { Repositories, UserRecord } from '@/db/repository';
@@ -83,6 +83,8 @@ export interface Registered extends SessionIssued {
    * that is not coming.
    */
   readonly verificationEmailSent: boolean;
+  /** Why the mail did not go out, and the provider's own reason. Null when it was sent. */
+  readonly verificationEmailFailure: AppError | null;
 }
 
 export interface AuthDependencies {
@@ -229,14 +231,17 @@ export class AuthService {
     // A failed verification email must not fail the sign-up that triggered
     // it - the account is real either way, and the account page's "resend"
     // button exists precisely for this case.
-    const verificationEmailSent = await this.issueAndSendVerificationEmail(user).catch(
-      (error: unknown) => {
-        log.warn({ err: error, userId: user.id }, 'verification email could not be sent');
-        return false;
-      },
+    // The caller logs the outcome: it is the one place that knows the account was
+    // created and can say so in the same line as the reason.
+    const verificationEmailFailure = await this.issueAndSendVerificationEmail(user).catch(
+      (error: unknown) => toAppError(error),
     );
 
-    return { ...(await this.startSession(user)), verificationEmailSent };
+    return {
+      ...(await this.startSession(user)),
+      verificationEmailSent: verificationEmailFailure === null,
+      verificationEmailFailure,
+    };
   }
 
   /**
@@ -257,7 +262,8 @@ export class AuthService {
 
     if (user.emailVerifiedAt !== null) return;
 
-    await this.issueAndSendVerificationEmail(user);
+    const failure = await this.issueAndSendVerificationEmail(user);
+    if (failure) log.warn({ err: failure, userId: user.id }, 'verification email provider failed');
   }
 
   /**
@@ -295,8 +301,8 @@ export class AuthService {
     log.info({ userId: record.userId }, 'email verified');
   }
 
-  /** True when the provider accepted the mail; a failure is logged, never thrown. */
-  private async issueAndSendVerificationEmail(user: UserRecord): Promise<boolean> {
+  /** Null when the provider accepted the mail, otherwise the provider's reason. Not logged here. */
+  private async issueAndSendVerificationEmail(user: UserRecord): Promise<AppError | null> {
     // However many are outstanding, only the newest one sent should work.
     await this.repositories.emailVerification.deleteForUser(user.id);
 
@@ -314,11 +320,7 @@ export class AuthService {
     const mail = welcomeTemplate({ link });
     const result = await this.emailProvider.send({ to: user.email, ...mail });
 
-    if (!result.ok) {
-      log.warn({ err: result.error, userId: user.id }, 'verification email provider failed');
-    }
-
-    return result.ok;
+    return result.ok ? null : result.error;
   }
 
   /**

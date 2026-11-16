@@ -17,6 +17,7 @@ import {
   type PriceCalendarLoad,
   type PriceCalendarOption,
 } from './price-calendar';
+import { JourneyLine, airportCodes } from './journey-line';
 
 /**
  * Choosing the dates, and what they are worth (1.10.1 section 8).
@@ -43,6 +44,8 @@ export interface DateOptionsProps {
   selected: string | null;
   /** The page the results are on. */
   basePath?: string;
+  /** The search form with this search in it, for changing the From and To. */
+  changeSearchHref?: string;
   /** Where each part of these prices came from, named under the calendar. */
   sources?: readonly SourceAttribution[];
 }
@@ -130,6 +133,7 @@ const CALENDAR_MIN_NIGHTS = 2;
 const CALENDAR_MAX_NIGHTS = 14;
 
 const AIRPORT = /^[A-Z]{3}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function calendarLoad(
   breakdown: DateBreakdown,
@@ -178,6 +182,7 @@ export function DateOptions({
   searchValues,
   selected,
   basePath = '/explore',
+  changeSearchHref,
 }: DateOptionsProps) {
   // Always shown once anything was priced. One set of dates is not a choice
   // between dates, but the calendar and its flexibility chips are how somebody
@@ -309,9 +314,8 @@ export function DateOptions({
             Pick your dates
           </h2>
           <p className="text-ink-muted text-sm">
-            Each day shows the whole trip - flights, hotel and transfer - for the cheapest trip we
-            priced on it. Days show the price per person; the trips below are totals for{' '}
-            {travellersLabel(travellers)}.
+            Each day shows the cheapest whole trip we priced on it - flights, hotel and transfer -
+            per person. The trips below are totals for {travellersLabel(travellers)}.
           </p>
         </div>
 
@@ -326,7 +330,22 @@ export function DateOptions({
         ) : null}
       </div>
 
+      <JourneyLine
+        origins={airportCodes(searchValues.origins)}
+        destinations={airportCodes(searchValues.destinations)}
+        changeHref={
+          changeSearchHref ??
+          linkWith(basePath, searchValues, { edit: '1' }, false).replace(basePath, '/')
+        }
+      />
+
       <PriceCalendar
+        datesFromSearch={{
+          leave: ISO_DATE.test(searchValues.departureDate ?? '')
+            ? searchValues.departureDate!
+            : null,
+          back: ISO_DATE.test(searchValues.returnDate ?? '') ? searchValues.returnDate! : null,
+        }}
         options={[...calendarOptions, ...flightOnlyOptions]}
         {...(load ? { load } : {})}
         selected={selected}
