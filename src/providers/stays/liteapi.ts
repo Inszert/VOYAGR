@@ -8,7 +8,7 @@ import type {
   StayQuery,
   StayRate,
 } from '@/core/stay/types';
-import type { Env } from '@/lib/env';
+import { liteApiEnvironment, type Env } from '@/lib/env';
 import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { err, ok } from '@/lib/result';
@@ -83,9 +83,14 @@ export interface LiteApiOptions {
 
 /** Null without a key: the adapter is then absent from the registry. */
 export function createLiteApiStayProvider(
-  env: Pick<Env, 'LITEAPI_API_KEY'>,
+  env: Pick<Env, 'LITEAPI_API_KEY'> & Partial<Pick<Env, 'LITEAPI_GUEST_NATIONALITY'>>,
 ): LiteApiStayProvider | null {
-  return env.LITEAPI_API_KEY ? new LiteApiStayProvider({ apiKey: env.LITEAPI_API_KEY }) : null;
+  if (!env.LITEAPI_API_KEY) return null;
+  log.info({ mode: liteApiEnvironment(env) }, 'liteapi stay provider enabled');
+  return new LiteApiStayProvider({
+    apiKey: env.LITEAPI_API_KEY,
+    ...(env.LITEAPI_GUEST_NATIONALITY ? { guestNationality: env.LITEAPI_GUEST_NATIONALITY } : {}),
+  });
 }
 
 /** A vendor decimal as exact minor units, or null when it cannot be one. */
@@ -119,6 +124,90 @@ function occupanciesFor(query: StayQuery): { adults: number }[] {
 interface VendorAmount {
   amount: number;
   currency: string;
+}
+
+interface VendorTax {
+  included: boolean;
+  amount: number;
+  currency: string;
+}
+
+/** Sum one class of vendor amounts in a single currency. Zero or mixed currency is `null`. */
+function sumSameCurrency(amounts: readonly VendorAmount[], what: string): Money | null {
+  let total: Money | null = null;
+  for (const entry of amounts) {
+    const part = toMoney(entry.amount, entry.currency);
+    if (!part) return null;
+    if (total && total.currency !== part.currency) {
+      log.warn({ what }, 'liteapi tax amounts in mixed currencies; left unstated');
+      return null;
+    }
+    total = total ? money(total.amount + part.amount, part.currency) : part;
+  }
+  // A sum of nothing is "not stated", not a claim that nothing is owed.
+  return total && total.amount > 0 ? total : null;
+}
+
+/**
+ * Split the vendor's tax list into what is already in the total and what is paid at the
+ * property. Nothing here touches the stay total. A rate with no tax list, or a malformed one,
+ * leaves both `null`: unknown, never zero. For a room type with several rates (several rooms)
+ * every rate must state its list, or neither figure is claimed.
+ */
+export function splitTaxes(
+  rates: readonly { retailRate: { taxesAndFees?: readonly VendorTax[] | null } }[],
+): { included: Money | null; payableAtProperty: Money | null } {
+  const lists = rates.map((rate) => rate.retailRate.taxesAndFees);
+  if (lists.length === 0 || lists.some((list) => !list || list.length === 0)) {
+    return { included: null, payableAtProperty: null };
+  }
+  const all = lists.flatMap((list) => list ?? []);
+  return {
+    included: sumSameCurrency(
+      all.filter((tax) => tax.included),
+      'included',
+    ),
+    payableAtProperty: sumSameCurrency(
+      all.filter((tax) => !tax.included),
+      'payable_at_property',
+    ),
+  };
+}
+
+/** `2026-07-30 02:00:00` (the vendor's sample, always GMT) as an instant; null if not that shape. */
+export function cancelTimeToInstant(value: string): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z)?$/.exec(value.trim());
+  if (!match) return null;
+  const instant = `${match[1]}T${match[2]}Z`;
+  return Number.isNaN(Date.parse(instant)) ? null : instant;
+}
+
+/** The earliest stated free-cancellation deadline across the rates, or null. */
+function freeCancellationDeadline(
+  rates: readonly {
+    cancellationPolicies?: { cancelPolicyInfos?: readonly { cancelTime: string }[] | null } | null;
+  }[],
+): string | null {
+  const instants = rates
+    .flatMap((rate) => rate.cancellationPolicies?.cancelPolicyInfos ?? [])
+    .map((info) => cancelTimeToInstant(info.cancelTime))
+    .filter((value): value is string => value !== null)
+    .sort();
+  return instants[0] ?? null;
+}
+
+/**
+ * Only the two values the vendor's own samples show are mapped: `PROPERTY_PAY` is paid at the
+ * property, `NUITEE_PAY` is paid now. The documentation lists no enum, so any other value, or a
+ * mix, leaves the timing unknown.
+ */
+export function paymentTimingOf(
+  rates: readonly { paymentTypes?: readonly string[] | null }[],
+): 'pay_now' | 'pay_later' | null {
+  const types = new Set(rates.flatMap((rate) => rate.paymentTypes ?? []));
+  if (types.size === 1 && types.has('PROPERTY_PAY')) return 'pay_later';
+  if (types.size === 1 && types.has('NUITEE_PAY')) return 'pay_now';
+  return null;
 }
 
 /** The vendor's stay total for one room type, as Money; null when it states none usable. */
@@ -328,6 +417,8 @@ export class LiteApiStayProvider implements StayProvider {
             if (!total || total.amount <= 0) continue;
             const first = roomType.rates[0]!;
             const tag = first.cancellationPolicies?.refundableTag;
+            const refundable = tag === 'RFN' ? true : tag === 'NRFN' ? false : null;
+            const taxes = splitTaxes(roomType.rates);
             rates.push({
               id: `${LITEAPI_ID}:${row.hotelId}:${roomType.offerId}`,
               providerRateId: roomType.offerId,
@@ -336,17 +427,21 @@ export class LiteApiStayProvider implements StayProvider {
               bedConfiguration: null,
               board: first.boardType ? (BOARD[first.boardType.toUpperCase()] ?? null) : null,
               cancellation: {
-                refundable: tag === 'RFN' ? true : tag === 'NRFN' ? false : null,
-                deadline: null,
+                refundable,
+                // A deadline is only meaningful for a refundable rate.
+                deadline: refundable === true ? freeCancellationDeadline(roomType.rates) : null,
                 description: null,
               },
-              paymentTiming: null,
+              paymentTiming: paymentTimingOf(roomType.rates),
               benefits: [],
               total,
               // The vendor states a stay total only; the nightly figure is ours.
               perNight: money(Math.round(total.amount / nights), total.currency),
               base: null,
-              taxesAndFees: null,
+              // Already inside `total`: information, not an addition.
+              taxesAndFees: taxes.included,
+              // Paid to the hotel. Never part of `total`.
+              payableAtProperty: taxes.payableAtProperty,
               occupancy: query.occupancy,
               observedAt,
               expiresAt: null,

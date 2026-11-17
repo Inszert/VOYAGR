@@ -98,6 +98,7 @@ describe.each(providers)('the %s stay provider satisfies the contract', (_name, 
       for (const rate of offer.rates) {
         expect(rate.base === null || rate.base.amount > 0).toBe(true);
         expect(rate.taxesAndFees === null || rate.taxesAndFees.amount > 0).toBe(true);
+        expect(rate.payableAtProperty === null || rate.payableAtProperty.amount > 0).toBe(true);
       }
     }
   });

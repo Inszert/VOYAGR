@@ -1,5 +1,5 @@
 import { AppError } from '@/lib/errors';
-import { getEnv, type Env } from '@/lib/env';
+import { getEnv, liteApiEnvironment, type Env } from '@/lib/env';
 import type { DataSource } from './data-source';
 import { getLogger } from '@/lib/logger';
 import {
@@ -65,6 +65,11 @@ export class ProviderRegistry {
     this.weather = resolveWeatherProvider(env);
     this.transfers = resolveTransferProvider(env);
     this.places = resolvePlacesProvider(env);
+    // Experiences have no slot here until migration plan Part 5; the value still fails closed.
+    if (env.EXPERIENCE_PROVIDER === 'liteapi') {
+      requireLiteApiKey(env, 'EXPERIENCE_PROVIDER');
+      liveProviderNotImplemented('experiences' as ProviderKind);
+    }
 
     assertNoMockInProduction(this, env);
   }
@@ -207,6 +212,16 @@ function liveProviderNotImplemented(kind: ProviderKind): never {
   );
 }
 
+/** Asking for LiteAPI without a key is a deployment error, raised before any request is made. */
+function requireLiteApiKey(env: Env, variable: string): void {
+  if (!env.LITEAPI_API_KEY) {
+    throw new AppError(
+      'CONFIGURATION_ERROR',
+      `${variable} is "liteapi" but LITEAPI_API_KEY is not set.`,
+    );
+  }
+}
+
 function resolveFlightProvider(env: Env): FlightProvider {
   /*
    * There is deliberately no `duffel` case here, and none above this
@@ -242,6 +257,12 @@ function resolveFlightProvider(env: Env): FlightProvider {
     });
   }
 
+  if (env.FLIGHT_PROVIDER === 'liteapi') {
+    requireLiteApiKey(env, 'FLIGHT_PROVIDER');
+    // The key is present but the adapter is migration plan Part 4. Fail closed, never mock.
+    return liveProviderNotImplemented('flights');
+  }
+
   if (env.FLIGHT_PROVIDER === 'mock') {
     return mockAllowed(env) ? createMockFlightProvider() : refuseMockInProduction('flights');
   }
@@ -251,6 +272,12 @@ function resolveFlightProvider(env: Env): FlightProvider {
 
 function resolveHotelProvider(env: Env): HotelProvider {
   if (env.HOTEL_PROVIDER === 'absent') return createAbsentHotelProvider();
+
+  if (env.HOTEL_PROVIDER === 'liteapi') {
+    requireLiteApiKey(env, 'HOTEL_PROVIDER');
+    // The key is present but the adapter is migration plan Part 2. Fail closed, never mock.
+    return liveProviderNotImplemented('hotels');
+  }
 
   if (env.HOTEL_PROVIDER === 'mock') {
     return mockAllowed(env) ? createMockHotelProvider() : refuseMockInProduction('hotels');
@@ -357,6 +384,8 @@ export function getProviderRegistry(source: DataSource = 'api'): ProviderRegistr
       transfers: built.transfers.metadata.id,
       places: built.places.metadata.id,
       fullyMocked: built.isFullyMocked(),
+      // sandbox | production | null. The mode only, never the key.
+      liteapi: liteApiEnvironment(env),
     },
     'provider registry initialised',
   );

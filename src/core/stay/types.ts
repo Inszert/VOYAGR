@@ -143,8 +143,19 @@ export interface StayRate {
   readonly perNight: Money;
   /** Before taxes and fees, where the provider separates them. */
   readonly base: Money | null;
-  /** Taxes and fees, where separated. Never folded silently into the total. */
+  /**
+   * Taxes and fees the provider states are already part of `total`, where separated. This is
+   * information about the total, not an addition to it.
+   */
   readonly taxesAndFees: Money | null;
+  /**
+   * Taxes and fees the provider says are paid to the property on arrival.
+   *
+   * **Never part of `total`**, never added to it and never converted: it is shown beside the
+   * price as "Payable at the hotel". `null` means the provider did not state it, which is not
+   * the same as nothing being payable.
+   */
+  readonly payableAtProperty: Money | null;
 
   readonly occupancy: StayOccupancy;
 

@@ -56,6 +56,7 @@ function priced(key: string, name: string, latitude: number, longitude: number):
             perNight: money(12_000, 'EUR'),
             base: null,
             taxesAndFees: null,
+            payableAtProperty: null,
             occupancy: { adults: 2, children: 0, rooms: 1 },
             observedAt: '2026-01-15T09:00:00Z',
             expiresAt: null,

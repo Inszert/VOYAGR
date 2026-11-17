@@ -432,6 +432,34 @@ const liteapiAmount = z
   .passthrough();
 
 /**
+ * One entry of `retailRate.taxesAndFees[]` (docs.nuitee.com, post_hotels-rates): `included` says
+ * whether the amount is already in the total; `included: false` is payable at the property.
+ */
+const liteapiTaxSchema = z
+  .object({
+    included: z.boolean(),
+    description: z.string().nullish(),
+    amount: z.number().finite().nonnegative(),
+    currency,
+  })
+  .passthrough();
+
+/**
+ * A malformed tax list becomes `null` ("not stated"), never an empty list and never a dropped
+ * rate: the price is still the vendor's price, only the tax breakdown is unknown.
+ */
+const liteapiTaxList = z.array(liteapiTaxSchema).nullish().catch(null);
+
+/** `cancelTime` is "ISO datetime", sampled as `2026-07-30 02:00:00`, always GMT. */
+const liteapiCancelPolicySchema = z
+  .object({
+    cancelTime: z.string().min(1),
+    amount: z.number().finite().nonnegative().nullish(),
+    type: z.string().nullish(),
+  })
+  .passthrough();
+
+/**
  * One hotel's entry in `POST /v3.0/hotels/rates`. A room type with no rate that
  * carries a stated total is not a price, so it fails here and is dropped.
  */
@@ -450,11 +478,20 @@ export const liteapiRatesRowSchema = z
                   rateId: z.string().min(1),
                   name: z.string().nullish(),
                   boardType: z.string().nullish(),
-                  retailRate: z.object({ total: z.array(liteapiAmount).min(1) }).passthrough(),
+                  retailRate: z
+                    .object({
+                      total: z.array(liteapiAmount).min(1),
+                      taxesAndFees: liteapiTaxList,
+                    })
+                    .passthrough(),
                   cancellationPolicies: z
-                    .object({ refundableTag: z.string().nullish() })
+                    .object({
+                      refundableTag: z.string().nullish(),
+                      cancelPolicyInfos: z.array(liteapiCancelPolicySchema).nullish().catch(null),
+                    })
                     .passthrough()
                     .nullish(),
+                  paymentTypes: z.array(z.string()).nullish().catch(null),
                 })
                 .passthrough(),
             )

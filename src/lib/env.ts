@@ -92,7 +92,7 @@ const envSchema = z.object({
    * there is no code path left that could read a Duffel credential or
    * reach `api.duffel.com`. See `docs/provider-policy.md`.
    */
-  FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales']).default('mock'),
+  FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales', 'liteapi']).default('mock'),
   /**
    * Offer the runtime API/MOCK switch.
    *
@@ -116,7 +116,12 @@ const envSchema = z.object({
    * `src/consent/drive.ts`.
    */
   DRIVE_TEST_STUB: booleanish.default(false),
-  HOTEL_PROVIDER: providerName,
+  HOTEL_PROVIDER: z.enum(['mock', 'live', 'absent', 'liteapi']).default('mock'),
+  /**
+   * Tours and activities. `liteapi` needs `LITEAPI_API_KEY`; the registry fails closed without it.
+   * No adapter exists yet (migration plan Part 5), so today only `absent` is buildable.
+   */
+  EXPERIENCE_PROVIDER: z.enum(['absent', 'liteapi']).default('absent'),
   /**
    * `open-meteo` needs no credential - it is a free, keyless API - so unlike
    * the flight adapters above there is nothing to fail loudly about at
@@ -208,6 +213,21 @@ const envSchema = z.object({
    * rates, which the adapter labels `test`, never `live`.
    */
   LITEAPI_API_KEY: z.string().min(1).optional(),
+  /**
+   * The nationality sent with every LiteAPI rates request (ISO 3166-1 alpha-2). It can change
+   * the price, so it is configuration and not a guess buried in a request. Defaults to `US`.
+   */
+  LITEAPI_GUEST_NATIONALITY: z
+    .string()
+    .regex(/^[A-Za-z]{2}$/, 'must be a two-letter ISO country code')
+    .transform((value) => value.toUpperCase())
+    .default('US'),
+  /**
+   * A sandbox key (`sand_...`) returns test prices. In a production build it is refused unless
+   * this is set explicitly, because setting it is the owner's decision to show test prices on
+   * the live site (with a visible "Test prices" note). See `assertLiteApiKeyAllowed`.
+   */
+  LITEAPI_SANDBOX_IN_PRODUCTION: booleanish.default(false),
   TRAVELPAYOUTS_HOTEL_PROGRAM_ID: z.string().min(1).optional(),
   TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID: z.string().min(1).optional(),
 
@@ -346,9 +366,43 @@ function assertProductionAppUrl(source: Record<string, unknown>): void {
   }
 }
 
+/**
+ * Which LiteAPI environment a key belongs to. Derived, never configured: a key that starts with
+ * `sand_` is a sandbox key. `null` when there is no key.
+ */
+export function liteApiEnvironment(
+  env: Pick<Env, 'LITEAPI_API_KEY'>,
+): 'sandbox' | 'production' | null {
+  const key = env.LITEAPI_API_KEY;
+  if (!key) return null;
+  return key.startsWith('sand_') ? 'sandbox' : 'production';
+}
+
+/**
+ * A sandbox key in a production build is refused unless `LITEAPI_SANDBOX_IN_PRODUCTION=true`.
+ * Sandbox prices are test data; showing them on the live site is a decision, not a default.
+ * The message never contains the key.
+ */
+function assertLiteApiKeyAllowed(source: Record<string, unknown>): void {
+  if (source.NODE_ENV !== 'production') return;
+  const key = source.LITEAPI_API_KEY;
+  if (typeof key !== 'string' || !key.startsWith('sand_')) return;
+
+  const flag = source.LITEAPI_SANDBOX_IN_PRODUCTION;
+  if (flag === true || flag === 'true' || flag === '1') return;
+
+  throw new AppError(
+    'CONFIGURATION_ERROR',
+    'LITEAPI_API_KEY is a sandbox key, and sandbox prices are test data. A production build ' +
+      'refuses it unless LITEAPI_SANDBOX_IN_PRODUCTION=true is set, or a production key is used.',
+    { context: { variable: 'LITEAPI_API_KEY', problem: 'sandbox_in_production' } },
+  );
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const present = stripEmptyStrings(source);
   assertProductionAppUrl(present);
+  assertLiteApiKeyAllowed(present);
 
   const result = envSchema.safeParse(productionAwareDefaults(present));
 

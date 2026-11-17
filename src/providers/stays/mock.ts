@@ -112,6 +112,7 @@ export class MockStayProvider implements StayProvider {
           perNight: fromMajor(total / nights, query.currency),
           base: null,
           taxesAndFees: null,
+          payableAtProperty: null,
           occupancy: query.occupancy,
           // Fixed, so a run is reproducible and freshness is assertable.
           observedAt: '2026-01-15T09:00:00Z',

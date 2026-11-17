@@ -151,6 +151,11 @@ Phase 5 flexible dates → design slices 2–5 → things-to-do (D13) → trip h
   from every surface at the owner's request. Honesty is carried by: "from" on prices, the
   "Updated N min ago" line, the footer sentence that prices are observed and can change, and
   wording that names what a total excludes. Provenance stays in the data model.
+  - **Exception, owner decision 2026-11-17 (LiteAPI migration, Q2): hotel prices only.** While the
+    LiteAPI key is a sandbox key (`sand_...`), the live site shows hotel prices with a visible
+    "Test prices" note. That note is the only label; no other chip returns. It applies to hotel
+    prices alone, and it goes away when a production key is used. A production build refuses a
+    sandbox key unless `LITEAPI_SANDBOX_IN_PRODUCTION=true` is set.
 - The search form's price calendar loads only a few days: it must load every day the provider has
   for both visible months (cached, per month).
 - Standing instruction: go through every surface one by one; nothing is too small. Order after the

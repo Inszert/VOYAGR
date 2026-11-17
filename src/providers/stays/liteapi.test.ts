@@ -115,6 +115,131 @@ describe('LiteAPI stays adapter', () => {
   });
 });
 
+describe('LiteAPI taxes, cancellation and payment timing', () => {
+  const room = (rate: Record<string, unknown>, offerTotal = 100) => ({
+    data: [
+      {
+        hotelId: 'lp1001',
+        roomTypes: [
+          {
+            offerId: 'o1',
+            offerRetailRate: { amount: offerTotal, currency: 'EUR' },
+            rates: [
+              {
+                rateId: 'r1',
+                name: 'Double',
+                boardType: 'RO',
+                retailRate: { total: [{ amount: offerTotal, currency: 'EUR' }], ...rate },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    sandbox: true,
+  });
+
+  async function rateFor(body: unknown) {
+    const { fetchImpl } = fakeFetch(body);
+    const result = await new LiteApiStayProvider({ apiKey: 'k', fetchImpl, now: NOW }).searchStays(
+      query,
+    );
+    if (!result.ok) throw result.error;
+    return result.value.find((o) => o.property.providerPropertyId === 'lp1001')!.rates[0]!;
+  }
+
+  it('keeps excluded tax out of the total and reports it as payable at the property', async () => {
+    const rate = await rateFor(
+      room({
+        taxesAndFees: [
+          { included: false, description: 'City tax', amount: 12.4, currency: 'EUR' },
+          { included: true, description: 'VAT', amount: 9.5, currency: 'EUR' },
+        ],
+      }),
+    );
+    expect(rate.total).toEqual({ amount: 10000, currency: 'EUR' });
+    expect(rate.payableAtProperty).toEqual({ amount: 1240, currency: 'EUR' });
+    expect(rate.taxesAndFees).toEqual({ amount: 950, currency: 'EUR' });
+    expect(rate.source.provenance).toBe('test');
+  });
+
+  it('states both as null when the vendor gives no tax list, or a malformed one', async () => {
+    for (const taxes of [undefined, [], [{ included: 'yes', amount: 'x', currency: 'EUR' }]]) {
+      const rate = await rateFor(room(taxes === undefined ? {} : { taxesAndFees: taxes }));
+      expect(rate.taxesAndFees).toBeNull();
+      expect(rate.payableAtProperty).toBeNull();
+      expect(rate.total).toEqual({ amount: 10000, currency: 'EUR' });
+    }
+  });
+
+  it('gives null, not a conversion, for amounts in mixed currencies', async () => {
+    const rate = await rateFor(
+      room({
+        taxesAndFees: [
+          { included: false, amount: 5, currency: 'EUR' },
+          { included: false, amount: 5, currency: 'USD' },
+        ],
+      }),
+    );
+    expect(rate.payableAtProperty).toBeNull();
+  });
+
+  it('reads the free-cancellation deadline (GMT) only for a refundable rate', async () => {
+    const policies = (tag: string) => ({
+      cancellationPolicies: {
+        refundableTag: tag,
+        cancelPolicyInfos: [
+          { cancelTime: '2027-03-05 02:00:00', amount: 100, currency: 'EUR', type: 'amount' },
+        ],
+      },
+    });
+    const refundable = await rateFor(roomWith(policies('RFN')));
+    expect(refundable.cancellation).toMatchObject({
+      refundable: true,
+      deadline: '2027-03-05T02:00:00Z',
+    });
+    const non = await rateFor(roomWith(policies('NRFN')));
+    expect(non.cancellation).toMatchObject({ refundable: false, deadline: null });
+  });
+
+  it('maps only the documented payment values and leaves anything else unknown', async () => {
+    expect((await rateFor(roomWith({ paymentTypes: ['PROPERTY_PAY'] }))).paymentTiming).toBe(
+      'pay_later',
+    );
+    expect((await rateFor(roomWith({ paymentTypes: ['NUITEE_PAY'] }))).paymentTiming).toBe(
+      'pay_now',
+    );
+    expect((await rateFor(roomWith({ paymentTypes: ['SOMETHING_NEW'] }))).paymentTiming).toBeNull();
+    expect((await rateFor(roomWith({}))).paymentTiming).toBeNull();
+  });
+});
+
+/** A rates body whose single rate carries `extra` beside its retailRate. */
+function roomWith(extra: Record<string, unknown>) {
+  return {
+    data: [
+      {
+        hotelId: 'lp1001',
+        roomTypes: [
+          {
+            offerId: 'o1',
+            offerRetailRate: { amount: 100, currency: 'EUR' },
+            rates: [
+              {
+                rateId: 'r1',
+                boardType: 'RO',
+                retailRate: { total: [{ amount: 100, currency: 'EUR' }] },
+                ...extra,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    sandbox: true,
+  };
+}
+
 describe('LiteAPI schema boundary', () => {
   it('rejects a hotel row with no coordinates', () => {
     expect(liteapiHotelRowSchema.safeParse(hotelsFixture.data[2]).success).toBe(false);

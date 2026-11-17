@@ -123,6 +123,55 @@ describe('an unapproved or unknown provider fails closed', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('refuses liteapi with no key, before any request', () => {
+    for (const kind of ['FLIGHT_PROVIDER', 'HOTEL_PROVIDER', 'EXPERIENCE_PROVIDER'] as const) {
+      expect(() => new ProviderRegistry(env({ [kind]: 'liteapi' } as Partial<Env>))).toThrow(
+        /LITEAPI_API_KEY is not set/,
+      );
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on liteapi with a key while no adapter exists, never serving a mock', () => {
+    for (const kind of ['FLIGHT_PROVIDER', 'HOTEL_PROVIDER'] as const) {
+      expect(
+        () =>
+          new ProviderRegistry(env({ [kind]: 'liteapi', LITEAPI_API_KEY: 'k' } as Partial<Env>)),
+      ).toThrow(AppError);
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuses a sandbox key in production unless the flag is set, and never names the key', () => {
+    const base = {
+      NODE_ENV: 'production',
+      NEXT_PUBLIC_APP_URL: 'https://voyagr.example',
+      LITEAPI_API_KEY: 'sand_secret123',
+    };
+    let message = '';
+    try {
+      parseEnv(base);
+    } catch (error) {
+      message = String((error as Error).message);
+    }
+    expect(message).toMatch(/LITEAPI_SANDBOX_IN_PRODUCTION/);
+    expect(message).not.toContain('sand_secret123');
+
+    expect(parseEnv({ ...base, LITEAPI_SANDBOX_IN_PRODUCTION: 'true' }).LITEAPI_API_KEY).toBe(
+      'sand_secret123',
+    );
+    // A non-sandbox key and a development build are not affected.
+    expect(() => parseEnv({ ...base, LITEAPI_API_KEY: 'prod_key' })).not.toThrow();
+    expect(() => parseEnv({ ...base, NODE_ENV: 'development' })).not.toThrow();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('reads no LiteAPI choice from anything but the environment', () => {
+    expect(parseEnv({}).LITEAPI_GUEST_NATIONALITY).toBe('US');
+    expect(parseEnv({ LITEAPI_GUEST_NATIONALITY: 'gb' }).LITEAPI_GUEST_NATIONALITY).toBe('GB');
+    expect(() => parseEnv({ LITEAPI_GUEST_NATIONALITY: 'GBR' })).toThrow();
+  });
+
   it('is safe with no provider configuration at all - every kind defaults to mock', () => {
     const registry = new ProviderRegistry(env());
 

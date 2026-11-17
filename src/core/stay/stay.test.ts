@@ -40,6 +40,7 @@ const rate = (over: Partial<StayRate> = {}): StayRate => ({
   perNight: money(13_000, 'EUR'),
   base: null,
   taxesAndFees: null,
+  payableAtProperty: null,
   occupancy: { adults: 2, children: 0, rooms: 1 },
   observedAt: '2026-06-01T09:00:00Z',
   expiresAt: null,
