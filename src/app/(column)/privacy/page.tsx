@@ -20,7 +20,9 @@ const sections: readonly LegalSection[] = [
     title: 'Searching without an account',
     // No analytics and no advertising of our own. The one partner script loads
     // only after consent (`src/consent/`, `affiliate-drive.tsx`). Fonts are
-    // self-hosted and photographs proxied.
+    // self-hosted; hotel photographs load from the hotel-photo provider's image host
+    // (`IMAGE_HOSTS` in `src/consent/csp.ts`), not gated by consent; destination photographs
+    // are proxied.
     body: (
       <>
         <p>
@@ -34,8 +36,13 @@ const sections: readonly LegalSection[] = [
           (Travelpayouts, described under <a href="#cookies">Cookies and storage on your device</a>)
           is loaded only if you accept it, and the only cookie set for a visitor who is not signed
           in is the one that remembers that choice. Fonts are served from our own address, and
-          destination photographs are fetched by our server and passed on, so until you accept, your
-          browser only talks to Voyagr itself while you use the site.
+          destination photographs are fetched by our server and passed on from our own address.
+          Hotel photographs are different: when you view a stay, your browser loads them directly
+          from the hotel-photo provider&rsquo;s image host, static.cupid.travel. That host receives
+          your IP address, your browser type and the address of the page you are on (the referrer,
+          trimmed by the policy). This does not wait for the choice about the partner script. Apart
+          from that host, until you accept, your browser only talks to Voyagr itself while you use
+          the site.
         </p>
       </>
     ),
@@ -181,14 +188,24 @@ const sections: readonly LegalSection[] = [
             not contact Wikimedia or Wikidata. They see our server&rsquo;s request, not yours.
           </li>
           <li>
+            <strong>LiteAPI.</strong> The hotel data provider. Our server sends it the destination
+            and dates of a hotel search to get stays and prices. It sends no name, email address or
+            other detail about you.
+          </li>
+          <li>
+            <strong>static.cupid.travel.</strong> The image host for LiteAPI&rsquo;s hotel
+            photographs. Unlike the providers above, your browser contacts it directly when you view
+            a stay, so it receives your IP address, your browser type and the page address (the
+            referrer, trimmed by the policy). It is not behind the cookie choice.
+          </li>
+          <li>
             <strong>Your browser&rsquo;s push service</strong>, if you turn on notifications, as
             described above.
           </li>
         </ul>
         <p>
-          Hotel and transfer prices come from no outside provider at this stage, so nothing about
-          you is sent anywhere for them. Voyagr does not sell personal data or share it for
-          advertising.
+          Transfer prices come from no outside provider at this stage, so nothing about you is sent
+          anywhere for them. Voyagr does not sell personal data or share it for advertising.
         </p>
         <p>
           Some links on Voyagr, such as airport transfers, travel eSIMs and flight compensation, are

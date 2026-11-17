@@ -1,17 +1,16 @@
+import { IMAGE_HOSTS } from '@/consent/csp';
 import { Media } from '@/components/ui';
 import type { StayPhoto as StayPhotoData } from '@/core/stay/types';
 
 /**
  * Hotel photographs, shown only where the Content-Security-Policy lets them load.
  *
- * `img-src` is `'self' blob: data:` (src/consent/csp.ts) and is deliberately not
- * loosened, so a vendor image host is blocked by the browser. Until a host is
- * added there, or photos are proxied through our own origin, a photograph is
- * replaced by the hotel's name set in type, so nothing renders as a broken image.
- *
- * When a host is allowed, add it here and in the CSP together.
+ * `img-src` (src/consent/csp.ts) names the LiteAPI content host and nothing else, so
+ * that list is the one source of truth here: any other host is blocked by the
+ * browser, and its photograph is replaced by the hotel's name set in type, so
+ * nothing renders as a broken image.
  */
-export const IMAGE_HOSTS_IN_CSP: readonly string[] = [];
+export const IMAGE_HOSTS_IN_CSP: readonly string[] = IMAGE_HOSTS;
 
 /** `https` only, and only from a host the policy allows. Same-origin paths are always fine. */
 export function showablePhoto(photo: StayPhotoData): boolean {
@@ -19,7 +18,7 @@ export function showablePhoto(photo: StayPhotoData): boolean {
 
   try {
     const url = new URL(photo.url);
-    return url.protocol === 'https:' && IMAGE_HOSTS_IN_CSP.includes(url.hostname);
+    return url.protocol === 'https:' && IMAGE_HOSTS_IN_CSP.includes(url.host);
   } catch {
     return false;
   }

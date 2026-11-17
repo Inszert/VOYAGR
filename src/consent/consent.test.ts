@@ -124,6 +124,15 @@ describe('buildContentSecurityPolicy', () => {
     }
   });
 
+  it('allows images from self, blob, data and the one LiteAPI photo host, no wildcard', () => {
+    for (const driveOrigin of [null, DRIVE_ORIGIN]) {
+      const csp = buildContentSecurityPolicy({ ...base, driveOrigin });
+      expect(csp).toContain("img-src 'self' blob: data: https://static.cupid.travel;");
+      expect(csp).not.toMatch(/img-src[^;]*\*/);
+      expect(csp).not.toMatch(/img-src[^;]*http:/);
+    }
+  });
+
   it('allows eval only in development', () => {
     expect(buildContentSecurityPolicy({ nonce: 'n', isDev: true, driveOrigin: null })).toContain(
       "'unsafe-eval'",

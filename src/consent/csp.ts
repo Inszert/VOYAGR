@@ -22,6 +22,13 @@ export interface CspInput {
  */
 const DRIVE_AUTH_ORIGIN = 'https://www.travelpayouts.com';
 
+/**
+ * Hotel photographs come from the LiteAPI content CDN. Exact https hostnames, no
+ * wildcard. `IMAGE_HOSTS_IN_CSP` in src/components/stays/stay-photo.tsx must be
+ * this same list: change them together.
+ */
+export const IMAGE_HOSTS: readonly string[] = ['static.cupid.travel'];
+
 export function buildContentSecurityPolicy({ nonce, isDev, driveOrigin }: CspInput): string {
   const drive = driveOrigin ? ` ${driveOrigin}` : '';
   const driveStyle = driveOrigin ? ` ${driveOrigin}` : '';
@@ -32,7 +39,7 @@ export function buildContentSecurityPolicy({ nonce, isDev, driveOrigin }: CspInp
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}${drive}`,
     `style-src 'self' 'unsafe-inline'${driveStyle}`,
-    "img-src 'self' blob: data:",
+    `img-src 'self' blob: data: ${IMAGE_HOSTS.map((h) => `https://${h}`).join(' ')}`,
     "font-src 'self' data:",
     `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}${driveConnect}`,
     `worker-src 'self'${driveWorker}`,

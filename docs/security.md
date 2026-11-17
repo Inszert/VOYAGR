@@ -99,7 +99,7 @@ style attribute is gated by `style-src-attr`, which this nonce does not cover - 
 needs those components rewritten to use a nonced `<style>` element instead, which is real work with
 its own risk, left for its own change. `'unsafe-eval'` is development-only.
 
-The rest of the policy (`src/consent/csp.ts`) is `default-src 'self'`, `img-src 'self' blob: data:`,
+The rest of the policy (`src/consent/csp.ts`) is `default-src 'self'`, `img-src 'self' blob: data: https://static.cupid.travel`,
 `font-src 'self' data:`, `manifest-src 'self'`, `frame-ancestors 'none'`, `base-uri` and
 `form-action` `'self'`, and `upgrade-insecure-requests`. `worker-src` is `'self'` and `connect-src`
 is `'self'` (plus the dev-only websocket). A visitor who has accepted the Travelpayouts Drive
@@ -371,6 +371,18 @@ request that carries `voyagr-consent=accepted`:
   contract tests run on the in-memory implementation).
 - Whether the real Drive script sets cookies or contacts hosts beyond `emrldco.com` and
   `www.travelpayouts.com`. If it does the CSP blocks them until each is added deliberately.
+
+## Hotel photo host (2026-11-17)
+
+`img-src` allows exactly one outside host, `https://static.cupid.travel` (`IMAGE_HOSTS` in
+`src/consent/csp.ts`), the image host for LiteAPI hotel photographs. The owner decided to allow it
+so vendor photos show instead of the hotel name in type. It is first-party content for the
+product, so it is not gated by consent, unlike the Drive script. Each visitor's browser contacts
+it directly when a stay is viewed, so it receives their IP address, browser type and the page
+address as a referrer (trimmed by the policy). The photo component accepts only `https` and the
+exact host, port included. The service worker (`public/sw.js`) leaves cross-origin requests
+alone, so these images are not cached. The privacy page says this and needs the owner's review
+before it is published.
 
 ## CSP for the accepted Travelpayouts Drive script (2026-11-17)
 
