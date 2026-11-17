@@ -27,3 +27,11 @@ src/providers/stays/*.generated.json
 # Installed alongside the Impeccable skill. Voyagr's own agents beside them
 # are ours and stay formatted.
 .claude/agents/impeccable-*.md
+# The owner's hand-laid-out status page; reflowing it changes every line.
+devmap.html
+# Written by scripts/update-devmap.mjs on each live refresh; not ours to format.
+devmap-live.js
+# A recorded provider response, kept byte-for-byte as recorded.
+tests/fixtures/providers/overpass-barcelona-stays.json
+# A tool cache, not source.
+.impeccable/hook.cache.json

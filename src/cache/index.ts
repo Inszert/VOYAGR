@@ -1,24 +1,31 @@
+import { query } from '@/db/client';
 import { getEnv } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import { MemoryCacheStore } from './memory';
+import { PostgresCacheStore } from './postgres';
 import { connectIoRedis, RedisCacheStore } from './redis';
 import type { CacheStore } from './types';
 
 /**
  * Cache store factory.
  *
- * Redis when `REDIS_URL` is set, the in-process store otherwise - so `npm run
- * dev`, `npm test` and CI need nothing. Unlike the queue, a missing Redis is
- * not an error: a cache is an optimisation, and the queue's reason for
- * refusing to fall back (losing durable jobs) does not apply.
+ * Redis when `REDIS_URL` is set; otherwise the database when `DATABASE_URL` is
+ * set, so a deployment without Redis still shares results across instances and
+ * survives a restart; otherwise the in-process store - so `npm run dev`, `npm
+ * test` and CI need nothing. Unlike the queue, a missing backend is not an
+ * error: a cache is an optimisation, and the queue's reason for refusing to
+ * fall back (losing durable jobs) does not apply.
  */
 
 const log = getLogger('cache.factory');
 
 export function createCacheStore(): CacheStore {
-  const { REDIS_URL } = getEnv();
+  const { REDIS_URL, DATABASE_URL } = getEnv();
 
-  return REDIS_URL ? new RedisCacheStore(connectIoRedis(REDIS_URL)) : new MemoryCacheStore();
+  if (REDIS_URL) return new RedisCacheStore(connectIoRedis(REDIS_URL));
+  if (DATABASE_URL) return new PostgresCacheStore(query);
+
+  return new MemoryCacheStore();
 }
 
 /**

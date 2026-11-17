@@ -30,7 +30,7 @@ export interface CacheSetOptions {
 }
 
 export interface CacheStore {
-  readonly name: 'memory' | 'redis';
+  readonly name: 'memory' | 'redis' | 'postgres';
 
   /** The entry, or null when there is none. A broken backend is a miss, not a throw. */
   get<T>(key: string): Promise<CacheEntry<T> | null>;

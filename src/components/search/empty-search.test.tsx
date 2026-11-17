@@ -140,7 +140,10 @@ describe('EmptySearch', () => {
         />,
       );
 
-      expect(liveLink()).toHaveAttribute('href', 'https://www.aviasales.com/search/VIE2311KZN30113');
+      expect(liveLink()).toHaveAttribute(
+        'href',
+        'https://www.aviasales.com/search/VIE2311KZN30113',
+      );
     });
 
     it('carries the configured partner marker', () => {

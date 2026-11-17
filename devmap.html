@@ -260,6 +260,7 @@ const DATA = {
     { area: "Data & caching", text: "Process-wide singletons moved to globalThis (repositories, DB pool, imagery limiter)", src: "progress.md (2026-11-04)" },
     { area: "Data & caching", text: "Health check answers ok on the live site", src: "verified 2026-11-17 on the live site" },
     { area: "Data & caching", text: "Weather days with no rain figure are left out, in the forecast and in the typical-for-dates figures", note: "Awaiting a browser check.", src: "commit dd9c042 (weather null days); commit b39f7f3 (climatology rain fix)" },
+    { area: "Data & caching", text: "Store fetched trip results in the database, so a trip searched again within a short time is served from storage and not fetched live every 2 to 3 minutes", note: "Database tier of the cache (migration 0011, cache_entries), used when DATABASE_URL is set and REDIS_URL is not. Reuses the existing 5-minute window; confirm that window. Awaiting migration 0011 on a real database and a check.", src: "owner request 2026-11-17; src/cache/postgres.ts" },
 
     { area: "Flights & prices", text: "Flexible-dates strip: \"leave 2 days earlier, save EUR 84\"", src: "STATUS.md" },
     { area: "Flights & prices", text: "Price calendar loads every day of both visible months", src: "STATUS.md; progress.md" },
@@ -366,7 +367,6 @@ const DATA = {
   // Planned, not started. `note` says why, where the source does.
   planned: [
     { text: "Globe default: show at least 3 places on the other side of the globe and 5 far-away places, without overloading the view", note: "Owner request 2026-11-17 (read \"plains\" as \"places\"; confirm). Not started.", src: "owner request" },
-    { text: "Store fetched trip results in the database, so a trip searched again within a short time is served from storage and not fetched live every 2 to 3 minutes", note: "Owner request 2026-11-17; not started.", src: "owner request" },
     { text: "Trip style selector on Discover for the selected place or city: chill, hike, city, food and others; choosing one builds the trip for that style", note: "Owner request 2026-11-17; not started.", src: "owner request" },
     { text: "Slider per part of the trip (flights, stay, activities, transfers and more) to set how much of each to include; the trip is generated from those settings", note: "Owner request 2026-11-17; not started.", src: "owner request" },
     { text: "Things to do in Chicago: the map works but its design should be better", note: "Owner report 2026-11-17; not started.", src: "owner request" },
