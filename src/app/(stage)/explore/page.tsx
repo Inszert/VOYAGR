@@ -1,6 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Container, Icon, UpdatedAgo } from '@/components/ui';
+import {
+  Button,
+  Container,
+  DateRangeField,
+  Icon,
+  NumberStepperField,
+  UpdatedAgo,
+} from '@/components/ui';
+import { AirportInput } from '@/components/search/airport-input';
+import { LiveResults, LiveSearchForm } from '@/components/search/live-search';
+import { LIVE_FIELDS } from '@/components/search/live-fields';
+import { ANYWHERE } from '@/search/schema';
 import { format } from '@/core/money';
 import { getCurrentUser } from '@/auth/current-user';
 import { getRepositories } from '@/db';
@@ -15,7 +26,9 @@ import destinationImages from '../../../../public/img/destinations/manifest.json
 import { EXPLORE_SLOT_CLASS, StageSlot } from '@/components/discovery/stage-slot';
 import { StageSync } from '@/components/discovery/stage-sync';
 import { StageControls } from '@/components/discovery/stage-controls';
+import { Suspense } from 'react';
 import { SearchResults } from '@/components/search/search-results';
+import { WhatToDo } from '@/components/search/what-to-do';
 import { FlexDatesSection } from '@/components/search/flex-dates-section';
 import { SaveSearchForm } from '@/components/watches/save-search-form';
 import { saveSearchAction } from '@/app/actions/watches';
@@ -269,11 +282,65 @@ export default async function ExplorePage({
             */}
             {page.profile ? (
               <div className="border-border flex flex-col gap-3 border-y py-4">
+                {/*
+                  The four things people change most, applied as they change:
+                  a new address, the same page, the same globe. Everything
+                  else about the search rides along as it was, and "Change
+                  search" below still opens every option.
+                */}
+                <LiveSearchForm
+                  action="/explore"
+                  label="Change this search"
+                  className="grid gap-4 sm:grid-cols-2"
+                >
+                  {Object.entries(values).map(([name, value]) =>
+                    typeof value === 'string' &&
+                    name !== 'edit' &&
+                    !(LIVE_FIELDS as readonly string[]).includes(name) ? (
+                      <input key={name} type="hidden" name={name} value={value} />
+                    ) : null,
+                  )}
+                  <AirportInput
+                    label="From"
+                    name="origins"
+                    defaultValue={values.origins ?? page.profile.origins.join(', ')}
+                    airports={page.airports}
+                    required
+                  />
+                  <AirportInput
+                    label="To"
+                    name="destinations"
+                    defaultValue={values.destinations?.trim() ? values.destinations : ANYWHERE}
+                    airports={page.airports}
+                    required
+                  />
+                  <div className="sm:col-span-2">
+                    <DateRangeField
+                      startLabel="Leaving"
+                      startName="departureDate"
+                      startValue={values.departureDate ?? page.profile.earliestDeparture}
+                      endLabel="Back"
+                      endName="returnDate"
+                      endValue={values.returnDate ?? page.profile.latestReturn}
+                      min={page.today}
+                      required
+                    />
+                  </div>
+                  <NumberStepperField
+                    label="Travellers"
+                    name="passengers"
+                    min={1}
+                    max={9}
+                    defaultValue={values.passengers ?? String(page.profile.passengers)}
+                    required
+                  />
+                  <noscript>
+                    <Button type="submit" variant="secondary">
+                      Update trips
+                    </Button>
+                  </noscript>
+                </LiveSearchForm>
                 <p className="text-ink flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="font-semibold">
-                    {page.profile.origins.join(', ')} →{' '}
-                    {values.destinations?.trim() ? values.destinations : 'anywhere'}
-                  </span>
                   <span className="text-ink-muted tabular-nums">
                     {shortDate(page.profile.earliestDeparture)} to{' '}
                     {shortDate(page.profile.latestReturn)}
@@ -282,10 +349,6 @@ export default async function ExplorePage({
                     {page.profile.minNights === page.profile.maxNights
                       ? `${page.profile.minNights} nights`
                       : `${page.profile.minNights}-${page.profile.maxNights} nights`}
-                  </span>
-                  <span className="text-ink-muted">
-                    {page.profile.passengers}{' '}
-                    {page.profile.passengers === 1 ? 'traveller' : 'travellers'}
                   </span>
                   <span className="text-ink-muted tabular-nums">
                     up to {format(page.profile.maxBudget)}
@@ -358,38 +421,60 @@ export default async function ExplorePage({
          */
         <section className="stage-scope bg-stage text-stage-ink">
           <Container size="wide" className="flex flex-col gap-6 pt-6 pb-16">
-            <SearchResults
-              outcome={page.outcome}
-              profile={page.profile}
-              filters={page.filters}
-              searchValues={values}
-              resultAgeMs={page.resultAgeMs}
-              updatedAgeMs={page.updatedAgeMs}
-              images={images}
-              stayLinks={stayLinks}
-              countries={countries}
-              planTrips={planTrips}
-              changeSearchHref={`/?${query}&edit=1`}
-              basePath="/explore"
-              flexStrip={(() => {
-                const trip = flexTrip(values, page.outcome, page.outcome.diagnostics.plan.currency);
-                return trip ? <FlexDatesSection {...trip} /> : null;
-              })()}
-              saveSearch={
-                <SaveSearchForm
-                  query={query}
-                  suggestedName={suggestedSearchName(values)}
-                  signedIn={page.signedIn}
-                  action={saveSearchAction}
-                />
-              }
-              closing={
-                <TripExtras
-                  offers={offersForTrip()}
-                  today={new Date().toISOString().slice(0, 10)}
-                />
-              }
-            />
+            {/* Dimmed and busy while a changed search is on its way; see `LiveResults`. */}
+            <LiveResults>
+              <SearchResults
+                outcome={page.outcome}
+                profile={page.profile}
+                filters={page.filters}
+                searchValues={values}
+                resultAgeMs={page.resultAgeMs}
+                updatedAgeMs={page.updatedAgeMs}
+                images={images}
+                stayLinks={stayLinks}
+                countries={countries}
+                planTrips={planTrips}
+                changeSearchHref={`/?${query}&edit=1`}
+                whatToDo={(destination, city, href) => (
+                  <Suspense
+                    fallback={
+                      <p role="status" className="text-ink-muted text-sm">
+                        Loading what to do in {city}
+                      </p>
+                    }
+                  >
+                    <WhatToDo
+                      destination={destination}
+                      city={city}
+                      {...(href ? { destinationHref: href } : {})}
+                    />
+                  </Suspense>
+                )}
+                basePath="/explore"
+                flexStrip={(() => {
+                  const trip = flexTrip(
+                    values,
+                    page.outcome,
+                    page.outcome.diagnostics.plan.currency,
+                  );
+                  return trip ? <FlexDatesSection {...trip} /> : null;
+                })()}
+                saveSearch={
+                  <SaveSearchForm
+                    query={query}
+                    suggestedName={suggestedSearchName(values)}
+                    signedIn={page.signedIn}
+                    action={saveSearchAction}
+                  />
+                }
+                closing={
+                  <TripExtras
+                    offers={offersForTrip()}
+                    today={new Date().toISOString().slice(0, 10)}
+                  />
+                }
+              />
+            </LiveResults>
           </Container>
         </section>
       ) : null}

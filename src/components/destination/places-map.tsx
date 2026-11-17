@@ -22,7 +22,7 @@ import type { ThingToDo } from '@/providers/types';
 const WIDTH = 640;
 /** The plan itself. The legend band sits below it, outside the maths. */
 const HEIGHT = 280;
-const LEGEND_HEIGHT = 56;
+const LEGEND_HEIGHT = 80;
 /** Dot radius runs from the least to the most covered place on the plan. */
 const DOT_MIN = 3.5;
 const DOT_MAX = 7;
@@ -133,7 +133,6 @@ export function PlacesMap({
   const highest = Math.max(...counts);
   const legend = focusId === null;
   const height = legend ? HEIGHT + LEGEND_HEIGHT : HEIGHT;
-  const halo = '[paint-order:stroke] stroke-surface-sunken';
   const activePlace = placed.find(({ place }) => place.id === activeId && focusId === null);
 
   return (
@@ -145,6 +144,26 @@ export function PlacesMap({
       preserveAspectRatio="xMidYMid meet"
     >
       <rect width={WIDTH} height={height} className="fill-surface-sunken" rx="14" />
+      {legend ? (
+        <line x1="0" x2={WIDTH} y1={HEIGHT} y2={HEIGHT} className="stroke-border" strokeWidth="1" />
+      ) : null}
+
+      {/* The two axes through the centre: a plan needs a way to read bearing. */}
+      <path
+        d={`M${WIDTH / 2} 14V${HEIGHT - 14}M14 ${HEIGHT / 2}H${WIDTH - 14}`}
+        className="stroke-border"
+        strokeWidth="1"
+      />
+      {legend ? (
+        <text
+          x={WIDTH - 22}
+          y="28"
+          textAnchor="middle"
+          className="fill-dim text-[13px] font-medium"
+        >
+          N
+        </text>
+      ) : null}
 
       {rings.map((ring) => (
         <g key={ring.label}>
@@ -153,32 +172,38 @@ export function PlacesMap({
             cy={HEIGHT / 2}
             r={ring.radius}
             className="stroke-border-strong fill-none"
-            strokeDasharray="2 5"
+            strokeWidth="1.25"
+            strokeDasharray="3 5"
           />
-          <text
-            x={WIDTH / 2 + ring.radius * 0.7071 + 4}
-            y={HEIGHT / 2 - ring.radius * 0.7071 - 2}
-            className={`fill-dim text-[15px] tabular-nums ${halo}`}
-            strokeWidth="4"
-          >
-            {ring.label} from centre
-          </text>
+          <Pill
+            x={WIDTH / 2 + ring.radius * 0.7071}
+            y={HEIGHT / 2 - ring.radius * 0.7071}
+            text={`${ring.label} from centre`}
+            className="fill-ink-muted"
+          />
         </g>
       ))}
 
+      {/* A line from the centre to the place a card points at, so distance is visible. */}
+      {activePlace ? (
+        <line
+          x1={WIDTH / 2}
+          y1={HEIGHT / 2}
+          x2={activePlace.x}
+          y2={activePlace.y}
+          className="stroke-ink"
+          strokeWidth="1.5"
+          strokeDasharray="4 4"
+          data-place-line=""
+        />
+      ) : null}
+
       {/* The centre, named. */}
       <g transform={`translate(${WIDTH / 2} ${HEIGHT / 2})`}>
-        <circle r="9" className="stroke-ink-muted fill-none" strokeWidth="1.5" />
-        <path d="M-6 0H6M0 -6V6" className="stroke-ink-muted" strokeWidth="1.5" />
-        <text
-          x="13"
-          y="19"
-          className={`fill-ink-muted text-[15px] font-medium ${halo}`}
-          strokeWidth="4"
-        >
-          City centre
-        </text>
+        <circle r="10" className="stroke-ink fill-surface-sunken" strokeWidth="2" />
+        <circle r="3.5" className="fill-ink" />
       </g>
+      <Pill x={WIDTH / 2 + 14} y={HEIGHT / 2 + 22} text="City centre" className="fill-ink" strong />
 
       {placed.map(({ place, x, y }) => {
         const active = place.id === activeId || place.id === focusId;
@@ -198,13 +223,16 @@ export function PlacesMap({
             {/* A generous invisible target so a dot is easy to hit with a mouse. */}
             <circle cx={x} cy={y} r="12" fill="transparent" />
             {active ? (
-              <circle
-                cx={x}
-                cy={y}
-                r={radius + 5}
-                className="stroke-ink fill-none"
-                strokeWidth="2"
-              />
+              <>
+                <circle cx={x} cy={y} r={radius + 9} className="fill-brand-ink" opacity="0.18" />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={radius + 5}
+                  className="stroke-ink fill-none"
+                  strokeWidth="2.5"
+                />
+              </>
             ) : null}
             <circle
               cx={x}
@@ -212,7 +240,7 @@ export function PlacesMap({
               r={active ? radius + 1.5 : radius}
               className="voyagr-dot fill-brand-ink stroke-surface"
               strokeWidth="1.5"
-              opacity={faint ? 0.35 : dim ? 0.45 : 1}
+              opacity={faint ? 0.35 : dim ? 0.4 : 1}
             />
           </g>
         );
@@ -220,16 +248,25 @@ export function PlacesMap({
 
       {/* The name of the place a card or a dot is pointing at, drawn last so nothing covers it. */}
       {activePlace ? (
-        <text
-          x={activePlace.x + (activePlace.x > WIDTH * 0.6 ? -16 : 16)}
-          y={activePlace.y + 5}
-          textAnchor={activePlace.x > WIDTH * 0.6 ? 'end' : 'start'}
-          className={`fill-ink text-[15px] font-medium ${halo}`}
-          strokeWidth="4"
-          data-place-label=""
-        >
-          {activePlace.place.name}
-        </text>
+        <>
+          <Pill
+            x={activePlace.x}
+            y={activePlace.y - 22}
+            text={activePlace.place.name}
+            className="fill-ink"
+            strong
+            centred
+            data-place-label=""
+          />
+          <Pill
+            x={activePlace.x}
+            y={activePlace.y + 28}
+            text={`${formatKilometres(activePlace.place.distanceFromCentreMetres)} from centre`}
+            className="fill-ink-muted"
+            centred
+            data-place-distance=""
+          />
+        </>
       ) : null}
 
       {legend ? (
@@ -249,8 +286,58 @@ export function PlacesMap({
           <text x="52" y={HEIGHT + 45}>
             Dashed rings show straight-line distance from the city centre.
           </text>
+          <circle cx="29" cy={HEIGHT + 63} r="6" className="stroke-ink fill-none" strokeWidth="2" />
+          <text x="52" y={HEIGHT + 68}>
+            Point at a card, or tab to it, and its dot is ringed and named here.
+          </text>
         </g>
       ) : null}
     </svg>
+  );
+}
+
+/** A label on a pill of the plan's own surface, so text stays readable over rings and dots. */
+function Pill({
+  x,
+  y,
+  text,
+  className,
+  strong = false,
+  centred = false,
+  ...rest
+}: {
+  x: number;
+  y: number;
+  text: string;
+  className: string;
+  strong?: boolean;
+  centred?: boolean;
+} & Record<`data-${string}`, string>) {
+  const width = Math.round(text.length * (strong ? 8.4 : 7.6) + 14);
+  // Kept inside the plan: a label never runs off the edge.
+  const left = Math.min(Math.max(centred ? x - width / 2 : x, 6), WIDTH - width - 6);
+
+  return (
+    <g>
+      <rect
+        x={left}
+        y={y - 12}
+        width={width}
+        height="22"
+        rx="11"
+        className="fill-surface-raised stroke-border"
+        strokeWidth="1"
+        opacity="0.94"
+      />
+      <text
+        x={left + width / 2}
+        y={y + 3.5}
+        textAnchor="middle"
+        className={`${className} text-[13px] ${strong ? 'font-semibold' : ''}`}
+        {...rest}
+      >
+        {text}
+      </text>
+    </g>
   );
 }

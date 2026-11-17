@@ -207,6 +207,53 @@ describe('single days of a month', () => {
   });
 });
 
+describe('a 429 from the Travelpayouts rate limit (real shape: text/plain, x-rate-limit-* headers)', () => {
+  const throttled = (reset: string) =>
+    new Response('Too Many Requests', {
+      status: 429,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'x-rate-limit': '600',
+        'x-rate-limit-remaining': '0',
+        'x-rate-limit-reset': reset,
+      },
+    });
+  const okBody = JSON.stringify({ success: true, currency: 'eur', data: [] });
+
+  it('waits out a short reset once, then answers', async () => {
+    const sleeps: number[] = [];
+    let calls = 0;
+    const provider = new AviasalesFlightProvider({
+      token: 'test-token-not-a-real-credential',
+      sleep: (ms) => {
+        sleeps.push(ms);
+        return Promise.resolve();
+      },
+      fetchImpl: () => Promise.resolve((calls += 1) === 1 ? throttled('3') : new Response(okBody)),
+    });
+    const result = await provider.monthFareSources[0]!.fetch(query());
+    expect(calls).toBe(2);
+    expect(sleeps).toEqual([3250]);
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not stall a search on a long reset: one call, unavailable', async () => {
+    let calls = 0;
+    const provider = new AviasalesFlightProvider({
+      token: 'test-token-not-a-real-credential',
+      sleep: () => Promise.reject(new Error('must not wait')),
+      fetchImpl: () => {
+        calls += 1;
+        return Promise.resolve(throttled('52'));
+      },
+    });
+    const result = await provider.monthFareSources[0]!.fetch(query());
+    expect(calls).toBe(1);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('PROVIDER_UNAVAILABLE');
+  });
+});
+
 describe('single flights one way, for two-ticket trips (recorded VIE-KZN)', () => {
   const kzn = loadCassette('aviasales-one-way-vie-kzn');
   const answer = (note: string) =>

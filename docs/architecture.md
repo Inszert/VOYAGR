@@ -438,8 +438,10 @@ function that decides whether and from where the script loads, and `driveCspOrig
 `AffiliateDrive` renders the `<script>` tag server-side from that answer, with the request's CSP nonce,
 so before a choice or after a decline there is no tag in the HTML and no request to `emrldco.com`.
 `src/proxy.ts` builds the CSP per request from the same answer: only a consenting request has
-`https://emrldco.com` in `script-src` and `connect-src`; everyone else gets a policy that does not
-mention it. It is the only third-party origin the CSP ever names. `img-src` is `'self' blob: data:`.
+`https://emrldco.com` in `script-src`, `style-src` and `connect-src`, `https://www.travelpayouts.com`
+in `connect-src` (the script's auth check) and `blob:` in `worker-src` (its worker). Everyone else
+gets a policy that does not mention either host. Those are the only third-party origins the CSP
+ever names. `img-src` is `'self' blob: data:`.
 Accepting reloads the page, because a CSP belongs to the document response and a refreshed render
 cannot widen an already-loaded page. The script loads in real production only, not with
 `ALLOW_MOCK_IN_PRODUCTION`. `DRIVE_TEST_STUB` (test only, honoured only together with
@@ -448,8 +450,9 @@ end-to-end suite can prove the gating without contacting a third party. Partner 
 (`tpk.lv`, `tp.media`) are plain links and need no consent.
 
 **Security headers.** HSTS, frame-ancestors and Permissions-Policy are static in `next.config.ts`;
-the CSP is per request in `src/proxy.ts` because `script-src` carries a nonce. `style-src` keeps
-`'unsafe-inline'`. See `docs/security.md`.
+the CSP is per request in `src/proxy.ts` because `script-src` carries a nonce and no
+`'unsafe-inline'`. `style-src` keeps `'unsafe-inline'` because components set CSS custom properties
+through style attributes, which the nonce does not cover. See `docs/security.md`.
 
 ---
 

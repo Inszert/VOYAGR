@@ -68,6 +68,8 @@ export interface YourTripProps {
   readonly nearMiss?: boolean;
   /** Where "Watch this price" goes, when there is somewhere. */
   readonly watchHref?: string;
+  /** "What to do in <city>", resolved by the page (it reads the places loader). */
+  readonly whatToDo?: React.ReactNode;
 }
 
 // --- Words ---------------------------------------------------------------------
@@ -543,6 +545,7 @@ export function YourTrip({
   view = 'trip',
   nearMiss = false,
   watchHref,
+  whatToDo = null,
 }: YourTripProps) {
   const { trip } = built;
   const { candidate, cost, score, eligibility } = trip;
@@ -896,6 +899,8 @@ export function YourTrip({
               </LegChanger>
             </LegCard>
           </ol>
+
+          {whatToDo}
 
           {/* Good to know: what to check, one line each. */}
           <section aria-labelledby={`${id}-know`} className="flex flex-col gap-3">

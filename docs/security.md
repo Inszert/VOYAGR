@@ -99,6 +99,13 @@ style attribute is gated by `style-src-attr`, which this nonce does not cover - 
 needs those components rewritten to use a nonced `<style>` element instead, which is real work with
 its own risk, left for its own change. `'unsafe-eval'` is development-only.
 
+The rest of the policy (`src/consent/csp.ts`) is `default-src 'self'`, `img-src 'self' blob: data:`,
+`font-src 'self' data:`, `manifest-src 'self'`, `frame-ancestors 'none'`, `base-uri` and
+`form-action` `'self'`, and `upgrade-insecure-requests`. `worker-src` is `'self'` and `connect-src`
+is `'self'` (plus the dev-only websocket). A visitor who has accepted the Travelpayouts Drive
+script gets additional origins in `script-src`, `style-src`, `connect-src` and `worker-src`; see
+"CSP for the accepted Travelpayouts Drive script" below.
+
 **Verified, 3 November 2026, not just configured.** Built the production app, confirmed the
 response header carries a nonce (`curl -i`), confirmed every one of Next's own injected `<script>`
 tags in the rendered HTML carries that exact nonce (`grep`, all 15 matched), then loaded the
@@ -241,9 +248,10 @@ request that carries `voyagr-consent=accepted`:
 
 - `AffiliateDrive` renders the tag server-side from the cookie, so before a choice, or after a
   decline, there is no `<script>` in the HTML and no request to `emrldco.com`.
-- `src/proxy.ts` names `https://emrldco.com` in `script-src` and `connect-src` only for that same
-  request (`src/consent/csp.ts`, `src/consent/drive.ts`). Everyone else gets a policy that does not
-  mention it. Both decisions come from one pure function, so they cannot disagree.
+- `src/proxy.ts` names `https://emrldco.com` in `script-src`, `style-src` and `connect-src`, and
+  adds `https://www.travelpayouts.com` to `connect-src` and `blob:` to `worker-src`, only for that
+  same request (`src/consent/csp.ts`, `src/consent/drive.ts`). Everyone else gets a policy that does
+  not mention it. Both decisions come from one pure function, so they cannot disagree.
 - The cookie holds one word (`accepted` or `declined`), lasts 12 months, is `SameSite=Lax`, `Secure`
   in production, and is not HttpOnly (the banner reads it). It is set by a server action, so Next's
   origin check is the CSRF defence: another site cannot accept on a visitor's behalf.
@@ -361,23 +369,24 @@ request that carries `voyagr-consent=accepted`:
 - Behaviour against a live Resend account, the real Travelpayouts script (the e2e build uses the
   stub and never contacts the real host), or a real Postgres (the SQL was read; the repository
   contract tests run on the in-memory implementation).
-- Whether the real Drive script sets cookies or contacts hosts beyond `emrldco.com`. If it does the
-  CSP blocks them until each is added deliberately.
+- Whether the real Drive script sets cookies or contacts hosts beyond `emrldco.com` and
+  `www.travelpayouts.com`. If it does the CSP blocks them until each is added deliberately.
 
 ## CSP for the accepted Travelpayouts Drive script (2026-11-17)
 
 Observed on production after a visitor accepted cookies: the Drive script's own requests were
 blocked by our CSP (a blob worker, a stylesheet from `emrldco.com`, and an auth check against
-`www.travelpayouts.com`). The accepted-consent policy in `src/consent/csp.ts` now widens three
-directives, and only those:
+`www.travelpayouts.com`). The accepted-consent policy in `src/consent/csp.ts` now allows the
+script's own origin, `https://emrldco.com`, in `script-src`, `style-src` and `connect-src`, and
+adds three things the script needs beyond that origin:
 
 - `worker-src` adds `blob:` (the vendor script creates a worker from a blob URL).
-- `style-src` adds `https://emrldco.com` (the vendor stylesheet, `assets/tooltip-*.css`).
+- `style-src` carries `https://emrldco.com` (the vendor stylesheet, `assets/tooltip-*.css`).
 - `connect-src` adds `https://www.travelpayouts.com` (the auth check, `check_auth`).
 
-No wildcards, no other hosts, and `script-src` is unchanged. This applies only to a request that
-carries `voyagr-consent=accepted` on real production, the same condition that already adds
-`emrldco.com`. A declined or unanswered visitor gets the baseline policy with none of these.
+No wildcards and no other hosts. `script-src` gets only the `emrldco.com` origin; its nonce is
+unchanged. This applies only to a request that carries `voyagr-consent=accepted` on real
+production. A declined or unanswered visitor gets the baseline policy with none of these.
 
 Owner to confirm: that `emrldco.com` and `www.travelpayouts.com` are the complete set of hosts the
 vendor script needs. Each further host should be added deliberately, with the same accepted-only

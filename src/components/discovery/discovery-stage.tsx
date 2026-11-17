@@ -286,16 +286,12 @@ export function DiscoveryStage({
             <Icon name="globe" size={1} className="size-[13px]" />
             <span className="sr-only">{season.description}</span>
           </span>
-          <span>
-            {provenance === 'mock'
-              ? (demoDataSentence(sources) ??
-                'Every price on the globe is demo data from fixtures, not a real offer.')
-              : 'Prices are the cheapest whole trip the search found at each place.'}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>Drag to turn it.</span>
-          <span aria-hidden="true">·</span>
-          <span>Imagery: NASA Earth Observatory / Blue Marble</span>
+          {provenance === 'mock' ? (
+            <span>
+              {demoDataSentence(sources) ??
+                'Every price on the globe is demo data from fixtures, not a real offer.'}
+            </span>
+          ) : null}
         </p>
       </Container>
       <div className="pointer-events-auto">

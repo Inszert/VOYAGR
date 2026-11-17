@@ -172,6 +172,26 @@ const ARTICLES: Readonly<Record<string, string>> = {
   // photograph taken in Malta. The name "Malta" still finds this entry, through
   // `PLACE_ALIASES`.
   MLA: 'Mdina',
+
+  // Each lead image below was returned by the pageimages API for the title and
+  // checked by eye. Where a country or island article led with a flag, a map
+  // or a satellite view, a more specific article with a photograph was used.
+  // Ibiza's article leads with its flag and Ibiza Town has no lead image at all.
+  // Sant Antoni de Portmany's lead is a photograph of the bay (Sant-Antoni-Bahia.JPG).
+  IBZ: 'Sant Antoni de Portmany',
+  // Fuerteventura's article leads with a satellite view from orbit, and
+  // Corralejo has no lead image. Cofete's lead is a landscape photograph
+  // (Cofete_-_View_from_Pico_de_la_Zarza.jpg).
+  FUE: 'Cofete',
+  // Lead image: Malvarrosa_Beach,_Valencia,_Spain_(29812271043).jpg.
+  VLC: 'Valencia',
+  // Lead image: Catania_vista_dall'alto_e_il_vulcano_Etna_a_sovrastarla.jpg,
+  // an aerial view of the city with Etna behind it.
+  CTA: 'Catania',
+  // Lead image: Lanzarote's_Lunar-Like_Landscape.jpg.
+  ACE: 'Lanzarote',
+  // Lead image: South_view_sea_side_from_Kasbah_of_Agadir_Oufella_(cropped).jpg.
+  AGA: 'Agadir',
 };
 
 /**
@@ -186,6 +206,10 @@ const PLACE_ALIASES: Readonly<Record<string, string>> = {
   'hong kong': 'HKG',
   maldives: 'MLE',
   malta: 'MLA',
+  // The names people type, where the article is titled for a village or a
+  // photograph on the island rather than the island itself.
+  ibiza: 'IBZ',
+  fuerteventura: 'FUE',
 };
 
 /** The lookup for a destination, or null when nobody has chosen one. */

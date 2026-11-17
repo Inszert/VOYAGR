@@ -186,6 +186,21 @@ describe('the imagery catalogue', () => {
     expect(imageryCodeForPlace('Hong Kong')).toBe('HKG');
     expect(imageryCodeForPlace('Maldives')).toBe('MLE');
     expect(imageryCodeForPlace('Malta')).toBe('MLA');
+    expect(imageryCodeForPlace('Ibiza')).toBe('IBZ');
+    expect(imageryCodeForPlace('Fuerteventura')).toBe('FUE');
     expect(imageryCodeForPlace('')).toBeNull();
+  });
+
+  it('names a photograph for each destination added from the verified lead images', () => {
+    expect(imageryRefFor('VLC')).toEqual({ code: 'VLC', title: 'Valencia', lang: 'en' });
+    expect(imageryRefFor('CTA')).toEqual({ code: 'CTA', title: 'Catania', lang: 'en' });
+    expect(imageryRefFor('ACE')).toEqual({ code: 'ACE', title: 'Lanzarote', lang: 'en' });
+    expect(imageryRefFor('AGA')).toEqual({ code: 'AGA', title: 'Agadir', lang: 'en' });
+    expect(imageryRefFor('IBZ')).toEqual({
+      code: 'IBZ',
+      title: 'Sant Antoni de Portmany',
+      lang: 'en',
+    });
+    expect(imageryRefFor('FUE')).toEqual({ code: 'FUE', title: 'Cofete', lang: 'en' });
   });
 });

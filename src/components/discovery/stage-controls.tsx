@@ -88,7 +88,7 @@ export function StageControls({
       <form
         method="get"
         action={action}
-        className="stage-scope border-hairline bg-panel flex h-[38px] shrink-0 items-center rounded-(--radius-pill) border pl-3 text-[13px]"
+        className="stage-scope border-hairline bg-panel has-[select:focus-visible]:outline-accent-ink flex h-[38px] shrink-0 items-center rounded-(--radius-pill) border pl-3 text-[13px] has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2"
       >
         {Object.entries(carry).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
@@ -103,7 +103,7 @@ export function StageControls({
           id="stage-country"
           name="country"
           defaultValue={selected?.adm0 ?? ''}
-          className="text-text focus-visible:outline-accent-ink h-[34px] max-w-[11rem] min-w-0 border-0 bg-transparent px-2 text-[13px] focus:outline-none"
+          className="text-text h-[34px] max-w-[11rem] min-w-0 border-0 bg-transparent px-2 text-[13px] focus:outline-none"
         >
           <option value="">The whole world</option>
           {COUNTRIES.map((country) => (

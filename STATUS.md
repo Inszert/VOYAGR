@@ -1,7 +1,7 @@
 # Voyagr — how things stand
 
 Short on purpose. Details live in `docs/finish-plan.md` and `progress.md`.
-Last updated: 2026-11-15 (evening).
+Last updated: 2026-11-17.
 
 ## Your wishes (Dani writes here, plain English)
 
@@ -25,10 +25,10 @@ Last updated: 2026-11-15 (evening).
 - Cookie consent banner: Travelpayouts script loads only after Accept
 - Security review: price-calendar abuse limit, push and image-proxy fixes, trip limits
 - Default search dates follow today
-- Full test suite green again: 273 passed (desktop and phone)
+- Unit and component suite: 2470 passed, 1 skipped (run 2026-11-17)
 - Docs: README, architecture, runbook, setup checklist
 
-- End-to-end and accessibility suite green: 248 passed, 0 failed (desktop and phone)
+- End-to-end and accessibility suite: last full run 278 passed, 1 skipped, 1 failed then fixed (run before commit 1638a79)
 - 8 real bugs fixed (trip page crash, globe not draggable, results page hydration error, phone layout shift, hidden Globe/Map switch, and others)
 
 - One shared globe for home and explore: a search no longer reloads it

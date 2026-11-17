@@ -65,6 +65,8 @@ describe('PlacesMap', () => {
     );
 
     expect(container.querySelector('[data-place-label]')?.textContent).toBe('Mckenzie');
+    expect(container.querySelector('[data-place-distance]')?.textContent).toMatch(/km from centre/);
+    expect(container.querySelector('[data-place-line]')).not.toBeNull();
 
     fireEvent.pointerEnter(container.querySelector('[data-place-dot="Q1"]')!);
     expect(onActive).toHaveBeenCalledWith('Q1');

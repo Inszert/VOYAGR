@@ -137,6 +137,48 @@ export type AviasalesPrice = z.infer<typeof priceSchema>;
  */
 export type AviasalesWindow = 'dates' | 'calendar';
 
+/**
+ * The Travelpayouts Data API throttles per token: 600 calls per rolling
+ * window, answered with a bare `429 Too Many Requests` (text/plain) and the
+ * headers `x-rate-limit`, `x-rate-limit-remaining` and `x-rate-limit-reset`
+ * (seconds until the window frees up). Measured against the live API, the
+ * reset on a 429 ranged from about 7 to 55 seconds.
+ *
+ * A 429 whose reset is short is waited out once. A longer one is returned
+ * as it came, so the search degrades and says so rather than stalling for
+ * most of a minute. The wait is the vendor's own number, never a guess.
+ */
+const RATE_LIMIT_MAX_WAIT_SECONDS = 8;
+
+async function fetchHonouringRateLimit(
+  doFetch: FetchLike,
+  sleep: (ms: number) => Promise<void>,
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const response = await doFetch(url, init);
+  if (response.status !== 429) return response;
+
+  const reset = Number(response.headers.get('x-rate-limit-reset'));
+  log.warn(
+    {
+      limit: response.headers.get('x-rate-limit'),
+      remaining: response.headers.get('x-rate-limit-remaining'),
+      resetSeconds: Number.isFinite(reset) ? reset : null,
+    },
+    'aviasales rate limited',
+  );
+  const waitable =
+    response.headers.get('x-rate-limit-reset') !== null &&
+    Number.isFinite(reset) &&
+    reset <= RATE_LIMIT_MAX_WAIT_SECONDS &&
+    !init?.signal?.aborted;
+  if (!waitable) return response;
+
+  await sleep(Math.max(1, reset) * 1000 + 250);
+  return doFetch(url, init);
+}
+
 export interface AviasalesOptions {
   readonly token: string;
   /** Defaults to `dates`, so behaviour is unchanged unless asked for. */
@@ -144,6 +186,8 @@ export interface AviasalesOptions {
   /** Affiliate marker. Public; used only to build the outbound link. */
   readonly partnerId?: string;
   readonly fetchImpl?: FetchLike;
+  /** Injectable so a test does not really wait out a rate-limit window. */
+  readonly sleep?: (ms: number) => Promise<void>;
   /** Injectable so a test can assert `observedAt` without a real clock. */
   readonly now?: () => Date;
 }
@@ -632,7 +676,9 @@ export class AviasalesFlightProvider implements FlightProvider {
     this.window = options.window ?? 'dates';
     this.metadata = { ...BASE_METADATA, answersByMonth: this.window === 'calendar' };
     this.partnerId = options.partnerId;
-    this.fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
+    const rawFetch: FetchLike = options.fetchImpl ?? ((url, init) => fetch(url, init));
+    const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    this.fetchImpl = (url, init) => fetchHonouringRateLimit(rawFetch, sleep, url, init);
     this.now = options.now ?? (() => new Date());
     this.monthFareSources = DAY_QUESTIONS.map((question) => ({
       id: question.id,

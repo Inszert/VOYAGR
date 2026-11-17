@@ -11,6 +11,8 @@ Placeholders only; every variable comes from `src/lib/env.ts`.
 
 # --- Core ---------------------------------------------------------------------
 # NODE_ENV is set by Next.js (development, production) and by the test runner.
+# Public origin, e.g. https://example.com. Verification and reset links are built from it. Required
+# in production: the process refuses to start if it is unset or points at localhost.
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 # Origin of the deployment, for sitemap.xml and robots.txt (no trailing slash needed).
 PUBLIC_BASE_URL=

@@ -236,6 +236,12 @@ export default async function DiscoverPage({
 
       <TrustBand />
 
+      <Container size="wide" className="pb-2">
+        <p className="text-muted text-sm">
+          Drag to turn the globe. Imagery: NASA Earth Observatory / Blue Marble.
+        </p>
+      </Container>
+
       <ImageCredits cards={homeCards} />
     </div>
   );

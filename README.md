@@ -90,7 +90,7 @@ off; they do not crash the app. The "Production" column says what a real deploym
 | Variable                          | Purpose                                                         | Default                           | Production                                          |
 | --------------------------------- | --------------------------------------------------------------- | --------------------------------- | --------------------------------------------------- |
 | `NODE_ENV`                        | `development`, `test`, `production`                             | `development`                     | `production` (set by `next start`)                  |
-| `NEXT_PUBLIC_APP_URL`             | Origin used in links inside emails                              | `http://localhost:3000`           | Required: set to the real origin                    |
+| `NEXT_PUBLIC_APP_URL`             | Origin used in links inside emails                              | `http://localhost:3000`           | Required: refused if unset or localhost             |
 | `PUBLIC_BASE_URL`                 | Origin for sitemap and robots; empty sitemap if unset           | unset                             | Recommended                                         |
 | `LOG_LEVEL`                       | `fatal` to `trace`                                              | `info`                            | Optional                                            |
 | `DATABASE_URL`                    | Postgres connection string                                      | unset (in-memory)                 | Required                                            |
@@ -107,6 +107,8 @@ off; they do not crash the app. The "Production" column says what a real deploym
 | `FLIGHT_PROVIDER`                 | `mock`, `live`, `aviasales` (`live` has no adapter)             | `mock`                            | `aviasales`; `mock` is refused                      |
 | `AVIASALES_API_TOKEN`             | Travelpayouts Data API token (secret)                           | unset                             | Required with `aviasales`                           |
 | `AVIASALES_PARTNER_ID`            | Affiliate marker in outbound links (public)                     | unset                             | Required for affiliate links                        |
+| `GOOGLE_FLIGHTS_SIDECAR_URL`      | Google Flights scraper sidecar (unofficial); off unless set     | unset                             | Off by default                                      |
+| `GOOGLE_FLIGHTS_SIDECAR_KEY`      | Shared secret the sidecar expects (secret)                      | unset                             | Only with the sidecar                               |
 | `TRAVELPAYOUTS_HOTEL_PROGRAM_ID`  | Hotel programme for "Find a stay" links (public)                | unset                             | Needed for `travelpayouts-links`                    |
 | `TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID` | Hotel campaign for those links (public)                         | unset                             | Needed for `travelpayouts-links`                    |
 | `STAY_PROVIDERS`                  | Comma list: `mock`, `absent`, `travelpayouts-links`             | `mock` (`absent` in production)   | `travelpayouts-links` for link-out stays            |
@@ -129,7 +131,7 @@ off; they do not crash the app. The "Production" column says what a real deploym
 | `DRIVE_TEST_STUB`                 | Test only: Drive script from a same-origin stub                 | `false`                           | Never set; needs `ALLOW_MOCK_IN_PRODUCTION` anyway  |
 
 Secrets (never logged): `DATABASE_URL`, `REDIS_URL`, `ANTHROPIC_API_KEY`, `AVIASALES_API_TOKEN`,
-`VAPID_PRIVATE_KEY`, `RESEND_API_KEY`.
+`GOOGLE_FLIGHTS_SIDECAR_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`.
 
 ## Scripts
 

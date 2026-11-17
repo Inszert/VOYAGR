@@ -23,12 +23,10 @@ problem this note originally warned about.
 
 ## Current numbers
 
-As reported for commit `0093bcb` (2026-11-15); not re-run when this section was written:
-
-| Suite                           | Result                                                            |
-| ------------------------------- | ----------------------------------------------------------------- |
-| `npm test` (unit and component) | 1887 tests                                                        |
-| `npm run test:e2e`              | 248 passed, 0 failed, on `chromium` and `mobile-chrome` (Pixel 7) |
+| Suite                           | Result                                                                                                                      |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `npm test` (unit and component) | 2470 passed, 1 skipped, across 188 test files. Run 2026-11-17 on the working tree, including uncommitted changes.          |
+| `npm run test:e2e`              | Last full run: 278 passed, 1 skipped, 1 failed then fixed (run before commit 1638a79). Not re-run for this section.        |
 
 The end-to-end run used the locally installed Chrome (`PLAYWRIGHT_CHANNEL=chrome`), because this
 machine cannot download Playwright's Chromium. CI uses the bundled one. The Postgres contract suite

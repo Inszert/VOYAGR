@@ -551,6 +551,10 @@ Numbers reported for this commit (taken from the lead's run, not re-run while wr
 1887 unit and component tests; 248 end-to-end tests passing on `chromium` and `mobile-chrome`
 through the local Chrome channel, 0 failed.
 
+Current numbers (2026-11-17, superseding the figures above for present-tense use; see `docs/testing.md`):
+2470 unit and component tests passed, 1 skipped. End-to-end last full run: 278 passed, 1 skipped,
+1 failed then fixed (run before commit 1638a79).
+
 ### By phase
 
 | Phase                       | State                   | What exists, and what does not                                                                                                                                                                                                                  |

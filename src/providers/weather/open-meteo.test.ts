@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import forecastVienna from '../../../tests/fixtures/providers/open-meteo/forecast-vienna.json';
+import forecastHorizonNulls from '../../../tests/fixtures/providers/open-meteo/forecast-vienna-horizon-nulls.json';
 import archive2023 from '../../../tests/fixtures/providers/open-meteo/archive-2023-06.json';
 import archive2024 from '../../../tests/fixtures/providers/open-meteo/archive-2024-06.json';
 import archive2025 from '../../../tests/fixtures/providers/open-meteo/archive-2025-06.json';
@@ -105,6 +106,47 @@ describe('OpenMeteoWeatherProvider', () => {
         confidence: 0.83,
       },
     ]);
+  });
+
+  it('accepts the real far-horizon response, where the vendor sends null rain probability, and omits only those days', async () => {
+    const provider = new OpenMeteoWeatherProvider({
+      now: () => new Date('2026-11-17T09:00:00Z'),
+      fetchImpl: routingFetch({ forecast: forecastHorizonNulls }),
+    });
+
+    const result = await provider.getOutlook({
+      destination: 'VIE',
+      startDate: '2026-11-29',
+      endDate: '2026-12-02',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // 12-01 and 12-02 carry `null` in the recording: not invented, not fatal.
+    expect(result.value.map((day) => day.date)).toEqual(['2026-11-29', '2026-11-30']);
+    expect(result.value[0]).toMatchObject({
+      temperatureMaxC: 1.6,
+      temperatureMinC: -5.5,
+      precipitationProbability: 0.14,
+    });
+  });
+
+  it('still rejects a forecast whose figures are the wrong type', async () => {
+    const provider = new OpenMeteoWeatherProvider({
+      now: NOW,
+      fetchImpl: routingFetch({
+        forecast: {
+          daily: { ...forecastVienna.daily, temperature_2m_max: ['warm', 'warm', 'warm'] },
+        },
+      }),
+    });
+    const result = await provider.getOutlook({
+      destination: 'VIE',
+      startDate: '2026-11-04',
+      endDate: '2026-11-06',
+    });
+    expect(result.ok).toBe(false);
   });
 
   it('reconstructs a climatology normal for a date beyond the forecast horizon from three real past Junes', async () => {

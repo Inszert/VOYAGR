@@ -106,10 +106,15 @@ function round1(value: number): number {
 const forecastResponseSchema = z.object({
   daily: z.object({
     time: z.array(z.string()),
-    temperature_2m_max: z.array(z.number()),
-    temperature_2m_min: z.array(z.number()),
-    precipitation_probability_max: z.array(z.number()),
-    wind_speed_10m_max: z.array(z.number()),
+    // Every figure is nullable: the real API answers `null` for
+    // `precipitation_probability_max` on the last day or two of the 16-day
+    // horizon (recorded in forecast-vienna-horizon-nulls.json). A day with
+    // any null is dropped below, not defaulted, and not a reason to reject
+    // the whole response.
+    temperature_2m_max: z.array(z.number().nullable()),
+    temperature_2m_min: z.array(z.number().nullable()),
+    precipitation_probability_max: z.array(z.number().nullable()),
+    wind_speed_10m_max: z.array(z.number().nullable()),
   }),
 });
 
@@ -262,13 +267,22 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
     time.forEach((date, index) => {
       if (!requested.has(date)) return;
 
+      const maxC = temperature_2m_max[index];
+      const minC = temperature_2m_min[index];
+      const rainPercent = precipitation_probability_max[index];
+      const wind = wind_speed_10m_max[index];
+      // The vendor did not state a figure for this day (typically the rain
+      // probability at the far end of the horizon). `WeatherOutlook` has no
+      // unknown case, so the day is omitted rather than given a made-up 0.
+      if (maxC == null || minC == null || rainPercent == null || wind == null) return;
+
       outlook.push({
         date: date as IsoDate,
         basis: 'forecast',
-        temperatureMaxC: temperature_2m_max[index] as number,
-        temperatureMinC: temperature_2m_min[index] as number,
-        precipitationProbability: (precipitation_probability_max[index] as number) / 100,
-        windKph: Math.round(wind_speed_10m_max[index] as number),
+        temperatureMaxC: maxC,
+        temperatureMinC: minC,
+        precipitationProbability: rainPercent / 100,
+        windKph: Math.round(wind),
         seaTemperatureC: null,
         confidence: confidenceForLeadDays(daysBetween(today, date as IsoDate)),
       });

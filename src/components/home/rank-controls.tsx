@@ -72,7 +72,7 @@ export function RankControls({
       <form
         method="get"
         action="/"
-        className="border-border bg-surface-sunken flex h-11 max-w-full min-w-0 shrink-0 items-center rounded-(--radius-pill) border pl-3.5 text-[13px]"
+        className="border-border bg-surface-sunken flex h-11 max-w-full min-w-0 shrink-0 items-center rounded-(--radius-pill) border pl-3.5 text-[13px] has-[select:focus-visible]:outline-brand-500 has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2"
       >
         {Object.entries(carry).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
@@ -87,7 +87,7 @@ export function RankControls({
           id="stage-country"
           name="country"
           defaultValue={selected?.adm0 ?? ''}
-          className="text-ink h-9 max-w-[10.5rem] min-w-0 rounded-(--radius-pill) border-0 bg-transparent px-2 text-[13px] sm:max-w-[12rem]"
+          className="text-ink h-9 max-w-[10.5rem] min-w-0 rounded-(--radius-pill) border-0 bg-transparent px-2 text-[13px] focus:outline-none sm:max-w-[12rem]"
         >
           <option value="">The whole world</option>
           {COUNTRIES.map((country) => (

@@ -90,6 +90,11 @@ export interface SearchResultsProps {
   planTrips?: readonly PlanTrip[] | null;
   /** Where "Change the search" goes, for an empty result. */
   changeSearchHref?: string;
+  /**
+   * "What to do in <city>" for the trip being built. Resolved by the page, which
+   * owns the places loader; this component only places it.
+   */
+  whatToDo?: (destination: string, city: string, destinationHref?: string) => ReactNode;
 }
 
 /** The builder's parameters: which trip, and which flight and hotel in it. */
@@ -116,6 +121,7 @@ export function SearchResults({
   countries,
   planTrips = null,
   changeSearchHref,
+  whatToDo,
 }: SearchResultsProps) {
   const { nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
@@ -440,6 +446,15 @@ export function SearchResults({
               planTrips={planTrips}
               destinationHref={destinationHref(built.trip)}
               calendarHref="#date-options-heading"
+              {...(whatToDo
+                ? {
+                    whatToDo: whatToDo(
+                      built.trip.candidate.destination,
+                      built.trip.candidate.destinationName,
+                      destinationHref(built.trip),
+                    ),
+                  }
+                : {})}
               {...(saveSearch ? { watchHref: '#save-search-heading' } : {})}
               flightHref={(offerId) =>
                 linkWith({
