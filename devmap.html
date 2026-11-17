@@ -252,6 +252,9 @@ const DATA = {
 
   // Done: only items the sources mark done, or that appear in the commits.
   done: [
+    { text: "LiteAPI env and deploy: liteapi provider values; a sandbox key is refused in production unless LITEAPI_SANDBOX_IN_PRODUCTION is set; the key never appears in logs", note: "Built 2026-11-17 (commit b182084). Tests pass. The owner still sets the variables.", src: "docs/liteapi-migration-plan.md Part 11" },
+    { text: "Payment button placeholder: 'Payments are not switched on yet' on the explore and destination summaries, disabled", note: "Built 2026-11-17 (commit 2efbecf). No payment or booking code is called.", src: "docs/liteapi-migration-plan.md Part 7" },
+    { text: "Transfers (Intui), eSIM (Yesim, GigSky) and AirHelp unchanged; links verified", note: "Checked 2026-11-17; no code change. A regression test already exists.", src: "docs/liteapi-migration-plan.md Part 8" },
     { text: "Real email delivery through Resend, with a verified domain", note: "Fixed 2026-11-17: domain verified in Resend, and the verification email arrives. Welcome mail to a fresh inbox still to confirm.", src: "owner check 2026-11-17" },
     { text: "Trip style selector on the destination page: chill, hike, city, food reorder the places (nothing removed)", note: "Built 2026-11-17. Awaiting a browser check.", src: "owner decision; commit pending" },
     { text: "Part sliders (flights, stay, activities, transfers) re-order trips under Best match; prices and scores never change", note: "Built 2026-11-17. Awaiting a browser check. The Cheapest sort ignores them.", src: "owner decision; commit pending" },
@@ -360,6 +363,7 @@ const DATA = {
 
   // In progress: being worked on, or uncommitted.
   inProgress: [
+    { text: "Stays: taxes split into included and 'payable at the hotel' in the data, kept out of totals; the page does not show them yet", note: "Mapping built 2026-11-17 (commit b182084). Not built: the tax lines on stay cards, and the snapshot routing (Part 10).", src: "docs/liteapi-migration-plan.md Part 1" },
     { text: "Trip builder on explore: change flight or hotel and see the price move; hotel with photos, stars, location", note: "Built: flight and hotel swaps move the trip total (checked by hand 2026-11-17). Stars and location shown. Hotel photos are blocked: no photo source; needs the priced hotel feed key (owner decision).", src: "commits 25ccd4b to 39d2387" },
     { text: "Prices follow the traveller count everywhere; fuller date calendar", note: "Built: traveller count and dates apply in place on explore (commit dd9c042). Awaiting a browser check.", src: "owner report 2026-11-17" },
     { text: "Globe: more places as you rotate and zoom, never cut by a box, seasonal look by month", note: "Built: labels follow the view and grow with zoom; full-width globe; season follows the chosen dates; scroll-wheel zoom. Awaiting a browser check.", src: "commits 21eeea1 to 39d2387" },
@@ -413,6 +417,7 @@ const DATA = {
 
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
+    { text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; do not set it until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
     { text: "Explore on phone: zoom control sits on top of the menu button", severity: "should fix", note: "Browser check 2026-11-17 (390 px).", src: "browser check" },
     { text: "Explore: sticky Sort bar is tall (about 90 px desktop, 215 px phone) and covers results while scrolling; phone text clipped", severity: "should fix", note: "Browser check 2026-11-17.", src: "browser check" },
     { text: "Explore globe zoomed: hard horizontal fade cuts the globe at the canvas bottom; diagonal banding over the Sahara", severity: "should fix", note: "Browser check 2026-11-17 (1440 px, zoomed).", src: "browser check" },
@@ -448,6 +453,9 @@ const DATA = {
 
   // Needs the owner: keys, DNS records, decisions. Names only, never values.
   needsOwner: [
+    { text: "LiteAPI: add placeholders to .env.example (LITEAPI_API_KEY, LITEAPI_GUEST_NATIONALITY, LITEAPI_SANDBOX_IN_PRODUCTION, EXPERIENCE_PROVIDER); an agent could not edit it because of a permission setting", src: "docs/liteapi-migration-plan.md Part 11" },
+    { text: "LiteAPI: confirm in writing that periodic refresh for display is allowed (blocks the scheduled snapshot; Q10)", src: "docs/liteapi-migration-plan.md Part 10 addendum" },
+    { text: "LiteAPI: record one sandbox rates response to settle whether the price includes excluded taxes (the docs do not say)", src: "docs/liteapi-migration-plan.md Part 1, not verified" },
     { text: "LiteAPI: written exception from Nuitee on the 5000:1 hotel and 1,500:1 flight search-to-book ratios before production; written confirmation of sandbox billing before any live key; owner decision on whether LiteAPI supersedes the 2026-11-04 no-paid-API rule", src: "docs/liteapi-migration-plan.md (Q1)" }, // changed: Q1 partly answered
     { text: "LiteAPI: flights/rates margin, omitted or sent as 0; hotel markup 0 is set on the sandbox dashboard, live not yet stated", src: "docs/liteapi-migration-plan.md (Q3)" }, // changed: Q3 partly answered
     { text: "LiteAPI: request Flights production access (Go-live and approval) and Experiences sandbox access", src: "docs/liteapi-migration-plan.md (Q4, Q5)" },
