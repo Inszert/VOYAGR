@@ -1,6 +1,16 @@
 import { money, type Money } from '@/core/money';
 import { AppError } from '@/lib/errors';
 import { query, withTransaction } from './client';
+import type { RepositoryOptions } from './memory';
+import type {
+  LiteApiHotelRow,
+  LiteApiRatesKey,
+  LiteApiRatesRow,
+  LiteApiRunFinish,
+  LiteApiRunRecord,
+  LiteApiRunStart,
+  LiteApiSnapshotRepository,
+} from './repository';
 import type { SearchProfile } from '@/core/trip/types';
 import type {
   AlertPreferencesInput,
@@ -1794,9 +1804,233 @@ class PostgresProviderRequestRepository implements ProviderRequestRepository {
   }
 }
 
-/** The Postgres-backed persistence surface. */
-export function createPostgresRepositories(): Repositories {
+// --- LiteAPI snapshot -------------------------------------------------------
+
+interface LiteApiRatesDbRow {
+  destination_code: string;
+  check_in: string;
+  check_out: string;
+  occupancy_sig: string;
+  currency: string;
+  guest_nationality: string;
+  environment: 'sandbox' | 'production';
+  schema_version: number;
+  rates: unknown;
+  observed_at: Date | string;
+  expires_at: Date | string;
+  run_id: string;
+}
+
+interface LiteApiRunDbRow {
+  run_id: string;
+  job: string;
+  destination_code: string;
+  check_in: string;
+  check_out: string;
+  environment: 'sandbox' | 'production';
+  started_at: Date | string;
+  finished_at: Date | string | null;
+  calls_made: number;
+  status: LiteApiRunRecord['status'];
+  error_code: string | null;
+}
+
+// Dates leave the database as `YYYY-MM-DD` text, never as a `Date`, so no timezone touches them.
+const LITEAPI_RATES_COLUMNS = `destination_code, to_char(check_in, 'YYYY-MM-DD') AS check_in,
+  to_char(check_out, 'YYYY-MM-DD') AS check_out, occupancy_sig, currency, guest_nationality,
+  environment, schema_version, rates, observed_at, expires_at, run_id`;
+
+const LITEAPI_RUN_COLUMNS = `run_id, job, destination_code, to_char(check_in, 'YYYY-MM-DD') AS check_in,
+  to_char(check_out, 'YYYY-MM-DD') AS check_out, environment, started_at, finished_at,
+  calls_made, status, error_code`;
+
+function toLiteApiRun(row: LiteApiRunDbRow): LiteApiRunRecord {
   return {
+    runId: row.run_id,
+    job: row.job,
+    destinationCode: row.destination_code,
+    checkIn: row.check_in,
+    checkOut: row.check_out,
+    environment: row.environment,
+    startedAt: toIso(row.started_at),
+    finishedAt: toIsoOrNull(row.finished_at),
+    callsMade: row.calls_made,
+    status: row.status,
+    errorCode: row.error_code,
+  };
+}
+
+class PostgresLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
+  constructor(private readonly clock: () => number) {}
+
+  private nowIso(): string {
+    return new Date(this.clock()).toISOString();
+  }
+
+  async getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null> {
+    const rows = await query<LiteApiRatesDbRow>(
+      `SELECT ${LITEAPI_RATES_COLUMNS} FROM liteapi_rates_snapshot
+        WHERE destination_code = $1 AND check_in = $2::date AND check_out = $3::date
+          AND occupancy_sig = $4 AND currency = $5 AND guest_nationality = $6
+          AND expires_at > $7`,
+      [
+        key.destinationCode,
+        key.checkIn,
+        key.checkOut,
+        key.occupancySig,
+        key.currency,
+        key.guestNationality,
+        this.nowIso(),
+      ],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      destinationCode: row.destination_code,
+      checkIn: row.check_in,
+      checkOut: row.check_out,
+      occupancySig: row.occupancy_sig,
+      currency: row.currency,
+      guestNationality: row.guest_nationality,
+      environment: row.environment,
+      schemaVersion: row.schema_version,
+      rates: row.rates,
+      observedAt: toIso(row.observed_at),
+      expiresAt: toIso(row.expires_at),
+      runId: row.run_id,
+    };
+  }
+
+  async getHotels(destinationCode: string): Promise<LiteApiHotelRow[]> {
+    const rows = await query<{
+      hotel_id: string;
+      destination_code: string;
+      content: unknown;
+      fetched_at: Date | string;
+      expires_at: Date | string;
+    }>(
+      `SELECT hotel_id, destination_code, content, fetched_at, expires_at FROM liteapi_hotels
+        WHERE destination_code = $1 AND expires_at > $2 ORDER BY hotel_id`,
+      [destinationCode, this.nowIso()],
+    );
+    return rows.map((row) => ({
+      hotelId: row.hotel_id,
+      destinationCode: row.destination_code,
+      content: row.content,
+      fetchedAt: toIso(row.fetched_at),
+      expiresAt: toIso(row.expires_at),
+    }));
+  }
+
+  async putRates(row: LiteApiRatesRow): Promise<void> {
+    await query(
+      `INSERT INTO liteapi_rates_snapshot
+         (destination_code, check_in, check_out, occupancy_sig, currency, guest_nationality,
+          environment, schema_version, rates, observed_at, expires_at, run_id)
+       VALUES ($1, $2::date, $3::date, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12)
+       ON CONFLICT (destination_code, check_in, check_out, occupancy_sig, currency, guest_nationality)
+       DO UPDATE SET environment = EXCLUDED.environment,
+                     schema_version = EXCLUDED.schema_version,
+                     rates = EXCLUDED.rates,
+                     observed_at = EXCLUDED.observed_at,
+                     expires_at = EXCLUDED.expires_at,
+                     run_id = EXCLUDED.run_id`,
+      [
+        row.destinationCode,
+        row.checkIn,
+        row.checkOut,
+        row.occupancySig,
+        row.currency,
+        row.guestNationality,
+        row.environment,
+        row.schemaVersion,
+        JSON.stringify(row.rates),
+        row.observedAt,
+        row.expiresAt,
+        row.runId,
+      ],
+    );
+    await this.sweep();
+  }
+
+  async putHotels(rows: readonly LiteApiHotelRow[]): Promise<void> {
+    for (const row of rows) {
+      await query(
+        `INSERT INTO liteapi_hotels (hotel_id, destination_code, content, fetched_at, expires_at)
+         VALUES ($1, $2, $3::jsonb, $4, $5)
+         ON CONFLICT (hotel_id)
+         DO UPDATE SET destination_code = EXCLUDED.destination_code,
+                       content = EXCLUDED.content,
+                       fetched_at = EXCLUDED.fetched_at,
+                       expires_at = EXCLUDED.expires_at`,
+        [
+          row.hotelId,
+          row.destinationCode,
+          JSON.stringify(row.content),
+          row.fetchedAt,
+          row.expiresAt,
+        ],
+      );
+    }
+    await this.sweep();
+  }
+
+  private async sweep(): Promise<void> {
+    const at = this.nowIso();
+    await query('DELETE FROM liteapi_rates_snapshot WHERE expires_at <= $1', [at]);
+    await query('DELETE FROM liteapi_hotels WHERE expires_at <= $1', [at]);
+  }
+
+  async startRun(input: LiteApiRunStart): Promise<LiteApiRunRecord> {
+    const rows = await query<LiteApiRunDbRow>(
+      `INSERT INTO liteapi_refresh_runs
+         (run_id, job, destination_code, check_in, check_out, environment, started_at, status)
+       VALUES ($1, $2, $3, $4::date, $5::date, $6, $7, 'running')
+       RETURNING ${LITEAPI_RUN_COLUMNS}`,
+      [
+        input.runId,
+        input.job,
+        input.destinationCode,
+        input.checkIn,
+        input.checkOut,
+        input.environment,
+        this.nowIso(),
+      ],
+    );
+    return toLiteApiRun(rows[0]!);
+  }
+
+  async finishRun(runId: string, result: LiteApiRunFinish): Promise<void> {
+    const rows = await query<{ run_id: string }>(
+      `UPDATE liteapi_refresh_runs
+          SET status = $2, calls_made = $3, error_code = $4, finished_at = $5
+        WHERE run_id = $1 RETURNING run_id`,
+      [runId, result.status, result.callsMade, result.errorCode ?? null, this.nowIso()],
+    );
+    requireRow(rows[0], 'LiteAPI run', runId);
+  }
+
+  async latestRun(): Promise<LiteApiRunRecord | null> {
+    const rows = await query<LiteApiRunDbRow>(
+      `SELECT ${LITEAPI_RUN_COLUMNS} FROM liteapi_refresh_runs
+        WHERE status <> 'disabled' ORDER BY started_at DESC LIMIT 1`,
+    );
+    return rows[0] ? toLiteApiRun(rows[0]) : null;
+  }
+
+  async callsSince(since: IsoDateTime): Promise<number> {
+    const rows = await query<{ calls: string | null }>(
+      'SELECT COALESCE(SUM(calls_made), 0) AS calls FROM liteapi_refresh_runs WHERE started_at >= $1',
+      [since],
+    );
+    return Number(rows[0]?.calls ?? 0);
+  }
+}
+
+/** The Postgres-backed persistence surface. */
+export function createPostgresRepositories(options: RepositoryOptions = {}): Repositories {
+  return {
+    liteapiSnapshot: new PostgresLiteApiSnapshotRepository(options.now ?? Date.now),
     users: new PostgresUserRepository(),
     credentials: new PostgresUserCredentialRepository(),
     sessions: new PostgresSessionRepository(),

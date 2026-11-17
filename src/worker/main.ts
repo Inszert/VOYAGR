@@ -3,6 +3,8 @@ import { getLogger } from '@/lib/logger';
 import { getRepositories } from '@/db';
 import { createQueueDriver } from '@/queue';
 import { createCacheRefreshHandler, startCacheRefresh } from '@/cache/refresh';
+import { createSnapshotRefreshHandler } from '@/liteapi-snapshot/job';
+import { startSnapshotScheduler, type SnapshotScheduler } from '@/liteapi-snapshot/schedule';
 import { createRefreshHandler } from '@/watches/refresh';
 import { getEmailProvider } from '@/email/registry';
 import { createDeliveryHandler } from '@/notifications/deliver';
@@ -29,6 +31,8 @@ export interface WorkerHandle {
   readonly queue: QueueDriver;
   readonly scheduler: SchedulerHandle;
   readonly maintenance: MaintenanceHandle;
+  /** Null unless `LITEAPI_SNAPSHOT_ENABLED` is on and a key is set. */
+  readonly liteapiSnapshot: SnapshotScheduler | null;
   stop(): Promise<void>;
 }
 
@@ -51,6 +55,12 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
   queue.register('travel-watch.refresh', createRefreshHandler({ repositories, queue }));
   queue.register('notification.deliver', createDeliveryHandler({ repositories }));
   queue.register('cache.refresh', createCacheRefreshHandler());
+  // Registered whatever the flag says: with it off the handler records "disabled" and returns
+  // before it builds a client, so a stray job costs nothing.
+  queue.register(
+    'liteapi.snapshot.refresh',
+    createSnapshotRefreshHandler({ repositories, env: getEnv() }),
+  );
 
   await queue.start();
 
@@ -77,6 +87,22 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     placesIntervalHours: getEnv().PLACES_REFRESH_HOURS,
   });
 
+  // Our own LiteAPI hotel snapshot, on a schedule. Off unless the flag is set and a key exists:
+  // with it off no scheduler starts, and nothing here can reach the vendor.
+  const env = getEnv();
+  let liteapiSnapshot: SnapshotScheduler | null = null;
+  if (env.LITEAPI_SNAPSHOT_ENABLED && env.LITEAPI_API_KEY) {
+    liteapiSnapshot = startSnapshotScheduler(
+      { queue, repository: repositories.liteapiSnapshot },
+      {
+        refreshesPerDay: env.LITEAPI_SNAPSHOT_REFRESHES_PER_DAY,
+        guestNationality: env.LITEAPI_GUEST_NATIONALITY,
+      },
+    );
+  } else if (env.LITEAPI_SNAPSHOT_ENABLED) {
+    log.warn('LITEAPI_SNAPSHOT_ENABLED is set but LITEAPI_API_KEY is not: no snapshot refresh.');
+  }
+
   if (!getEnv().REDIS_URL) {
     // Without Redis the worker fills its own memory and no page ever sees it.
     log.warn('REDIS_URL is not set: cache refreshes are not shared with the web server.');
@@ -88,8 +114,10 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     queue,
     scheduler,
     maintenance,
+    liteapiSnapshot,
     async stop() {
       scheduler.stop();
+      liteapiSnapshot?.stop();
       cacheRefresh.stop();
       maintenance.stop();
       await queue.stop();

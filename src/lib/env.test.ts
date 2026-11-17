@@ -26,6 +26,25 @@ describe('parseEnv', () => {
     expect(env.FLIGHT_PROVIDER).toBe('mock');
   });
 
+  it('reads the LiteAPI snapshot flag (off by default) and its rounds a day (1 to 24, 3 by default)', () => {
+    const env = parseEnv({});
+    expect(env.LITEAPI_SNAPSHOT_ENABLED).toBe(false);
+    expect(env.LITEAPI_SNAPSHOT_REFRESHES_PER_DAY).toBe(3);
+
+    const set = parseEnv({
+      LITEAPI_SNAPSHOT_ENABLED: 'true',
+      LITEAPI_SNAPSHOT_REFRESHES_PER_DAY: '24',
+    });
+    expect(set.LITEAPI_SNAPSHOT_ENABLED).toBe(true);
+    expect(set.LITEAPI_SNAPSHOT_REFRESHES_PER_DAY).toBe(24);
+
+    for (const bad of ['0', '25', '2.5', 'x']) {
+      expect(() => parseEnv({ LITEAPI_SNAPSHOT_REFRESHES_PER_DAY: bad })).toThrow(
+        EnvValidationError,
+      );
+    }
+  });
+
   it('treats an empty string as unset', () => {
     // `DATABASE_URL=` in a dotenv file means "not configured", not "empty host".
     const env = parseEnv({ DATABASE_URL: '', ANTHROPIC_API_KEY: '' });

@@ -328,10 +328,15 @@ export class LiteApiStayProvider implements StayProvider {
     }
   }
 
-  async searchStays(
+  /**
+   * Hotels near a point: one `data/hotels` call, schema-checked, mapped to properties.
+   * An empty list is a real answer (nothing listed), not a failure. Children are not
+   * searched here either, so a party with children, or a query with no position, is empty.
+   */
+  async listHotels(
     query: StayQuery,
     options?: ProviderRequestOptions,
-  ): Promise<ProviderResult<readonly StayOffer[]>> {
+  ): Promise<ProviderResult<readonly StayProperty[]>> {
     const nights = daysBetween(query.checkIn, query.checkOut);
     if (nights < 1 || !query.destination.position) return ok([]);
     if (query.occupancy.children > 0) {
@@ -366,18 +371,32 @@ export class LiteApiStayProvider implements StayProvider {
         'liteapi hotel rows failed validation and were dropped',
       );
     }
-    if (hotels.accepted.length === 0) return ok([]);
 
-    const properties = new Map(hotels.accepted.map((row) => [row.id, mapProperty(row)]));
+    return ok(hotels.accepted.map((row) => mapProperty(row)));
+  }
 
-    // Rates are best effort: a failed rates call leaves hotels unpriced, not the search empty.
+  /**
+   * Rates for known hotel ids: one `hotels/rates` call, schema-checked and mapped. A hotel
+   * with no usable rate is absent from the map, which is "unknown", never zero. `observedAt`
+   * is the instant of this call.
+   */
+  async fetchRates(
+    hotelIds: readonly string[],
+    query: StayQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<ReadonlyMap<string, readonly StayRate[]>>> {
+    const nights = daysBetween(query.checkIn, query.checkOut);
+    const wanted = new Set(hotelIds);
+    const ratesByHotel = new Map<string, StayRate[]>();
+    if (nights < 1 || wanted.size === 0 || query.occupancy.children > 0) return ok(ratesByHotel);
+
     const rated = await this.call(
       `${BASE_URL}/hotels/rates`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          hotelIds: [...properties.keys()],
+          hotelIds: [...wanted],
           checkin: query.checkIn,
           checkout: query.checkOut,
           currency: query.currency.toUpperCase(),
@@ -387,82 +406,101 @@ export class LiteApiStayProvider implements StayProvider {
       },
       options,
     );
+    if (!rated.ok) return rated;
 
-    const ratesByHotel = new Map<string, StayRate[]>();
+    const ratesEnvelope = liteapiRatesEnvelopeSchema.safeParse(rated.value);
+    if (!ratesEnvelope.success) {
+      return err(
+        new AppError('PROVIDER_ERROR', 'LiteAPI returned an unrecognised rates response.'),
+      );
+    }
+
+    const rows = validateOffers(liteapiRatesRowSchema, ratesEnvelope.data.data);
+    if (rows.rejected.length > 0) {
+      log.warn({ rejected: rows.rejected }, 'liteapi rate rows failed validation and were dropped');
+    }
+    const sandbox = ratesEnvelope.data.sandbox === true;
+    const observedAt = this.now().toISOString();
+
+    for (const row of rows.accepted) {
+      if (!wanted.has(row.hotelId)) continue;
+      const rates: StayRate[] = [];
+      for (const roomType of row.roomTypes) {
+        const total = totalOf(roomType);
+        if (!total || total.amount <= 0) continue;
+        const first = roomType.rates[0]!;
+        const tag = first.cancellationPolicies?.refundableTag;
+        const refundable = tag === 'RFN' ? true : tag === 'NRFN' ? false : null;
+        const taxes = splitTaxes(roomType.rates);
+        rates.push({
+          id: `${LITEAPI_ID}:${row.hotelId}:${roomType.offerId}`,
+          providerRateId: roomType.offerId,
+          providerRoomId: null,
+          roomName: first.name?.trim() || null,
+          bedConfiguration: null,
+          board: first.boardType ? (BOARD[first.boardType.toUpperCase()] ?? null) : null,
+          cancellation: {
+            refundable,
+            // A deadline is only meaningful for a refundable rate.
+            deadline: refundable === true ? freeCancellationDeadline(roomType.rates) : null,
+            description: null,
+          },
+          paymentTiming: paymentTimingOf(roomType.rates),
+          benefits: [],
+          total,
+          // The vendor states a stay total only; the nightly figure is ours.
+          perNight: money(Math.round(total.amount / nights), total.currency),
+          base: null,
+          // Already inside `total`: information, not an addition.
+          taxesAndFees: taxes.included,
+          // Paid to the hotel. Never part of `total`.
+          payableAtProperty: taxes.payableAtProperty,
+          occupancy: query.occupancy,
+          observedAt,
+          expiresAt: null,
+          source: {
+            part: 'stays',
+            providerId: LITEAPI_ID,
+            displayName: this.metadata.displayName,
+            provenance: sandbox ? 'test' : 'live',
+          },
+        });
+      }
+      rates.sort((a, b) => a.total.amount - b.total.amount);
+      if (rates.length > 0) ratesByHotel.set(row.hotelId, rates);
+    }
+
+    return ok(ratesByHotel);
+  }
+
+  /** The two leaf calls, composed. Behaviour is the original single-method search. */
+  async searchStays(
+    query: StayQuery,
+    options?: ProviderRequestOptions,
+  ): Promise<ProviderResult<readonly StayOffer[]>> {
+    const listed = await this.listHotels(query, options);
+    if (!listed.ok) return listed;
+    if (listed.value.length === 0) return ok([]);
+
+    // Rates are best effort: a failed rates call leaves hotels unpriced, not the search empty.
+    const rated = await this.fetchRates(
+      listed.value.map((property) => property.providerPropertyId),
+      query,
+      options,
+    );
     if (!rated.ok) {
       log.warn(
         { code: rated.error.code },
         'liteapi rates unavailable; hotels listed without prices',
       );
-    } else {
-      const ratesEnvelope = liteapiRatesEnvelopeSchema.safeParse(rated.value);
-      if (!ratesEnvelope.success) {
-        log.warn('liteapi rates response unrecognised; hotels listed without prices');
-      } else {
-        const rows = validateOffers(liteapiRatesRowSchema, ratesEnvelope.data.data);
-        if (rows.rejected.length > 0) {
-          log.warn(
-            { rejected: rows.rejected },
-            'liteapi rate rows failed validation and were dropped',
-          );
-        }
-        const sandbox = ratesEnvelope.data.sandbox === true;
-        const observedAt = this.now().toISOString();
-
-        for (const row of rows.accepted) {
-          if (!properties.has(row.hotelId)) continue;
-          const rates: StayRate[] = [];
-          for (const roomType of row.roomTypes) {
-            const total = totalOf(roomType);
-            if (!total || total.amount <= 0) continue;
-            const first = roomType.rates[0]!;
-            const tag = first.cancellationPolicies?.refundableTag;
-            const refundable = tag === 'RFN' ? true : tag === 'NRFN' ? false : null;
-            const taxes = splitTaxes(roomType.rates);
-            rates.push({
-              id: `${LITEAPI_ID}:${row.hotelId}:${roomType.offerId}`,
-              providerRateId: roomType.offerId,
-              providerRoomId: null,
-              roomName: first.name?.trim() || null,
-              bedConfiguration: null,
-              board: first.boardType ? (BOARD[first.boardType.toUpperCase()] ?? null) : null,
-              cancellation: {
-                refundable,
-                // A deadline is only meaningful for a refundable rate.
-                deadline: refundable === true ? freeCancellationDeadline(roomType.rates) : null,
-                description: null,
-              },
-              paymentTiming: paymentTimingOf(roomType.rates),
-              benefits: [],
-              total,
-              // The vendor states a stay total only; the nightly figure is ours.
-              perNight: money(Math.round(total.amount / nights), total.currency),
-              base: null,
-              // Already inside `total`: information, not an addition.
-              taxesAndFees: taxes.included,
-              // Paid to the hotel. Never part of `total`.
-              payableAtProperty: taxes.payableAtProperty,
-              occupancy: query.occupancy,
-              observedAt,
-              expiresAt: null,
-              source: {
-                part: 'stays',
-                providerId: LITEAPI_ID,
-                displayName: this.metadata.displayName,
-                provenance: sandbox ? 'test' : 'live',
-              },
-            });
-          }
-          rates.sort((a, b) => a.total.amount - b.total.amount);
-          if (rates.length > 0) ratesByHotel.set(row.hotelId, rates);
-        }
-      }
     }
+    const ratesByHotel = rated.ok ? rated.value : new Map<string, readonly StayRate[]>();
 
-    const offers: StayOffer[] = [...properties].map(([id, property]) => ({
-      property,
-      rates: ratesByHotel.get(id) ?? [],
-    }));
-    return ok(offers);
+    return ok(
+      listed.value.map((property) => ({
+        property,
+        rates: ratesByHotel.get(property.providerPropertyId) ?? [],
+      })),
+    );
   }
 }

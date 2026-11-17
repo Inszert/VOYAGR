@@ -20,6 +20,8 @@ export const JOB_NAMES = [
    * (`places:<code>`), so pages read instead of call.
    */
   'cache.refresh',
+  /** Refresh one LiteAPI destination and date window into our own snapshot tables. */
+  'liteapi.snapshot.refresh',
 ] as const;
 
 /*
@@ -36,6 +38,7 @@ export interface JobPayloads {
   'travel-watch.refresh': { watchId: string; reason: 'scheduled' | 'manual' | 'price-alert' };
   'notification.deliver': { notificationId: string };
   'cache.refresh': { targetId: string };
+  'liteapi.snapshot.refresh': { destination: string; checkIn: string; checkOut: string };
 }
 
 export interface Job<TName extends JobName = JobName> {

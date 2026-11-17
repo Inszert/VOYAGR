@@ -292,6 +292,50 @@ request with no client address shares no bucket), and a per-process budget of 12
 minute (`DAY_PRICE_LOADS_PER_MINUTE`) makes a month past it answer "could not be loaded" instead of
 calling the vendor. Cache hits cost nothing.
 
+### 4.x The LiteAPI hotel snapshot (Part 10)
+
+Visitors never call LiteAPI. Hotel rates are read from our own tables, which the worker fills on a
+schedule. The stays registry builds `SnapshotStayProvider` (`src/providers/stays/snapshot.ts`) for
+`liteapi`; the live adapter (`src/providers/stays/liteapi.ts`) is imported only by the refresh job,
+and `src/liteapi-snapshot/import-guard.test.ts` fails if any file under `src/app/` can reach it.
+
+**Storage** (migration `0013_liteapi_snapshot.sql`): `liteapi_hotels` (mapped property, 7 day expiry),
+`liteapi_rates_snapshot` (one row per destination, window, party, currency and nationality; the rates
+are one JSONB column of validated, mapped offers with Money as `{ amount, currency }`, plus a
+`schema_version` that a reader checks) and `liteapi_refresh_runs` (the audit trail and the real call
+counter). A row's `expires_at` is observed plus three intervals.
+
+**Schedule.** `LITEAPI_SNAPSHOT_REFRESHES_PER_DAY` (1 to 24, default 3) rounds a day at fixed UTC
+slots (00:00, 08:00, 16:00 by default). A 30 second check starts a round when the slot changes; a
+restart in a slot that already ran starts none. One job per destination and window
+(`liteapi.snapshot.refresh`), one attempt each. Off unless `LITEAPI_SNAPSHOT_ENABLED=true` and a key is
+set: with the flag off the worker starts no scheduler and the handler records `disabled`, calling nothing.
+
+**One run, at most two calls:** hotel content (`data/hotels`, only when missing or expired), then
+`hotels/rates` for the stored ids; then the validated result replaces the row. A provider failure
+keeps the old row and records only the error code. Every call goes through one process-level limiter
+keyed `liteapi`.
+
+**Calls a day = destinations x windows x refreshes** (plus one content call a destination as an
+over-allowance in the daily ceiling, and about six `data/hotels` calls a week in practice).
+
+| Setting                                        | Rates calls a day | Worst case at $0.02 a call     |
+| ---------------------------------------------- | ----------------: | ------------------------------ |
+| 6 destinations x 3 windows x 3 a day (default) |            **54** | $1.08 a day, about $32 a month |
+| one more destination                           |                +9 | +$0.18 a day                   |
+| one more daily refresh                         |               +18 | +$0.36 a day                   |
+| one more window                                |               +18 | +$0.36 a day                   |
+| hourly (24 a day)                              |               432 | $8.64 a day (8 times)          |
+
+Sandbox runs the same code with the same counts. The launch destinations are one constant
+(`LAUNCH_DESTINATIONS`, owner to confirm).
+
+**What a visitor reads** (`src/liteapi-snapshot/read.ts`): fresh (age at most twice the interval,
+16 h by default) "Updated N hours ago"; aging "Prices last checked N hours ago"; missing (no row, a
+window or party not refreshed, or expired) "Hotel prices are not loaded for these dates yet." with no
+price; unknown (observed in the future) shows the price with no age claim. A sandbox key, or any
+rate marked `test`, adds a visible "Test prices" note (owner answer Q2).
+
 ---
 
 ## 5. Data flow by kind
@@ -500,6 +544,7 @@ there is no down migration and no rollback tooling.
 | `0007_email_change.sql`          | email change tokens                                                                                        |
 | `0008_alert_preferences.sql`     | alert preferences                                                                                          |
 | `0009_trip_hub.sql`              | trips, members, plan items, expenses, emergency contacts                                                   |
+| `0013_liteapi_snapshot.sql`      | LiteAPI snapshot: hotels, rates by window, refresh runs (section 4.x)                                      |
 
 0008 and 0009 have not been run against a real Postgres.
 

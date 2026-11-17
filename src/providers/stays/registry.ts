@@ -4,8 +4,8 @@ import type { DataSource } from '../data-source';
 import { getLogger } from '@/lib/logger';
 import { createAbsentStayProvider } from '../absent';
 import { mockAllowed } from '../mock-policy';
-import { createLiteApiStayProvider } from './liteapi';
 import { createMockStayProvider } from './mock';
+import { createSnapshotStayProvider } from './snapshot';
 import { createTravelpayoutsLinksProvider } from './travelpayouts-links';
 import type { StayProvider } from './types';
 
@@ -36,8 +36,10 @@ const ADAPTERS: Record<string, (env: Env) => StayProvider | null> = {
   absent: () => createAbsentStayProvider(),
   // Affiliate links, no prices. Unavailable until its three identifiers are set.
   'travelpayouts-links': (env) => createTravelpayoutsLinksProvider(env),
-  // Hotel rates. Absent (null) without LITEAPI_API_KEY, and only when STAY_PROVIDERS names it.
-  liteapi: (env) => createLiteApiStayProvider(env),
+  // Hotel rates, read from our own snapshot (src/liteapi-snapshot). Never the live client: a
+  // visitor's request makes no vendor call. Absent (null) without LITEAPI_API_KEY, and only
+  // when STAY_PROVIDERS names it.
+  liteapi: (env) => createSnapshotStayProvider(env),
 };
 
 /**

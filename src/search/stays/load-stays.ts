@@ -4,6 +4,7 @@ import type { CanonicalStay } from '@/core/stay/identity';
 import { nightsIn, type StayLinkOffer, type StayQuery, type StayRate } from '@/core/stay/types';
 import type { IsoDate } from '@/core/trip/types';
 import { createLimiter } from '@/lib/concurrency';
+import { readSnapshot, type SnapshotStatus } from '@/liteapi-snapshot/read';
 import { getStayProviders } from '@/providers/stays/registry';
 import type { DataSource } from '@/providers/data-source';
 import { findAllStayLinks, searchAllStays, type StayFanoutFailure } from '@/providers/stays/fanout';
@@ -44,6 +45,11 @@ export interface StayViewModel {
   /** Providers that answered, for the provenance line. */
   readonly answered: readonly string[];
   readonly errors: Readonly<Record<string, string>>;
+  /**
+   * How current the stored LiteAPI prices for the selected window are, or null when LiteAPI is
+   * not one of the providers. Read from our own database; never a vendor call.
+   */
+  readonly snapshot: SnapshotStatus | null;
 }
 
 export type StayParams = Readonly<Record<string, string | undefined>>;
@@ -118,10 +124,16 @@ export function parseStayParams(
   };
 }
 
+export interface StaySearchDependencies {
+  /** Milliseconds since the epoch, for the age of a stored price. */
+  readonly now?: () => number;
+}
+
 export async function loadStaySearch(
   params: StayParams,
   today: IsoDate,
   source: DataSource = 'api',
+  dependencies: StaySearchDependencies = {},
 ): Promise<StayViewModel> {
   const { query, errors } = parseStayParams(params, today);
   // Which vendors answer, chosen by the runtime data-source switch. `mock`
@@ -144,6 +156,17 @@ export async function loadStaySearch(
    */
   const limiter = createLimiter(6);
 
+  /*
+   * How old the stored hotel prices are, for the window on screen. A read of our own
+   * database: the LiteAPI provider in the list above is the snapshot reader, so nothing on
+   * this page can reach the vendor. A failed read is "no status", not a failed page.
+   */
+  const snapshot = providers.some((provider) => provider.metadata.id === 'liteapi')
+    ? await readSnapshot(query, (dependencies.now ?? Date.now)())
+        .then((read) => read.status)
+        .catch(() => null)
+    : null;
+
   if (step === 'dates') {
     const calendar = await exploreStayDates(providers, query, { shiftDays: 3, limiter });
 
@@ -160,6 +183,7 @@ export async function loadStaySearch(
       failures: [],
       answered: providers.map((provider) => provider.metadata.id),
       errors,
+      snapshot,
     };
   }
 
@@ -194,6 +218,7 @@ export async function loadStaySearch(
     failures: found.failures,
     answered: found.answered,
     errors,
+    snapshot,
   };
 }
 

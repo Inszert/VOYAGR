@@ -115,6 +115,53 @@ describe('LiteAPI stays adapter', () => {
   });
 });
 
+describe('LiteAPI split into listHotels and fetchRates', () => {
+  it('listHotels makes exactly one call, the hotel list, and maps properties', async () => {
+    const { fetchImpl, calls } = fakeFetch();
+    const provider = new LiteApiStayProvider({ apiKey: 'k', fetchImpl, now: NOW });
+
+    const result = await provider.listHotels(query);
+    if (!result.ok) throw result.error;
+
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!.url).pathname).toBe('/v3.0/data/hotels');
+    expect(result.value.map((property) => property.providerPropertyId)).toContain('lp1001');
+  });
+
+  it('fetchRates makes exactly one call with the ids it is given, and dates every rate', async () => {
+    const { fetchImpl, calls } = fakeFetch();
+    const provider = new LiteApiStayProvider({ apiKey: 'k', fetchImpl, now: NOW });
+
+    const result = await provider.fetchRates(['lp1001'], query);
+    if (!result.ok) throw result.error;
+
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(String(calls[0]!.init?.body)).hotelIds).toEqual(['lp1001']);
+    const rates = result.value.get('lp1001')!;
+    expect(rates[0]!.total).toEqual({ amount: 33333, currency: 'EUR' });
+    expect(rates.every((rate) => rate.observedAt === '2027-01-01T10:00:00.000Z')).toBe(true);
+  });
+
+  it('fetchRates returns an error result, not an empty map, when the vendor fails', async () => {
+    const { fetchImpl } = fakeFetch({}, 500);
+    const provider = new LiteApiStayProvider({ apiKey: 'k', fetchImpl, now: NOW });
+
+    const result = await provider.fetchRates(['lp1001'], query);
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('fetchRates makes no call for no ids', async () => {
+    const { fetchImpl } = fakeFetch();
+    const provider = new LiteApiStayProvider({ apiKey: 'k', fetchImpl, now: NOW });
+
+    const result = await provider.fetchRates([], query);
+
+    expect(result).toEqual({ ok: true, value: new Map() });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
 describe('LiteAPI taxes, cancellation and payment timing', () => {
   const room = (rate: Record<string, unknown>, offerTotal = 100) => ({
     data: [

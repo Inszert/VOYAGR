@@ -662,6 +662,92 @@ export interface ProviderRequestRepository {
   deleteBefore(before: IsoDateTime): Promise<number>;
 }
 
+/**
+ * The LiteAPI snapshot: our own copy of hotel content and rates, written by the worker's
+ * scheduled refresh and read by pages. A visitor never causes a vendor call; see
+ * `src/liteapi-snapshot/` and the Part 10 design in `docs/liteapi-migration-plan.md`.
+ *
+ * Rows hold `unknown` JSON: the repository stores and returns it, and the reader
+ * (`src/liteapi-snapshot/stored-schema.ts`) validates it. A reader never trusts a stored row.
+ */
+export type LiteApiEnvironment = 'sandbox' | 'production';
+
+/** The six columns that identify one destination-and-window answer. */
+export interface LiteApiRatesKey {
+  readonly destinationCode: string;
+  readonly checkIn: IsoDate;
+  readonly checkOut: IsoDate;
+  /** For example `a2-c0-r1`. */
+  readonly occupancySig: string;
+  /** Upper-case ISO 4217. */
+  readonly currency: string;
+  /** Upper-case ISO 3166-1 alpha-2. */
+  readonly guestNationality: string;
+}
+
+export interface LiteApiRatesRow extends LiteApiRatesKey {
+  readonly environment: LiteApiEnvironment;
+  readonly schemaVersion: number;
+  readonly rates: unknown;
+  readonly observedAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+  readonly runId: string;
+}
+
+export interface LiteApiHotelRow {
+  readonly hotelId: string;
+  readonly destinationCode: string;
+  readonly content: unknown;
+  readonly fetchedAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+}
+
+export type LiteApiRunStatus = 'running' | 'ok' | 'failed' | 'skipped_cap' | 'disabled';
+
+export interface LiteApiRunRecord {
+  readonly runId: string;
+  readonly job: string;
+  readonly destinationCode: string;
+  readonly checkIn: IsoDate;
+  readonly checkOut: IsoDate;
+  readonly environment: LiteApiEnvironment;
+  readonly startedAt: IsoDateTime;
+  readonly finishedAt: IsoDateTime | null;
+  readonly callsMade: number;
+  readonly status: LiteApiRunStatus;
+  /** An `ErrorCode` only. Never a message, never anything that could hold a key. */
+  readonly errorCode: string | null;
+}
+
+export type LiteApiRunStart = Pick<
+  LiteApiRunRecord,
+  'runId' | 'job' | 'destinationCode' | 'checkIn' | 'checkOut' | 'environment'
+>;
+
+export interface LiteApiRunFinish {
+  readonly status: Exclude<LiteApiRunStatus, 'running'>;
+  readonly callsMade: number;
+  readonly errorCode?: string | null;
+}
+
+export interface LiteApiSnapshotRepository {
+  /** The row for this key, or null when there is none or it has expired. */
+  getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null>;
+  /** Unexpired hotel content for one destination. */
+  getHotels(destinationCode: string): Promise<LiteApiHotelRow[]>;
+  /** Replace the row for its key, then delete every expired row. */
+  putRates(row: LiteApiRatesRow): Promise<void>;
+  /** Upsert hotel content by hotel id, then delete every expired row. */
+  putHotels(rows: readonly LiteApiHotelRow[]): Promise<void>;
+  /** Record a run as `running`, stamped with the repository's clock. */
+  startRun(input: LiteApiRunStart): Promise<LiteApiRunRecord>;
+  finishRun(runId: string, result: LiteApiRunFinish): Promise<void>;
+  /** The most recently started run that was attempted. A `disabled` record is not an attempt. */
+  latestRun(): Promise<LiteApiRunRecord | null>;
+  /** Vendor calls made by runs started at or after `since`. The daily ceiling reads this. */
+  callsSince(since: IsoDateTime): Promise<number>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly credentials: UserCredentialRepository;
@@ -682,6 +768,7 @@ export interface Repositories {
   readonly planItems: PlanItemRepository;
   readonly tripExpenses: TripExpenseRepository;
   readonly emergencyContacts: EmergencyContactRepository;
+  readonly liteapiSnapshot: LiteApiSnapshotRepository;
   /** Identifies the active backend, for diagnostics. */
   readonly backend: 'memory' | 'postgres';
 }

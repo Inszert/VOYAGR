@@ -4,6 +4,7 @@ import { SearchKindTabs } from '@/components/search/search-kind-tabs';
 import { DatePriceGrid } from '@/components/stays/date-price-grid';
 import { RateComparison } from '@/components/stays/rate-comparison';
 import { FindStayLink } from '@/components/stays/find-stay-link';
+import { SnapshotStatusLine } from '@/components/stays/snapshot-status';
 import { StayCard } from '@/components/stays/stay-card';
 import { StayExplorer } from '@/components/stays/stay-explorer';
 import { buildStayRows } from '@/components/stays/stay-rows';
@@ -262,6 +263,8 @@ export default async function StaysPage({
             missing.
           </p>
         ) : null}
+
+        {view.snapshot ? <SnapshotStatusLine status={view.snapshot} /> : null}
 
         {view.step === 'dates' ? (
           <DatePriceGrid

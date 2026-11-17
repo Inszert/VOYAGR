@@ -10,6 +10,13 @@ import type {
   EmergencyContactRecord,
   EmergencyContactRepository,
   ErasureSummary,
+  LiteApiHotelRow,
+  LiteApiRatesKey,
+  LiteApiRatesRow,
+  LiteApiRunFinish,
+  LiteApiRunRecord,
+  LiteApiRunStart,
+  LiteApiSnapshotRepository,
   NotificationRecord,
   NotificationRepository,
   PasswordResetRepository,
@@ -1075,7 +1082,109 @@ class MemoryEmergencyContactRepository implements EmergencyContactRepository {
 }
 
 /** Build a complete, isolated set of in-memory repositories. */
-export function createMemoryRepositories(): Repositories {
+/** Both backends read a clock from their options so a test can move time. */
+export interface RepositoryOptions {
+  /** Milliseconds since the epoch. Defaults to `Date.now`. */
+  readonly now?: () => number;
+}
+
+const ratesKeyOf = (key: LiteApiRatesKey): string =>
+  [
+    key.destinationCode,
+    key.checkIn,
+    key.checkOut,
+    key.occupancySig,
+    key.currency,
+    key.guestNationality,
+  ].join('|');
+
+class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
+  private readonly rates = new Map<string, LiteApiRatesRow>();
+  private readonly hotels = new Map<string, LiteApiHotelRow>();
+  private readonly runs: LiteApiRunRecord[] = [];
+
+  constructor(private readonly clock: () => number) {}
+
+  private nowIso(): string {
+    return new Date(this.clock()).toISOString();
+  }
+
+  private live(expiresAt: string): boolean {
+    return Date.parse(expiresAt) > this.clock();
+  }
+
+  private sweep(): void {
+    for (const [key, row] of this.rates) if (!this.live(row.expiresAt)) this.rates.delete(key);
+    for (const [key, row] of this.hotels) if (!this.live(row.expiresAt)) this.hotels.delete(key);
+  }
+
+  async getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null> {
+    const row = this.rates.get(ratesKeyOf(key));
+    return row && this.live(row.expiresAt) ? structuredClone(row) : null;
+  }
+
+  async getHotels(destinationCode: string): Promise<LiteApiHotelRow[]> {
+    return [...this.hotels.values()]
+      .filter((row) => row.destinationCode === destinationCode && this.live(row.expiresAt))
+      .map((row) => structuredClone(row));
+  }
+
+  async putRates(row: LiteApiRatesRow): Promise<void> {
+    this.rates.set(ratesKeyOf(row), structuredClone(row));
+    this.sweep();
+  }
+
+  async putHotels(rows: readonly LiteApiHotelRow[]): Promise<void> {
+    for (const row of rows) this.hotels.set(row.hotelId, structuredClone(row));
+    this.sweep();
+  }
+
+  async startRun(input: LiteApiRunStart): Promise<LiteApiRunRecord> {
+    const record: LiteApiRunRecord = {
+      ...input,
+      startedAt: this.nowIso(),
+      finishedAt: null,
+      callsMade: 0,
+      status: 'running',
+      errorCode: null,
+    };
+    this.runs.push(record);
+    return { ...record };
+  }
+
+  async finishRun(runId: string, result: LiteApiRunFinish): Promise<void> {
+    const index = this.runs.findIndex((run) => run.runId === runId);
+    if (index === -1) {
+      throw new AppError('NOT_FOUND', `No LiteAPI run with id ${runId}`);
+    }
+    this.runs[index] = {
+      ...this.runs[index]!,
+      status: result.status,
+      callsMade: result.callsMade,
+      errorCode: result.errorCode ?? null,
+      finishedAt: this.nowIso(),
+    };
+  }
+
+  async latestRun(): Promise<LiteApiRunRecord | null> {
+    // Later wins on a tie of timestamps: insertion order is start order.
+    let latest: LiteApiRunRecord | null = null;
+    for (const run of this.runs) {
+      if (run.status === 'disabled') continue;
+      if (!latest || run.startedAt >= latest.startedAt) latest = run;
+    }
+    return latest ? { ...latest } : null;
+  }
+
+  async callsSince(since: string): Promise<number> {
+    return this.runs
+      .filter((run) => run.startedAt >= since)
+      .reduce((total, run) => total + run.callsMade, 0);
+  }
+}
+
+export function createMemoryRepositories(options: RepositoryOptions = {}): Repositories {
+  const liteapiSnapshot = new MemoryLiteApiSnapshotRepository(options.now ?? Date.now);
   const users = new MemoryUserRepository();
   const credentials = new MemoryUserCredentialRepository();
   const sessions = new MemorySessionRepository();
@@ -1161,6 +1270,7 @@ export function createMemoryRepositories(): Repositories {
     planItems,
     tripExpenses,
     emergencyContacts,
+    liteapiSnapshot,
     backend: 'memory',
   };
 }

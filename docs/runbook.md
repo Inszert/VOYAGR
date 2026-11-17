@@ -35,15 +35,17 @@ round set by `PLACES_REFRESH_HOURS`.
 Read from `src/lib/env.ts`. The other variables have defaults that work locally. Secrets are never
 printed or logged; the environment report shows only whether each one is set.
 
-| Variable                | Default                 | Set it when                                                                                                                                                                                                                                                                                                              |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_APP_URL`   | `http://localhost:3000` | **Always in production, for the web service, the worker and the build.** Set it to the public `https` address of the site. Verification and reset links are built from it. In production it must be set, non-empty and not a loopback address (`localhost`, `127.x.x.x`, `::1`); otherwise the process refuses to start. |
-| `DATABASE_URL`          | unset (in-memory store) | Persistence. On Railway, use the internal URL. It is a secret.                                                                                                                                                                                                                                                           |
-| `DATABASE_SSL`          | `false`                 | The database needs TLS with certificate checking. `scripts/migrate.mjs` enables TLS only for the exact value `true`.                                                                                                                                                                                                     |
-| `REDIS_URL`             | unset                   | Shared cache and the BullMQ queue. Needed with `QUEUE_DRIVER=bullmq`.                                                                                                                                                                                                                                                    |
-| `QUEUE_DRIVER`          | `memory`                | `bullmq` for the web service and worker to share jobs. Requires `REDIS_URL`.                                                                                                                                                                                                                                             |
-| `PRICE_REFRESH_MINUTES` | `30` (1 to 1440)        | How often the worker re-prices what the front pages show. The worker reads it at start, so restart it after a change. Trade-off in section 5.                                                                                                                                                                            |
-| `PLACES_REFRESH_HOURS`  | `168` (1 to 720)        | How often the worker pre-warms things to do. Each round covers at most 40 destinations that are not already fresh, a minute apart. Read at worker start. Longer is kinder to Wikidata.                                                                                                                                   |
+| Variable                             | Default                 | Set it when                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_APP_URL`                | `http://localhost:3000` | **Always in production, for the web service, the worker and the build.** Set it to the public `https` address of the site. Verification and reset links are built from it. In production it must be set, non-empty and not a loopback address (`localhost`, `127.x.x.x`, `::1`); otherwise the process refuses to start. |
+| `DATABASE_URL`                       | unset (in-memory store) | Persistence. On Railway, use the internal URL. It is a secret.                                                                                                                                                                                                                                                           |
+| `DATABASE_SSL`                       | `false`                 | The database needs TLS with certificate checking. `scripts/migrate.mjs` enables TLS only for the exact value `true`.                                                                                                                                                                                                     |
+| `REDIS_URL`                          | unset                   | Shared cache and the BullMQ queue. Needed with `QUEUE_DRIVER=bullmq`.                                                                                                                                                                                                                                                    |
+| `QUEUE_DRIVER`                       | `memory`                | `bullmq` for the web service and worker to share jobs. Requires `REDIS_URL`.                                                                                                                                                                                                                                             |
+| `PRICE_REFRESH_MINUTES`              | `30` (1 to 1440)        | How often the worker re-prices what the front pages show. The worker reads it at start, so restart it after a change. Trade-off in section 5.                                                                                                                                                                            |
+| `PLACES_REFRESH_HOURS`               | `168` (1 to 720)        | How often the worker pre-warms things to do. Each round covers at most 40 destinations that are not already fresh, a minute apart. Read at worker start. Longer is kinder to Wikidata.                                                                                                                                   |
+| `LITEAPI_SNAPSHOT_ENABLED`           | `false`                 | Turns on the scheduled LiteAPI hotel snapshot in the worker (section 4a). Needs `LITEAPI_API_KEY`. Read at worker start.                                                                                                                                                                                                 |
+| `LITEAPI_SNAPSHOT_REFRESHES_PER_DAY` | `3` (1 to 24)           | Rounds a day at fixed UTC slots. Each adds 18 rates calls a day for six destinations.                                                                                                                                                                                                                                    |
 
 `NEXT_PUBLIC_APP_URL` has the `NEXT_PUBLIC_` prefix, but in this repository it is read on the server
 through `getEnv()`, not inlined into client code. Changing it therefore needs a restart, and a rebuild
@@ -134,6 +136,45 @@ and starts a refresh round, and until the new day's entry is written a page serv
 by its own age ("Updated N min ago"), and never runs the full-catalogue search itself. Look for `the UTC
 date changed; starting a cache refresh round` in the worker log just after 00:00. If it is absent, the
 worker was down; restart it. Not verified on a real deployment.
+
+## 4a. LiteAPI hotel snapshot
+
+Visitors never call LiteAPI: pages read our own tables (`docs/architecture.md`, section 4.x). Only the
+worker calls the vendor, and only when told to.
+
+**Turn it on** (worker service; the web service needs the same `LITEAPI_API_KEY` and `STAY_PROVIDERS=liteapi` so the
+reader is registered, but it never sends the key):
+
+1. Apply migration `0013` (`npm run db:migrate`).
+2. Set `LITEAPI_API_KEY`, `LITEAPI_SNAPSHOT_ENABLED=true` and, if you want, `LITEAPI_SNAPSHOT_REFRESHES_PER_DAY`
+   on the worker. Use `QUEUE_DRIVER=bullmq` in production so the jobs survive a restart.
+3. Restart the worker. Look for `liteapi snapshot scheduled` and then `liteapi snapshot round started` in its log.
+4. **Only after Nuitee has confirmed in writing that periodic refresh for display is allowed** (owner question Q10).
+
+**What it costs.** Calls a day = destinations x windows x refreshes. The default is 6 x 3 x 3 = **54 rates
+calls a day**, at most about $1.08 a day or $32 a month at the worst-case $0.02 a call; hotel content is
+free and about six calls a week. Hourly would be 432 a day. Sandbox has the same counts and is reported
+free. The daily ceiling refuses a run once the day's calls reach destinations x windows x refreshes plus
+one content call a destination.
+
+**Turn it off.** Unset `LITEAPI_SNAPSHOT_ENABLED` (or set it to `false`) and restart the worker: no
+scheduler starts, and any job still queued records `disabled` and calls nothing. Stored rows stay and age
+out to "Hotel prices are not loaded for these dates yet." within a day.
+
+**See what happened.** Every run is a row in `liteapi_refresh_runs`:
+
+```sql
+SELECT destination_code, check_in, status, calls_made, error_code, started_at
+  FROM liteapi_refresh_runs ORDER BY started_at DESC LIMIT 20;
+SELECT COALESCE(SUM(calls_made), 0) FROM liteapi_refresh_runs
+ WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'utc');
+```
+
+`error_code` is an error code only (for example `PROVIDER_TIMEOUT`), never a message. A failed run keeps the
+previous row. The worker log (`liteapi-snapshot.job`) carries the run id, destination, window, code and calls
+made, and never the key.
+
+**Test prices.** With a sandbox key (`sand_...`) the page shows a "Test prices" note beside the freshness line.
 
 ## 5. Aviasales quota problems
 

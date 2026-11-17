@@ -228,6 +228,15 @@ const envSchema = z.object({
    * the live site (with a visible "Test prices" note). See `assertLiteApiKeyAllowed`.
    */
   LITEAPI_SANDBOX_IN_PRODUCTION: booleanish.default(false),
+  /**
+   * The scheduled LiteAPI snapshot (`src/liteapi-snapshot/`). Off by default: it spends vendor
+   * calls on a schedule, and ships off until the provider's terms allow periodic refresh. With
+   * it off the worker starts no scheduler and the job makes no call. Visitors never call LiteAPI
+   * either way; pages read the snapshot.
+   */
+  LITEAPI_SNAPSHOT_ENABLED: booleanish.default(false),
+  /** Refresh rounds a day, at fixed UTC slots (3 gives 00:00, 08:00 and 16:00). */
+  LITEAPI_SNAPSHOT_REFRESHES_PER_DAY: z.coerce.number().int().min(1).max(24).default(3),
   TRAVELPAYOUTS_HOTEL_PROGRAM_ID: z.string().min(1).optional(),
   TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID: z.string().min(1).optional(),
 
