@@ -8,6 +8,7 @@ import type { FirstPlan, PlanDay, PlanStop } from '@/discovery/first-plan';
 import { placeImageUrl } from '@/providers/places/image-url';
 import { cn } from '@/lib/cn';
 import { AddPlacesToPlan } from './add-places-to-plan';
+import { MyDayPlan } from './my-day-plan';
 import { KIND_ICON, KIND_TINT, KIND_WORDS } from './place-kinds';
 import { usePlaces } from './places-context';
 import { useReducedMotion as useReducedMotionOrNull } from './use-media';
@@ -257,6 +258,8 @@ export function FirstPlanSection({
           />
         </div>
       ) : null}
+
+      {planTrips ? <MyDayPlan plan={plan} trips={planTrips} /> : null}
     </section>
   );
 }

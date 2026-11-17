@@ -47,7 +47,15 @@ describe.each(Object.entries(templates))('%s mail', (_name, build) => {
   });
 
   it('uses the night palette, a copper button, and the Georgia wordmark and heading', () => {
-    for (const colour of ['#05070E', '#0C101B', '#232836', '#FFFFFF', '#98A0B0', '#A0633A', '#F2C46A']) {
+    for (const colour of [
+      '#05070E',
+      '#0C101B',
+      '#232836',
+      '#FFFFFF',
+      '#98A0B0',
+      '#A0633A',
+      '#F2C46A',
+    ]) {
       expect(mail.html).toContain(colour);
     }
     expect(mail.html).toMatch(/font:400 28px\/34px Georgia/);

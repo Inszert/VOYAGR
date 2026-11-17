@@ -17,6 +17,9 @@ import type {
   NotificationRepository,
   PasswordResetRepository,
   PasswordResetTokenRecord,
+  DayStopInput,
+  DayStopPlacement,
+  DayStopRecord,
   PlanItemInput,
   PlanItemRecord,
   PlanItemRepository,
@@ -1333,7 +1336,65 @@ function toPlanItem(row: PlanItemRow): PlanItemRecord {
   };
 }
 
+interface DayStopRow {
+  id: string;
+  trip_id: string;
+  title: string;
+  outbound_url: string | null;
+  plan_day: number;
+  plan_position: number;
+}
+
+const DAY_STOP_COLUMNS = 'id, trip_id, title, outbound_url, plan_day, plan_position';
+
+function toDayStop(row: DayStopRow): DayStopRecord {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    title: row.title,
+    url: row.outbound_url,
+    day: row.plan_day,
+    position: row.plan_position,
+  };
+}
+
 class PostgresPlanItemRepository implements PlanItemRepository {
+  async createStop(input: DayStopInput): Promise<DayStopRecord> {
+    const rows = await query<DayStopRow>(
+      `INSERT INTO plan_items (trip_id, kind, title, outbound_url, status, plan_day, plan_position)
+       VALUES ($1, 'activity', $2, $3, 'idea', $4, $5)
+       RETURNING ${DAY_STOP_COLUMNS}`,
+      [input.tripId, input.title, input.url, input.day, input.position],
+    );
+    return toDayStop(requireRow(rows[0], 'plan stop', input.title));
+  }
+
+  async listStops(tripId: string): Promise<DayStopRecord[]> {
+    const rows = await query<DayStopRow>(
+      `SELECT ${DAY_STOP_COLUMNS} FROM plan_items
+        WHERE trip_id = $1 AND plan_day IS NOT NULL
+        ORDER BY plan_day, plan_position, id`,
+      [tripId],
+    );
+    return rows.map(toDayStop);
+  }
+
+  async placeStops(tripId: string, placements: readonly DayStopPlacement[]): Promise<void> {
+    if (placements.length === 0) return;
+    await query(
+      `UPDATE plan_items AS p
+          SET plan_day = v.day, plan_position = v.position, updated_at = now()
+         FROM unnest($2::uuid[], $3::int[], $4::int[]) AS v(id, day, position)
+        WHERE p.id = v.id AND p.trip_id = $1 AND p.plan_day IS NOT NULL`,
+      [
+        tripId,
+        placements.map((entry) => entry.id),
+        placements.map((entry) => entry.day),
+        placements.map((entry) => entry.position),
+      ],
+    );
+  }
+
   async findById(id: string): Promise<PlanItemRecord | null> {
     const rows = await query<PlanItemRow>(
       `SELECT ${PLAN_ITEM_COLUMNS} FROM plan_items WHERE id = $1`,

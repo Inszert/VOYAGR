@@ -6,7 +6,10 @@ import { CredentialsForm } from '@/components/auth/credentials-form';
 import { signInAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
 
-export const metadata: Metadata = { title: 'Sign in' };
+export const metadata: Metadata = {
+  title: 'Sign in',
+  description: 'Sign in to see your saved searches, watches and trips.',
+};
 
 /**
  * Every action that redirects here does so as a bare `?flag=1` - only

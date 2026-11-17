@@ -37,6 +37,7 @@ import { getActiveDataSource } from '@/providers/request-source';
 
 export const metadata: Metadata = {
   title: 'Stays',
+  description: 'Search for places to stay by dates and compare the hotels and rates in a city.',
 };
 
 function firstValues(params: Record<string, string | string[] | undefined>): StayParams {

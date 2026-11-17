@@ -39,7 +39,10 @@ export function passwordResetTemplate(input: LinkEmailInput): RenderedEmail {
     preheader: 'Choose a new password. The link works once and lasts 1 hour.',
     heading: 'Choose a new password',
     blocks: [
-      { type: 'paragraph', text: 'We got a request to reset the password on your Voyagr account. Use the button to choose a new one.' },
+      {
+        type: 'paragraph',
+        text: 'We got a request to reset the password on your Voyagr account. Use the button to choose a new one.',
+      },
       {
         type: 'note',
         text: 'The link works once and expires in 1 hour. Did not ask for this? Ignore this email. Your password has not changed.',

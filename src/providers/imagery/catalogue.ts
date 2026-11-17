@@ -192,6 +192,20 @@ const ARTICLES: Readonly<Record<string, string>> = {
   ACE: 'Lanzarote',
   // Lead image: South_view_sea_side_from_Kasbah_of_Agadir_Oufella_(cropped).jpg.
   AGA: 'Agadir',
+  // Lead image: Graz_(35932179023).jpg, an aerial view of the old town.
+  GRZ: 'Graz',
+  // Lead image: Linz_Blick_von_Freinbergstrasse_32-2_(cropped).jpg, the city
+  // from the Freinberg with the cathedral's spire.
+  LNZ: 'Linz',
+  // Lead image: Salzburg_(48489551981).jpg, the old town under the Alps.
+  SZG: 'Salzburg',
+  // Lead image: Bürgerstraße_26+24_(BT0A2830).jpg, a street of facades in the
+  // city. A Nordkette summit photograph was tried first and not used: it has no
+  // city in it.
+  INN: 'Innsbruck',
+  // Lead image: Slovakia_bratislava.jpg, an aerial view of the Danube, the
+  // castle and the old town. Named for the country, but the picture is the city.
+  BTS: 'Bratislava',
 };
 
 /**

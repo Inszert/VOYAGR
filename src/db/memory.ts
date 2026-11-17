@@ -13,6 +13,9 @@ import type {
   NotificationRecord,
   NotificationRepository,
   PasswordResetRepository,
+  DayStopInput,
+  DayStopPlacement,
+  DayStopRecord,
   PlanItemInput,
   PlanItemRecord,
   PlanItemRepository,
@@ -833,9 +836,61 @@ class MemoryTripRepository implements TripRepository {
 
 class MemoryPlanItemRepository implements PlanItemRepository {
   private readonly byId = new Map<string, PlanItemRecord>();
+  /** The day and place in the day of an item that is a day-plan stop. */
+  private readonly placement = new Map<string, { day: number; position: number }>();
 
   async findById(id: string): Promise<PlanItemRecord | null> {
     return this.byId.get(id) ?? null;
+  }
+
+  async createStop(input: DayStopInput): Promise<DayStopRecord> {
+    const item = await this.create({
+      tripId: input.tripId,
+      kind: 'activity',
+      title: input.title,
+      date: null,
+      startsAt: null,
+      price: null,
+      partnerOfferId: null,
+      outboundUrl: input.url,
+      status: 'idea',
+    });
+    this.placement.set(item.id, { day: input.day, position: input.position });
+    return {
+      id: item.id,
+      tripId: input.tripId,
+      title: input.title,
+      url: input.url,
+      day: input.day,
+      position: input.position,
+    };
+  }
+
+  async listStops(tripId: string): Promise<DayStopRecord[]> {
+    const stops: DayStopRecord[] = [];
+    for (const item of this.byId.values()) {
+      const place = this.placement.get(item.id);
+      if (item.tripId !== tripId || !place) continue;
+      stops.push({
+        id: item.id,
+        tripId,
+        title: item.title,
+        url: item.outboundUrl,
+        day: place.day,
+        position: place.position,
+      });
+    }
+    return stops.sort(
+      (a, b) => a.day - b.day || a.position - b.position || a.id.localeCompare(b.id),
+    );
+  }
+
+  async placeStops(tripId: string, placements: readonly DayStopPlacement[]): Promise<void> {
+    for (const entry of placements) {
+      const item = this.byId.get(entry.id);
+      if (!item || item.tripId !== tripId || !this.placement.has(entry.id)) continue;
+      this.placement.set(entry.id, { day: entry.day, position: entry.position });
+    }
   }
 
   async listByTrip(tripId: string): Promise<PlanItemRecord[]> {
@@ -861,11 +916,15 @@ class MemoryPlanItemRepository implements PlanItemRepository {
 
   async delete(id: string): Promise<void> {
     this.byId.delete(id);
+    this.placement.delete(id);
   }
 
   eraseTrip(tripId: string): void {
     for (const [id, item] of this.byId) {
-      if (item.tripId === tripId) this.byId.delete(id);
+      if (item.tripId === tripId) {
+        this.byId.delete(id);
+        this.placement.delete(id);
+      }
     }
   }
 }

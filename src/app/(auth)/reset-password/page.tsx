@@ -5,7 +5,10 @@ import { PageHeader } from '@/components/ui';
 import { ResetPasswordForm } from '@/components/auth/reset-password-form';
 import { resetPasswordAction } from '@/app/actions/auth';
 
-export const metadata: Metadata = { title: 'Choose a new password' };
+export const metadata: Metadata = {
+  title: 'Choose a new password',
+  description: 'Choose a new password for your account, from a link sent to your email.',
+};
 
 const SCENE = { code: 'CPT', line: 'Almost there. Choose a password and carry on.' } as const;
 

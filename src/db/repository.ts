@@ -526,11 +526,44 @@ export interface TripRepository {
 
 export type PlanItemInput = Omit<PlanItemRecord, 'id' | 'createdAt' | 'updatedAt'>;
 
+/** One stop of a traveller's own day-by-day plan: a plan item that has a day. */
+export interface DayStopRecord {
+  readonly id: string;
+  readonly tripId: string;
+  readonly title: string;
+  /** Where the place is described (Wikipedia or Wikidata), or null for a stop typed by hand. */
+  readonly url: string | null;
+  /** 1-based day of the plan. */
+  readonly day: number;
+  /** 0-based order within the day. */
+  readonly position: number;
+}
+
+export interface DayStopInput {
+  readonly tripId: string;
+  readonly title: string;
+  readonly url: string | null;
+  readonly day: number;
+  readonly position: number;
+}
+
+export interface DayStopPlacement {
+  readonly id: string;
+  readonly day: number;
+  readonly position: number;
+}
+
 export interface PlanItemRepository {
   findById(id: string): Promise<PlanItemRecord | null>;
   listByTrip(tripId: string): Promise<PlanItemRecord[]>;
   create(input: PlanItemInput): Promise<PlanItemRecord>;
   update(id: string, patch: Partial<Omit<PlanItemInput, 'tripId'>>): Promise<PlanItemRecord>;
+  /** A day-plan stop: an `activity` idea with a day and a place in it. */
+  createStop(input: DayStopInput): Promise<DayStopRecord>;
+  /** The trip's day-plan stops, by day and then position. Items with no day are not here. */
+  listStops(tripId: string): Promise<DayStopRecord[]>;
+  /** Set the day and position of stops of this trip in one step. Other trips' ids are ignored. */
+  placeStops(tripId: string, placements: readonly DayStopPlacement[]): Promise<void>;
   delete(id: string): Promise<void>;
 }
 

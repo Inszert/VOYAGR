@@ -183,6 +183,71 @@ describe('OpenMeteoWeatherProvider', () => {
     ]);
   });
 
+  it('does not count a null precipitation day as dry, and leaves that whole day out of the normal', async () => {
+    // Inline, because no recorded archive response has a null precipitation
+    // figure. Four June days in each sampled year. The 2025 third day has no
+    // rain figure, but deliberately extreme temperature and wind: if that day
+    // leaked into any average, the normal would move.
+    const archive2025WithNullRain = {
+      daily: {
+        time: ['2025-06-01', '2025-06-02', '2025-06-03', '2025-06-04'],
+        temperature_2m_max: [20, 20, 40, 20],
+        temperature_2m_min: [10, 10, 30, 10],
+        precipitation_sum: [0, 5, null, 0],
+        wind_speed_10m_max: [10, 10, 90, 10],
+      },
+    };
+    const archive2024 = {
+      daily: {
+        time: ['2024-06-01', '2024-06-02', '2024-06-03', '2024-06-04'],
+        temperature_2m_max: [20, 20, 20, 20],
+        temperature_2m_min: [10, 10, 10, 10],
+        precipitation_sum: [0, 0, 2, 0],
+        wind_speed_10m_max: [10, 10, 10, 10],
+      },
+    };
+    const archive2023 = {
+      daily: {
+        time: ['2023-06-01', '2023-06-02', '2023-06-03', '2023-06-04'],
+        temperature_2m_max: [20, 20, 20, 20],
+        temperature_2m_min: [10, 10, 10, 10],
+        precipitation_sum: [0, 0, 0, 0],
+        wind_speed_10m_max: [10, 10, 10, 10],
+      },
+    };
+
+    const provider = new OpenMeteoWeatherProvider({
+      now: NOW,
+      fetchImpl: routingFetch({ archive: [archive2025WithNullRain, archive2024, archive2023] }),
+    });
+
+    const result = await provider.getOutlook({
+      destination: 'VIE',
+      startDate: '2027-06-15',
+      endDate: '2027-06-15',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // 11 valid June days across the three years (the null day excluded, not
+    // counted dry). Rain on 2 of them: 2025-06-02 and 2024-06-03. 2 / 11 = 0.18.
+    // Counting the null day as dry would give 2 / 12 = 0.17, and the averages
+    // would also pick up its 40 C and 90 km/h.
+    expect(result.value).toEqual([
+      {
+        date: '2027-06-15',
+        basis: 'climatology',
+        temperatureMaxC: 20,
+        temperatureMinC: 10,
+        precipitationProbability: 0.18,
+        windKph: 10,
+        seaTemperatureC: null,
+        confidence: 0.3,
+      },
+    ]);
+  });
+
   it('omits a date rather than inventing one when every sampled year for its month failed', async () => {
     const provider = new OpenMeteoWeatherProvider({
       now: NOW,

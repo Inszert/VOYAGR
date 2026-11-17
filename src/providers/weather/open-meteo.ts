@@ -343,17 +343,21 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
         temperature_2m_max.forEach((maxC, index) => {
           const minC = temperature_2m_min[index];
           const wind = wind_speed_10m_max[index];
+          const precipitation = precipitation_sum[index];
           // The vendor itself has gaps in its historical record on some
           // days; a day it did not record contributes nothing rather than a
           // fabricated figure. `== null` deliberately: a missing index and an
-          // explicit `null` from the vendor both mean "no figure".
-          if (maxC == null || minC == null || wind == null) return;
+          // explicit `null` from the vendor both mean "no figure". A null
+          // precipitation is not a dry day, so the whole day is left out of
+          // every average and the rain-day count - the same rule the
+          // forecast path applies.
+          if (maxC == null || minC == null || wind == null || precipitation == null) return;
 
           samples.push({
             maxC,
             minC,
             windKph: wind,
-            rain: (precipitation_sum[index] ?? 0) >= RAIN_DAY_THRESHOLD_MM,
+            rain: precipitation >= RAIN_DAY_THRESHOLD_MM,
           });
         });
       }

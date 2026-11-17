@@ -1,16 +1,17 @@
 # Runbook
 
-How to run Voyagr and what to do when it misbehaves. Written from the code as of 2026-11-15 (after commit `ff14d21`).
+How to run Voyagr and what to do when it misbehaves. Written from the code as of 2026-11-17 (branch
+`feat/voyagr-autonomous-product-completion`, after commit `dd9c042`).
 Voyagr has never been deployed, so nothing here has been exercised on a real host. Items marked
 "not verified" are inferred from the code.
 
 ## 1. Processes and services
 
-| Process    | Command                      | Needs                                                       |
-| ---------- | ---------------------------- | ----------------------------------------------------------- |
-| Web        | `npm run build`, `npm start` | Env vars; Postgres and Redis for anything that must persist |
-| Worker     | `npm run worker`             | The same `DATABASE_URL`, `REDIS_URL`, `QUEUE_DRIVER=bullmq` |
-| Migrations | `npm run db:migrate`         | `DATABASE_URL` (and `DATABASE_SSL`), run once per release   |
+| Process    | Command                      | Needs                                                                                                               |
+| ---------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Web        | `npm run build`, `npm start` | `NEXT_PUBLIC_APP_URL` (section 1a); Postgres and Redis for anything that must persist                               |
+| Worker     | `npm run worker`             | The same `DATABASE_URL`, `REDIS_URL`, `QUEUE_DRIVER=bullmq`, and `NEXT_PUBLIC_APP_URL`                              |
+| Migrations | `npm run db:migrate`         | `DATABASE_URL` (and `DATABASE_SSL`); before each release. On Railway, the web service's pre-deploy step (section 7) |
 
 | Service    | Why                                       | Without it                                                   |
 | ---------- | ----------------------------------------- | ------------------------------------------------------------ |
@@ -25,7 +26,28 @@ Voyagr has never been deployed, so nothing here has been exercised on a real hos
 
 The worker must be an always-on process. `npm run worker` is `tsx --env-file-if-exists=.env
 scripts/worker.mjs` and handles `SIGTERM` and `SIGINT` by finishing in-flight jobs (BullMQ returns
-unfinished ones to the queue).
+unfinished ones to the queue). It is a separate process from the web server, built from the same
+code and given the same environment. It runs the refresh timers in section 3, including the places
+round set by `PLACES_REFRESH_HOURS`.
+
+## 1a. Environment variables that matter for deployment
+
+Read from `src/lib/env.ts`. The other variables have defaults that work locally. Secrets are never
+printed or logged; the environment report shows only whether each one is set.
+
+| Variable                | Default                 | Set it when                                                                                                                                                                                                                                                                                                              |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_APP_URL`   | `http://localhost:3000` | **Always in production, for the web service, the worker and the build.** Set it to the public `https` address of the site. Verification and reset links are built from it. In production it must be set, non-empty and not a loopback address (`localhost`, `127.x.x.x`, `::1`); otherwise the process refuses to start. |
+| `DATABASE_URL`          | unset (in-memory store) | Persistence. On Railway, use the internal URL. It is a secret.                                                                                                                                                                                                                                                           |
+| `DATABASE_SSL`          | `false`                 | The database needs TLS with certificate checking. `scripts/migrate.mjs` enables TLS only for the exact value `true`.                                                                                                                                                                                                     |
+| `REDIS_URL`             | unset                   | Shared cache and the BullMQ queue. Needed with `QUEUE_DRIVER=bullmq`.                                                                                                                                                                                                                                                    |
+| `QUEUE_DRIVER`          | `memory`                | `bullmq` for the web service and worker to share jobs. Requires `REDIS_URL`.                                                                                                                                                                                                                                             |
+| `PRICE_REFRESH_MINUTES` | `30` (1 to 1440)        | How often the worker re-prices what the front pages show. The worker reads it at start, so restart it after a change. Trade-off in section 5.                                                                                                                                                                            |
+| `PLACES_REFRESH_HOURS`  | `168` (1 to 720)        | How often the worker pre-warms things to do. Each round covers at most 40 destinations that are not already fresh, a minute apart. Read at worker start. Longer is kinder to Wikidata.                                                                                                                                   |
+
+`NEXT_PUBLIC_APP_URL` has the `NEXT_PUBLIC_` prefix, but in this repository it is read on the server
+through `getEnv()`, not inlined into client code. Changing it therefore needs a restart, and a rebuild
+too if the build has already captured it (section 8).
 
 ## 2. Starting
 
@@ -41,9 +63,13 @@ Production-shaped, locally: `npm run build && npx next start -p 3100`. A stale `
 running gives an empty 404 on every route; stop it first.
 
 A production process fails at startup, with the variable named, if: `FLIGHT_PROVIDER` is `mock` or
-`aviasales` has no token; or any slot resolves to a mock. That is the intended behaviour; fix the
-environment, do not set `ALLOW_MOCK_IN_PRODUCTION`. A missing email setting does not stop the process
-(section 6): it is logged at error level and every send fails.
+`aviasales` has no token; any slot resolves to a mock; or `NEXT_PUBLIC_APP_URL` is unset, empty or a
+loopback address (section 1a). That is the intended behaviour; fix the environment, do not set
+`ALLOW_MOCK_IN_PRODUCTION`, and do not set `NEXT_PUBLIC_APP_URL` to `localhost` to get past it. The
+build reads the same variable, because `robots.ts` and `sitemap.ts` are prerendered at build time, so
+`npm run build` in production fails with the same message. Read from the code; not exercised by a build
+here. A missing email setting does not stop the process (section 6): it is logged at error level and
+every send fails.
 
 ## 3. Cron and worker operations
 
@@ -111,15 +137,29 @@ worker was down; restart it. Not verified on a real deployment.
 
 ## 5. Aviasales quota problems
 
-Declared limit: 600 calls per minute (`rateLimitPerMinute` in `src/providers/flights/aviasales.ts`).
-The background refresh ceiling is about 24,800 calls per hour at the default interval, against
-36,000 available (`docs/architecture.md`, "Quota maths"). Those are ceilings; real use is lower.
+Declared limit: `rateLimitPerMinute: 600` in `src/providers/flights/aviasales.ts`. The vendor's own
+limit is 600 calls per rolling window per API token (see "How a 429 is handled" below). The background
+refresh ceiling is about 24,800 calls per hour at the default interval, against 36,000 available
+(`docs/architecture.md`, "Quota maths"). Those are ceilings; real use is lower.
+
+How a 429 is handled (`fetchHonouringRateLimit` in `src/providers/flights/aviasales.ts`):
+
+- The Travelpayouts Data API answers an over-limit call with a bare `429` and the headers
+  `x-rate-limit`, `x-rate-limit-remaining` and `x-rate-limit-reset` (seconds until the window frees).
+  The reset was measured between about 7 and 55 seconds.
+- The 600 is shared per token. The web service and the worker both spend from it when they use the same
+  `AVIASALES_API_TOKEN`. The limiters in this code (`src/lib/concurrency.ts`) live in each process's
+  memory, so neither process sees the other's calls. Judge the quota on the combined spend.
+- The adapter waits once and retries when the reset is 8 seconds or less (it sleeps the reset plus
+  250 ms). A longer reset, or a second 429, is returned as an error. The call fails as
+  `PROVIDER_UNAVAILABLE` and the search degrades. Nothing retries beyond that, and no alert is raised.
 
 Symptoms of trouble:
 
 - `/status` shows rising `rate limits` or `errors` for the flights provider, or timeouts.
-- Logs show `RATE_LIMITED` provider errors. A search then degrades (fewer results, a reason shown)
-  and does not fail outright.
+- Logs show `aviasales rate limited` (warn, with the limit, remaining and reset headers) and
+  `aviasales one-way error status` with status 429. The search then degrades (fewer results, a reason
+  shown) and does not fail outright.
 - The front page shows older prices than usual ("Updated N min ago" growing) while the worker is up.
 - The price calendar returns no days with "Prices for this month could not be loaded."
 
@@ -177,6 +217,18 @@ Symptoms, and what they mean:
 To turn it off: unset `GOOGLE_FLIGHTS_SIDECAR_URL` (or take `google-flights` out of
 `FLIGHT_PROVIDERS`) and stop the process. Nothing else depends on it.
 
+## 5b. Weather (Open-Meteo)
+
+Open-Meteo needs no key. Two paths in `src/providers/weather/open-meteo.ts` treat a `null` from the
+vendor differently:
+
+- **Forecast days** (the 16-day horizon): a day is left out of the outlook when the vendor gave `null`
+  for any of its maximum or minimum temperature, its rain probability or its wind. Nothing is shown as a
+  made-up `0`. A day missing from a forecast strip means the vendor gave no figure for one of those values.
+- **Climatology** (months beyond the forecast): a day is skipped when its maximum, minimum or wind is
+  `null`, but a `null` precipitation sum is counted as a dry day (`precipitation_sum[index] ?? 0`). It is
+  not left out. That disagrees with the forecast rule and is listed under known gaps (section 10).
+
 ## 6. Email problems
 
 Drivers and errors are in `docs/architecture.md`, section 7. Only three mails exist: welcome with
@@ -197,6 +249,19 @@ A failed send never fails the sign-up or reset that triggered it; the user can a
 complaint handling is Resend's dashboard only; there is no webhook and no suppression list in the
 app. Not verified: real delivery to any inbox.
 
+**Previewing the emails without sending any.** From the repository root:
+
+```bash
+npx tsx scripts/preview-emails.mjs              # writes .email-previews/
+npx tsx scripts/preview-emails.mjs <folder>     # or into a folder of your choice
+```
+
+Open `index.html` in the output folder; it links the three rendered mails (`welcome.html`,
+`password-reset.html`, `email-change.html`), built from the real templates in
+`src/email/templates/transactional.ts` with sample values. The script sends nothing and does not read
+`.env`, the database or a mail transport. `.email-previews/` is gitignored. Run it with `npx tsx`, not
+`node`, because the templates are TypeScript.
+
 ## 7. Database migrations
 
 `npm run db:migrate` reads `.env` (or the host environment), connects with `DATABASE_URL`
@@ -212,6 +277,15 @@ files: `0001` to `0009`.
   carry their own `BEGIN`/`COMMIT` and their `CREATE TABLE` statements use `IF NOT EXISTS`; read the
   failing file before rerunning, because the `ALTER TABLE` statements were not checked for
   idempotence.
+- **Pre-deploy on Railway.** The web service's pre-deploy command is `npm run db:migrate`. That is set in
+  the Railway dashboard; the repository has no Railway configuration file. `DATABASE_URL` is Railway's
+  internal URL, reachable only from inside the Railway project, so the migration runs there and not from
+  a laptop. The script exits non-zero on failure (`process.exitCode = 1`). Check in the Railway deploy
+  log that a failed pre-deploy stops the rollout; not verified here. The worker is not covered by that
+  step, so deploy it after the migration has succeeded, or run `npm run db:migrate` by hand first.
+- **Which migrations run.** Current files are `0001` to `0009`. Any file added later in
+  `src/db/migrations/` runs the same way: the runner applies every file whose name is not in
+  `schema_migrations`, in name order, so no list needs editing.
 - Run it before starting a new web or worker version that needs the new schema. Migration 0008
   (alert preferences) and 0009 (trip hub) are required for the account alert settings and `/trips`.
   Neither has been applied to a real Postgres yet.
@@ -225,15 +299,18 @@ The owner fast-forwards `main` after each finished part (push the branch, fast-f
 and no deploy pipeline exists in the repository. When one is chosen:
 
 1. `npm run verify` is green on the commit.
-2. Set the environment on the host (`SETUP-CHECKLIST.md`), including for the worker process.
-3. `npm run db:migrate` against the production database.
+2. Set the environment on the host (`SETUP-CHECKLIST.md`), including for the worker process. Set
+   `NEXT_PUBLIC_APP_URL` to the public `https` address before the build (section 1a).
+3. `npm run db:migrate` against the production database. On Railway this is the web service's
+   pre-deploy step (section 7).
 4. Build (`npm run build`; the `prebuild` step copies the MapLibre worker into `public/`, and
    skipping it gives a globe with an empty ocean) and start web and worker.
 5. Run the post-deploy checks below.
 
 Roll back by redeploying the previous commit. The database does not roll back (section 7).
 `NEXT_PUBLIC_*` values are inlined by Next.js at build time where client code uses them; rebuild
-after changing one.
+after changing one. In this repository `NEXT_PUBLIC_APP_URL` is read on the server (section 1a), and the
+build reads it too, so rebuild after changing it.
 
 ## 9. After a deploy
 
@@ -247,18 +324,27 @@ after changing one.
 | Response headers  | `Content-Security-Policy` with a nonce; `https://emrldco.com` appears in it only on a request that carries `voyagr-consent=accepted`                                                 |
 | Browser console   | No CSP violations                                                                                                                                                                    |
 
-**`/api/health` is 200 in a healthy production deployment.** It reports `degraded` (HTTP 503) when a
-configured database is unreachable or when a _configured_ provider is not healthy. The `absent` hotel
-and transfer slots (and places, if `PLACES_PROVIDER=absent`) are listed with status `absent` and do not
-degrade it, so a host's restart-on-failure health check can use it. A real outage of Aviasales,
-Open-Meteo or Wikidata does turn it 503, which is the intended signal. Unit-tested; not verified on a
-deployed host.
+**`/api/health` is 200 in a healthy production deployment.** Its `status` is `ok` (HTTP 200) when every
+configured live provider answers healthy and any configured database is reachable. It is `degraded`
+(HTTP 503) when a configured database is unreachable or a _configured_ provider is not healthy. An
+absent slot is configuration, not an outage: the hotel and transfer slots in production, and places when
+`PLACES_PROVIDER=absent`, are listed with status `absent` and do not degrade it. So a host's
+restart-on-failure health check can use it. A real outage of Aviasales, Open-Meteo or Wikidata does turn
+it 503, which is the intended signal. If the check itself throws, it answers 500 with problem details.
+Unit-tested; not verified on a deployed host.
+
+`/status` (`src/app/(column)/status/page.tsx`) is the operator page. It shows which providers are
+connected, the cache backend and its last refresh and warm targets, and each provider's calls, errors,
+timeouts and rate limits over the last day. Call rows are pruned after 30 days.
 
 ## 10. Known gaps
 
 - Worker liveness is not monitored; a dead worker shows only as an ageing "Updated" line and `/status`.
 - Stays are not refreshed; there is no stay provider to refresh.
 - Things to do are pre-warmed 40 destinations a round; the whole catalogue takes several rounds at the default `PLACES_REFRESH_HOURS`.
+- Climatology counts a `null` precipitation day as dry, where the forecast leaves such a day out (section 5b).
+- The Aviasales limiters are per process, so the web service and the worker cannot see each other's calls
+  against the shared 600-per-window token limit (section 5).
 - Sign-in and email-send throttles are in process memory (per instance, reset on restart). There is
   no rate limit on the search page. No audit log.
 - No priced hotel feed, no live transfers, no AI adapter, no booking. Places are live from Wikidata but carry no restaurants, prices or reviews.

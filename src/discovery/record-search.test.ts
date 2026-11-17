@@ -7,10 +7,12 @@ const USER = '11111111-1111-4111-8111-111111111111';
 
 async function withUser() {
   const repositories = createMemoryRepositories();
-  const user = await repositories.users.create({
-    id: USER,
-    email: 'a@example.com',
-  } as never).catch(() => null);
+  const user = await repositories.users
+    .create({
+      id: USER,
+      email: 'a@example.com',
+    } as never)
+    .catch(() => null);
   void user;
   return repositories.tripSearches;
 }

@@ -46,21 +46,19 @@ function main() {
   const branch = branchName === 'HEAD' ? '(detached HEAD)' : branchName;
 
   // Format: short hash, ISO date (YYYY-MM-DD), subject. Tab separated.
-  const commits = lines(
-    git(['log', '-15', '--date=short', '--pretty=format:%h%x09%ad%x09%s']),
-  ).map((line) => {
-    const [hash, date, ...rest] = line.split('\t');
-    const subject = rest.join('\t');
-    return { hash, date, subject, kind: kindOf(subject) };
-  });
+  const commits = lines(git(['log', '-15', '--date=short', '--pretty=format:%h%x09%ad%x09%s'])).map(
+    (line) => {
+      const [hash, date, ...rest] = line.split('\t');
+      const subject = rest.join('\t');
+      return { hash, date, subject, kind: kindOf(subject) };
+    },
+  );
   if (commits.length === 0) {
     throw new Error('no commits found; is this a git repository with history?');
   }
   const head = commits[0];
 
-  const status = lines(git(['status', '--porcelain'])).filter(
-    (line) => line.slice(3) !== SELF,
-  );
+  const status = lines(git(['status', '--porcelain'])).filter((line) => line.slice(3) !== SELF);
   const untracked = status.filter((line) => line.startsWith('??')).length;
 
   const live = {

@@ -30,6 +30,7 @@ import { getRepositories } from '@/db';
 
 export const metadata: Metadata = {
   title: 'System status',
+  description: 'Which providers this deployment is connected to and how they have performed.',
 };
 
 interface Subsystem {

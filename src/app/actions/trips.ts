@@ -13,6 +13,12 @@ import {
   parseTripDetails,
   parseTripForm,
 } from '@/trip-hub/parse';
+import {
+  DayPlanService,
+  type DayPlanView,
+  type MoveDirection,
+  type StopInput,
+} from '@/trip-hub/day-plan';
 import { TripHubService } from '@/trip-hub/service';
 import { PLAN_ITEM_STATUSES, type PlanItemStatus } from '@/trip-hub/types';
 
@@ -329,4 +335,77 @@ export async function removeContactAction(formData: FormData): Promise<void> {
 
   await service().removeContact(user.id, field(formData, 'contactId'));
   revalidatePath('/trips', 'layout');
+}
+
+// --- The traveller's own day-by-day plan -------------------------------------
+
+export type DayPlanResult =
+  | { readonly ok: true; readonly plan: DayPlanView }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * One path for every day-plan action: the person must be signed in, the work
+ * is the service's (which decides access), and what comes back is the plan as
+ * it now is, so the page shows what was saved rather than what it hoped for.
+ */
+async function dayPlan(
+  work: (plans: DayPlanService, userId: string) => Promise<DayPlanView>,
+  paths: (plan: DayPlanView) => readonly string[] = (plan) => [`/trips/${plan.tripId}`],
+): Promise<DayPlanResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: SIGN_IN };
+
+  try {
+    const plan = await work(new DayPlanService({ repositories: getRepositories() }), user.id);
+    for (const path of paths(plan)) revalidatePath(path);
+    return { ok: true, plan };
+  } catch (error) {
+    return { ok: false, error: messageFor(error) };
+  }
+}
+
+export async function startDayPlanAction(input: {
+  readonly destination: string;
+  readonly days: readonly (readonly StopInput[])[];
+}): Promise<DayPlanResult> {
+  return dayPlan(
+    (plans, userId) => plans.startPlan(userId, input),
+    (plan) => ['/trips', `/trips/${plan.tripId}`],
+  );
+}
+
+export async function loadDayPlanAction(tripId: string): Promise<DayPlanResult> {
+  return dayPlan(
+    (plans, userId) => plans.view(userId, String(tripId)),
+    () => [],
+  );
+}
+
+export async function addDayStopAction(input: {
+  readonly tripId: string;
+  readonly day: number;
+  readonly stop: StopInput;
+}): Promise<DayPlanResult> {
+  return dayPlan((plans, userId) =>
+    plans.addStop(userId, String(input.tripId), input.day, input.stop),
+  );
+}
+
+export async function removeDayStopAction(input: {
+  readonly tripId: string;
+  readonly itemId: string;
+}): Promise<DayPlanResult> {
+  return dayPlan((plans, userId) =>
+    plans.removeStop(userId, String(input.tripId), String(input.itemId)),
+  );
+}
+
+export async function moveDayStopAction(input: {
+  readonly tripId: string;
+  readonly itemId: string;
+  readonly direction: MoveDirection;
+}): Promise<DayPlanResult> {
+  return dayPlan((plans, userId) =>
+    plans.moveStop(userId, String(input.tripId), String(input.itemId), input.direction),
+  );
 }

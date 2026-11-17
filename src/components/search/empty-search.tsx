@@ -1,7 +1,9 @@
 import { Button, EmptyState } from '@/components/ui';
+import { aviasalesSearchUrl } from '@/booking/aviasales-search';
 import { addDays } from '@/core/dates';
 import { format } from '@/core/money';
 import type { SearchProfile } from '@/core/trip/types';
+import { getEnv } from '@/lib/env';
 import { shortDate, weekdayDate } from '@/lib/display-date';
 import type { SearchOutcome } from '@/search/types';
 
@@ -35,6 +37,38 @@ const NEARBY_DAYS = 7;
 
 function nightsLabel(min: number, max: number): string {
   return min === max ? `${min}-night` : `${min}- to ${max}-night`;
+}
+
+/**
+ * A live Aviasales search for the one route and the one pair of dates this
+ * search asked about. A search over several origins, destinations or date
+ * windows has no single "same route and dates" to send the traveller to, so it
+ * gets no link rather than a guessed one.
+ */
+function liveAviasalesHref(outcome: SearchOutcome, profile: SearchProfile): string | null {
+  const { plan } = outcome.diagnostics;
+  const origin = profile.origins[0];
+  const destination = plan.destinations[0];
+  const window = plan.dateWindows[0];
+  if (
+    profile.origins.length !== 1 ||
+    plan.destinations.length !== 1 ||
+    plan.dateWindows.length !== 1 ||
+    !origin ||
+    !destination ||
+    !window
+  ) {
+    return null;
+  }
+
+  return aviasalesSearchUrl({
+    origin,
+    destination,
+    departureDate: window.departureDate,
+    returnDate: window.returnDate,
+    passengers: profile.passengers,
+    marker: getEnv().AVIASALES_PARTNER_ID ?? null,
+  });
 }
 
 export function EmptySearch({ outcome, profile, linkWith, changeSearchHref }: EmptySearchProps) {
@@ -123,11 +157,25 @@ export function EmptySearch({ outcome, profile, linkWith, changeSearchHref }: Em
     diagnostics.flightOffersFound === 0 &&
     diagnostics.issues.length === 0
   ) {
+    const liveHref = liveAviasalesHref(outcome, profile);
     return (
       <EmptyState
         title="No fares came back for these dates"
         description={`${vendor} returned no price for this route between ${span}. Its prices come from what travellers searched recently, so a quiet route can show nothing even when airlines fly it. Dates either side, or another month, may have fares.`}
-        action={actions}
+        action={
+          liveHref ? (
+            <div className="flex w-full flex-col items-center gap-4">
+              <Button asChild variant="secondary" size="md">
+                <a href={liveHref} target="_blank" rel="noopener noreferrer sponsored">
+                  Search live prices on Aviasales (opens in a new tab)
+                </a>
+              </Button>
+              {actions}
+            </div>
+          ) : (
+            actions
+          )
+        }
       />
     );
   }

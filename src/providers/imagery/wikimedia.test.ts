@@ -203,4 +203,14 @@ describe('the imagery catalogue', () => {
     });
     expect(imageryRefFor('FUE')).toEqual({ code: 'FUE', title: 'Cofete', lang: 'en' });
   });
+
+  it('names a photograph for each Austrian and Bratislava airport added from the verified lead images', () => {
+    expect(imageryRefFor('GRZ')).toEqual({ code: 'GRZ', title: 'Graz', lang: 'en' });
+    expect(imageryRefFor('LNZ')).toEqual({ code: 'LNZ', title: 'Linz', lang: 'en' });
+    expect(imageryRefFor('SZG')).toEqual({ code: 'SZG', title: 'Salzburg', lang: 'en' });
+    expect(imageryRefFor('INN')).toEqual({ code: 'INN', title: 'Innsbruck', lang: 'en' });
+    expect(imageryRefFor('BTS')).toEqual({ code: 'BTS', title: 'Bratislava', lang: 'en' });
+    expect(imageryCodeForPlace('Salzburg')).toBe('SZG');
+    expect(imageryCodeForPlace('Bratislava')).toBe('BTS');
+  });
 });

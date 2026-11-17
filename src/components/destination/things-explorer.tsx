@@ -274,7 +274,10 @@ export function ThingsExplorer({ hrefs, counts, initialKind, max, sample }: Thin
       </nav>
 
       {pictured.length > 0 ? (
-        <ul ref={gridRef} className="voyagr-rail flex items-start gap-3 sm:grid sm:auto-rows-auto sm:grid-cols-6 sm:items-stretch sm:gap-4">
+        <ul
+          ref={gridRef}
+          className="voyagr-rail flex items-start gap-3 sm:grid sm:auto-rows-auto sm:grid-cols-6 sm:items-stretch sm:gap-4"
+        >
           {pictured.map((place, position) => (
             <PlaceCard
               key={place.id}

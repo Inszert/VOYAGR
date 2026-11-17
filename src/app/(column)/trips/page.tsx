@@ -14,7 +14,10 @@ import { TripHubService } from '@/trip-hub/service';
  * Your trips: the ones you made and the ones you were added to.
  */
 
-export const metadata: Metadata = { title: 'Your trips' };
+export const metadata: Metadata = {
+  title: 'Your trips',
+  description: 'The trips you made or were added to, with shared costs and emergency details.',
+};
 
 const COUNTRY_OPTIONS = [
   { value: '', label: 'Not sure yet' },

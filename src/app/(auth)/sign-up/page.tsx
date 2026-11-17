@@ -7,7 +7,10 @@ import { signUpAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
 import { MIN_PASSWORD_LENGTH } from '@/auth/password-policy';
 
-export const metadata: Metadata = { title: 'Create an account' };
+export const metadata: Metadata = {
+  title: 'Create an account',
+  description: 'Create an account to save searches, watch trips and plan them in one place.',
+};
 
 export default async function SignUpPage() {
   if (await getCurrentUser()) redirect('/account');

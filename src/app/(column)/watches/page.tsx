@@ -31,7 +31,10 @@ import { WatchService } from '@/watches/service';
  * where none does, the page says so, and Check now runs one on demand.
  */
 
-export const metadata: Metadata = { title: 'Your watches' };
+export const metadata: Metadata = {
+  title: 'Your watches',
+  description: 'Your trip watches, when each one next checks, and how to pause or remove one.',
+};
 
 export default async function WatchesPage() {
   const user = await getCurrentUser();

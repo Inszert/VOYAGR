@@ -91,3 +91,7 @@ yarn-error.log*
 # ---- python sidecar ----
 services/*/.venv/
 __pycache__/
+
+# ---- email previews ----
+# Output of scripts/preview-emails.mjs when no folder is given. Regenerable, never committed.
+.email-previews/
