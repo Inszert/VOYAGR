@@ -258,18 +258,21 @@ const DATA = {
   ],
 
   planned: [
-    { tag: "Nuitee", text: "Part 4: flights from the snapshot, origins BUD, VIE, PRG and LON, read-only for visitors", note: "Sonnet builds it. About 216 flight calls a day at the default schedule (worst case about EUR 32 a month).", src: "docs/liteapi-migration-plan.md Part 4 design" },
+    { tag: "Nuitee", text: "Visual check in a browser: sliders, stays with photos and tax lines, check this price, trip hotel prices (390 and 1440)", note: "Needs the final build. Lead does it.", src: "CLAUDE.md design workflow" },
     { tag: "Nuitee", text: "Part 5: experiences (tours) from LiteAPI on the destination page, booking disabled", note: "Needs Experiences enabled on the sandbox key.", src: "docs/liteapi-migration-plan.md Part 5" },
     { tag: "Nuitee", text: "Part 9: Aviasales as a fallback when LiteAPI errors or comes back empty", note: "Visitors read the existing cache only, never a live call.", src: "docs/liteapi-migration-plan.md Part 9" },
   ],
 
   failing: [
+    { tag: "Nuitee", text: "Flight fallback offers are labelled \"aviasales\" while the provider mode is test or live, so the provenance can be wrong", severity: "should fix", note: "Found in Part 4. Fix before flights show on the site.", src: "src/liteapi-snapshot/flights-read.ts" },
+    { tag: "Nuitee", text: "The queue test with Redis times out under the full parallel run; it passes when run alone", severity: "known limit", note: "Timing under load, not a logic failure.", src: "src/queue/bullmq.test.ts" },
     { tag: "Nuitee", text: "The snapshot Postgres tables are untested against a real database here (the contract cases skip without TEST_DATABASE_URL)", severity: "should fix", note: "Run the contract tests against a test database before production.", src: "src/db/liteapi-snapshot-contract.test.ts" },
     { tag: "Nuitee", text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; keep it off until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
     { tag: "Nuitee", text: "Experiences access on the sandbox key is not tested yet", severity: "known limit", note: "Part 5 starts with one check call.", src: "docs/getting-access-to-experiences.md" }
   ],
 
   needsOwner: [
+    { tag: "Nuitee", text: "Flights: how stored LiteAPI fares may be shown, since each offer expires about 10 minutes after its search (indicative with the time it was seen, or hidden)", src: "docs/liteapi-migration-plan.md Part 4 design, live check 2026-11-17" },
     { tag: "Nuitee", text: "Photos: the LiteAPI image host is not in the CSP, so no vendor photo shows. Add the host (needs a security review) or proxy the images through our origin", src: "docs/liteapi-migration-plan.md Part 3; src/consent/csp.ts" },
     { tag: "Nuitee", text: "Trips: windows outside the top three show as flights-only trips with \"Stay not priced\". Keep them, or drop them from the ranking", src: "docs/liteapi-migration-plan.md Part 2" },
     { tag: "Nuitee", text: "LiteAPI: confirm migration 0013 (the snapshot tables) ran on the real database, in the deploy log", src: "migration 0013_liteapi_snapshot; deploy pre-deploy step" },
