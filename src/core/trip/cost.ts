@@ -130,12 +130,12 @@ export function deriveCostLines(candidate: TripCandidate): CostLine[] {
       lines.push(
         buildCostLine({
           category: 'hotel_fees',
-          label: 'Local taxes and resort fees',
+          label: 'Payable at the hotel',
           amount: hotel.excludedFees,
-          confidence: 'estimated',
+          confidence: 'excluded',
           source: hotel.providerId,
           observedAt: hotel.observedAt,
-          conditions: 'Payable at the property',
+          conditions: 'Paid to the hotel, not included in this price',
         }),
       );
     }

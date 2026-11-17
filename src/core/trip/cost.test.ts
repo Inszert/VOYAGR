@@ -37,15 +37,23 @@ describe('deriveCostLines', () => {
     expect(transfer?.amount.amount).toBe(0);
   });
 
-  it('records excluded hotel fees as an estimate, not as quoted', () => {
-    const candidate = buildCandidate({
+  it('books hotel fees payable at the hotel as an excluded line, outside every total', () => {
+    const withFees = buildCandidate({
       hotel: buildHotelOffer({ excludedFees: money(4000, 'EUR') }),
     });
+    const withoutFees = buildCandidate({ hotel: buildHotelOffer({ excludedFees: null }) });
 
-    const fees = deriveCostLines(candidate).find((line) => line.category === 'hotel_fees');
+    const fees = deriveCostLines(withFees).find((line) => line.category === 'hotel_fees');
 
-    expect(fees?.confidence).toBe('estimated');
+    expect(fees?.confidence).toBe('excluded');
+    expect(fees?.label).toBe('Payable at the hotel');
+    expect(fees?.conditions).toBe('Paid to the hotel, not included in this price');
     expect(fees?.amount.amount).toBe(4000);
+
+    const cost = costTripCandidate(withFees);
+    expect(cost.excluded.some((line) => line.category === 'hotel_fees')).toBe(true);
+    expect(cost.total).toEqual(costTripCandidate(withoutFees).total);
+    expect(cost.byCategory.some((entry) => entry.category === 'hotel_fees')).toBe(false);
   });
 
   it('attributes every line to a source', () => {

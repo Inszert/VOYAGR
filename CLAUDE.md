@@ -243,6 +243,18 @@ Phase 1 is not implemented. Do not add live provider integrations, booking, paym
 Watch monitoring or a production notification pipeline unless explicitly asked. Do not add real
 credentials to any file. `.env.example` holds placeholders only.
 
+## Model use for building
+
+- Use the lightest model that can do the job. Opus designs and reviews; it does not write code
+  unless the owner asks for that explicitly in the request.
+- For each build, write the solution first: the files, the interfaces, the data shapes, the
+  behaviour that must hold and the tests that prove it. That goes in the plan doc or the task
+  brief. Then hand the implementation to Sonnet.
+- Haiku takes small, mechanical work: copy, labels, docs, devmap rows, one-line fixes.
+- If an agent hits a design question it cannot settle, it reports the question. It does not
+  escalate to Opus on its own.
+- At most 3 Sonnet agents and 1 Opus agent run at a time.
+
 ## Keep devmap.html current
 
 `devmap.html` at the repo root is the owner's visual development map: what is done, what is in
