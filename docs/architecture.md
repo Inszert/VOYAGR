@@ -3,7 +3,7 @@
 How Voyagr is put together, and why. The product itself is defined in
 `PRODUCT-SPECIFICATION.md`; this document covers engineering decisions. Brought up to date with the
 code as of 2026-11-15 (after commit `ff14d21`). Where something is not built or not verified, it says so.
-
+ 
 ---
 
 ## 1. The organising principle
