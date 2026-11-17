@@ -28,7 +28,8 @@ import type {
  *
  * Per route and pair of days:
  *
- * 1. A stored row inside its expiry answers, offer by offer, until each offer's own `expiresAt`.
+ * 1. A stored row inside its own expiry answers. Each offer's `expiresAt` is information only; it
+ *    never hides an offer.
  * 2. Otherwise (Q9: errors AND empty answers) the Aviasales fares already in the shared cache are
  *    read: `store.get(key)` and nothing more. Never `loadAndStore`, never `readThrough`, never a
  *    live call. The cache holds one-way months, so a return trip is the cheapest single out on
@@ -44,6 +45,9 @@ export const SNAPSHOT_FLIGHTS_PROVIDER_ID = 'liteapi';
 
 /** The provider id the cached one-way months were written under. */
 const AVIASALES_PROVIDER_ID = 'aviasales';
+
+/** A cached aggregate, never a LiteAPI price: it is never labelled with the LiteAPI mode. */
+const AVIASALES_SOURCE = { displayName: 'Aviasales', mode: 'indicative' } as const;
 
 /** The most offers one search returns when the caller names no limit. */
 const DEFAULT_MAX_RESULTS = 50;
@@ -151,7 +155,13 @@ export function createSnapshotFlightProvider(
 }
 
 export class SnapshotFlightProvider implements FlightProvider {
+  /**
+   * A constant. It names the stored LiteAPI answer and is never used for a label: which source an
+   * offer came from is on the offer (`offer.source`), because one search can mix stored LiteAPI
+   * fares with cached Aviasales fares and two searches can run at once.
+   */
   readonly metadata: FlightProvider['metadata'];
+  private readonly liteApiMode: 'test' | 'live';
   private readonly now: () => number;
   private readonly fallback: AviasalesCacheReader;
 
@@ -159,6 +169,7 @@ export class SnapshotFlightProvider implements FlightProvider {
     mode: 'test' | 'live',
     private readonly options: SnapshotFlightProviderOptions = {},
   ) {
+    this.liteApiMode = mode;
     this.metadata = {
       id: SNAPSHOT_FLIGHTS_PROVIDER_ID,
       kind: 'flights',
@@ -196,29 +207,47 @@ export class SnapshotFlightProvider implements FlightProvider {
           now,
           this.options.dependencies?.(),
         );
-        if (read.offers.length > 0) return read.offers;
+        if (read.offers.length > 0) {
+          // Stored LiteAPI fares carry the LiteAPI mode (test for sandbox, live for production).
+          const source = { displayName: this.metadata.displayName, mode: this.liteApiMode };
+          return {
+            offers: read.offers.map((offer) => ({
+              ...offer,
+              providerId: SNAPSHOT_FLIGHTS_PROVIDER_ID,
+              source,
+            })),
+          };
+        }
 
         try {
-          return await this.fallback({
+          const cached = await this.fallback({
             ...route,
             departureDate: query.departureDate,
             returnDate: query.returnDate,
             passengers: query.passengers,
             currency: query.currency,
           });
+          // Whatever the cache stored, the label says where the price came from.
+          return {
+            offers: cached.map((offer) => ({
+              ...offer,
+              providerId: AVIASALES_PROVIDER_ID,
+              source: AVIASALES_SOURCE,
+            })),
+          };
         } catch (error) {
           // A broken cache is a miss: the route is unpriced, and the search carries on.
           log.warn(
             { code: error instanceof Error ? error.name : 'unknown' },
             'aviasales cache fallback failed',
           );
-          return [];
+          return { offers: [] as readonly FlightOffer[] };
         }
       }),
     );
 
     const items = perRoute
-      .flat()
+      .flatMap((route) => route.offers)
       .filter((offer) => offer.price.currency.toUpperCase() === query.currency.toUpperCase())
       .sort((a, b) => a.price.amount - b.price.amount)
       .slice(0, query.maxResults ?? DEFAULT_MAX_RESULTS);

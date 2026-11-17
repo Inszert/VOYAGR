@@ -15,14 +15,30 @@ import { classifySnapshot, stalenessLine, type SnapshotState } from './staleness
  * another schema version or damaged is "missing": no LiteAPI price, and a plain line saying so.
  *
  * Freshness uses the hotel snapshot's four states and wording (`staleness.ts`), and every stored
- * flight price carries one fixed line, `FLIGHT_FARE_LINE`. An offer past its own `expiresAt` is
- * never returned, whatever the row's age.
+ * flight price carries one fixed line, `flightFareLine(observedAt)`. Stored fares are shown as
+ * indicative prices with the time they were seen. An offer's own `expiresAt` is information only:
+ * it never hides an offer, and nothing here says an offer is valid until a time. A stored offer is
+ * never sent to booking or prebook.
  */
 
 const log = getLogger('liteapi-snapshot.flights-read');
 
-/** The fixed line under every stored flight price. */
-export const FLIGHT_FARE_LINE = 'Fares change often. Check the airline before you book.';
+/** The time of day an instant was seen, `HH:MM` in UTC, or null when it is not a real instant. */
+function utcClock(observedAt: string): string | null {
+  const ms = Date.parse(observedAt);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString().slice(11, 16);
+}
+
+/**
+ * The fixed line under every stored flight price: when it was seen, in UTC, and that fares move.
+ * Null when the observation time is not a real instant, because no time may then be claimed.
+ */
+export function flightFareLine(observedAt: string): string | null {
+  const clock = utcClock(observedAt);
+  return clock === null
+    ? null
+    : `Seen at ${clock} UTC. Fares change within minutes; check the airline before you book.`;
+}
 
 /** The hotel snapshot's "not loaded" line, for flights. */
 export const FLIGHTS_MISSING_LINE = 'Flight prices are not loaded for these dates yet.';
@@ -38,7 +54,7 @@ export interface FlightSnapshotStatus {
 
 export interface FlightSnapshotRead {
   readonly status: FlightSnapshotStatus;
-  /** Empty unless the row is usable and an offer is still inside its own expiry. */
+  /** Empty unless the row is usable. An offer's own expiry does not hide it. */
   readonly offers: readonly FlightOffer[];
 }
 
@@ -80,11 +96,8 @@ export async function readFlightSnapshot(
   const staleness = classifySnapshot(row, now, dependencies.refreshesPerDay);
   if (staleness.state === 'missing') return MISSING;
 
-  // The vendor stops standing behind a price at its own expiry. After it, it is not shown.
-  const offers = stored.offers.filter(
-    (offer) => offer.expiresAt === null || Date.parse(offer.expiresAt) > now,
-  );
-  // Every offer past its expiry leaves nothing to show, so it reads as not loaded.
+  // The offer's own expiry is stored as information only; it never hides an indicative price.
+  const offers = stored.offers;
   if (offers.length === 0) return MISSING;
 
   return {

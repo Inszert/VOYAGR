@@ -61,18 +61,18 @@ bookings, prices and links only), `docs/finish-plan.md`, `devmap.html` `DATA`.
 The pages below were actually read. Anything not in this list is **unverified**, and an executor
 must read the page before coding against it. Do not invent a field.
 
-| Page                                                                                                    | What it says (as read)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `reference/api-pricing-usage-costs.md`                                                                  | **Price index endpoints: $0.05/request** (the owner's brief says $0.02; see owner questions). **Places: $0.01/request.** **Rates, Prebook, Book: free** "when used under the Terms of Service and within a **5000:1 search-to-book ratio**". "All other endpoints" are free, including hotel content endpoints; `data/hotels`, `data/hotel`, `data/reviews` and `min-rates` are not named one by one. **Flight search: EUR 0.005/request**, applied only to searches beyond a **1,500:1** search-to-booking ratio. Flight ticketing fee: 1% of transaction value, minimum EUR 2, maximum EUR 10 per booking. Billed monthly on consumption. Nuitee "may review usage and apply limits or pricing changes" for abusive or non-standard use. **Sandbox billing is not mentioned.** No "public prices $0.02" line was found. |
-| `docs/getting-access-to-flights.md`                                                                     | Flights is gated separately but uses the **same API key**. Sandbox is "enabled by default for new accounts" (`sand_…` key). "Sandbox should not be used to validate real-world pricing or availability." Production needs explicit approval, after the Connect account has gone live. The matrix and advanced search return **403 until the account is entitled**. A flights credit line is a contract path.                                                                                                                                                                                                                                                                                                                       |
-| `docs/getting-access-to-experiences.md`                                                                 | "Experiences access is **enabled on request**" through Request Assistance in the dashboard. Same API key. Sandbox exists but may not be on by default. "Sandbox does not mirror the production Experiences catalogue." Production needs approval. **Booking collects payment through Stripe.** Pricing is not described.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `reference/post_hotels-rates.md` (first 100k of 435k characters)                                        | Request: `hotelIds`, `cityName`/`countryCode`, `latitude`/`longitude`/`radius`, `placeId`, `iataCode`, `checkin`, `checkout`, `currency`, `guestNationality`, `occupancies` (`adults`, optional `children` ages), `limit`, `timeout`, `roomMapping`, `includeHotelData`, `maxRatesPerHotel`. Response: `retailRate.total`, `retailRate.suggestedSellingPrice`, **`retailRate.taxesAndFees[]` with `included` (boolean), `description`, `amount`, `currency`**, `offerRetailRate`, `cancellationPolicies` (`cancelPolicyInfos`, `refundableTag`), `paymentTypes`, `boardType`/`boardName`.                                                                                                                                                  |
-| `reference/get_data-hotel.md` (first 100k of 170k characters)                                           | `GET /v3.0/data/hotel?hotelId=…&language=…&timeout=…`. Returns `hotelImages[]` (`url`, `urlHd`, `caption`, `order`, `defaultImage`), `main_photo`, `thumbnail`, `starRating`, `rating`, `reviewCount`, `location.latitude/longitude`, `address`, `city`, `country`, `hotelFacilities`, `facilities[]`, `hotelDescription` (HTML), `markdownDescription`, `normalizedDescription`, `checkinCheckoutTimes`, `policies[]`, and fee facts (`resortFee`, `securityDeposit`, `breakfastPrice` and others).                                                                                                                                                                                                                          |
-| `reference/post_rates-prebook.md`                                                                       | Request: `offerId`, `usePaymentSdk` (required), plus `voucherCode`, `addons`, `bedTypeIds`, `includeCreditBalance`, `payment`. Response: `prebookId`, `price`, `commission`, `priceDifferencePercent`, `cancellationChanged`, `boardChanged`, `paymentTypes`, `termsAndConditions`, and `transactionId`/`secretKey` (payment SDK only). **The page states no card requirement for prebook.**                                                                                                                                                                                                                                                                                                                                       |
-| `reference/post_rates-book.md`                                                                          | `payment.method` values: `ACC_CREDIT_CARD`, `WALLET`, `CREDIT`, `TRANSACTION_ID` (labelled `TRANSACTION` in another section of the same page), `CREDIT_CARD` and `CREDIT_CARD_SCHEDULED` (both enabled only on request). Verbatim: "In sandbox mode, this [`ACC_CREDIT_CARD`] can be used to simulate a booking without getting charged." In production, `ACC_CREDIT_CARD` charges **the account's own card**, that is, Voyagr pays.                                                                                                                                                                                                                                                                                             |
-| `reference/post_flights-rates.md`                                                                       | `POST /v3.0/flights/rates` (also `/flights/rates/stream`). Required: `legs[]` (`origin`, `destination`, `date` no more than 11 months ahead, optional `direction`), `adults`, `currency`. Optional: `children` (+`childrenAges`), `infants` (+`infantAges`), `cabinClass`, `country`, `filters`, `sort`, `margin`, `sessionId`. Response: `data[].journeys[]` with `journeyKey`, `segments[]` (`carrier`, `flight`, `departureTime`, `arrivalTime`, `duration`, `originCode`, `destinationCode`), `legDurations`, `totalDuration`, `connections`, and `offers[]` (`offerId`, `expiration`, `pricing.display.total`, `currency`, `base`, `taxes`, `fees`, `baggage`, `fare`, `terms`). Sandbox and per-request price are not stated on this page. |
-| `docs/booking-a-room.md`                                                                                | "Every account has free access to a sandbox key." Step 4 is "Simulate a test payment to book the room."                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Index (`docs.nuitee.com/`)                                                                              | Endpoint pages exist for `get_data-reviews`, `post_hotels-min-rates`, `hotelsratesbatch` (Enterprise), `searchflightsmatrix`, `post_flights-verify`, `post_flights-prebooks`, `post_flights-bookings`, `get_data-flights-airports`, `searchexperiencetours`, `getexperiencetour`, `getexperiencetouravailability`, `prebookexperiencetour`, `createexperiencebooking`, `get_data-places`, and `docs/revenue-management-and-commission.md`. **These pages were not read.**                                                                                                                                                                                                                                                       |
+| Page                                                             | What it says (as read)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reference/api-pricing-usage-costs.md`                           | **Price index endpoints: $0.05/request** (the owner's brief says $0.02; see owner questions). **Places: $0.01/request.** **Rates, Prebook, Book: free** "when used under the Terms of Service and within a **5000:1 search-to-book ratio**". "All other endpoints" are free, including hotel content endpoints; `data/hotels`, `data/hotel`, `data/reviews` and `min-rates` are not named one by one. **Flight search: EUR 0.005/request**, applied only to searches beyond a **1,500:1** search-to-booking ratio. Flight ticketing fee: 1% of transaction value, minimum EUR 2, maximum EUR 10 per booking. Billed monthly on consumption. Nuitee "may review usage and apply limits or pricing changes" for abusive or non-standard use. **Sandbox billing is not mentioned.** No "public prices $0.02" line was found. |
+| `docs/getting-access-to-flights.md`                              | Flights is gated separately but uses the **same API key**. Sandbox is "enabled by default for new accounts" (`sand_…` key). "Sandbox should not be used to validate real-world pricing or availability." Production needs explicit approval, after the Connect account has gone live. The matrix and advanced search return **403 until the account is entitled**. A flights credit line is a contract path.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `docs/getting-access-to-experiences.md`                          | "Experiences access is **enabled on request**" through Request Assistance in the dashboard. Same API key. Sandbox exists but may not be on by default. "Sandbox does not mirror the production Experiences catalogue." Production needs approval. **Booking collects payment through Stripe.** Pricing is not described.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `reference/post_hotels-rates.md` (first 100k of 435k characters) | Request: `hotelIds`, `cityName`/`countryCode`, `latitude`/`longitude`/`radius`, `placeId`, `iataCode`, `checkin`, `checkout`, `currency`, `guestNationality`, `occupancies` (`adults`, optional `children` ages), `limit`, `timeout`, `roomMapping`, `includeHotelData`, `maxRatesPerHotel`. Response: `retailRate.total`, `retailRate.suggestedSellingPrice`, **`retailRate.taxesAndFees[]` with `included` (boolean), `description`, `amount`, `currency`**, `offerRetailRate`, `cancellationPolicies` (`cancelPolicyInfos`, `refundableTag`), `paymentTypes`, `boardType`/`boardName`.                                                                                                                                                                                                                                 |
+| `reference/get_data-hotel.md` (first 100k of 170k characters)    | `GET /v3.0/data/hotel?hotelId=…&language=…&timeout=…`. Returns `hotelImages[]` (`url`, `urlHd`, `caption`, `order`, `defaultImage`), `main_photo`, `thumbnail`, `starRating`, `rating`, `reviewCount`, `location.latitude/longitude`, `address`, `city`, `country`, `hotelFacilities`, `facilities[]`, `hotelDescription` (HTML), `markdownDescription`, `normalizedDescription`, `checkinCheckoutTimes`, `policies[]`, and fee facts (`resortFee`, `securityDeposit`, `breakfastPrice` and others).                                                                                                                                                                                                                                                                                                                      |
+| `reference/post_rates-prebook.md`                                | Request: `offerId`, `usePaymentSdk` (required), plus `voucherCode`, `addons`, `bedTypeIds`, `includeCreditBalance`, `payment`. Response: `prebookId`, `price`, `commission`, `priceDifferencePercent`, `cancellationChanged`, `boardChanged`, `paymentTypes`, `termsAndConditions`, and `transactionId`/`secretKey` (payment SDK only). **The page states no card requirement for prebook.**                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `reference/post_rates-book.md`                                   | `payment.method` values: `ACC_CREDIT_CARD`, `WALLET`, `CREDIT`, `TRANSACTION_ID` (labelled `TRANSACTION` in another section of the same page), `CREDIT_CARD` and `CREDIT_CARD_SCHEDULED` (both enabled only on request). Verbatim: "In sandbox mode, this [`ACC_CREDIT_CARD`] can be used to simulate a booking without getting charged." In production, `ACC_CREDIT_CARD` charges **the account's own card**, that is, Voyagr pays.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `reference/post_flights-rates.md`                                | `POST /v3.0/flights/rates` (also `/flights/rates/stream`). Required: `legs[]` (`origin`, `destination`, `date` no more than 11 months ahead, optional `direction`), `adults`, `currency`. Optional: `children` (+`childrenAges`), `infants` (+`infantAges`), `cabinClass`, `country`, `filters`, `sort`, `margin`, `sessionId`. Response: `data[].journeys[]` with `journeyKey`, `segments[]` (`carrier`, `flight`, `departureTime`, `arrivalTime`, `duration`, `originCode`, `destinationCode`), `legDurations`, `totalDuration`, `connections`, and `offers[]` (`offerId`, `expiration`, `pricing.display.total`, `currency`, `base`, `taxes`, `fees`, `baggage`, `fare`, `terms`). Sandbox and per-request price are not stated on this page.                                                                          |
+| `docs/booking-a-room.md`                                         | "Every account has free access to a sandbox key." Step 4 is "Simulate a test payment to book the room."                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Index (`docs.nuitee.com/`)                                       | Endpoint pages exist for `get_data-reviews`, `post_hotels-min-rates`, `hotelsratesbatch` (Enterprise), `searchflightsmatrix`, `post_flights-verify`, `post_flights-prebooks`, `post_flights-bookings`, `get_data-flights-airports`, `searchexperiencetours`, `getexperiencetour`, `getexperiencetouravailability`, `prebookexperiencetour`, `createexperiencebooking`, `get_data-places`, and `docs/revenue-management-and-commission.md`. **These pages were not read.**                                                                                                                                                                                                                                                                                                                                                 |
 
 **Not verified:** whether sandbox calls are ever billed (no page says so; the owner reports the
 sandbox is free). The second halves of the rates and hotel-details pages. Reviews, min-rates,
@@ -156,12 +156,12 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     Screenshots at 390, 768 and 1440.
 - **Calls per user action:**
 
-  | Action                                | Cold calls                                                         | Warm (cached)    | Production worst case (at $0.02) | Docs case               |
-  | ------------------------------------- | ------------------------------------------------------------------ | ---------------- | -------------------------------- | ----------------------- |
-  | Open `/stays` dates step (7 windows)  | 1 `data/hotels` + 7 `min-rates` (or `rates`)                       | 0 within TTL     | 7 × $0.02 = **$0.14**            | $0 (content and rates free within ratio) |
-  | Confirm dates (results list)          | 1 `rates` (the selected window; often already cached by calendar) | 0                | $0.02                            | $0                      |
-  | Change one filter or sort             | 0 (client-side or same key)                                        | 0                | $0                               | $0                      |
-  | Sandbox                               | same counts                                                        | same             | billing unverified; owner reports free | |
+  | Action                               | Cold calls                                                        | Warm (cached) | Production worst case (at $0.02)       | Docs case                                |
+  | ------------------------------------ | ----------------------------------------------------------------- | ------------- | -------------------------------------- | ---------------------------------------- |
+  | Open `/stays` dates step (7 windows) | 1 `data/hotels` + 7 `min-rates` (or `rates`)                      | 0 within TTL  | 7 × $0.02 = **$0.14**                  | $0 (content and rates free within ratio) |
+  | Confirm dates (results list)         | 1 `rates` (the selected window; often already cached by calendar) | 0             | $0.02                                  | $0                                       |
+  | Change one filter or sort            | 0 (client-side or same key)                                       | 0             | $0                                     | $0                                       |
+  | Sandbox                              | same counts                                                       | same          | billing unverified; owner reports free |                                          |
 
 - **Risks and owner questions:** Sandbox prices are not real (Nuitee's own words, flights and
   experiences pages). Showing them on the public site is the Q2 question. Guest nationality is
@@ -209,11 +209,11 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     below the total, and swapping the hotel moves the total.
 - **Calls per user action:**
 
-  | Action                                       | Cold                                                | Warm | Production worst case ($0.02) | Docs case |
-  | -------------------------------------------- | --------------------------------------------------- | ---- | ----------------------------- | --------- |
-  | One trip search (6 destinations, today's limits) | 6 `data/hotels` + 48 rates = 54                 | 0    | 48 × $0.02 = **$0.96**        | $0 within ratio |
-  | Same, after the top-3-windows cap            | 6 `data/hotels` (cached 7 d) + 18 `min-rates`        | 0    | 18 × $0.02 = **$0.36**        | $0        |
-  | Swap hotel on a built trip                   | 0 (swap options are from the same answer)           | 0    | $0                            | $0        |
+  | Action                                           | Cold                                          | Warm | Production worst case ($0.02) | Docs case       |
+  | ------------------------------------------------ | --------------------------------------------- | ---- | ----------------------------- | --------------- |
+  | One trip search (6 destinations, today's limits) | 6 `data/hotels` + 48 rates = 54               | 0    | 48 × $0.02 = **$0.96**        | $0 within ratio |
+  | Same, after the top-3-windows cap                | 6 `data/hotels` (cached 7 d) + 18 `min-rates` | 0    | 18 × $0.02 = **$0.36**        | $0              |
+  | Swap hotel on a built trip                       | 0 (swap options are from the same answer)     | 0    | $0                            | $0              |
 
 - **Risks and owner questions:** Q1 (look-to-book with zero bookings). Moving "payable at the
   hotel" out of the total lowers totals the user sees today for mock hotels. That is intended.
@@ -251,10 +251,10 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     console errors.
 - **Calls per user action:**
 
-  | Action                                   | Cold                          | Warm (7 d content cache) | Production ($)                    |
-  | ---------------------------------------- | ----------------------------- | ------------------------ | --------------------------------- |
-  | Open a hotel page                        | 1 `data/hotel` + 1 `data/reviews` | 0                    | $0 (content endpoints free per docs; unverified per endpoint) |
-  | Trip-builder hotel card                  | 0 (uses `main_photo` from the list) | 0                  | $0                                |
+  | Action                  | Cold                                | Warm (7 d content cache) | Production ($)                                                |
+  | ----------------------- | ----------------------------------- | ------------------------ | ------------------------------------------------------------- |
+  | Open a hotel page       | 1 `data/hotel` + 1 `data/reviews`   | 0                        | $0 (content endpoints free per docs; unverified per endpoint) |
+  | Trip-builder hotel card | 0 (uses `main_photo` from the list) | 0                        | $0                                                            |
 
 - **Risks:** The licence for reusing hotel images is not read. The images are the vendor's, under
   LiteAPI's terms (Q7).
@@ -308,12 +308,12 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     the calendar.
 - **Calls per user action:**
 
-  | Action                                         | Cold                    | Warm (10 min) | Production, beyond 1,500:1 (EUR 0.005)  |
-  | ---------------------------------------------- | ----------------------- | ------------- | --------------------------------------- |
-  | Exact-date search, 1 origin, 1 destination     | 1                       | 0             | EUR 0.005                               |
-  | Explore, today's limits, uncapped              | up to 192               | 0             | up to **EUR 0.96**                      |
-  | Explore with the proposed cap (1 × 6 × 3)      | 18                      | 0             | **EUR 0.09**                            |
-  | Calendar / flex strip                          | 0 LiteAPI (Aviasales)   | —             | $0 LiteAPI                              |
+  | Action                                     | Cold                  | Warm (10 min) | Production, beyond 1,500:1 (EUR 0.005) |
+  | ------------------------------------------ | --------------------- | ------------- | -------------------------------------- |
+  | Exact-date search, 1 origin, 1 destination | 1                     | 0             | EUR 0.005                              |
+  | Explore, today's limits, uncapped          | up to 192             | 0             | up to **EUR 0.96**                     |
+  | Explore with the proposed cap (1 × 6 × 3)  | 18                    | 0             | **EUR 0.09**                           |
+  | Calendar / flex strip                      | 0 LiteAPI (Aviasales) | —             | $0 LiteAPI                             |
 
 - **Risks and owner questions:** Q2 (sandbox fares are not real prices). Q4 (production flights
   need Go-live and approval). With zero bookings, every search is beyond 1,500:1, so it is billed.
@@ -347,10 +347,10 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     errors.
 - **Calls per user action:**
 
-  | Action                      | Cold                        | Warm (6 h) | Production         |
-  | --------------------------- | --------------------------- | ---------- | ------------------ |
-  | Open destination page       | 1 search                    | 0          | **not stated in the docs** (Q5) |
-  | Open one tour               | 1 details (+1 availability if dates are chosen) | 0 | not stated |
+  | Action                | Cold                                            | Warm (6 h) | Production                      |
+  | --------------------- | ----------------------------------------------- | ---------- | ------------------------------- |
+  | Open destination page | 1 search                                        | 0          | **not stated in the docs** (Q5) |
+  | Open one tour         | 1 details (+1 availability if dates are chosen) | 0          | not stated                      |
 
 - **Risks:** pricing unknown; the sandbox catalogue differs from production; production needs
   approval.
@@ -433,8 +433,7 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
   indicative.
 - **What changes:**
   - `src/providers/flights/fallback.ts` (new): `FallbackFlightProvider(primary, secondary)`. It
-    calls the primary. On `err` (`PROVIDER_UNAVAILABLE`, `PROVIDER_TIMEOUT`, `PROVIDER_ERROR`,
-    403) it calls the secondary and records a `SearchIssue` "Live fares unavailable; showing
+    calls the primary. On `err` (`PROVIDER_UNAVAILABLE`, `PROVIDER_TIMEOUT`, `PROVIDER_ERROR`, 403) it calls the secondary and records a `SearchIssue` "Live fares unavailable; showing
     indicative prices". An **empty** primary result is not a failure by default (Q9). Each
     provider keeps its own limiter (`LimiterPool` keyed on provider id).
   - `src/providers/registry.ts`: when `FLIGHT_PROVIDER=liteapi` and `AVIASALES_API_TOKEN` is set,
@@ -470,17 +469,18 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     in-process single-flight map, so 10 concurrent identical searches make 1 call.
   - Keys and TTLs:
 
-    | Kind                  | Key (normalised fields)                                                       | TTL                                      | Why                                                      |
-    | --------------------- | ----------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------- |
-    | `liteapi-hotels`      | lat(3dp), lng(3dp), radius m, limit                                           | 7 days                                   | Hotel lists change slowly; content is free                |
-    | `liteapi-hotel`       | hotelId, language                                                             | 7 days                                   | Photos, stars, description                                |
-    | `liteapi-reviews`     | hotelId, language                                                             | 1 day                                    | Reviews accrue slowly                                     |
-    | `liteapi-rates`       | sha256(sorted hotelIds), checkin, checkout, occupancy signature, currency, guestNationality | **15 min** (SWR up to 30 min shown with "Updated N min ago") | Prices move; `offerId`s expire |
-    | `liteapi-minrates`    | same as rates                                                                 | 30 min                                   | Used only for trip totals and the calendar                |
-    | `liteapi-flights`     | legs (origin, destination, date, direction), adults, children ages, infants, cabin, currency | **10 min**                   | Fares move; offers carry `expiration`                     |
-    | `liteapi-experiences` | lat/lng or destination code, date (if any), currency                          | 6 h                                      | Catalogue is stable                                       |
+    | Kind                  | Key (normalised fields)                                                                      | TTL                                                          | Why                                        |
+    | --------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------ |
+    | `liteapi-hotels`      | lat(3dp), lng(3dp), radius m, limit                                                          | 7 days                                                       | Hotel lists change slowly; content is free |
+    | `liteapi-hotel`       | hotelId, language                                                                            | 7 days                                                       | Photos, stars, description                 |
+    | `liteapi-reviews`     | hotelId, language                                                                            | 1 day                                                        | Reviews accrue slowly                      |
+    | `liteapi-rates`       | sha256(sorted hotelIds), checkin, checkout, occupancy signature, currency, guestNationality  | **15 min** (SWR up to 30 min shown with "Updated N min ago") | Prices move; `offerId`s expire             |
+    | `liteapi-minrates`    | same as rates                                                                                | 30 min                                                       | Used only for trip totals and the calendar |
+    | `liteapi-flights`     | legs (origin, destination, date, direction), adults, children ages, infants, cabin, currency | **10 min**                                                   | Fares move; offers carry `expiration`      |
+    | `liteapi-experiences` | lat/lng or destination code, date (if any), currency                                         | 6 h                                                          | Catalogue is stable                        |
 
     A cached `offerId` is never sent to prebook. Prebook (if ever enabled) re-quotes.
+
   - `src/search/types.ts`: a LiteAPI search profile. Price hotels for the cheapest 3 flight
     windows per destination; flights capped at 1 origin × 6 destinations × 3 windows unless the
     user picks more. `maxProviderCalls` is set so reaching it degrades and says so (existing
@@ -504,14 +504,15 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
     (read from the server log counter).
 - **Per-search totals (cold, all parts, proposed caps):**
 
-  | User action                      | LiteAPI calls (cold)                                  | Warm | Prod worst case                                     | Prod docs case                  |
-  | -------------------------------- | ----------------------------------------------------- | ---- | --------------------------------------------------- | ------------------------------- |
-  | Explore search, 6 destinations   | 6 hotels lists + 18 min-rates + 18 flights = 42       | 0    | 18 × $0.02 + 18 × EUR 0.005 ≈ **$0.36 + EUR 0.09**  | EUR 0.09 (flights beyond ratio) |
-  | `/stays` full flow               | 1 + 7 + 0 = 8                                         | 0    | $0.14                                               | $0                              |
-  | Hotel page                       | 2                                                     | 0    | $0                                                  | $0                              |
-  | Destination page (with tours)    | 1 + 6 min-rates (trip card) + 1 tours                 | 0    | $0.12 + tours unknown                               | tours unknown                   |
+  | User action                    | LiteAPI calls (cold)                            | Warm | Prod worst case                                    | Prod docs case                  |
+  | ------------------------------ | ----------------------------------------------- | ---- | -------------------------------------------------- | ------------------------------- |
+  | Explore search, 6 destinations | 6 hotels lists + 18 min-rates + 18 flights = 42 | 0    | 18 × $0.02 + 18 × EUR 0.005 ≈ **$0.36 + EUR 0.09** | EUR 0.09 (flights beyond ratio) |
+  | `/stays` full flow             | 1 + 7 + 0 = 8                                   | 0    | $0.14                                              | $0                              |
+  | Hotel page                     | 2                                               | 0    | $0                                                 | $0                              |
+  | Destination page (with tours)  | 1 + 6 min-rates (trip card) + 1 tours           | 0    | $0.12 + tours unknown                              | tours unknown                   |
 
   Sandbox: the same call counts. Billing is not stated in the docs; the owner reports free.
+
 - **Risks:** a 15-minute rate cache shows prices up to 15 to 30 minutes old. This is acceptable
   with the "Updated N min ago" line, which already exists.
 
@@ -615,16 +616,17 @@ snapshot.
   registry builds it for `liteapi`, not the live provider. `fanout.ts` and `exploreStayDates` do not
   change. A missing row returns `ok([])`. Rows are re-validated with zod and Money is rebuilt.
 - `src/liteapi-snapshot/read.ts`: `snapshotStatus(query, now)` returns `{ state, observedAt, ageHours,
-  testPrices }` for `load-stays.ts`. States, using `freshnessOf` and `ageOf`:
+testPrices }` for `load-stays.ts`. States, using `freshnessOf` and `ageOf`:
 
-  | State | When | Wording |
-  | --- | --- | --- |
-  | fresh | age ≤ 2 × interval (16 h) | "Updated N hours ago" |
-  | aging | age > 2 × interval | "Prices last checked N hours ago" |
+  | State   | When                                                             | Wording                                                       |
+  | ------- | ---------------------------------------------------------------- | ------------------------------------------------------------- |
+  | fresh   | age ≤ 2 × interval (16 h)                                        | "Updated N hours ago"                                         |
+  | aging   | age > 2 × interval                                               | "Prices last checked N hours ago"                             |
   | missing | no row, a non-launch window or occupancy, or `expires_at` passed | "Hotel prices are not loaded for these dates yet." (no price) |
-  | unknown | `observedAt` in the future | price shown, no age claim |
+  | unknown | `observedAt` in the future                                       | price shown, no age claim                                     |
 
   `expires_at` is observed plus 3 × interval (24 h).
+
 - Part 2's LiteAPI hotel provider reads the snapshot too, never the live client.
 - Aviasales fallback (Q9, for flights in Part 4): on a LiteAPI error or an empty answer, the visitor
   path reads only the existing cache store, never `loadAndStore` and never a live call. No cache
@@ -672,12 +674,17 @@ case EUR 0.005 each beyond the 1,500:1 ratio: about **EUR 1.08 a day, about EUR 
 owner accepted this by choosing four origins. Add the flight calls to the daily ceiling.
 
 **Rules.**
+
 - Flights never run on a visitor path. Visitors read stored flights only.
 - Party and windows match the hotel snapshot: 2 adults, economy, EUR, round trip. Departure is the
   window's check-in date and the return is its check-out date (4 nights).
-- A flight offer carries its own `expiration`. Store it, and never show an offer past it.
+- A flight offer carries its own `expiration`. Store it as information only; it never hides an
+  offer, and nothing may say an offer is valid until a time. Owner decision (2026-11-17): stored
+  fares are shown as indicative prices with the time they were seen, and a stored offer is never
+  sent to booking or prebook.
 - Freshness uses the same four states and the same wording as hotels, plus one fixed line under
-  every stored flight price: "Fares change often. Check the airline before you book."
+  every stored flight price: "Seen at HH:MM UTC. Fares change within minutes; check the airline
+  before you book." (HH:MM is the offer's `observedAt` in UTC.)
 - Sandbox prices are not real. The "Test prices" note applies to flights too.
 
 **Storage.** Migration `0014_liteapi_flights_snapshot.sql`, one table `liteapi_flights_snapshot`:
@@ -697,8 +704,9 @@ A provider failure keeps the old row and logs only the error code.
 `BUD,VIE,PRG,LON`, validated in `src/lib/env.ts`.
 
 **Read path.**
+
 - A snapshot flight reader implements the flight provider interface and reads the table only.
-- A missing row, or one past `expires_at`, is "not loaded": no price from LiteAPI.
+- A missing row, or one past the row's `expires_at`, is "not loaded": no price from LiteAPI.
 - Part 9 applies here: when the stored row is missing, read the existing Aviasales cache with
   `getCacheStore().get(key)` only. Never `loadAndStore`, never a live call. No entry means the
   flight is unpriced and the page shows a search issue.

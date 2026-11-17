@@ -48,6 +48,7 @@ import { weightedRankScore, type PartWeights } from '@/core/trip/scoring';
 import {
   combineProvenance,
   provenanceForMode,
+  type ProviderMode,
   type SourceAttribution,
 } from '@/core/trip/provenance';
 import { buildSearchPlan, enumerateDateWindows } from './plan';
@@ -1277,20 +1278,49 @@ export async function runSearch(
    * from a sandbox, so a Duffel test key would otherwise inherit "Live
    * price" for seats that do not exist.
    */
-  const sources: SourceAttribution[] = (
-    [
-      ['flights', deps.flights],
-      ['hotels', deps.hotels],
-      ['transfers', deps.transfers],
-    ] as const
-  ).map(([part, provider]) => ({
+  const attribution = (
+    part: SourceAttribution['part'],
+    providerId: string,
+    displayName: string,
+    mode: ProviderMode,
+  ): SourceAttribution => ({
     part,
-    providerId: provider.metadata.id,
-    displayName: provider.metadata.displayName,
-    provenance: provenanceForMode(
+    providerId,
+    displayName,
+    provenance: provenanceForMode(mode),
+  });
+  const providerSource = (
+    part: SourceAttribution['part'],
+    provider: { readonly metadata: ProviderMetadata },
+  ) =>
+    attribution(
+      part,
+      provider.metadata.id,
+      provider.metadata.displayName,
       provider.metadata.mode ?? (provider.metadata.isMock ? 'mock' : 'live'),
-    ),
-  }));
+    );
+
+  /*
+   * Flights are labelled from the offers themselves. A provider that mixes kinds of answer
+   * stamps `offer.source` on each one, so a label never comes from a field that another search
+   * can change. An offer without one is described by its provider's metadata.
+   */
+  const flightSources = new Map<string, SourceAttribution>();
+  for (const candidate of unique.slice(0, plan.limits.maxCandidates)) {
+    const { source, providerId } = candidate.flight;
+    const entry = source
+      ? attribution('flights', providerId, source.displayName, source.mode)
+      : providerSource('flights', deps.flights);
+    flightSources.set(`${entry.providerId}:${entry.provenance}`, entry);
+  }
+
+  const sources: SourceAttribution[] = [
+    ...(flightSources.size > 0
+      ? flightSources.values()
+      : [providerSource('flights', deps.flights)]),
+    providerSource('hotels', deps.hotels),
+    providerSource('transfers', deps.transfers),
+  ];
 
   const ranked: RankedTrip[] = [];
   const rates = deps.rates ?? fixedRates([]);

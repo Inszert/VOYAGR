@@ -3,7 +3,7 @@ import { money } from '@/core/money';
 import type { FlightOffer } from '@/core/trip/types';
 import { createMemoryRepositories } from '@/db/memory';
 import {
-  FLIGHT_FARE_LINE,
+  flightFareLine,
   FLIGHTS_MISSING_LINE,
   flightStalenessLine,
   readFlightSnapshot,
@@ -77,7 +77,10 @@ describe('the flights read path', () => {
     expect(read.status).toMatchObject({ state: 'fresh', ageHours: 3, testPrices: false });
     expect(flightStalenessLine(read.status)).toBe('Updated 3 hours ago');
     expect(read.offers[0]!.price).toEqual({ amount: 25000, currency: 'EUR' });
-    expect(FLIGHT_FARE_LINE).toBe('Fares change often. Check the airline before you book.');
+    expect(flightFareLine(read.offers[0]!.observedAt)).toBe(
+      'Seen at 12:00 UTC. Fares change within minutes; check the airline before you book.',
+    );
+    expect(flightFareLine('not a time')).toBeNull();
   });
 
   it('reads aging past two intervals', async () => {
@@ -123,16 +126,17 @@ describe('the flights read path', () => {
     expect(read.offers).toHaveLength(1);
   });
 
-  it('never returns an offer past its own expiry, and reads missing when none is left', async () => {
+  it('still returns an offer past its own expiry: the expiry is information only', async () => {
     const deps = await seed({
       offers: [offer('gone', iso(NOW - 1)), offer('kept', iso(NOW + HOUR))],
     });
     const read = await readFlightSnapshot(ROUTE, NOW, deps);
-    expect(read.offers.map((entry) => entry.id)).toEqual(['kept']);
+    expect(read.offers.map((entry) => entry.id)).toEqual(['gone', 'kept']);
 
-    const none = await readFlightSnapshot(ROUTE, NOW + 2 * HOUR, deps);
-    expect(none.status.state).toBe('missing');
-    expect(none.offers).toEqual([]);
+    const later = await readFlightSnapshot(ROUTE, NOW + 2 * HOUR, deps);
+    expect(later.status.state).not.toBe('missing');
+    expect(later.offers.map((entry) => entry.id)).toEqual(['gone', 'kept']);
+    expect(later.offers[0]!.expiresAt).toBe(iso(NOW - 1));
   });
 
   it('marks sandbox rows as test prices', async () => {

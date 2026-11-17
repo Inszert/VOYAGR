@@ -1,4 +1,5 @@
 import type { Money } from '../money';
+import type { ProviderMode } from './provenance';
 
 /**
  * Normalised trip domain types.
@@ -154,6 +155,13 @@ export interface FlightOffer {
    */
   readonly ticketing?: 'two_one_way';
   readonly returnDeepLink?: string;
+  /**
+   * Who answered this offer and how far to trust it, stamped on the offer itself. A provider that
+   * can serve more than one kind of answer in a search (stored LiteAPI fares and cached Aviasales
+   * fares) sets it, so a label is read from the offer and never from a shared provider field.
+   * Absent means the provider's own metadata describes it.
+   */
+  readonly source?: { readonly displayName: string; readonly mode: ProviderMode };
 }
 
 /**
