@@ -83,21 +83,30 @@ export function RankControls({
         <label htmlFor="stage-country" className="sr-only">
           Explore a country
         </label>
-        <select
-          id="stage-country"
-          name="country"
-          defaultValue={selected?.adm0 ?? ''}
-          className="text-ink h-9 max-w-[10.5rem] min-w-0 rounded-(--radius-pill) border-0 bg-transparent px-2 text-[13px] focus:outline-none sm:max-w-[12rem]"
-        >
-          <option value="">The whole world</option>
-          {COUNTRIES.map((country) => (
-            <option key={country.adm0} value={country.adm0}>
-              {counts[country.adm0]
-                ? `${country.name} · ${counts[country.adm0]} priced`
-                : country.name}
-            </option>
-          ))}
-        </select>
+        {/* The chevron is drawn once, here; the select's own is switched off. */}
+        <span className="relative flex min-w-0 items-center">
+          <select
+            id="stage-country"
+            name="country"
+            defaultValue={selected?.adm0 ?? ''}
+            className="text-ink h-9 max-w-[10.5rem] min-w-0 cursor-pointer appearance-none rounded-none border-0 bg-transparent pr-7 pl-2 text-[13px] shadow-none focus:outline-none sm:max-w-[12rem]"
+          >
+            <option value="">The whole world</option>
+            {COUNTRIES.map((country) => (
+              <option key={country.adm0} value={country.adm0}>
+                {counts[country.adm0]
+                  ? `${country.name} · ${counts[country.adm0]} priced`
+                  : country.name}
+              </option>
+            ))}
+          </select>
+          <Icon
+            name="chevron-down"
+            size={1}
+            className="text-ink-muted pointer-events-none absolute right-2 size-[14px]"
+            aria-hidden
+          />
+        </span>
 
         <button
           type="submit"

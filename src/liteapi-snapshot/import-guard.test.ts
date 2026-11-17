@@ -85,8 +85,12 @@ function reach(roots: readonly string[], allowed: readonly string[] = []): Map<s
 
 const rel = (file: string) => relative(SRC, file).split(sep).join('/');
 
-/** The one visitor-triggered module that may call the vendor: "Check this price" (Part 6). */
-const ALLOWED = [join(SRC, 'booking/liteapi-prebook.ts')];
+/**
+ * The visitor-triggered modules that may call the vendor: "Check this price" (Part 6), and the
+ * DEMO-ONLY sandbox path, which is inert unless `demoLiveAllowed` (DEMO_MODE, a sand_ key, a
+ * non-production host) and which its own tests hold to a call cap.
+ */
+const ALLOWED = [join(SRC, 'booking/liteapi-prebook.ts'), join(SRC, 'providers/demo-live.ts')];
 
 describe('the visitor import guard', () => {
   const appFiles = walk(join(SRC, 'app'));

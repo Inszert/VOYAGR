@@ -14,6 +14,7 @@ import type {
   MonthFareSource,
 } from '@/providers/types';
 import { loadMonthDayPrices } from './day-prices';
+import { MAX_RETURN_OPTIONS, toMonthPricesJson } from './day-prices-json';
 
 /**
  * The per-day price loader behind the calendar and the flexible-dates strip.
@@ -311,5 +312,80 @@ describe('further day sources, merged per day', () => {
     // And reading two again is the cached two, not the four just loaded.
     const again = await loadMonthDayPrices({ ...query, passengers: 2 }, deps);
     expect(again.days.get('2026-12-05')?.price).toEqual(money(30_000, 'EUR'));
+  });
+
+  describe('return options per departure', () => {
+    /** One departure with several return dates, and a second with only one. */
+    function multiReturn(nightsAndAmounts: readonly (readonly [number, number])[]) {
+      const vendor = fakeVendor();
+      const searchFlights = vendor.provider.searchFlights.bind(vendor.provider);
+      vendor.provider.searchFlights = async (query: FlightSearchQuery) => {
+        vendor.calls.push(query);
+        const items = nightsAndAmounts.map(([nights, amount]) =>
+          offer('2026-12-10', nights, amount),
+        );
+        items.push(offer('2026-12-12', 3, 30000));
+        void searchFlights;
+        return ok({ items, nextCursor: null });
+      };
+      return setup(vendor);
+    }
+
+    it('keeps three return dates for one departure, cheapest first, and the day keeps the cheapest', async () => {
+      const { deps, query } = multiReturn([
+        [5, 24000],
+        [3, 18000],
+        [7, 21000],
+      ]);
+      const result = await loadMonthDayPrices(query, deps);
+
+      const list = result.returns.get('2026-12-10')!;
+      expect(list.map((entry) => entry.returnDate)).toEqual([
+        '2026-12-13',
+        '2026-12-17',
+        '2026-12-15',
+      ]);
+      expect(list.map((entry) => entry.price)).toEqual([
+        money(18000, 'EUR'),
+        money(21000, 'EUR'),
+        money(24000, 'EUR'),
+      ]);
+      expect(result.days.get('2026-12-10')?.price).toEqual(money(18000, 'EUR'));
+      expect(result.days.get('2026-12-10')?.returnDate).toBe('2026-12-13');
+      expect(toMonthPricesJson(result).days['2026-12-10']?.returns).toHaveLength(3);
+    });
+
+    it('holds one fare per return date and no more than the limit', async () => {
+      const { deps, query } = multiReturn([
+        [2, 30000],
+        [3, 29000],
+        [3, 28000],
+        [4, 27000],
+        [5, 26000],
+        [6, 25000],
+        [7, 24000],
+        [8, 23000],
+      ]);
+      const result = await loadMonthDayPrices(query, deps);
+
+      const list = result.returns.get('2026-12-10')!;
+      expect(MAX_RETURN_OPTIONS).toBe(5);
+      expect(list).toHaveLength(MAX_RETURN_OPTIONS);
+      expect(new Set(list.map((entry) => entry.returnDate)).size).toBe(list.length);
+      expect(list[0]!.price).toEqual(money(23000, 'EUR'));
+      // The one return that day had three prices for: the cheaper of them stays.
+      expect(result.returns.get('2026-12-12')).toHaveLength(1);
+    });
+
+    it('makes no further provider call to hold the options', async () => {
+      const { deps, query, calls } = multiReturn([
+        [3, 18000],
+        [5, 24000],
+      ]);
+      await loadMonthDayPrices(query, deps);
+      const made = calls.length;
+      await loadMonthDayPrices(query, deps);
+      expect(calls.length).toBe(made);
+    });
   });
 });

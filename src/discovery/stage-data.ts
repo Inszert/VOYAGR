@@ -11,7 +11,9 @@ import {
   type DestinationPoint,
   type MapMode,
   type OriginPoint,
+  type Route,
 } from '@/discovery/map-model';
+import { buildRoutePairs, routePairsToRoutes, type RoutePairs } from '@/discovery/search-routes';
 import { skyConditionOf, type SkyCondition } from '@/discovery/sky-condition';
 import type { DiscoveryAssumptions } from '@/discovery/snapshot';
 import {
@@ -74,6 +76,8 @@ export interface StageDataInput {
   readonly selectedDestination: string | null;
   /** Origins to draw routes from. The search's, or the snapshot's. */
   readonly origins: readonly string[];
+  /** The destinations the visitor named, to join to every origin. Empty for "anywhere". */
+  readonly routeDestinations?: readonly string[];
   readonly provenance: DataProvenance;
   readonly assumptions: DiscoveryAssumptions | null;
   /** Builds the link a chip or card follows for a destination. */
@@ -108,6 +112,8 @@ export interface StageData {
     readonly condition: SkyCondition | null;
   }[];
   readonly routes: ReturnType<typeof routesToGeoJson>;
+  /** The origin-to-destination lines the search itself asked for, also as text. */
+  readonly routePairs: RoutePairs;
   readonly pointsGeoJson: ReturnType<typeof toGeoJson>;
   readonly originsGeoJson: ReturnType<typeof originsToGeoJson>;
   readonly cards: readonly {
@@ -125,6 +131,15 @@ export interface StageData {
   readonly regionSummary: string | null;
 }
 
+/** The search's own lines first, then priced routes between pairs not already drawn. */
+function mergeRoutes(pairs: readonly Route[], priced: readonly Route[]): Route[] {
+  const drawn = new Set(pairs.map((route) => `${route.origin}>${route.destination}`));
+  return [
+    ...pairs,
+    ...priced.filter((route) => !drawn.has(`${route.origin}>${route.destination}`)),
+  ];
+}
+
 export function buildStageData(input: StageDataInput): StageData {
   const points = input.outcome
     ? buildMapPoints({ outcome: input.outcome, mode: input.mode, geo: resolveDestinationGeo })
@@ -136,6 +151,9 @@ export function buildStageData(input: StageDataInput): StageData {
   const originPoints = input.origins
     .map((code) => resolveOriginGeo(code))
     .filter((origin): origin is OriginPoint => origin !== null);
+
+  // Both ends typed: every origin joined to every destination, priced or not.
+  const searchPairs = buildRoutePairs(input.origins, input.routeDestinations ?? []);
 
   const countryCounts = Object.fromEntries(
     groupByCountry(points).map((group) => [group.adm0, group.points.length]),
@@ -214,7 +232,11 @@ export function buildStageData(input: StageDataInput): StageData {
     countryCounts,
     labels,
     chips,
-    routes: routesToGeoJson(buildRoutes(scoped, originPoints), input.selectedDestination),
+    routes: routesToGeoJson(
+      mergeRoutes(routePairsToRoutes(searchPairs.pairs), buildRoutes(scoped, originPoints)),
+      input.selectedDestination,
+    ),
+    routePairs: searchPairs,
     pointsGeoJson: toGeoJson(scoped, input.mode),
     originsGeoJson: originsToGeoJson(originPoints),
     cards,

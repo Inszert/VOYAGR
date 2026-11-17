@@ -150,33 +150,118 @@ export type AviasalesWindow = 'dates' | 'calendar';
  */
 const RATE_LIMIT_MAX_WAIT_SECONDS = 8;
 
+/** The pause when a 429 carries no reset header, and the longest pause ever held. */
+export const RATE_LIMIT_DEFAULT_PAUSE_SECONDS = 10;
+export const RATE_LIMIT_MAX_PAUSE_SECONDS = 60;
+
+/**
+ * One pause per process, for the vendor as a whole.
+ *
+ * A 429 means the token's window is spent for every caller, not only the one
+ * that heard it. Without this, each queued call went on to ask and be refused,
+ * which kept the window spent. While paused, a call makes no network request
+ * and fails at once as `PROVIDER_UNAVAILABLE`, without a retry.
+ *
+ * Per process: web and worker each hold their own. A pause shared between them
+ * would need Redis and is a known limit.
+ */
+interface AviasalesPause {
+  until: number;
+  startedAt: number;
+  /** Calls refused without a network request during this pause. */
+  skipped: number;
+}
+
+declare global {
+  var __voyagrAviasalesPause: AviasalesPause | null | undefined;
+}
+
+/** Clears the pause. For tests; nothing in the product calls it. */
+export function resetAviasalesPause(): void {
+  globalThis.__voyagrAviasalesPause = null;
+}
+
+/** The pause if one is active at `at`; an ended one is logged and cleared. */
+function activePause(at: number): AviasalesPause | null {
+  const pause = globalThis.__voyagrAviasalesPause;
+  if (!pause) return null;
+  if (at < pause.until) return pause;
+
+  log.info(
+    { pausedSeconds: Math.round((at - pause.startedAt) / 1000), skippedCalls: pause.skipped },
+    'aviasales pause ended, calls resume',
+  );
+  globalThis.__voyagrAviasalesPause = null;
+  return null;
+}
+
+function startPause(at: number, seconds: number): void {
+  const until = at + seconds * 1000;
+  const existing = globalThis.__voyagrAviasalesPause;
+  if (existing) {
+    existing.until = Math.max(existing.until, until);
+    return;
+  }
+  globalThis.__voyagrAviasalesPause = { until, startedAt: at, skipped: 0 };
+  log.warn({ pauseSeconds: seconds }, 'aviasales pause started, calls fail without a request');
+}
+
 async function fetchHonouringRateLimit(
   doFetch: FetchLike,
   sleep: (ms: number) => Promise<void>,
+  now: () => number,
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
+  const paused = activePause(now());
+  if (paused) {
+    paused.skipped += 1;
+    // No request is made. A 429 is what every caller already maps to
+    // `PROVIDER_UNAVAILABLE`, and it is not retried.
+    return new Response(null, { status: 429 });
+  }
+
   const response = await doFetch(url, init);
   if (response.status !== 429) return response;
 
-  const reset = Number(response.headers.get('x-rate-limit-reset'));
+  const header = response.headers.get('x-rate-limit-reset');
+  const reset = Number(header);
+  const known = header !== null && Number.isFinite(reset);
   log.warn(
     {
       limit: response.headers.get('x-rate-limit'),
       remaining: response.headers.get('x-rate-limit-remaining'),
-      resetSeconds: Number.isFinite(reset) ? reset : null,
+      resetSeconds: known ? reset : null,
     },
     'aviasales rate limited',
   );
-  const waitable =
-    response.headers.get('x-rate-limit-reset') !== null &&
-    Number.isFinite(reset) &&
-    reset <= RATE_LIMIT_MAX_WAIT_SECONDS &&
-    !init?.signal?.aborted;
-  if (!waitable) return response;
+  const waitable = known && reset <= RATE_LIMIT_MAX_WAIT_SECONDS && !init?.signal?.aborted;
+  if (!waitable) {
+    startPause(
+      now(),
+      Math.min(RATE_LIMIT_MAX_PAUSE_SECONDS, known ? reset : RATE_LIMIT_DEFAULT_PAUSE_SECONDS),
+    );
+    return response;
+  }
 
   await sleep(Math.max(1, reset) * 1000 + 250);
-  return doFetch(url, init);
+  // Another call may have paused the vendor while this one slept.
+  if (activePause(now())) return new Response(null, { status: 429 });
+
+  const retry = await doFetch(url, init);
+  if (retry.status === 429) {
+    const again = Number(retry.headers.get('x-rate-limit-reset'));
+    startPause(
+      now(),
+      Math.min(
+        RATE_LIMIT_MAX_PAUSE_SECONDS,
+        retry.headers.get('x-rate-limit-reset') !== null && Number.isFinite(again)
+          ? again
+          : RATE_LIMIT_DEFAULT_PAUSE_SECONDS,
+      ),
+    );
+  }
+  return retry;
 }
 
 export interface AviasalesOptions {
@@ -678,8 +763,9 @@ export class AviasalesFlightProvider implements FlightProvider {
     this.partnerId = options.partnerId;
     const rawFetch: FetchLike = options.fetchImpl ?? ((url, init) => fetch(url, init));
     const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-    this.fetchImpl = (url, init) => fetchHonouringRateLimit(rawFetch, sleep, url, init);
     this.now = options.now ?? (() => new Date());
+    this.fetchImpl = (url, init) =>
+      fetchHonouringRateLimit(rawFetch, sleep, () => this.now().getTime(), url, init);
     this.monthFareSources = DAY_QUESTIONS.map((question) => ({
       id: question.id,
       fetch: (query: MonthFareQuery, requestOptions?: ProviderRequestOptions) =>

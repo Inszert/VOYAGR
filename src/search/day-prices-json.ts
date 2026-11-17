@@ -1,7 +1,7 @@
 import { format, toMajor, type Money } from '@/core/money';
 import { perTraveller } from '@/core/party';
 import type { IsoDate } from '@/core/trip/types';
-import type { MonthDayPrices } from './day-prices';
+import type { DayPriceEntry, MonthDayPrices } from './day-prices';
 
 /**
  * A month of day prices as the calendar receives it.
@@ -17,7 +17,21 @@ import type { MonthDayPrices } from './day-prices';
  * the cells show.
  */
 
+/** How many returns the return step lists for one departure. */
+export const MAX_RETURN_OPTIONS = 5;
+
+/** One return for a departure: its date and the party total. */
+export interface ReturnOptionJson {
+  readonly returnDate: IsoDate;
+  readonly exact: string;
+  readonly whole: string;
+  readonly perPerson: string;
+  readonly amount: number;
+}
+
 export interface DayPriceJson {
+  /** Cheapest returns for this departure, cheapest first; the first is this day's own. */
+  readonly returns?: readonly ReturnOptionJson[];
   readonly returnDate: IsoDate;
   /** The party total, to the cent, for the accessible name. */
   readonly exact: string;
@@ -63,8 +77,17 @@ export function formatPerPersonWhole(total: Money, travellers: number): string {
 export function toMonthPricesJson(prices: MonthDayPrices): MonthPricesJson {
   const days: Record<IsoDate, DayPriceJson> = {};
 
+  const toOption = (entry: DayPriceEntry): ReturnOptionJson => ({
+    returnDate: entry.returnDate,
+    exact: format(entry.price),
+    whole: formatWhole(entry.price),
+    perPerson: formatPerPersonWhole(entry.price, prices.passengers),
+    amount: toMajor(entry.price),
+  });
+
   for (const [day, entry] of prices.days) {
     days[day] = {
+      returns: (prices.returns.get(day) ?? [entry]).map(toOption),
       returnDate: entry.returnDate,
       exact: format(entry.price),
       whole: formatWhole(entry.price),

@@ -1,19 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  Button,
-  Container,
-  DateRangeField,
-  Icon,
-  NumberStepperField,
-  UpdatedAgo,
-} from '@/components/ui';
+import { Container, DateRangeField, Icon, NumberStepperField, UpdatedAgo } from '@/components/ui';
 import { AirportInput } from '@/components/search/airport-input';
 import { LiveResults, LiveSearchForm } from '@/components/search/live-search';
 import { LIVE_FIELDS } from '@/components/search/live-fields';
 import { ANYWHERE, parsePartWeights } from '@/search/schema';
 import { DEFAULT_PART_WEIGHTS } from '@/core/trip/scoring';
 import { PartWeightsControl } from '@/components/search/part-weights';
+import { SearchPreferences } from '@/components/search/search-preferences';
 import { format } from '@/core/money';
 import { getCurrentUser } from '@/auth/current-user';
 import { getRepositories } from '@/db';
@@ -150,6 +144,8 @@ export default async function ExplorePage({
 }) {
   const values = firstValues(await searchParams);
   const page = await loadStagePage(values, '/explore');
+  // What the live search may take for a finished place without a pick.
+  const airportCodes = page.airports.map((airport) => airport.code);
   const { stage } = page;
 
   // A search this page cannot run is fixed where the form is.
@@ -293,6 +289,7 @@ export default async function ExplorePage({
                 <LiveSearchForm
                   action="/explore"
                   label="Change this search"
+                  airportCodes={airportCodes}
                   className="grid gap-4 sm:grid-cols-2"
                 >
                   {Object.entries(values).map(([name, value]) =>
@@ -336,13 +333,11 @@ export default async function ExplorePage({
                     defaultValue={values.passengers ?? String(page.profile.passengers)}
                     required
                   />
-                  <noscript>
-                    <Button type="submit" variant="secondary">
-                      Update trips
-                    </Button>
-                  </noscript>
                 </LiveSearchForm>
                 <PartWeightsControl values={parsePartWeights(values) ?? DEFAULT_PART_WEIGHTS} />
+                <Suspense fallback={null}>
+                  <SearchPreferences />
+                </Suspense>
                 <p className="text-ink flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="text-ink-muted tabular-nums">
                     {shortDate(page.profile.earliestDeparture)} to{' '}
@@ -366,13 +361,59 @@ export default async function ExplorePage({
                 </a>
               </div>
             ) : (
-              <Link
-                href="/"
-                className="text-tint-ink inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
-              >
-                Start a search on Discover
-                <Icon name="arrow-right" size={0.9} />
-              </Link>
+              <div className="border-border flex flex-col gap-3 border-y py-4">
+                <p className="text-ink-muted text-sm">
+                  No search yet. Choose where from and when, and the trips will be priced here.
+                </p>
+                <LiveSearchForm
+                  action="/explore"
+                  label="Start a search"
+                  airportCodes={airportCodes}
+                  className="grid gap-4 sm:grid-cols-2"
+                >
+                  <AirportInput
+                    label="From"
+                    name="origins"
+                    defaultValue=""
+                    airports={page.airports}
+                    required
+                  />
+                  <AirportInput
+                    label="To"
+                    name="destinations"
+                    defaultValue={ANYWHERE}
+                    airports={page.airports}
+                    required
+                  />
+                  <div className="sm:col-span-2">
+                    <DateRangeField
+                      startLabel="Leaving"
+                      startName="departureDate"
+                      startValue=""
+                      endLabel="Back"
+                      endName="returnDate"
+                      endValue=""
+                      min={page.today}
+                      required
+                    />
+                  </div>
+                  <NumberStepperField
+                    label="Travellers"
+                    name="passengers"
+                    min={1}
+                    max={9}
+                    defaultValue="2"
+                    required
+                  />
+                </LiveSearchForm>
+                <Link
+                  href="/"
+                  className="text-tint-ink inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
+                >
+                  Start a search on Discover
+                  <Icon name="arrow-right" size={0.9} />
+                </Link>
+              </div>
             )}
           </div>
 

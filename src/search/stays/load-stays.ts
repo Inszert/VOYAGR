@@ -5,6 +5,7 @@ import { nightsIn, type StayLinkOffer, type StayQuery, type StayRate } from '@/c
 import type { IsoDate } from '@/core/trip/types';
 import { createLimiter } from '@/lib/concurrency';
 import { readSnapshot, type SnapshotStatus } from '@/liteapi-snapshot/read';
+import { defaultDemoLive } from '@/providers/demo-live';
 import { getStayProviders } from '@/providers/stays/registry';
 import type { DataSource } from '@/providers/data-source';
 import { findAllStayLinks, searchAllStays, type StayFanoutFailure } from '@/providers/stays/fanout';
@@ -161,14 +162,29 @@ export async function loadStaySearch(
    * database: the LiteAPI provider in the list above is the snapshot reader, so nothing on
    * this page can reach the vendor. A failed read is "no status", not a failed page.
    */
-  const snapshot = providers.some((provider) => provider.metadata.id === 'liteapi')
-    ? await readSnapshot(query, (dependencies.now ?? Date.now)())
-        .then((read) => read.status)
-        .catch(() => null)
-    : null;
+  const hasLiteApi = providers.some((provider) => provider.metadata.id === 'liteapi');
+  const readStatus = async (): Promise<SnapshotStatus | null> => {
+    if (!hasLiteApi) return null;
+    const now = (dependencies.now ?? Date.now)();
+    const status = await readSnapshot(query, now)
+      .then((read) => read.status)
+      .catch(() => null);
+    if (status && status.state !== 'missing') return status;
+    // DEMO ONLY: a live sandbox answer held in the demo cache is test data seen just now.
+    if (defaultDemoLive()?.hasStays(query)) {
+      return {
+        state: 'fresh',
+        observedAt: new Date(now).toISOString(),
+        ageHours: 0,
+        testPrices: true,
+      };
+    }
+    return status;
+  };
 
   if (step === 'dates') {
     const calendar = await exploreStayDates(providers, query, { shiftDays: 3, limiter });
+    const snapshot = await readStatus();
 
     return {
       step,
@@ -191,6 +207,8 @@ export async function loadStaySearch(
     searchAllStays(providers, query, { limiter }),
     findAllStayLinks(providers, query, { limiter }),
   ]);
+
+  const snapshot = await readStatus();
 
   const openStay = params.property
     ? (found.stays.find((stay) => stay.key === params.property) ?? null)

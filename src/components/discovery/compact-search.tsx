@@ -1,12 +1,6 @@
 import Link from 'next/link';
 import { Button, DateRangeField, Icon, NumberStepperField, Select } from '@/components/ui';
-import {
-  BudgetFields,
-  ExactWindowFields,
-  PreferenceFields,
-  readForm,
-  type SearchFormProps,
-} from '@/components/search/search-form';
+import { readForm, type SearchFormProps } from '@/components/search/search-form';
 import { AirportInput } from '@/components/search/airport-input';
 import { FlexibilityChips } from '@/components/search/flexibility-chips';
 import { DISCOVERY_CATEGORIES } from '@/discovery/categories';
@@ -16,6 +10,7 @@ import { LensSlider } from './lens-slider';
 import { SearchKindTabs } from '@/components/search/search-kind-tabs';
 import { AnywhereButton } from '@/components/search/anywhere-button';
 import { WORLD_REGIONS } from '@/search/world-region-list';
+import { MoreOptionsPanel } from './more-options-panel';
 import { SwapEndpoints } from './swap-endpoints';
 import { shortDate } from '@/lib/display-date';
 
@@ -511,7 +506,7 @@ export function CompactSearch({
               ends up looking like a footnote. It is a pill like the lenses
               above it now, and the glyph turns when it is open.
             */}
-            <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
+            <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
               <Icon
                 name="plus"
                 size={1}
@@ -520,32 +515,7 @@ export function CompactSearch({
               More options
             </summary>
 
-            <div className="border-hairline bg-field mt-2.5 rounded-[14px] border p-5">
-              <div className="flex flex-col gap-6 pt-2">
-                <fieldset className="flex flex-col gap-3">
-                  <legend className="text-text text-sm font-medium">Exact travel window</legend>
-                  <p className="text-muted text-sm">
-                    Used when the dates are set to &ldquo;Exact window&rdquo;. A window plus a trip
-                    length says &ldquo;four to seven nights, any time in June&rdquo;.
-                  </p>
-                  <ExactWindowFields form={form} errors={errors} />
-                </fieldset>
-
-                <fieldset className="flex flex-col gap-3">
-                  <legend className="text-text text-sm font-medium">Budget</legend>
-                  <BudgetFields
-                    form={form}
-                    errors={errors}
-                    include={['currency', 'targetBudget', 'maxBudget', 'reserveBudget']}
-                  />
-                </fieldset>
-
-                <fieldset className="flex flex-col gap-3">
-                  <legend className="text-text text-sm font-medium">What matters to you</legend>
-                  <PreferenceFields form={form} errors={errors} />
-                </fieldset>
-              </div>
-            </div>
+            <MoreOptionsPanel form={form} errors={errors} idPrefix="more-bar" />
           </details>
         </form>
       </div>
@@ -729,32 +699,12 @@ function BarSearch({
                 More options
               </summary>
 
-              <div className="border-hairline bg-field mt-2.5 max-h-[40vh] overflow-auto rounded-[14px] border p-5">
-                <div className="flex flex-col gap-6 pt-2">
-                  <fieldset className="flex flex-col gap-3">
-                    <legend className="text-text text-sm font-medium">Exact travel window</legend>
-                    <p className="text-muted text-sm">
-                      Used when the dates are set to &ldquo;Exact window&rdquo;. A window plus a
-                      trip length says &ldquo;four to seven nights, any time in June&rdquo;.
-                    </p>
-                    <ExactWindowFields form={form} errors={errors} />
-                  </fieldset>
-
-                  <fieldset className="flex flex-col gap-3">
-                    <legend className="text-text text-sm font-medium">Budget</legend>
-                    <BudgetFields
-                      form={form}
-                      errors={errors}
-                      include={['currency', 'targetBudget', 'maxBudget', 'reserveBudget']}
-                    />
-                  </fieldset>
-
-                  <fieldset className="flex flex-col gap-3">
-                    <legend className="text-text text-sm font-medium">What matters to you</legend>
-                    <PreferenceFields form={form} errors={errors} />
-                  </fieldset>
-                </div>
-              </div>
+              <MoreOptionsPanel
+                form={form}
+                errors={errors}
+                idPrefix="more-open"
+                className="max-h-[50vh] overflow-auto"
+              />
             </details>
           </div>
 

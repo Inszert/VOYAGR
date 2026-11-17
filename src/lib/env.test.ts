@@ -71,6 +71,18 @@ describe('parseEnv', () => {
     expect(parseEnv({ AI_PROVIDER: 'mock' }).AI_PROVIDER).toBe('mock');
   });
 
+  it('refreshes prices three times a day by default', () => {
+    expect(parseEnv({}).PRICE_REFRESH_MINUTES).toBe(480);
+    expect(parseEnv({ PRICE_REFRESH_MINUTES: '30' }).PRICE_REFRESH_MINUTES).toBe(30);
+  });
+
+  it('keeps the discovery refresh on unless it is switched off', () => {
+    expect(parseEnv({}).DISCOVERY_REFRESH_ENABLED).toBe(true);
+    expect(parseEnv({ DISCOVERY_REFRESH_ENABLED: 'false' }).DISCOVERY_REFRESH_ENABLED).toBe(false);
+    expect(parseEnv({ DISCOVERY_REFRESH_ENABLED: '0' }).DISCOVERY_REFRESH_ENABLED).toBe(false);
+    expect(parseEnv({ DISCOVERY_REFRESH_ENABLED: 'true' }).DISCOVERY_REFRESH_ENABLED).toBe(true);
+  });
+
   it('reads the places refresh interval in hours, a week by default and never below one', () => {
     expect(parseEnv({}).PLACES_REFRESH_HOURS).toBe(168);
     expect(parseEnv({ PLACES_REFRESH_HOURS: '24' }).PLACES_REFRESH_HOURS).toBe(24);

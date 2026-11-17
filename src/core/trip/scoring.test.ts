@@ -324,9 +324,9 @@ describe('weightedRankScore', () => {
     return { score: rounded, factors, strengths: [], weaknesses: [], evidenceStrength: 0.5 };
   };
 
-  // A has the better flight, B has the better stay. Equal overall.
-  const a = tripScore({ flight_quality: 0.9, hotel_quality: 0.3, location: 0.3 }, 50);
-  const b = tripScore({ flight_quality: 0.3, hotel_quality: 0.6, location: 0.6 }, 50);
+  // A has the better cost fit and weather, B has the better stay. Equal overall.
+  const a = tripScore({ budget_fit: 0.9, weather: 0.9, hotel_quality: 0.3, location: 0.3 }, 50);
+  const b = tripScore({ budget_fit: 0.3, weather: 0.3, hotel_quality: 0.6, location: 0.6 }, 50);
 
   it('is exactly the engine score with no weights or all weights at 1', () => {
     expect(weightedRankScore(a)).toBe(50);
@@ -334,18 +334,24 @@ describe('weightedRankScore', () => {
     expect(weightedRankScore(b, { ...DEFAULT_PART_WEIGHTS })).toBe(50);
   });
 
-  it('raising flights moves the flight-strong trip ahead', () => {
-    const w = { ...DEFAULT_PART_WEIGHTS, flights: 2 };
+  it('raising cost moves the better-fitting trip ahead; flights have no slider', () => {
+    const w = { ...DEFAULT_PART_WEIGHTS, cost: 2 };
+    expect(weightedRankScore(a, w)).toBeGreaterThan(weightedRankScore(b, w));
+    expect(Object.keys(DEFAULT_PART_WEIGHTS)).not.toContain('flights');
+  });
+
+  it('raising weather moves the sunnier trip ahead', () => {
+    const w = { ...DEFAULT_PART_WEIGHTS, weather: 2 };
     expect(weightedRankScore(a, w)).toBeGreaterThan(weightedRankScore(b, w));
   });
 
   it('raising stay moves the stay-strong trip ahead', () => {
-    const w = { ...DEFAULT_PART_WEIGHTS, stay: 2 };
+    const w = { ...DEFAULT_PART_WEIGHTS, stay: 2, cost: 0.5, weather: 0.5 };
     expect(weightedRankScore(b, w)).toBeGreaterThan(weightedRankScore(a, w));
   });
 
   it('ignoring a part removes its influence and stays on the 0-100 scale', () => {
-    const none = { ...DEFAULT_PART_WEIGHTS, flights: 0 };
+    const none = { ...DEFAULT_PART_WEIGHTS, cost: 0, weather: 0 };
     const value = weightedRankScore(a, none);
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(100);
@@ -354,7 +360,81 @@ describe('weightedRankScore', () => {
 
   it('does not change the score the trip reports', () => {
     const before = JSON.stringify(a);
-    weightedRankScore(a, { ...DEFAULT_PART_WEIGHTS, flights: 2 });
+    weightedRankScore(a, { ...DEFAULT_PART_WEIGHTS, cost: 2 });
     expect(JSON.stringify(a)).toBe(before);
+  });
+
+  it('the Cost slider re-ranks only: scoring a trip leaves its total and score unchanged', () => {
+    const cost = { total: { amount: 123456, currency: 'EUR' } };
+    const reported = { ...a, cost };
+    const before = JSON.stringify(reported);
+    weightedRankScore(reported, { ...DEFAULT_PART_WEIGHTS, cost: 0 });
+    weightedRankScore(reported, { ...DEFAULT_PART_WEIGHTS, cost: 2 });
+    expect(JSON.stringify(reported)).toBe(before);
+    expect(reported.cost.total.amount).toBe(123456);
+    expect(reported.score).toBe(50);
+  });
+});
+
+describe('weightedRankScore with nature and food', () => {
+  const factors = (Object.keys(BASE_WEIGHTS) as ScoreFactorKey[]).map((key) => ({
+    key,
+    label: key,
+    value: 0.6,
+    weight: BASE_WEIGHTS[key],
+    contribution: 0.6 * BASE_WEIGHTS[key],
+  }));
+  const trip = (interests?: { nature: number | null; food: number | null }) => ({
+    score: 60,
+    factors,
+    strengths: [],
+    weaknesses: [],
+    evidenceStrength: 0.5,
+    ...(interests ? { interests } : {}),
+  });
+  const natureUp = { ...DEFAULT_PART_WEIGHTS, nature: 2 };
+  const foodUp = { ...DEFAULT_PART_WEIGHTS, food: 2 };
+
+  it('the new sliders default to normal and leave the engine score as it was', () => {
+    expect(DEFAULT_PART_WEIGHTS.nature).toBe(1);
+    expect(DEFAULT_PART_WEIGHTS.food).toBe(1);
+    expect(weightedRankScore(trip({ nature: 1, food: 1 }), DEFAULT_PART_WEIGHTS)).toBe(60);
+    // Lowering a slider below normal has nothing to take away.
+    expect(
+      weightedRankScore(trip({ nature: 0.1, food: 0.1 }), { ...DEFAULT_PART_WEIGHTS, nature: 0 }),
+    ).toBeCloseTo(60);
+  });
+
+  it('raising Nature puts the nature-rich trip ahead of an equal one', () => {
+    expect(weightedRankScore(trip({ nature: 0.9, food: 0.1 }), natureUp)).toBeGreaterThan(
+      weightedRankScore(trip({ nature: 0.1, food: 0.9 }), natureUp),
+    );
+  });
+
+  it('raising Food puts the food-rich trip ahead of an equal one', () => {
+    expect(weightedRankScore(trip({ nature: 0.1, food: 0.9 }), foodUp)).toBeGreaterThan(
+      weightedRankScore(trip({ nature: 0.9, food: 0.1 }), foodUp),
+    );
+  });
+
+  it('a null share is left out: the trip ranks as if the slider were not there, not as a zero', () => {
+    const left = weightedRankScore(trip({ nature: null, food: null }), natureUp);
+    const bare = weightedRankScore(trip(), natureUp);
+    const zero = weightedRankScore(trip({ nature: 0, food: null }), natureUp);
+
+    expect(left).toBeCloseTo(bare);
+    expect(left).toBeCloseTo(60);
+    expect(zero).toBeLessThan(left);
+  });
+
+  it('a food share does not move a Nature-only ranking', () => {
+    expect(weightedRankScore(trip({ nature: null, food: 1 }), natureUp)).toBeCloseTo(60);
+  });
+
+  it('does not change what the trip reports', () => {
+    const reported = trip({ nature: 0.9, food: 0.2 });
+    const before = JSON.stringify(reported);
+    weightedRankScore(reported, natureUp);
+    expect(JSON.stringify(reported)).toBe(before);
   });
 });

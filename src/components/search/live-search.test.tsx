@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { NumberStepperField } from '@/components/ui';
+import { AirportInput } from './airport-input';
 import { LiveSearchForm, liveSearchQuery } from './live-search';
 
 const push = vi.fn();
@@ -151,5 +152,178 @@ describe('LiveSearchForm', () => {
       vi.advanceTimersByTime(1000);
     });
     expect(push).not.toHaveBeenCalled();
+  });
+
+  describe('the Search button', () => {
+    function renderFull(origins = 'VIE') {
+      return render(
+        <LiveSearchForm action="/explore" label="Change this search">
+          <AirportInput
+            label="From"
+            name="origins"
+            defaultValue={origins}
+            airports={[] as never}
+            required
+          />
+          <NumberStepperField
+            label="Travellers"
+            name="passengers"
+            min={1}
+            max={9}
+            defaultValue="2"
+            required
+          />
+        </LiveSearchForm>,
+      );
+    }
+
+    it('is there, and submits with the same values Enter would use', () => {
+      renderFull();
+      const input = screen.getByRole('spinbutton', { name: /Travellers/ });
+      // Typing alone does not search.
+      fireEvent.change(input, { target: { value: '3' } });
+      expect(push).not.toHaveBeenCalled();
+
+      const button = screen.getByRole('button', { name: 'Search' });
+      expect(button).toHaveProperty('type', 'submit');
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+
+      expect(push).toHaveBeenCalledTimes(1);
+      const query = new URLSearchParams(String(push.mock.calls[0]![0]).split('?')[1]);
+      expect(query.get('passengers')).toBe('3');
+      expect(query.get('origins')).toBe('VIE');
+    });
+
+    it('is disabled while a field is missing, and says which in words', () => {
+      renderFull('');
+      expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
+      expect(screen.getByText('Add a departure airport')).toBeVisible();
+    });
+  });
+
+  describe('a picked place', () => {
+    const airports = [
+      { code: 'BTS', name: 'Bratislava', country: 'Slovakia', priceable: true },
+      { code: 'BUD', name: 'Budapest', country: 'Hungary', priceable: true },
+    ] as never;
+
+    function renderPlaces() {
+      return render(
+        <LiveSearchForm action="/explore" label="Change this search">
+          <AirportInput label="From" name="origins" defaultValue="VIE" airports={airports} />
+        </LiveSearchForm>,
+      );
+    }
+
+    it('starts the search at once, without the field being left', () => {
+      renderPlaces();
+      const field = screen.getByRole('combobox', { name: 'From' });
+      field.focus();
+      fireEvent.change(field, { target: { value: 'VIE, BU' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+
+      expect(document.activeElement).toBe(field);
+      expect(push).toHaveBeenCalledTimes(1);
+      const query = new URLSearchParams(String(push.mock.calls[0]![0]).split('?')[1]);
+      expect(query.get('origins')).toBe('VIE, BUD');
+    });
+
+    it('does not search while the place is only being typed', () => {
+      renderPlaces();
+      const field = screen.getByRole('combobox', { name: 'From' });
+      field.focus();
+      fireEvent.change(field, { target: { value: 'VIE, BU' } });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(push).not.toHaveBeenCalled();
+    });
+  });
+  describe('two finished places', () => {
+    const airports = [
+      { code: 'BUD', name: 'Budapest', country: 'Hungary', priceable: true },
+      { code: 'BTS', name: 'Bratislava', country: 'Slovakia', priceable: true },
+      { code: 'AYT', name: 'Antalya', country: 'Turkey', priceable: true },
+      { code: 'LIS', name: 'Lisbon', country: 'Portugal', priceable: true },
+    ] as never;
+
+    function renderTrip(date = '2026-12-01') {
+      return render(
+        <LiveSearchForm
+          action="/explore"
+          label="Change this search"
+          airportCodes={['BUD', 'BTS', 'AYT', 'LIS']}
+        >
+          <AirportInput label="From" name="origins" defaultValue="BTS" airports={airports} />
+          <AirportInput label="To" name="destinations" defaultValue="AYT" airports={airports} />
+          <label>
+            Leaving
+            <input type="date" name="departureDate" defaultValue={date} required />
+          </label>
+        </LiveSearchForm>,
+      );
+    }
+
+    it('searches once, 400 ms after the last change, with the field still focused', () => {
+      renderTrip();
+      const from = screen.getByRole('combobox', { name: 'From' });
+      from.focus();
+      fireEvent.change(from, { target: { value: 'BUD' } });
+      act(() => {
+        vi.advanceTimersByTime(399);
+      });
+      expect(push).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(push).toHaveBeenCalledTimes(1);
+      const query = new URLSearchParams(String(push.mock.calls[0]![0]).split('?')[1]);
+      expect(query.get('origins')).toBe('BUD');
+      expect(query.get('destinations')).toBe('AYT');
+    });
+
+    it('does not search while a code is partial or not in the airport list', () => {
+      renderTrip();
+      const from = screen.getByRole('combobox', { name: 'From' });
+      from.focus();
+      fireEvent.change(from, { target: { value: 'BU' } });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      fireEvent.change(from, { target: { value: 'BUD, ZZZ' } });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it('does not search the same values twice', () => {
+      renderTrip();
+      const from = screen.getByRole('combobox', { name: 'From' });
+      fireEvent.change(from, { target: { value: 'BUD' } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      fireEvent.change(from, { target: { value: 'BU' } });
+      fireEvent.change(from, { target: { value: 'BUD' } });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(push).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not search while a date is missing', () => {
+      renderTrip('');
+      const from = screen.getByRole('combobox', { name: 'From' });
+      fireEvent.change(from, { target: { value: 'BUD' } });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(push).not.toHaveBeenCalled();
+    });
   });
 });

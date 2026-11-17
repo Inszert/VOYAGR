@@ -44,9 +44,15 @@ const envSchema = z.object({
    *
    * Together with the target list in `src/cache/targets.ts` this is the whole
    * of the provider quota the background refresh spends; the arithmetic is in
-   * `docs/architecture.md`, "Caching and refresh".
+   * `docs/architecture.md`, "Caching and refresh". The default is 480: three rounds a day.
    */
-  PRICE_REFRESH_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
+  PRICE_REFRESH_MINUTES: z.coerce.number().int().min(1).max(1440).default(480),
+  /**
+   * Kill switch for the background discovery refresh. Unset means on. `false` on the worker
+   * schedules no round at all: not the interval, not the start-up round, not the 00:00 UTC
+   * rollover round. Places pre-warming (Wikidata) is a separate schedule and is unaffected.
+   */
+  DISCOVERY_REFRESH_ENABLED: booleanish.default(true),
   /**
    * How often the worker pre-warms things to do for the catalogue, in hours.
    *
@@ -228,6 +234,13 @@ const envSchema = z.object({
    * the live site (with a visible "Test prices" note). See `assertLiteApiKeyAllowed`.
    */
   LITEAPI_SANDBOX_IN_PRODUCTION: booleanish.default(false),
+  /**
+   * Demo mode: a visitor's flights and stays search may make live calls to the LiteAPI SANDBOX
+   * when no stored row answers it. For local testing only. Never true in production: see
+   * `demoLiveAllowed`, which also demands a sandbox key and a non-production app URL, and which
+   * `parseEnv` enforces at start-up.
+   */
+  DEMO_MODE: booleanish.default(false),
   /**
    * The scheduled LiteAPI snapshot (`src/liteapi-snapshot/`). Off by default: it spends vendor
    * calls on a schedule, and ships off until the provider's terms allow periodic refresh. With
@@ -428,6 +441,44 @@ function assertLiteApiKeyAllowed(source: Record<string, unknown>): void {
   );
 }
 
+/** The production site's host. Demo mode refuses it and every host that ends with it. */
+const PRODUCTION_HOST = 'voyagrfind.com';
+
+export type DemoLiveVerdict =
+  { readonly ok: true } | { readonly ok: false; readonly reason: string };
+
+/**
+ * May the demo live path (real LiteAPI sandbox calls from a visitor's search) run? Pure. Ok only
+ * when DEMO_MODE is on, the key is a sandbox key (`sand_`), and the app URL is not the production
+ * host. Otherwise a reason that never contains the key.
+ */
+export function demoLiveAllowed(
+  env: Pick<Env, 'DEMO_MODE' | 'LITEAPI_API_KEY' | 'NEXT_PUBLIC_APP_URL'>,
+): DemoLiveVerdict {
+  if (env.DEMO_MODE !== true) {
+    return { ok: false, reason: 'Demo live calls are off: DEMO_MODE is not true.' };
+  }
+  if (!env.LITEAPI_API_KEY || !env.LITEAPI_API_KEY.startsWith('sand_')) {
+    return {
+      ok: false,
+      reason: 'Demo live calls need a LiteAPI sandbox key (LITEAPI_API_KEY starting with sand_).',
+    };
+  }
+  let hostname: string;
+  try {
+    hostname = new URL(env.NEXT_PUBLIC_APP_URL).hostname.toLowerCase();
+  } catch {
+    return { ok: false, reason: 'Demo live calls are refused: the app URL is not a valid URL.' };
+  }
+  if (hostname === PRODUCTION_HOST || hostname.endsWith(PRODUCTION_HOST)) {
+    return {
+      ok: false,
+      reason: `Demo live calls are refused on the production host (${PRODUCTION_HOST}).`,
+    };
+  }
+  return { ok: true };
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const present = stripEmptyStrings(source);
   assertProductionAppUrl(present);
@@ -442,6 +493,16 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
       (issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`,
     );
     throw new EnvValidationError(issues);
+  }
+
+  // Demo mode asked for, but not allowed here: refuse to start, saying why (never the key).
+  if (result.data.DEMO_MODE) {
+    const verdict = demoLiveAllowed(result.data);
+    if (!verdict.ok) {
+      throw new AppError('CONFIGURATION_ERROR', verdict.reason, {
+        context: { variable: 'DEMO_MODE', problem: 'demo_not_allowed' },
+      });
+    }
   }
 
   return result.data;

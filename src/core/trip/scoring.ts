@@ -1,5 +1,6 @@
 import { ratio, type Money } from '../money';
 import type { TripCost } from './cost';
+import { type InterestShares } from './interest-share';
 import { connectionCount } from './legs';
 import { computeUsableTime, usableTimeEfficiency } from './usable-time';
 import type { OptimisationMode, SearchProfile, TravelStyle, TripCandidate } from './types';
@@ -48,6 +49,11 @@ export interface TripScore {
    * Reported separately so a confident-looking score cannot hide thin evidence.
    */
   readonly evidenceStrength: number;
+  /**
+   * How nature- and food-rich the destination is, 0-1 each, or null where the
+   * places cache had nothing. Ranking reads them; they are not part of `score`.
+   */
+  readonly interests?: InterestShares;
 }
 
 export type ScoreWeights = Record<ScoreFactorKey, number>;
@@ -118,39 +124,56 @@ export function resolveWeights(style: TravelStyle, mode: OptimisationMode): Scor
  * How much the user cares about each part of a trip, for ranking only.
  *
  * A multiplier in 0..2 per part, 1 meaning "as the engine already weighs it".
- * It scales the existing factors a part owns and invents none: flights own
- * flight quality, stay owns hotel quality and location, activities own weather
- * and usable time, transfers own the transfer. Budget fit and data confidence
- * belong to no part and are never scaled.
+ * It scales the existing factors a part owns and invents none: stay owns hotel
+ * quality and location, transfers own the transfer, cost owns budget fit and
+ * weather owns weather. Flight quality, usable time and data confidence belong
+ * to no slider: flights still count at their normal weight and are never scaled.
  *
- * It re-orders trips. It never touches `TripScore.score` or a factor's value.
+ * It re-orders trips. It never touches `TripScore.score`, a factor's value or a price.
  */
 export interface PartWeights {
-  readonly flights: number;
   readonly stay: number;
-  readonly activities: number;
   readonly transfers: number;
+  readonly cost: number;
+  /** Things to do of kind outdoors and beaches, as a share of the destination's places. */
+  readonly nature: number;
+  readonly weather: number;
+  /** Things to do of kind food, as a share of the destination's places. */
+  readonly food: number;
 }
 
 export type TripPart = keyof PartWeights;
 
 export const DEFAULT_PART_WEIGHTS: PartWeights = {
-  flights: 1,
   stay: 1,
-  activities: 1,
   transfers: 1,
+  cost: 1,
+  nature: 1,
+  weather: 1,
+  food: 1,
 };
+
+/**
+ * What nature and food are worth in a ranking, out of a total of 1.
+ *
+ * They are not factors of the engine's score (that would move every reported
+ * score), so they get a rank-only weight that is zero at the slider's normal
+ * position and grows as it is raised: a slider at 2 adds this much weight, at 1
+ * or below adds none. A destination with no share (null) takes no part at all.
+ */
+export const INTEREST_RANK_WEIGHT = 0.15;
+
+const INTEREST_PARTS = ['nature', 'food'] as const;
 
 export const PART_WEIGHT_MIN = 0;
 export const PART_WEIGHT_MAX = 2;
 
 const PART_OF_FACTOR: Partial<Record<ScoreFactorKey, TripPart>> = {
-  flight_quality: 'flights',
   hotel_quality: 'stay',
   location: 'stay',
-  weather: 'activities',
-  usable_time: 'activities',
   transfer: 'transfers',
+  budget_fit: 'cost',
+  weather: 'weather',
 };
 
 export function isDefaultPartWeights(weights: Partial<PartWeights> | undefined): boolean {
@@ -181,6 +204,17 @@ export function weightedRankScore(score: TripScore, weights?: Partial<PartWeight
       : 1;
     weighted += factor.value * factor.weight * multiplier;
     total += factor.weight * multiplier;
+  }
+
+  // A share that is null is left out of this trip's ranking, never counted as 0.
+  for (const part of INTEREST_PARTS) {
+    const share = score.interests?.[part];
+    if (share === null || share === undefined) continue;
+
+    const multiplier = Math.min(PART_WEIGHT_MAX, Math.max(PART_WEIGHT_MIN, weights?.[part] ?? 1));
+    const weight = INTEREST_RANK_WEIGHT * Math.max(0, multiplier - 1);
+    weighted += clamp01(share) * weight;
+    total += weight;
   }
 
   return total === 0 ? score.score : clamp01(weighted / total) * 100;
@@ -417,6 +451,7 @@ export function scoreTrip(
   candidate: TripCandidate,
   cost: TripCost,
   profile: SearchProfile,
+  interests?: InterestShares,
 ): TripScore {
   const weights = resolveWeights(profile.travelStyle, profile.optimisationMode);
 
@@ -454,5 +489,6 @@ export function scoreTrip(
     strengths: byContribution.slice(0, 3),
     weaknesses: byShortfall.reverse().slice(0, 3),
     evidenceStrength: values.data_confidence,
+    ...(interests ? { interests } : {}),
   };
 }

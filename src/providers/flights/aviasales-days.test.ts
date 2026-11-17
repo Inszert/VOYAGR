@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { money } from '@/core/money';
 import { legArrival } from '@/core/trip/legs';
 import { loadCassette } from '../http/cassette';
@@ -10,7 +10,11 @@ import {
   readV1CalendarRow,
   readV2LatestRow,
   readV3DayRow,
+  resetAviasalesPause,
 } from './aviasales';
+
+// A 429 pauses the vendor for the whole process; one test's pause must not reach the next.
+beforeEach(resetAviasalesPause);
 
 /**
  * The party's price, the arrival nobody stated, and the single days of a
@@ -251,6 +255,90 @@ describe('a 429 from the Travelpayouts rate limit (real shape: text/plain, x-rat
     expect(calls).toBe(1);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('PROVIDER_UNAVAILABLE');
+  });
+});
+
+describe('the pause after a 429', () => {
+  const throttled = (reset?: string) =>
+    new Response('Too Many Requests', {
+      status: 429,
+      headers: reset === undefined ? {} : { 'x-rate-limit-reset': reset },
+    });
+  const okBody = () => new Response(JSON.stringify({ success: true, currency: 'eur', data: [] }));
+
+  const setup = (reply: () => Response) => {
+    const clock = { ms: Date.parse('2026-11-16T10:00:00Z') };
+    let calls = 0;
+    const provider = new AviasalesFlightProvider({
+      token: 'test-token-not-a-real-credential',
+      now: () => new Date(clock.ms),
+      sleep: () => Promise.reject(new Error('must not wait')),
+      fetchImpl: () => {
+        calls += 1;
+        return Promise.resolve(reply());
+      },
+    });
+    const ask = () => provider.monthFareSources[0]!.fetch(query());
+    return { clock, ask, calls: () => calls };
+  };
+
+  it('fails the next call at once, with no request, and does not retry it', async () => {
+    const { ask, calls } = setup(() => throttled('30'));
+    await ask();
+    expect(calls()).toBe(1);
+
+    const next = await ask();
+    const third = await ask();
+    expect(calls()).toBe(1);
+    expect(next.ok).toBe(false);
+    expect(third.ok).toBe(false);
+    if (!next.ok) expect(next.error.code).toBe('PROVIDER_UNAVAILABLE');
+  });
+
+  it('ends after the reset and calls resume', async () => {
+    let answer = () => throttled('30');
+    const { clock, ask, calls } = setup(() => answer());
+    await ask();
+    clock.ms += 29_000;
+    await ask();
+    expect(calls()).toBe(1);
+
+    answer = okBody;
+    clock.ms += 1_001;
+    const resumed = await ask();
+    expect(calls()).toBe(2);
+    expect(resumed.ok).toBe(true);
+  });
+
+  it('is ten seconds when the header is missing', async () => {
+    const { clock, ask, calls } = setup(() => throttled());
+    await ask();
+    clock.ms += 9_999;
+    await ask();
+    expect(calls()).toBe(1);
+    clock.ms += 2;
+    await ask();
+    expect(calls()).toBe(2);
+  });
+
+  it('is capped at sixty seconds', async () => {
+    const { clock, ask, calls } = setup(() => throttled('3600'));
+    await ask();
+    clock.ms += 59_999;
+    await ask();
+    expect(calls()).toBe(1);
+    clock.ms += 2;
+    await ask();
+    expect(calls()).toBe(2);
+  });
+
+  it('is shared by every provider instance in the process', async () => {
+    const a = setup(() => throttled('30'));
+    const b = setup(() => okBody());
+    await a.ask();
+    const other = await b.ask();
+    expect(b.calls()).toBe(0);
+    expect(other.ok).toBe(false);
   });
 });
 

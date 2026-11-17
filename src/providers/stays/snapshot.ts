@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { err, ok } from '@/lib/result';
 import { readSnapshot, type SnapshotReadDependencies } from '@/liteapi-snapshot/read';
+import { defaultDemoLive, type DemoLive } from '../demo-live';
 import type { ProviderResult } from '../types';
 import type { StayProvider } from './types';
 
@@ -27,6 +28,8 @@ export interface SnapshotStayProviderOptions {
   /** Defaults to the real repositories and env, resolved on each search. */
   readonly dependencies?: () => SnapshotReadDependencies;
   readonly now?: () => number;
+  /** DEMO ONLY: undefined resolves from the environment (null unless allowed); null is off. */
+  readonly demoLive?: DemoLive | null;
 }
 
 /** Null without a key, as the live adapter was: the provider is then absent from the registry. */
@@ -64,6 +67,12 @@ export class SnapshotStayProvider implements StayProvider {
         (this.options.now ?? Date.now)(),
         this.options.dependencies?.(),
       );
+      if (read.offers.length === 0) {
+        // DEMO ONLY: no stored row, so ask the sandbox live (cached, counted, guarded).
+        const demo =
+          this.options.demoLive === undefined ? defaultDemoLive() : this.options.demoLive;
+        if (demo) return await demo.stays(query);
+      }
       return ok(read.offers);
     } catch (error) {
       // Our own database, not the vendor: one fewer source, never an empty page.

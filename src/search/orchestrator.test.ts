@@ -18,12 +18,17 @@ import { MemoryCacheStore } from '@/cache/memory';
 import type {
   FlightProvider,
   HotelProvider,
+  PlacesProvider,
   ProviderHealth,
   ProviderPage,
   ProviderResult,
+  ThingKind,
+  ThingToDo,
   TransferProvider,
   WeatherProvider,
 } from '@/providers/types';
+import { warmThingsToDo } from '@/discovery/things-to-do';
+import { resolveDestinationGeo } from './destination-names';
 import { type ProviderCallObservation, runSearch, type SearchDependencies } from './orchestrator';
 import { DEFAULT_SEARCH_LIMITS, type SearchRequest } from './types';
 
@@ -612,6 +617,40 @@ describe('runSearch diagnostics and bounds', () => {
     expect(outcome.results.length).toBeGreaterThan(0);
   });
 
+  it('shares one limiter per vendor between concurrent searches', async () => {
+    // 120 a minute is two slots. Two searches at once must still hold the
+    // vendor to two in flight between them, not two each.
+    let inFlight = 0;
+    let peak = 0;
+    const shared: HotelProvider = {
+      metadata: {
+        ...createMockHotelProvider().metadata,
+        id: 'shared-limiter-test-vendor',
+        rateLimitPerMinute: 120,
+      },
+      checkHealth: async () => healthy,
+      searchHotels: async (query, options) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        inFlight -= 1;
+        return createMockHotelProvider().searchHotels(query, options);
+      },
+    };
+
+    const [first, second] = await Promise.all([
+      search({ limits: { providerConcurrency: 8 } }, { hotels: shared }),
+      search(
+        { destinations: ['AYT', 'CHQ'], limits: { providerConcurrency: 8 } },
+        { hotels: shared },
+      ),
+    ]);
+
+    expect(first.results.length).toBeGreaterThan(0);
+    expect(second.results.length).toBeGreaterThan(0);
+    expect(peak).toBe(2);
+  });
+
   it('stops calling once the search has spent its call ceiling, and says so', async () => {
     const outcome = await search({
       destinations: ['AYT', 'CHQ', 'SPU'],
@@ -1155,5 +1194,112 @@ describe('runSearch against a vendor that answers by the month', () => {
     );
 
     expect(asked.sort()).toEqual(['2026-11|2026-11', '2026-11|2026-12', '2026-12|2026-12']);
+  });
+});
+
+describe('nature and food from the things-to-do cache', () => {
+  const thing = (id: number, kind: ThingKind): ThingToDo => ({
+    id: `Q${id}`,
+    providerId: 'wikidata',
+    name: `Place ${id}`,
+    kind,
+    description: null,
+    latitude: 0,
+    longitude: 0,
+    distanceFromCentreMetres: 100,
+    notability: 10,
+    wikipediaUrl: null,
+    imageFile: null,
+  });
+
+  const places = (kinds: Record<string, ThingKind[]>) => {
+    const thingsToDo = vi.fn(async (query: { destination: string }) =>
+      ok((kinds[query.destination] ?? []).map((kind, index) => thing(index, kind))),
+    );
+    const provider = {
+      metadata: {
+        id: 'wikidata',
+        kind: 'places',
+        displayName: 'Wikidata',
+        isMock: false,
+        mode: 'live',
+        rateLimitPerMinute: 10,
+      },
+      checkHealth: async () => healthy,
+      searchPlaces: async () => ok([]),
+      thingsToDo,
+    } as unknown as PlacesProvider;
+    return { provider, thingsToDo };
+  };
+
+  const seed = async (store: MemoryCacheStore, provider: PlacesProvider, codes: string[]) => {
+    for (const code of codes) {
+      const geo = resolveDestinationGeo(code)!;
+      await warmThingsToDo({
+        destination: code,
+        destinationName: geo.name,
+        position: geo.position,
+        provider,
+        store,
+        fetchCredits: async () => ok(new Map()),
+      });
+    }
+  };
+
+  const natureUp = { stay: 1, transfers: 1, cost: 1, nature: 2, weather: 1, food: 1 };
+  const destinations = ['AYT', 'SPU'];
+
+  it('raising Nature moves the nature-rich destination ahead', async () => {
+    const { provider, thingsToDo } = places({
+      AYT: ['sights', 'sights', 'sights', 'sights', 'museums', 'museums', 'food', 'culture'],
+      SPU: ['outdoors', 'outdoors', 'outdoors', 'beaches', 'beaches', 'sights'],
+    });
+    const store = new MemoryCacheStore();
+    await seed(store, provider, destinations);
+    thingsToDo.mockClear();
+
+    const rankOf = (trips: readonly { candidate: { destination: string } }[], code: string) =>
+      trips.findIndex((trip) => trip.candidate.destination === code);
+
+    const normal = await search({ destinations }, { places: provider, thingsStore: store });
+    const nature = await search(
+      { destinations, partWeights: natureUp },
+      { places: provider, thingsStore: store },
+    );
+
+    const spu = nature.results.find((trip) => trip.candidate.destination === 'SPU');
+    expect(spu?.score.interests?.nature).toBeCloseTo(5 / 6);
+    expect(rankOf(nature.results, 'SPU')).toBeLessThanOrEqual(rankOf(normal.results, 'SPU'));
+    expect(nature.results[0]?.candidate.destination).toBe('SPU');
+    expect(thingsToDo).not.toHaveBeenCalled();
+  });
+
+  it('a cache miss is a null factor and makes no places provider call', async () => {
+    const { provider, thingsToDo } = places({ AYT: ['outdoors'], SPU: ['outdoors'] });
+    const empty = new MemoryCacheStore();
+
+    const baseline = await search({ destinations });
+    const outcome = await search(
+      { destinations, partWeights: natureUp },
+      { places: provider, thingsStore: empty },
+    );
+
+    expect(outcome.results.length).toBeGreaterThan(0);
+    for (const trip of [...outcome.results, ...outcome.nearMisses]) {
+      expect(trip.score.interests).toEqual({ nature: null, food: null });
+    }
+    expect(thingsToDo).not.toHaveBeenCalled();
+    expect(outcome.diagnostics.providerCalls).toBe(baseline.diagnostics.providerCalls);
+  });
+
+  it('reads nothing when neither slider was moved', async () => {
+    const { provider, thingsToDo } = places({});
+    const outcome = await search(
+      { destinations },
+      { places: provider, thingsStore: new MemoryCacheStore() },
+    );
+
+    expect(outcome.results[0]?.score.interests).toBeUndefined();
+    expect(thingsToDo).not.toHaveBeenCalled();
   });
 });

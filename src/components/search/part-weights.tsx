@@ -10,8 +10,8 @@ import { weightWord } from './part-weight-words';
 /**
  * "What matters most": one slider per part of the trip.
  *
- * It only re-orders. The sliders write `wFlights` / `wStay` / `wActivities` /
- * `wTransfers` into the address, and the server ranks with them; no figure is
+ * It only re-orders. The sliders write `wStay` / `wTransfers` / `wCost` /
+ * `wNature` / `wWeather` / `wFood` into the address, and the server ranks with them; no figure is
  * computed here. A change applies on release (the native `change` event of a
  * range input), not on every pixel the thumb crosses.
  *
@@ -22,10 +22,12 @@ import { weightWord } from './part-weight-words';
  */
 
 const PARTS = [
-  { part: 'flights', label: 'Flights' },
   { part: 'stay', label: 'Stay' },
-  { part: 'activities', label: 'Activities' },
   { part: 'transfers', label: 'Transfers' },
+  { part: 'cost', label: 'Cost' },
+  { part: 'nature', label: 'Nature' },
+  { part: 'weather', label: 'Weather' },
+  { part: 'food', label: 'Food' },
 ] as const;
 
 type Part = (typeof PARTS)[number]['part'];
@@ -66,7 +68,7 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
     });
 
   const reset = () => {
-    setShown({ flights: 1, stay: 1, activities: 1, transfers: 1 });
+    setShown({ stay: 1, transfers: 1, cost: 1, nature: 1, weather: 1, food: 1 });
     write((params) => {
       for (const { part } of PARTS) params.delete(PART_WEIGHT_PARAMS[part]);
     });

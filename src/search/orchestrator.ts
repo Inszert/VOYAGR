@@ -10,6 +10,7 @@ import { summariseDestinations } from './destinations';
 import { AppError, isAppError } from '@/lib/errors';
 import { err, ok } from '@/lib/result';
 import { createLimiterPool, type LimiterPool } from '@/lib/concurrency';
+import { sharedVendorLimiters } from '@/providers/limiters';
 import { callsWithin, concurrencyFor } from '@/providers/rate';
 import { resolvePolicy } from '@/providers/policy';
 import { convert, fixedRates, type ConversionFailure, type RateSource } from '@/core/fx';
@@ -66,6 +67,14 @@ import type {
 import { getCacheStore, type CacheStore } from '@/cache';
 import { pairOneWayFares, withPairs } from '@/core/trip/one-way-pair';
 import { loadOneWayMonth } from './one-way';
+import {
+  interestShares,
+  NO_INTEREST_SHARES,
+  type InterestShares,
+} from '@/core/trip/interest-share';
+import { cachedCountsByKind } from '@/discovery/things-to-do';
+import { resolveDestinationGeo } from './destination-names';
+import type { PlacesProvider } from '@/providers/types';
 
 /**
  * Search orchestration (implementation plan 1.1).
@@ -131,6 +140,54 @@ export interface SearchDependencies {
   readonly observe?: (call: ProviderCallObservation) => void;
   /** Where one-way months are cached. Defaults to the shared store. */
   readonly oneWayStore?: CacheStore;
+  /** Where things to do are read from, cache only. Defaults to the shared store. */
+  readonly thingsStore?: CacheStore;
+  /** Names the cache key of the things-to-do entries. Never called for data. Defaults to the registry's. */
+  readonly places?: PlacesProvider;
+}
+
+/**
+ * Nature and food shares for each destination, read once, from the cache only.
+ *
+ * Only read when the person moved one of those two sliders, so a default search
+ * does no extra work. A miss, an unplaced destination or a failed read is a
+ * null share: left out of that trip's ranking, never counted as zero. There is
+ * no provider call here.
+ */
+async function readInterestShares(
+  plan: SearchPlan,
+  deps: SearchDependencies,
+  request: SearchRequest,
+): Promise<Map<AirportCode, InterestShares>> {
+  const shares = new Map<AirportCode, InterestShares>();
+  const weights = request.partWeights;
+  if (!weights || (weights.nature === 1 && weights.food === 1)) return shares;
+
+  await Promise.all(
+    plan.destinations.map(async (destination) => {
+      const geo = resolveDestinationGeo(destination);
+      if (!geo) {
+        shares.set(destination, NO_INTEREST_SHARES);
+        return;
+      }
+
+      try {
+        const counts = await cachedCountsByKind({
+          destination,
+          destinationName: geo.name,
+          position: geo.position,
+          ...(deps.places ? { provider: deps.places } : {}),
+          ...(deps.thingsStore ? { store: deps.thingsStore } : {}),
+        });
+        shares.set(destination, interestShares(counts));
+      } catch (error) {
+        log.warn({ destination, err: error }, 'things to do shares unavailable; left out');
+        shares.set(destination, NO_INTEREST_SHARES);
+      }
+    }),
+  );
+
+  return shares;
 }
 
 /**
@@ -382,7 +439,10 @@ async function callProvider<T>(
      * decides how big that provider's slot pool is. Acquiring one around the
      * fan-out instead would deadlock: see the rule in `concurrency.ts`.
      */
-    const limiter = budget.pool.for(
+    // A vendor that states a rate limit has one limiter for the whole process;
+    // one that does not (every mock) keeps the search's own pool.
+    const pool = rateLimitPerMinute === null ? budget.pool : sharedVendorLimiters();
+    const limiter = pool.for(
       context.providerId,
       concurrencyFor(rateLimitPerMinute, budget.concurrency, typicalLatencyMs),
     );
@@ -1322,6 +1382,8 @@ export async function runSearch(
     providerSource('transfers', deps.transfers),
   ];
 
+  const interests = await readInterestShares(plan, deps, request);
+
   const ranked: RankedTrip[] = [];
   const rates = deps.rates ?? fixedRates([]);
 
@@ -1357,7 +1419,12 @@ export async function runSearch(
     // Attached to the trip itself, not just counted: the aggregate banner and
     // one card's own notice must never disagree, and this is the one place
     // both are computed from - the same clock, the same rule.
-    ranked.push({ ...trip, quoteFreshness: tripFreshness });
+    const tripInterests = interests.get(candidate.destination);
+    ranked.push({
+      ...trip,
+      ...(tripInterests ? { score: { ...trip.score, interests: tripInterests } } : {}),
+      quoteFreshness: tripFreshness,
+    });
   }
 
   const eligible = ranked
@@ -1390,7 +1457,9 @@ export async function runSearch(
     flightOffersFound,
     peakProviderConcurrency: Math.max(
       0,
-      ...[...budget.pool.limiters.values()].map((limiter) => limiter.peakInFlight),
+      ...[...budget.pool.limiters.values(), ...sharedVendorLimiters().limiters.values()].map(
+        (limiter) => limiter.peakInFlight,
+      ),
     ),
     issues,
     degraded: issues.length > 0,

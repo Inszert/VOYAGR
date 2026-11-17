@@ -129,6 +129,14 @@ export const flightOfferSchema = z
     // Set only by the search when it pairs two one-way fares; never by a vendor.
     ticketing: z.literal('two_one_way').optional(),
     returnDeepLink: z.string().url().optional(),
+    // Set by our own snapshot reader (never a vendor): where the price came from.
+    source: z
+      .object({
+        displayName: z.string().min(1),
+        mode: z.enum(['mock', 'test', 'indicative', 'live', 'absent']),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

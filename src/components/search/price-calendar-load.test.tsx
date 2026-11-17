@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { PriceCalendar, type PriceCalendarLoad } from './price-calendar';
 
 /**
@@ -175,5 +175,60 @@ describe('PriceCalendar loading', () => {
     expect(day.tagName).toBe('SPAN');
     expect(day.textContent).toContain('€28');
     expect(day.getAttribute('aria-label')).not.toMatch(/whole trip|flights only|cheapest/);
+  });
+
+  describe('return options for a chosen departure', () => {
+    const ret = (returnDate: string, amount: number) => ({
+      returnDate,
+      exact: `€${amount}.00`,
+      whole: `€${amount}`,
+      perPerson: `€${amount}`,
+      amount,
+    });
+
+    function monthWithReturns(name: string) {
+      const base = month(name);
+      const days = base.days as Record<string, Record<string, unknown>>;
+      const returns = [ret(`${name}-18`, 150), ret(`${name}-15`, 90), ret(`${name}-16`, 120)].sort(
+        (a, b) => a.amount - b.amount,
+      );
+      days[`${name}-12`] = { ...returns[0]!, returns };
+      return base;
+    }
+
+    it('lists each return with its date and total, cheapest first; the day cell keeps the cheapest', async () => {
+      const asked = stubFetch((name) => json(monthWithReturns(name)));
+
+      renderCalendar();
+      const cell = await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ });
+      expect(cell.textContent).toContain('€90');
+      fireEvent.click(cell);
+
+      const list = await screen.findByRole('list', { name: /Return options for leaving/ });
+      const links = within(list).getAllByRole('link');
+      expect(links).toHaveLength(3);
+      expect(links.map((link) => link.getAttribute('href'))).toEqual([
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-15',
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-16',
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-18',
+      ]);
+      expect(links[0]!.textContent).toContain('€90.00');
+      expect(links[2]!.textContent).toContain('€150.00');
+      expect(links[0]!.textContent).toContain('15 December 2026');
+
+      // Choosing one adds no request: only the months, fetched before the pick.
+      const before = asked.length;
+      expect(vi.mocked(fetch).mock.calls.length).toBe(before);
+    });
+
+    it('lists a departure with one return as a list of one, with no error', async () => {
+      stubFetch((name) => json(month(name)));
+
+      renderCalendar();
+      const cell = await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ });
+      fireEvent.click(cell);
+      expect(await screen.findByRole('list', { name: /Return options for leaving/ })).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
   });
 });

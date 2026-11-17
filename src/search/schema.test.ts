@@ -398,17 +398,32 @@ describe('part weights in the address', () => {
   });
 
   it('are read, clamped to the range and rounded to quarters', () => {
-    const result = parse({ wFlights: '2', wStay: '0', wActivities: '1.3337', wTransfers: '1' });
+    const result = parse({ wStay: '2', wTransfers: '0', wCost: '1.3337', wWeather: '1' });
     expect(result.ok && result.value.request.partWeights).toEqual({
-      flights: 2,
-      stay: 0,
-      activities: 1.25,
-      transfers: 1,
+      stay: 2,
+      transfers: 0,
+      cost: 1.25,
+      nature: 1,
+      weather: 1,
+      food: 1,
     });
   });
 
+  it('read wNature and wFood, default 1, within 0 to 2', () => {
+    const result = parse({ wNature: '2', wFood: '0' });
+    expect(result.ok && result.value.request.partWeights).toMatchObject({ nature: 2, food: 0 });
+    const bad = parse({ wNature: '3', wFood: 'x' });
+    expect(bad.ok && bad.value.request.partWeights).toBeUndefined();
+  });
+
   it('fall back to normal when unreadable or out of range', () => {
-    const result = parse({ wFlights: 'lots', wStay: '9', wActivities: '-1', wTransfers: '' });
+    const result = parse({ wStay: 'lots', wTransfers: '9', wCost: '-1', wWeather: '' });
+    expect(result.ok && result.value.request.partWeights).toBeUndefined();
+  });
+
+  it('ignore the retired wFlights and wActivities without error', () => {
+    const result = parse({ wFlights: '2', wActivities: '0' });
+    expect(result.ok).toBe(true);
     expect(result.ok && result.value.request.partWeights).toBeUndefined();
   });
 });

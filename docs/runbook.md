@@ -42,7 +42,8 @@ printed or logged; the environment report shows only whether each one is set.
 | `DATABASE_SSL`                       | `false`                 | The database needs TLS with certificate checking. `scripts/migrate.mjs` enables TLS only for the exact value `true`.                                                                                                                                                                                                     |
 | `REDIS_URL`                          | unset                   | Shared cache and the BullMQ queue. Needed with `QUEUE_DRIVER=bullmq`.                                                                                                                                                                                                                                                    |
 | `QUEUE_DRIVER`                       | `memory`                | `bullmq` for the web service and worker to share jobs. Requires `REDIS_URL`.                                                                                                                                                                                                                                             |
-| `PRICE_REFRESH_MINUTES`              | `30` (1 to 1440)        | How often the worker re-prices what the front pages show. The worker reads it at start, so restart it after a change. Trade-off in section 5.                                                                                                                                                                            |
+| `DISCOVERY_REFRESH_ENABLED`          | `true`                  | Kill switch. Set `false` on the **worker** to pause the background discovery refresh: no interval round, no start-up round, no 00:00 UTC roll-over round (it logs `discovery refresh disabled by configuration`). Places pre-warming is separate. Restart the worker after a change.                                     |
+| `PRICE_REFRESH_MINUTES`              | `480` (1 to 1440)       | How often the worker re-prices the launch set the front pages show: 480 is three rounds a day. The worker reads it at start, so restart it after a change. Trade-off in section 5.                                                                                                                                       |
 | `PLACES_REFRESH_HOURS`               | `168` (1 to 720)        | How often the worker pre-warms things to do. Each round covers at most 40 destinations that are not already fresh, a minute apart. Read at worker start. Longer is kinder to Wikidata.                                                                                                                                   |
 | `LITEAPI_SNAPSHOT_ENABLED`           | `false`                 | Turns on the scheduled LiteAPI hotel snapshot in the worker (section 4a). Needs `LITEAPI_API_KEY`. Read at worker start.                                                                                                                                                                                                 |
 | `LITEAPI_SNAPSHOT_ORIGINS`           | `BUD,VIE,PRG,LON`       | Departure cities the flight snapshot prices (three-letter codes). Each adds up to 54 flight calls a day at three refreshes. Needs the snapshot flag.                                                                                                                                                                     |
@@ -83,7 +84,7 @@ There is no external cron. Schedules are timers inside the worker:
 | Watch scheduler             | every 60 s, plus once at start                                                                                     | `src/watches/scheduler.ts`     | `initial sweep complete`; `scheduler started`                                         |
 | `travel-watch.refresh`      | per due watch                                                                                                      | `src/watches/refresh.ts`       | per-job logs                                                                          |
 | `notification.deliver`      | per notification                                                                                                   | `src/notifications/deliver.ts` | `notification delivery attempted` (`notifications.deliver`)                           |
-| `cache.refresh`             | every `PRICE_REFRESH_MINUTES` (30), staggered across the interval, first round at start                            | `src/cache/refresh.ts`         | `cache refresh scheduled`, then `cache target refreshed` per target (`cache.refresh`) |
+| `cache.refresh`             | every `PRICE_REFRESH_MINUTES` (480), staggered across the interval, first round at start                           | `src/cache/refresh.ts`         | `cache refresh scheduled`, then `cache target refreshed` per target (`cache.refresh`) |
 | `cache.refresh` (date roll) | within 30 s of the UTC date changing; a full round, staggered                                                      | `src/cache/refresh.ts`         | `the UTC date changed; starting a cache refresh round` (`cache.refresh`)              |
 | `cache.refresh` (places)    | every `PLACES_REFRESH_HOURS` (168), plus once at start; up to 40 destinations, a minute apart, skipping fresh ones | `src/cache/refresh.ts`         | `places target refreshed` per destination (`cache.refresh`)                           |
 | Expired session sweep       | every 6 h, plus once at start                                                                                      | `src/worker/maintenance.ts`    | `expired sessions swept` (only when something was removed)                            |
@@ -384,6 +385,27 @@ Unit-tested; not verified on a deployed host.
 `/status` (`src/app/(column)/status/page.tsx`) is the operator page. It shows which providers are
 connected, the cache backend and its last refresh and warm targets, and each provider's calls, errors,
 timeouts and rate limits over the last day. Call rows are pruned after 30 days.
+
+## 9a. Demo (live sandbox, local only)
+
+`npm run demo` builds the app into `.next-demo` and serves it on <http://localhost:3200> (open `/explore`).
+Flights and stays come **live from the Nuitee (LiteAPI) SANDBOX**: real responses, but sandbox prices are
+not real, and the page carries the "Test prices" note. Weather, places, FX, AI, email and transfers stay
+fixtures; the cache and queue are in memory (no database, no Redis, no worker); the LiteAPI snapshot and
+discovery refresh are off; photographs use Wikimedia, as the app does.
+
+- **Live, limited, cached.** When no stored row answers a search, the flights and stays readers call the
+  sandbox (`src/providers/demo-live.ts`). At most **200 live calls per process**; after that the call is
+  refused with "The demo call limit was reached". Each answer is **cached in memory for 60 minutes**, so
+  repeating a search costs nothing.
+- **Locked by the guard.** The path runs only when `DEMO_MODE=true`, `LITEAPI_API_KEY` starts with
+  `sand_`, and `NEXT_PUBLIC_APP_URL` is not `voyagrfind.com` or any host ending with it
+  (`demoLiveAllowed` in `src/lib/env.ts`). If `DEMO_MODE` is on and the guard fails, the app refuses to
+  start and says why (never the key). **Never set `DEMO_MODE` in production.** With it off, which is the
+  default, the readers never call the vendor.
+- **The key.** The script reads `LITEAPI_API_KEY` from `.env` itself, refuses to start without a
+  `sand_` key, passes only that key to the server, and never prints it. The script's own settings win
+  over `.env`. Stop it with Ctrl+C.
 
 ## 10. Known gaps
 

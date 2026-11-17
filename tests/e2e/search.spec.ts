@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { axeFindings, waitForEntranceMotion } from './support/axe';
 import { watchRequests } from './support/requests';
-import { aSearch, closeSearch, openSearch } from './support/searches';
+import { aSearch, closeSearch, hydrated, openSearch } from './support/searches';
 
 /**
  * Search end to end.
@@ -417,6 +417,15 @@ test.describe('running a search', () => {
     await page.goto(A_SEARCH);
     await resultsOn(page);
     const before = await page.getByRole('article').count();
+
+    // On a phone the filter panel starts closed behind its "Filters" toggle; on
+    // desktop it starts open. Wait for hydration first, because the server HTML
+    // shows the panel open and only the client closes it on a phone.
+    const filtersToggle = page.getByRole('button', { name: 'Filters', exact: true });
+    await hydrated(filtersToggle);
+    if ((await filtersToggle.getAttribute('aria-expanded')) === 'false') {
+      await filtersToggle.click();
+    }
 
     // Clicked by its label, which is what a user does: the input itself is
     // visually hidden so the chip can be styled, and only the label is a

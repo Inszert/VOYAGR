@@ -13,7 +13,6 @@ import { getLogger } from '@/lib/logger';
 import { cacheKey, getCacheStore, readThrough } from '@/cache';
 import { requestCacheRefresh } from '@/cache/request-refresh';
 import { ageOf } from '@/core/freshness';
-import { DEFAULT_SEARCH_TTL_MS } from '@/search/cache';
 import {
   listAirports,
   listPlaceableDestinations,
@@ -33,6 +32,7 @@ import {
   type DiscoveryAssumptions,
 } from './snapshot';
 import { recordSearch } from './record-search';
+import { MAX_ROUTE_LINES } from './search-routes';
 import { buildStageData, withQuery, type StageData } from './stage-data';
 import { dependenciesFor } from '@/search/dependencies';
 import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-source';
@@ -51,6 +51,12 @@ import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-
  */
 
 const log = getLogger('discovery.load-stage');
+
+/**
+ * How long a stored live-search result is reused: one hour, the owner's rule. A search younger
+ * than this is read from the store; an older one is run again and saved. No stale window.
+ */
+export const LIVE_SEARCH_FRESH_MS = 60 * 60 * 1000;
 
 export type StageAction = '/' | '/explore';
 
@@ -221,13 +227,13 @@ export async function loadStagePage(
       try {
         // Cached at the page, never inside `runSearch`: a Travel Watch
         // refresh exists to find out whether the price moved. Live, but
-        // remembered for five minutes by query key, with no stale window -
+        // remembered for an hour by query key, with no stale window -
         // an explicit search is a question about now.
         const cached = await readThrough(
           getCacheStore(),
           cacheKey('search', { request, source: dataSource.effective }),
           {
-            freshMs: DEFAULT_SEARCH_TTL_MS,
+            freshMs: LIVE_SEARCH_FRESH_MS,
             staleMs: 0,
             load: () => runSearch(request, dependenciesFor(dataSource.effective)),
           },
@@ -337,6 +343,12 @@ export async function loadStagePage(
     country: values.country,
     selectedDestination: filters?.destination ?? null,
     origins,
+    // Named places only: "anywhere" is every airport, and a line to each is a
+    // tangle. Those keep the priced routes alone.
+    routeDestinations:
+      outcome && outcome.diagnostics.plan.destinationsRequested <= MAX_ROUTE_LINES
+        ? outcome.diagnostics.plan.destinations
+        : [],
     provenance,
     assumptions: snapshot?.assumptions ?? null,
     hrefFor,

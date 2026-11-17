@@ -4,13 +4,15 @@ import { money, type Money } from '@/core/money';
 import type { FlexDayPrice } from '@/core/flex-dates';
 import type { FlightOffer, IsoDate, IsoDateTime } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
-import { createLimiterPool, type LimiterPool } from '@/lib/concurrency';
+import type { LimiterPool } from '@/lib/concurrency';
+import { sharedVendorLimiters } from '@/providers/limiters';
 import { FixedWindowLimiter } from '@/lib/fixed-window';
 import { getLogger } from '@/lib/logger';
 import { isOk } from '@/lib/result';
 import { concurrencyFor } from '@/providers/rate';
 import { getProviderRegistry } from '@/providers/registry';
 import type { DayFare, FlightProvider, MonthFareSource } from '@/providers/types';
+import { MAX_RETURN_OPTIONS } from './day-prices-json';
 
 /**
  * The cheapest flight on each day of a month, through the cache.
@@ -122,6 +124,11 @@ export interface MonthDayPrices {
   /** Return fares, for the whole party. */
   readonly days: ReadonlyMap<IsoDate, DayPriceEntry>;
   /**
+   * Up to `MAX_RETURN_OPTIONS` returns per departure day, cheapest first, one
+   * per return date. The first of each is what `days` holds for that day.
+   */
+  readonly returns: ReadonlyMap<IsoDate, readonly DayPriceEntry[]>;
+  /**
    * One-way fares out, for the whole party, kept apart from `days` so no page
    * can show one as a return price. A day can be in both.
    */
@@ -150,19 +157,15 @@ interface StoredDay extends StoredFare {
  * read as this one.
  */
 interface StoredMonth {
-  readonly days: Record<IsoDate, StoredDay>;
+  /** Per departure day: its returns, cheapest first, at most `MAX_RETURN_OPTIONS`. */
+  readonly returns: Record<IsoDate, StoredDay[]>;
   readonly oneWay: Record<IsoDate, StoredFare>;
 }
 
-const STORED_SHAPE = 2;
-
-declare global {
-  var __voyagrDayPricePool: LimiterPool | undefined;
-}
+const STORED_SHAPE = 3;
 
 function defaultPool(): LimiterPool {
-  globalThis.__voyagrDayPricePool ??= createLimiterPool(CONCURRENCY_CEILING);
-  return globalThis.__voyagrDayPricePool;
+  return sharedVendorLimiters();
 }
 
 export function isMonth(value: string): boolean {
@@ -185,6 +188,32 @@ function keepCheapest<T extends StoredFare>(into: Map<IsoDate, T>, day: IsoDate,
   into.set(day, fare);
 }
 
+/**
+ * Keep a departure day's cheapest returns, one per return date.
+ *
+ * The list is ordered cheapest first and holds at most `MAX_RETURN_OPTIONS`.
+ * A second currency for one day is not comparable, so the first stays; the
+ * same return date seen twice keeps the cheaper fare.
+ */
+function keepReturns(into: Map<IsoDate, StoredDay[]>, day: IsoDate, fare: StoredDay): void {
+  const list = into.get(day);
+  if (!list) {
+    into.set(day, [fare]);
+    return;
+  }
+  if (list[0]!.currency !== fare.currency) return;
+
+  const same = list.findIndex((seen) => seen.returnDate === fare.returnDate);
+  if (same >= 0) {
+    if (list[same]!.amount <= fare.amount) return;
+    list.splice(same, 1);
+  }
+
+  list.push(fare);
+  list.sort((a, b) => a.amount - b.amount || a.returnDate.localeCompare(b.returnDate));
+  if (list.length > MAX_RETURN_OPTIONS) list.length = MAX_RETURN_OPTIONS;
+}
+
 /** A return fare for a departure inside the month and a stay inside the bounds. */
 function inBounds(
   departure: IsoDate,
@@ -197,13 +226,13 @@ function inBounds(
   return departure.startsWith(month) && nights >= minNights && nights <= maxNights;
 }
 
-/** The cheapest offer per departure day inside a month, within the stay bounds. */
+/** The cheapest returns per departure day inside a month, within the stay bounds. */
 function cheapestPerDay(
   offers: readonly FlightOffer[],
   month: string,
   minNights: number,
   maxNights: number,
-  into: Map<IsoDate, StoredDay>,
+  into: Map<IsoDate, StoredDay[]>,
 ): void {
   for (const offer of offers) {
     const out = offer.outbound.segments[0]?.departsAt;
@@ -214,7 +243,7 @@ function cheapestPerDay(
     const returnDate = localDate(back);
     if (!inBounds(departure, returnDate, month, minNights, maxNights)) continue;
 
-    keepCheapest(into, departure, {
+    keepReturns(into, departure, {
       amount: offer.price.amount,
       currency: offer.price.currency,
       returnDate,
@@ -229,7 +258,7 @@ function mergeDayFares(
   month: string,
   minNights: number,
   maxNights: number,
-  days: Map<IsoDate, StoredDay>,
+  days: Map<IsoDate, StoredDay[]>,
   oneWay: Map<IsoDate, StoredFare>,
 ): void {
   for (const fare of fares) {
@@ -245,7 +274,7 @@ function mergeDayFares(
     }
 
     if (!inBounds(fare.departureDate, fare.returnDate, month, minNights, maxNights)) continue;
-    keepCheapest(days, fare.departureDate, { ...fields, returnDate: fare.returnDate });
+    keepReturns(days, fare.departureDate, { ...fields, returnDate: fare.returnDate });
   }
 }
 
@@ -268,7 +297,7 @@ async function fetchMonth(
     ),
   );
 
-  const found = new Map<IsoDate, StoredDay>();
+  const found = new Map<IsoDate, StoredDay[]>();
   const oneWay = new Map<IsoDate, StoredFare>();
   const failures: AppError[] = [];
 
@@ -350,7 +379,7 @@ async function fetchMonth(
   // answered is a month with fewer days, which the page can show as it is.
   if (found.size === 0 && oneWay.size === 0 && failures.length > 0) throw failures[0];
 
-  return { days: Object.fromEntries(found), oneWay: Object.fromEntries(oneWay) };
+  return { returns: Object.fromEntries(found), oneWay: Object.fromEntries(oneWay) };
 }
 
 /**
@@ -366,6 +395,7 @@ export async function loadMonthDayPrices(
   const empty = (reason: string): MonthDayPrices => ({
     month: query.month,
     days: new Map(),
+    returns: new Map(),
     oneWay: new Map(),
     passengers,
     loadedAt: null,
@@ -421,14 +451,19 @@ export async function loadMonthDayPrices(
     }
 
     const days = new Map<IsoDate, DayPriceEntry>();
-    for (const [day, stored] of Object.entries(read.value.days)) {
+    const returns = new Map<IsoDate, readonly DayPriceEntry[]>();
+    for (const [day, list] of Object.entries(read.value.returns)) {
       if (deps.today && day < deps.today) continue;
 
-      days.set(day, {
+      const entries = list.map((stored) => ({
         price: money(stored.amount, stored.currency),
         observedAt: stored.observedAt,
         returnDate: stored.returnDate,
-      });
+      }));
+      if (entries.length === 0) continue;
+
+      days.set(day, entries[0]!);
+      returns.set(day, entries);
     }
 
     const oneWay = new Map<IsoDate, OneWayEntry>();
@@ -443,6 +478,7 @@ export async function loadMonthDayPrices(
     return {
       month: query.month,
       days,
+      returns,
       oneWay,
       passengers,
       loadedAt: read.observedAt,

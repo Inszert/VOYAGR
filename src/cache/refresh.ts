@@ -185,6 +185,11 @@ export async function enqueuePlacesRefresh(
 
 export interface CacheRefreshOptions {
   readonly runOnStart?: boolean;
+  /**
+   * False schedules no discovery round: no interval, no start-up round, no date roll-over round.
+   * Defaults to true. Fed from `DISCOVERY_REFRESH_ENABLED` by the worker.
+   */
+  readonly discoveryEnabled?: boolean;
   /** How often the places round runs, in hours. Unset means the places are not scheduled. */
   readonly placesIntervalHours?: number;
   /** The clock the date roll-over is read from. */
@@ -223,8 +228,11 @@ export function startCacheRefresh(
       log.error({ err: error }, 'could not enqueue the places refresh round');
     });
 
-  const timer = setInterval(() => void round(), intervalMinutes * MINUTE);
-  timer.unref?.();
+  const discoveryEnabled = options.discoveryEnabled !== false;
+  if (!discoveryEnabled) log.info('discovery refresh disabled by configuration');
+
+  const timer = discoveryEnabled ? setInterval(() => void round(), intervalMinutes * MINUTE) : null;
+  timer?.unref?.();
 
   /*
    * The prices are keyed by date, so at 00:00 UTC every key changes at once and
@@ -236,6 +244,8 @@ export function startCacheRefresh(
    */
   let lastDay = todayOf(now());
   const checkRollover = (): boolean => {
+    if (!discoveryEnabled) return false;
+
     const day = todayOf(now());
     if (day === lastDay) return false;
 
@@ -244,8 +254,10 @@ export function startCacheRefresh(
     void round();
     return true;
   };
-  const rolloverTimer = setInterval(checkRollover, options.rolloverCheckMs ?? 30_000);
-  rolloverTimer.unref?.();
+  const rolloverTimer = discoveryEnabled
+    ? setInterval(checkRollover, options.rolloverCheckMs ?? 30_000)
+    : null;
+  rolloverTimer?.unref?.();
 
   let placesTimer: NodeJS.Timeout | undefined;
   if (options.placesIntervalHours !== undefined) {
@@ -255,20 +267,20 @@ export function startCacheRefresh(
 
   // A restart should not leave the front page cold for a whole interval.
   if (options.runOnStart !== false) {
-    void round();
+    if (discoveryEnabled) void round();
     if (options.placesIntervalHours !== undefined) void placesRound();
   }
 
   log.info(
-    { intervalMinutes, placesIntervalHours: options.placesIntervalHours ?? null },
+    { intervalMinutes, discoveryEnabled, placesIntervalHours: options.placesIntervalHours ?? null },
     'cache refresh scheduled',
   );
 
   return {
     checkRollover,
     stop: () => {
-      clearInterval(timer);
-      clearInterval(rolloverTimer);
+      if (timer) clearInterval(timer);
+      if (rolloverTimer) clearInterval(rolloverTimer);
       if (placesTimer) clearInterval(placesTimer);
     },
   };

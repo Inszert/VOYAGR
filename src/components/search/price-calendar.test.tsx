@@ -335,3 +335,70 @@ describe('TimeRangeField', () => {
     expect((container.querySelector('input[name="to"]') as HTMLInputElement).value).toBe('');
   });
 });
+
+describe('PriceCalendar date shortcuts', () => {
+  const shortcuts = [
+    {
+      label: 'This month',
+      href: '/explore?flexibility=month&monthStart=2026-11-01',
+      active: false,
+    },
+    { label: '± 3 days', href: '/explore?flexibility=plus-minus-3', active: true },
+    { label: '± 7 days', href: '/explore?flexibility=plus-minus-7', active: false },
+    { label: 'Any date', href: '/explore?flexibility=month&monthStart=2026-12-01', active: false },
+  ];
+
+  function renderWithShortcuts() {
+    return render(
+      <PriceCalendar
+        options={OPTIONS}
+        selected={null}
+        cheapestKey={null}
+        bestValueKey={null}
+        clearHref={null}
+        chips={[]}
+        shortcuts={shortcuts}
+      />,
+    );
+  }
+
+  it('shows the four shortcuts without opening anything', () => {
+    renderWithShortcuts();
+
+    const group = screen.getByRole('group', { name: 'Date shortcuts' });
+    for (const name of ['This month', '± 3 days', '± 7 days', 'Any date']) {
+      expect(within(group).getByRole('link', { name: new RegExp(`^${name}`) })).toBeTruthy();
+    }
+    // Not behind the "Change dates" button, which is still closed.
+    expect(screen.getByRole('button', { name: /Change dates/ }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+  });
+
+  it('sets the same flexibility value the existing control sets', () => {
+    renderWithShortcuts();
+
+    const group = screen.getByRole('group', { name: 'Date shortcuts' });
+    const href = within(group)
+      .getByRole('link', { name: /^± 3 days/ })
+      .getAttribute('href')!;
+    expect(new URL(href, 'https://x.test').searchParams.get('flexibility')).toBe('plus-minus-3');
+
+    // The value the form's own radio for the same choice submits.
+    const { unmount } = render(<FlexibilityChips name="flexibility" />);
+    expect((screen.getByRole('radio', { name: '± 3 days' }) as HTMLInputElement).value).toBe(
+      'plus-minus-3',
+    );
+    unmount();
+  });
+
+  it('says which one is on, in words and by a mark', () => {
+    renderWithShortcuts();
+
+    const group = screen.getByRole('group', { name: 'Date shortcuts' });
+    const active = within(group).getByRole('link', { name: /^± 3 days\s*\(selected\)/ });
+    expect(active.getAttribute('aria-current')).toBe('true');
+    expect(active.textContent).toContain('✓');
+    expect(screen.getByText(/showing ± 3 days/)).toBeTruthy();
+  });
+});

@@ -382,7 +382,8 @@ export function withMonthSelection(
 }
 
 /**
- * How much each part of the trip matters, from `?wFlights=&wStay=&wActivities=&wTransfers=`.
+ * How much each part of the trip matters, from `?wStay=&wTransfers=&wCost=&wNature=&wWeather=&wFood=`
+ * (the retired `wFlights` and `wActivities` are ignored, not an error).
  *
  * Absent, empty, unreadable or out of 0..2 all mean "as normal" (1): a link
  * that cannot be understood must never reorder results in a way nobody chose.

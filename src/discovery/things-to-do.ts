@@ -193,6 +193,31 @@ export async function warmThingsToDo(
   return 'warmed';
 }
 
+/**
+ * The counts by kind of what the cache already holds for a destination, or null
+ * when it holds nothing.
+ *
+ * Cache only, by construction: it reads the same key `loadThingsToDo` writes and
+ * never builds a loader, so there is no path from here to the places provider. A
+ * stale entry still counts (the worker refreshes it; what a city has changes
+ * slowly), and a read that fails is a miss. Safe on a request path.
+ */
+export async function cachedCountsByKind(
+  request: ThingsToDoRequest,
+): Promise<Record<ThingKind, number> | null> {
+  const provider = request.provider ?? getProviderRegistry().places;
+  if (provider.metadata.mode === 'absent') return null;
+
+  const entry = await (request.store ?? getCacheStore())
+    .get<readonly ThingToDo[]>(thingsKey(provider, request))
+    .catch((cause: unknown) => {
+      log.warn({ err: cause, destination: request.destination }, 'things to do cache read failed');
+      return null;
+    });
+
+  return entry && Array.isArray(entry.value) ? countsByKind(entry.value) : null;
+}
+
 /** Never throws: every failure ends as a status the page can word. */
 export async function loadThingsToDo(request: ThingsToDoRequest): Promise<ThingsToDoOutcome> {
   const provider = request.provider ?? getProviderRegistry().places;

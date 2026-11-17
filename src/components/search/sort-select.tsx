@@ -28,7 +28,7 @@ export function SortSelect({
         <input key={name} type="hidden" name={name} value={v} />
       ))}
       <Select
-        label="Sort trips by"
+        label="Sort by"
         name="fSort"
         defaultValue={value}
         options={RESULT_SORTS}

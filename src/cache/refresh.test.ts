@@ -235,6 +235,49 @@ describe('the UTC date roll-over', () => {
     scheduler.stop();
   });
 
+  it('with the kill switch off schedules no round and makes no call', async () => {
+    vi.useFakeTimers();
+    try {
+      const enqueue = vi.fn(async () => 'id');
+      const clock = { at: Date.parse('2026-11-14T23:59:59.000Z') };
+      const scheduler = startCacheRefresh({ enqueue }, 30, {
+        discoveryEnabled: false,
+        now: () => clock.at,
+        enqueuePlaces: noPlaces,
+      });
+
+      clock.at = Date.parse('2026-11-15T00:00:00.000Z');
+      expect(scheduler.checkRollover()).toBe(false);
+      await vi.advanceTimersByTimeAsync(24 * 3_600_000);
+
+      expect(enqueue).not.toHaveBeenCalled();
+      scheduler.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('with the kill switch on runs the start-up round and the interval round', async () => {
+    vi.useFakeTimers();
+    try {
+      const enqueue = vi.fn(async () => 'id');
+      const scheduler = startCacheRefresh({ enqueue }, 30, {
+        discoveryEnabled: true,
+        now: () => Date.parse('2026-11-15T10:00:00.000Z'),
+        enqueuePlaces: noPlaces,
+      });
+      const perRound = buildCacheTargets().length;
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(enqueue).toHaveBeenCalledTimes(perRound);
+      await vi.advanceTimersByTimeAsync(30 * 60_000);
+      expect(enqueue).toHaveBeenCalledTimes(perRound * 2);
+      scheduler.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('runs the places round on start, but only when places are scheduled', async () => {
     const enqueue = vi.fn(async () => 'id');
     const enqueuePlaces = vi.fn(async () => 0);

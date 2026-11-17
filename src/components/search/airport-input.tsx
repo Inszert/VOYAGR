@@ -27,6 +27,9 @@ import type { AirportSuggestion } from '@/search/destination-names';
  * never leaves the input, so a screen reader hears the field throughout.
  */
 
+/** Fired on the input, bubbling, after a suggestion has been written into it. */
+export const AIRPORT_PICKED_EVENT = 'voyagr:airport-picked';
+
 export interface AirportInputProps {
   label: string;
   name: string;
@@ -40,7 +43,11 @@ export interface AirportInputProps {
   limit?: number;
   /** Drop the control's own border, for a segmented bar. */
   bare?: boolean;
-  /** Open the suggestions above the field, for a bar pinned to the bottom of a screen. */
+  /**
+   * Not honoured. The suggestions always open directly under the field: a
+   * list that flips above it, depending on the caller, is what made it jump.
+   * Still accepted so existing callers keep type-checking.
+   */
   dropUp?: boolean;
 }
 
@@ -107,7 +114,6 @@ export function AirportInput({
   airports,
   limit = 8,
   bare = false,
-  dropUp = false,
 }: AirportInputProps) {
   const id = React.useId();
   const listId = `${id}-listbox`;
@@ -120,9 +126,15 @@ export function AirportInput({
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(0);
 
+  /*
+   * The rows are worked out from the deferred term. While a new list is being
+   * built, the rows already on screen stay where they are, and the swap happens
+   * as one update - never a frame where the panel is empty, shorter or gone.
+   */
+  const deferredTerm = React.useDeferredValue(term);
   const suggestions = React.useMemo(
-    () => (open ? matches(airports, term, limit) : []),
-    [airports, term, limit, open],
+    () => (open ? matches(airports, deferredTerm, limit) : []),
+    [airports, deferredTerm, limit, open],
   );
 
   const describedBy =
@@ -134,7 +146,7 @@ export function AirportInput({
     return activeToken(input.value, input.selectionStart ?? input.value.length);
   };
 
-  const choose = (airport: AirportSuggestion) => {
+  const choose = (airport: AirportSuggestion, keepFocus = true) => {
     const input = inputRef.current;
     if (!input) return;
 
@@ -155,7 +167,11 @@ export function AirportInput({
     window.requestAnimationFrame(() => {
       const caret = before.length + spacer.length + airport.code.length;
       input.setSelectionRange(caret, caret);
-      input.focus();
+      // Tab is leaving the field; pulling focus back would undo it.
+      if (keepFocus) input.focus();
+      // Tell the form a place was picked, so a live search applies at once
+      // rather than waiting for the field to be left.
+      input.dispatchEvent(new CustomEvent(AIRPORT_PICKED_EVENT, { bubbles: true }));
     });
   };
 
@@ -184,7 +200,7 @@ export function AirportInput({
     } else if (event.key === 'Enter' || event.key === 'Tab') {
       const airport = suggestions[active];
       if (airport) {
-        choose(airport);
+        choose(airport, event.key !== 'Tab');
         // Enter inside a form would submit it; the first Enter is for the
         // suggestion, and the next one submits as usual.
         if (event.key === 'Enter') event.preventDefault();
@@ -277,6 +293,64 @@ export function AirportInput({
             bare ? 'size-3' : 'mr-3 size-4',
           )}
         />
+
+        {/*
+          Anchored to the field, not to the column around it. It sits under the
+          input's own box, so it is exactly the field's width and never depends
+          on how tall the label above has come out. Always rendered, so the
+          listbox the input points at exists even when it is empty - a control
+          referring to an element that is not there is a broken reference to a
+          screen reader. Absolute, so opening it moves nothing beneath it.
+        */}
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={`Airport suggestions for ${label.toLowerCase()}`}
+          className={cn(
+            'border-border-strong bg-surface-raised shadow-floating absolute top-full right-0 left-0 z-30 mt-1',
+            'max-h-64 overflow-auto rounded-(--radius-control) border py-1',
+            open && suggestions.length > 0 ? '' : 'hidden',
+          )}
+        >
+          {suggestions.map((airport, index) => {
+            const highlighted = index === active;
+            return (
+              <li
+                key={airport.code}
+                id={`${listId}-${index}`}
+                role="option"
+                aria-selected={highlighted}
+                // `onMouseDown` rather than `onClick`: the blur that a click
+                // causes would otherwise close the list before the click lands.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  choose(airport);
+                }}
+                onMouseEnter={() => setActive(index)}
+                className={cn(
+                  'flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm',
+                  highlighted ? 'bg-surface-sunken' : '',
+                )}
+              >
+                <span className="text-ink font-semibold tabular-nums">{airport.code}</span>
+                {/* Bold as well as shaded, so the highlighted row reads without colour. */}
+                <span
+                  className={cn(
+                    'text-ink min-w-0 truncate',
+                    highlighted ? 'font-semibold' : 'font-normal',
+                  )}
+                >
+                  {airport.name}
+                </span>
+                {/* The airport's own name, which is what separates two airports in one place. */}
+                {airport.detail && airport.detail !== airport.name ? (
+                  <span className="text-ink-muted min-w-0 truncate text-xs">{airport.detail}</span>
+                ) : null}
+                <span className="text-ink-muted ml-auto shrink-0 text-xs">{airport.country}</span>
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
       {hint ? (
@@ -293,51 +367,6 @@ export function AirportInput({
       >
         {error}
       </p>
-
-      {/*
-        Always rendered, so the listbox the input points at exists even when
-        it is empty. A control referring to an element that is not there is a
-        broken reference to a screen reader.
-      */}
-      <ul
-        id={listId}
-        role="listbox"
-        aria-label={`Airport suggestions for ${label.toLowerCase()}`}
-        className={cn(
-          'border-border-strong bg-surface-raised shadow-floating absolute right-0 left-0 z-30',
-          dropUp ? 'bottom-[calc(100%+0.5rem)]' : bare ? 'top-[3.4rem]' : 'top-[4.6rem]',
-          'max-h-64 overflow-auto rounded-(--radius-control) border py-1',
-          open && suggestions.length > 0 ? '' : 'hidden',
-        )}
-      >
-        {suggestions.map((airport, index) => (
-          <li
-            key={airport.code}
-            id={`${listId}-${index}`}
-            role="option"
-            aria-selected={index === active}
-            // `onMouseDown` rather than `onClick`: the blur that a click
-            // causes would otherwise close the list before the click lands.
-            onMouseDown={(event) => {
-              event.preventDefault();
-              choose(airport);
-            }}
-            onMouseEnter={() => setActive(index)}
-            className={cn(
-              'flex cursor-pointer items-baseline gap-2 px-3 py-2 text-sm',
-              index === active ? 'bg-surface-sunken' : '',
-            )}
-          >
-            <span className="text-ink font-semibold tabular-nums">{airport.code}</span>
-            <span className="text-ink">{airport.name}</span>
-            {/* The airport's own name, which is what separates two airports in one place. */}
-            {airport.detail && airport.detail !== airport.name ? (
-              <span className="text-ink-muted min-w-0 truncate text-xs">{airport.detail}</span>
-            ) : null}
-            <span className="text-ink-muted ml-auto shrink-0 text-xs">{airport.country}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

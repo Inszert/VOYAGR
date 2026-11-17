@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { flightOfferSchema, validateOffers } from '../schema';
 import { loadCassette } from '../http/cassette';
-import { AviasalesFlightProvider, mapOffer, observedFromLink, toLocalDateTime } from './aviasales';
+import {
+  AviasalesFlightProvider,
+  mapOffer,
+  observedFromLink,
+  resetAviasalesPause,
+  toLocalDateTime,
+} from './aviasales';
+
+// A 429 pauses the vendor for the whole process; one test's pause must not reach the next.
+beforeEach(resetAviasalesPause);
 
 /**
  * The Aviasales adapter, offline.

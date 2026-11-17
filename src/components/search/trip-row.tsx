@@ -43,6 +43,8 @@ export interface TripRowProps {
   readonly buildHref: string;
   /** How this trip compares with the typical one to the same place. */
   readonly deal?: DealAgainstTypical | null;
+  /** True when this trip leaves from the cheapest origin of several. Said in words. */
+  readonly cheapestOrigin?: boolean;
 }
 
 /** "09:17 → 13:08 · 2h 51m · direct". The provider's clock faces, duration and stops. */
@@ -67,6 +69,7 @@ export function TripRow({
   image = null,
   buildHref,
   deal = null,
+  cheapestOrigin = false,
 }: TripRowProps) {
   const { candidate, cost, eligibility, warnings } = trip;
   const headingId = `row-${candidate.id}-heading`;
@@ -112,7 +115,8 @@ export function TripRow({
                 {shortDate(candidate.dates.departureDate)} to{' '}
                 {shortDate(candidate.dates.returnDate)}
               </span>{' '}
-              <span className="whitespace-nowrap">· {candidate.dates.nights} nights</span>
+              <span className="whitespace-nowrap">· {candidate.dates.nights} nights</span>{' '}
+              <span className="whitespace-nowrap">· from {candidate.origin}</span>
             </p>
           </div>
           <div className="text-ink-muted flex min-w-0 flex-col gap-0.5 text-xs tabular-nums sm:col-span-2 sm:row-start-2">
@@ -168,6 +172,11 @@ export function TripRow({
                 ? `${format(eligibility.budgetHeadroom)} under your maximum`
                 : `${format(abs(eligibility.budgetHeadroom))} over your maximum`}
             </p>
+            {cheapestOrigin ? (
+              <p className="text-positive-ink text-xs font-medium">
+                Cheapest from {candidate.origin}
+              </p>
+            ) : null}
             <DealNote deal={deal} />
           </div>
         </div>

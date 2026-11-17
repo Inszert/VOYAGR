@@ -17,7 +17,11 @@ import {
 import type { IsoDate } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
-import type { MonthPricesJson, OneWayPriceJson } from '@/search/day-prices-json';
+import {
+  MAX_RETURN_OPTIONS,
+  type MonthPricesJson,
+  type OneWayPriceJson,
+} from '@/search/day-prices-json';
 
 /**
  * The dates as a calendar, with what each one costs written in it.
@@ -108,6 +112,12 @@ export interface PriceCalendarProps {
   clearHref: string | null;
   /** The flexibility presets, each a link that searches again with it. */
   chips: readonly PriceCalendarChip[];
+  /**
+   * The four quick choices ("This month", "± 3 days", "± 7 days", "Any date"),
+   * always in view above the calendar, never folded. Each is the same link a
+   * flexibility chip is: a search with that `flexibility`.
+   */
+  shortcuts?: readonly PriceCalendarChip[];
   /** The party every total is for. Cells show per person; the legend says so. */
   travellers?: number;
   /**
@@ -174,6 +184,7 @@ export function PriceCalendar({
   bestValueKey,
   clearHref,
   chips,
+  shortcuts = [],
   travellers,
   datesFromSearch,
 }: PriceCalendarProps) {
@@ -187,6 +198,7 @@ export function PriceCalendar({
   const [open, setOpen] = React.useState(false);
   const bodyId = React.useId();
   const flexId = React.useId();
+  const activeShortcut = shortcuts.find((shortcut) => shortcut.active);
   // The day the keyboard is on. One day in the whole grid is a tab stop; arrows move it.
   const [focusDay, setFocusDay] = React.useState<IsoDate | null>(null);
   const pendingFocus = React.useRef(false);
@@ -302,24 +314,27 @@ export function PriceCalendar({
       for (const [day, price] of Object.entries(entry.days)) {
         if (priced.has(day)) continue;
 
-        const option: PriceCalendarOption = {
-          kind: 'flight',
-          key: `flight:${day}..${price.returnDate}`,
-          departure: day,
-          returnDate: price.returnDate,
-          nights: daysBetween(day, price.returnDate),
-          exact: price.exact,
-          whole: price.whole,
-          perPerson: price.perPerson,
-          amount: price.amount,
-          delta: null,
-          href: load.hrefTemplate
-            .replace('__DEPARTURE__', day)
-            .replace('__RETURN__', price.returnDate),
-        };
+        // Every return the month holds for this departure, not only the cheapest.
+        for (const ret of price.returns ?? [price]) {
+          const option: PriceCalendarOption = {
+            kind: 'flight',
+            key: `flight:${day}..${ret.returnDate}`,
+            departure: day,
+            returnDate: ret.returnDate,
+            nights: daysBetween(day, ret.returnDate),
+            exact: ret.exact,
+            whole: ret.whole,
+            perPerson: ret.perPerson,
+            amount: ret.amount,
+            delta: null,
+            href: load.hrefTemplate
+              .replace('__DEPARTURE__', day)
+              .replace('__RETURN__', ret.returnDate),
+          };
 
-        extra.push(option);
-        if (!low || option.amount < low.amount) low = option;
+          extra.push(option);
+          if (!low || option.amount < low.amount) low = option;
+        }
       }
 
       if (low) cheapest.add(low.key);
@@ -374,6 +389,21 @@ export function PriceCalendar({
     }
 
     return map;
+  }, [options, departure]);
+
+  // The returns for the departure chosen: one per return date, cheapest first,
+  // at most MAX_RETURN_OPTIONS. Only what the search and the month already hold.
+  const returnList = React.useMemo(() => {
+    if (departure === null) return [];
+    const byReturn = new Map<IsoDate, PriceCalendarOption>();
+    for (const option of options) {
+      if (option.departure !== departure) continue;
+      const seen = byReturn.get(option.returnDate);
+      if (!seen || option.amount < seen.amount) byReturn.set(option.returnDate, option);
+    }
+    return [...byReturn.values()]
+      .sort((a, b) => a.amount - b.amount || a.returnDate.localeCompare(b.returnDate))
+      .slice(0, MAX_RETURN_OPTIONS);
   }, [options, departure]);
 
   const sortedAmounts = React.useMemo(
@@ -464,6 +494,46 @@ export function PriceCalendar({
 
   return (
     <div className="flex flex-col gap-4">
+      {/*
+        Shortcuts for how many dates to look at. Above the calendar and outside
+        the part that folds on a phone, so they are there before anything is
+        opened. The chosen one is said in words and marked with a tick.
+      */}
+      {shortcuts.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-ink text-sm font-medium">
+            Date shortcuts
+            {activeShortcut ? (
+              <span className="text-ink-muted font-normal">
+                {' '}
+                &middot; showing {activeShortcut.label}
+              </span>
+            ) : null}
+          </p>
+          <div role="group" aria-label="Date shortcuts" className="flex flex-wrap gap-2">
+            {shortcuts.map((shortcut) => (
+              <a
+                key={shortcut.label}
+                href={shortcut.href}
+                aria-current={shortcut.active ? 'true' : undefined}
+                className={cn(
+                  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-(--radius-pill) border px-4 text-[13px] font-medium whitespace-nowrap',
+                  'ease-standard duration-quick transition-colors',
+                  'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-2',
+                  shortcut.active
+                    ? 'border-accent-to bg-accent-to/15 text-ink'
+                    : 'border-hairline text-ink-muted hover:border-border-strong hover:text-ink',
+                )}
+              >
+                {shortcut.active ? <span aria-hidden="true">✓</span> : null}
+                {shortcut.label}
+                {shortcut.active ? <span className="sr-only">(selected)</span> : null}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/*
         The dates, said once and always on screen: what leaving and coming back
         are right now. On a phone the calendar folds away behind the button and
@@ -581,6 +651,35 @@ export function PriceCalendar({
             ) : null}
           </div>
         </div>
+
+        {phase === 'return' ? (
+          returnList.length > 0 ? (
+            <ul
+              aria-label={`Return options for leaving ${shortDay(departure!)}, cheapest first`}
+              className="flex flex-col gap-2"
+            >
+              {returnList.map((option) => (
+                <li key={option.key}>
+                  <a
+                    href={option.href}
+                    className="border-hairline text-ink hover:border-border-strong focus-visible:outline-accent-to flex min-h-11 flex-wrap items-center justify-between gap-x-4 rounded-(--radius-control) border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    <span>
+                      Back {spoken(option.returnDate)}
+                      <span className="text-ink-muted"> - {option.nights} nights</span>
+                    </span>
+                    <span className="tabular-nums">{option.exact}</span>
+                    <span className="sr-only"> for {party}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p role="status" className="text-ink-muted text-sm">
+              No return priced for this departure yet.
+            </p>
+          )
+        ) : null}
 
         <div ref={gridRoot} onKeyDown={onGridKeyDown} className="flex flex-col gap-3">
           <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">

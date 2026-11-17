@@ -5,6 +5,7 @@ import { AppError } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import { err, ok } from '@/lib/result';
 import { readSnapshot, type SnapshotReadDependencies } from '@/liteapi-snapshot/read';
+import { defaultDemoLive, type DemoLive } from '../demo-live';
 import type {
   HotelProvider,
   HotelSearchQuery,
@@ -36,6 +37,8 @@ export interface SnapshotHotelProviderOptions {
   /** Defaults to the real repositories and env, resolved on each search. */
   readonly dependencies?: () => SnapshotReadDependencies;
   readonly now?: () => number;
+  /** DEMO ONLY: undefined resolves from the environment (null unless allowed); null is off. */
+  readonly demoLive?: DemoLive | null;
 }
 
 export function createSnapshotHotelProvider(
@@ -134,8 +137,19 @@ export class SnapshotHotelProvider implements HotelProvider {
         this.options.dependencies?.(),
       );
 
+      let stays: readonly StayOffer[] = read.offers;
+      if (stays.length === 0) {
+        // DEMO ONLY: no stored row, so ask the sandbox live (cached, counted, guarded).
+        const demo =
+          this.options.demoLive === undefined ? defaultDemoLive() : this.options.demoLive;
+        if (demo) {
+          const live = await demo.stays(stayQueryFor(query));
+          if (live.ok) stays = live.value;
+        }
+      }
+
       const offers: HotelOffer[] = [];
-      for (const stay of read.offers) {
+      for (const stay of stays) {
         const rate = cheapestRate(stay.rates, query);
         if (rate === null) continue;
         const offer = toHotelOffer(stay, rate);

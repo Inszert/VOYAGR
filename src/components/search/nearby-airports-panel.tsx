@@ -18,8 +18,8 @@ export function NearbyAirportsPanel({
 
   return (
     <section aria-labelledby="nearby-heading" className="flex flex-col gap-3">
-      <h2 id="nearby-heading" className="font-display text-ink text-xl">
-        Also fly from
+      <h2 id="nearby-heading" className="font-display text-ink text-lg">
+        Also fly from nearby airports
       </h2>
       <p className="text-ink-muted text-sm">
         Airports near where you are leaving from, as the crow flies. Adding one searches again with

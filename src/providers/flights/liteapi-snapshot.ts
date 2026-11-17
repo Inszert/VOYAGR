@@ -10,6 +10,7 @@ import {
   type FlightSnapshotReadDependencies,
 } from '@/liteapi-snapshot/flights-read';
 import { FLIGHT_CABIN } from '@/liteapi-snapshot/flights-targets';
+import { defaultDemoLive, type DemoLive } from '../demo-live';
 import type {
   FlightProvider,
   FlightSearchQuery,
@@ -66,6 +67,11 @@ export interface SnapshotFlightProviderOptions {
   readonly now?: () => number;
   /** Defaults to reading the shared cache store. */
   readonly fallback?: AviasalesCacheReader;
+  /**
+   * DEMO ONLY. The guarded live sandbox path. Undefined resolves it from the environment (null
+   * unless `demoLiveAllowed`); null switches it off.
+   */
+  readonly demoLive?: DemoLive | null;
 }
 
 /**
@@ -217,6 +223,31 @@ export class SnapshotFlightProvider implements FlightProvider {
               source,
             })),
           };
+        }
+
+        // DEMO ONLY: no stored row, so ask the sandbox live (cached, counted, guarded).
+        const demo =
+          this.options.demoLive === undefined ? defaultDemoLive() : this.options.demoLive;
+        if (demo) {
+          const live = await demo.flights({
+            origin: route.origin,
+            destination: route.destination,
+            departureDate: query.departureDate,
+            returnDate: query.returnDate,
+            adults: query.passengers,
+            currency: query.currency,
+            cabin: FLIGHT_CABIN,
+          });
+          if (live.ok && live.value.length > 0) {
+            const source = { displayName: this.metadata.displayName, mode: this.liteApiMode };
+            return {
+              offers: live.value.map((offer) => ({
+                ...offer,
+                providerId: SNAPSHOT_FLIGHTS_PROVIDER_ID,
+                source,
+              })),
+            };
+          }
         }
 
         try {

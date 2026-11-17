@@ -291,6 +291,48 @@ export function DateOptions({
   ];
 
   /*
+   * The four quick choices, shown above the calendar.
+   *
+   * Each is a value of the same `flexibility` parameter the chips above use,
+   * not a new one. "This month" is the month preset anchored on the current
+   * month; "Any date" is the same preset anchored on the month of the dates
+   * on screen, which is how far the search can open the dates up.
+   */
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const thisMonth = startOfMonth(todayIso);
+  const onThisMonth =
+    current === 'month' && (searchValues.monthStart ?? '').slice(0, 7) === thisMonth.slice(0, 7);
+  const tripNights = searchValues.tripNights ?? String(first.nights);
+  const preset = (value: 'plus-minus-3' | 'plus-minus-7'): PriceCalendarChip => ({
+    label: FLEXIBILITY_LABELS[value],
+    href: linkWith(basePath, searchValues, { flexibility: value }),
+    active: current === value,
+  });
+
+  const shortcuts: PriceCalendarChip[] = [
+    {
+      label: 'This month',
+      href: linkWith(basePath, searchValues, {
+        flexibility: 'month',
+        monthStart: thisMonth,
+        tripNights,
+      }),
+      active: onThisMonth,
+    },
+    preset('plus-minus-3'),
+    preset('plus-minus-7'),
+    {
+      label: 'Any date',
+      href: linkWith(basePath, searchValues, {
+        flexibility: 'month',
+        monthStart: startOfMonth(first.departureDate),
+        tripNights,
+      }),
+      active: current === 'month' && !onThisMonth,
+    },
+  ];
+
+  /*
    * Where the rest of the days' prices come from.
    *
    * The search priced a few date windows; the calendar shows whole months, so
@@ -353,6 +395,7 @@ export function DateOptions({
         bestValueKey={bestValueKey}
         clearHref={selected ? href(basePath, searchValues, null) : null}
         chips={chips}
+        shortcuts={shortcuts}
         travellers={travellers}
       />
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { listAirports } from '@/search/destination-names';
 import { parseSearchForm } from '@/search/schema';
 import { CompactSearch } from './compact-search';
@@ -76,9 +76,11 @@ describe('CompactSearch', () => {
     renderForm();
 
     // The bar labels each cell in as few words as a cell has room for.
-    for (const label of ['From', 'To', 'Leaving', 'Back', 'Dates', 'Travellers']) {
-      expect(screen.getByLabelText(new RegExp(`^${label}`))).toBeInTheDocument();
+    for (const label of ['From', 'To', 'Leaving', 'Back', 'Travellers']) {
+      expect(screen.getByLabelText(new RegExp(`^${label}\\b`))).toBeInTheDocument();
     }
+    // "Dates" is also the heading of a More options group, so name the control by its role.
+    expect(screen.getByRole('radiogroup', { name: 'Dates' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Search trips' })).toBeInTheDocument();
   });
 
@@ -101,9 +103,50 @@ describe('CompactSearch', () => {
     renderForm();
 
     expect(screen.getByText('More options')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Travel style' })).toBeInTheDocument();
+    // Travel style is a set of radios now, not a dropdown: same field name, same values.
+    expect(screen.getByRole('group', { name: 'Travel style' })).toBeInTheDocument();
     expect(screen.getByLabelText(/^Target budget/)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Earliest departure/)).toBeInTheDocument();
+  });
+
+  describe('the More options panel', () => {
+    it('is three headed groups with a Done button', () => {
+      renderForm();
+
+      for (const heading of ['Dates', 'Trip', 'Price']) {
+        expect(screen.getByRole('heading', { name: heading, level: 3 })).toBeInTheDocument();
+      }
+      expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    });
+
+    it('asks each choice as a real, labelled radio or checkbox', () => {
+      renderForm();
+
+      for (const group of ['Travel style', 'Optimise for', 'Most stops on a flight']) {
+        const radios = within(screen.getByRole('group', { name: group })).getAllByRole('radio');
+        expect(radios.length).toBeGreaterThan(1);
+        // Exactly one is chosen, so the group always submits something.
+        expect(radios.filter((radio) => (radio as HTMLInputElement).checked)).toHaveLength(1);
+      }
+
+      for (const label of [
+        'Direct flights only',
+        'Checked baggage must be included',
+        'Hotel must be free to cancel',
+      ]) {
+        expect(screen.getByRole('checkbox', { name: new RegExp(label) })).toBeInTheDocument();
+      }
+    });
+
+    it('says the chosen option in words, and submits the value it always did', () => {
+      const { container } = renderForm({ values: { maxStops: '0' } });
+
+      const direct = screen.getByRole('radio', { name: /Direct only/ });
+      expect(direct).toBeChecked();
+      // The word is in the row; the stylesheet shows it for the checked one.
+      expect(direct.closest('label')).toHaveTextContent('Selected');
+      expect(submission(container.querySelector('form')!)).toMatchObject({ maxStops: '0' });
+    });
   });
 
   it('carries the globe selection through as hidden inputs', () => {
@@ -116,7 +159,7 @@ describe('CompactSearch', () => {
   it('prefers what was typed over the destination default', () => {
     renderForm({ values: { origins: 'BTS', destinations: 'SPU' } });
 
-    expect(screen.getByLabelText(/^To/)).toHaveValue('SPU');
+    expect(screen.getByLabelText(/^To\b/)).toHaveValue('SPU');
     expect(screen.getByLabelText(/^From/)).toHaveValue('BTS');
   });
 

@@ -8,6 +8,9 @@ import {
   setStagePending,
   subscribeStage,
 } from '@/components/discovery/stage-store';
+import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
+import { cn } from '@/lib/cn';
 
 /**
  * The explorer's search, edited where its results are.
@@ -27,11 +30,43 @@ import {
  */
 
 import { LIVE_FIELDS, type LiveField } from './live-fields';
+import { AIRPORT_PICKED_EVENT } from './airport-input';
 
 export { LIVE_FIELDS };
 
 /** Long enough for a stepper pressed three times to be one search, not three. */
 const SETTLE_MS = 450;
+
+/** The pause after the last change before two valid places search on their own. */
+export const PLACES_SETTLE_MS = 400;
+
+const AIRPORT_CODE = /^[A-Za-z]{3}$/;
+
+/**
+ * Whether every origin and every destination is a finished airport code.
+ *
+ * A code counts when it is three letters and the catalogue knows it, so a
+ * half-typed "BU" never does and neither does the word "anywhere". Nothing is
+ * known without a catalogue, and then only a picked suggestion searches early.
+ */
+export function placesComplete(
+  form: HTMLFormElement,
+  known: ReadonlySet<string> | undefined,
+): boolean {
+  if (!known) return false;
+  const { origins, destinations } = read(form);
+  for (const value of [origins, destinations]) {
+    const codes = value
+      .split(/[\s,]+/)
+      .map((code) => code.trim())
+      .filter(Boolean);
+    if (codes.length === 0) return false;
+    if (!codes.every((code) => AIRPORT_CODE.test(code) && known.has(code.toUpperCase()))) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * The address a change produces, from what the form would submit.
@@ -84,12 +119,17 @@ function read(form: HTMLFormElement): Record<LiveField, string> {
  * still being typed, and not while any field would refuse to submit: half a
  * date or an empty "To" is a search nobody asked for.
  */
-function settled(form: HTMLFormElement, typingAllowed: boolean): boolean {
-  if (form.querySelector('[aria-expanded="true"]')) return false;
+function settled(form: HTMLFormElement, typingAllowed: boolean, placesDone = false): boolean {
+  // Suggestions still open under a finished code are not a reason to wait.
+  const open = placesDone
+    ? '[aria-expanded="true"]:not(input[name="origins"]):not(input[name="destinations"])'
+    : '[aria-expanded="true"]';
+  if (form.querySelector(open)) return false;
 
   const active = document.activeElement;
   if (
     !typingAllowed &&
+    !placesDone &&
     active instanceof HTMLInputElement &&
     active.form === form &&
     active.getAttribute('role') === 'combobox'
@@ -104,20 +144,70 @@ function settled(form: HTMLFormElement, typingAllowed: boolean): boolean {
   return !(departureDate && returnDate && returnDate <= departureDate);
 }
 
+/**
+ * What the form still needs, in words, or null when it can search.
+ *
+ * Read off the fields themselves, so it agrees with `settled`: the first field
+ * that would refuse to submit names itself. The wording is ours because a
+ * browser's own message is not on the page.
+ */
+const MISSING_WORDS: Record<LiveField, string> = {
+  origins: 'Add a departure airport',
+  destinations: 'Add a destination',
+  departureDate: 'Add a departure date',
+  returnDate: 'Add a return date',
+  passengers: 'Choose 1 to 9 travellers',
+};
+
+export function missingFromForm(form: HTMLFormElement): string | null {
+  for (const name of LIVE_FIELDS) {
+    const field = form.elements.namedItem(name);
+    if (field instanceof HTMLInputElement && !field.checkValidity()) return MISSING_WORDS[name];
+  }
+  const { departureDate, returnDate } = read(form);
+  if (departureDate && returnDate && returnDate <= departureDate) {
+    return 'Choose a return date after the departure date';
+  }
+  return form.checkValidity() ? null : 'Complete the form to search';
+}
+
 export interface LiveSearchFormProps {
   action: '/explore';
   /** The form's accessible name. */
   label: string;
   className?: string;
   children: React.ReactNode;
+  /**
+   * The airport codes the catalogue knows. With them, two finished places
+   * search on their own after a short pause; without them, only a picked
+   * suggestion, the button or Enter does.
+   */
+  airportCodes?: readonly string[];
 }
 
-export function LiveSearchForm({ action, label, className, children }: LiveSearchFormProps) {
+export function LiveSearchForm({
+  action,
+  label,
+  className,
+  children,
+  airportCodes,
+}: LiveSearchFormProps) {
+  const known = React.useMemo(
+    () => (airportCodes ? new Set(airportCodes.map((code) => code.toUpperCase())) : undefined),
+    [airportCodes],
+  );
   const router = useRouter();
   const search = useSearchParams().toString();
   const formRef = React.useRef<HTMLFormElement>(null);
   const baseline = React.useRef<Record<LiveField, string> | null>(null);
   const timer = React.useRef<number | undefined>(undefined);
+  const missingId = React.useId();
+  // Unknown until the form has mounted: before that the button is enabled, and
+  // the browser's own validation still guards a submit without JavaScript.
+  const [missing, setMissing] = React.useState<string | null>(null);
+  const refreshMissing = React.useCallback(() => {
+    if (formRef.current) setMissing(missingFromForm(formRef.current));
+  }, []);
 
   /*
    * The fields are uncontrolled, so they keep what was typed across the
@@ -145,14 +235,15 @@ export function LiveSearchForm({ action, label, className, children }: LiveSearc
   React.useEffect(() => {
     if (formRef.current) baseline.current = read(formRef.current);
     carried.current = null;
-  }, [shown.generation]);
+    refreshMissing();
+  }, [shown.generation, refreshMissing]);
 
   React.useEffect(() => () => window.clearTimeout(timer.current), []);
 
   const apply = React.useCallback(
-    (typingAllowed: boolean) => {
+    (typingAllowed: boolean, placesDone = false) => {
       const form = formRef.current;
-      if (!form || !baseline.current || !settled(form, typingAllowed)) return;
+      if (!form || !baseline.current || !settled(form, typingAllowed, placesDone)) return;
 
       const now = read(form);
       const before = baseline.current;
@@ -177,9 +268,32 @@ export function LiveSearchForm({ action, label, className, children }: LiveSearc
     [action, router],
   );
 
+  /*
+   * A suggestion that was picked is a finished edit: apply it now, without
+   * waiting for the field to be left. Typing alone never reaches here.
+   */
+  React.useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const onPicked = () => {
+      window.clearTimeout(timer.current);
+      refreshMissing();
+      apply(true);
+    };
+    form.addEventListener(AIRPORT_PICKED_EVENT, onPicked);
+    return () => form.removeEventListener(AIRPORT_PICKED_EVENT, onPicked);
+  }, [apply, refreshMissing]);
+
   const schedule = () => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => apply(false), SETTLE_MS);
+    // Two finished places search after their own, shorter pause, even while
+    // the field is still focused. `apply` compares against what was last sent,
+    // so the same values never search twice.
+    const done = formRef.current ? placesComplete(formRef.current, known) : false;
+    timer.current = window.setTimeout(
+      () => apply(false, done),
+      done ? PLACES_SETTLE_MS : SETTLE_MS,
+    );
   };
 
   return (
@@ -189,8 +303,15 @@ export function LiveSearchForm({ action, label, className, children }: LiveSearc
       action={action}
       aria-label={label}
       className={className}
-      onChange={schedule}
-      onBlur={schedule}
+      onChange={() => {
+        refreshMissing();
+        schedule();
+      }}
+      onInput={refreshMissing}
+      onBlur={() => {
+        refreshMissing();
+        schedule();
+      }}
       onKeyDown={(event) => {
         // The first Enter in an airport field picks a suggestion and says so
         // by preventing it; the next one applies what is there now.
@@ -207,6 +328,19 @@ export function LiveSearchForm({ action, label, className, children }: LiveSearc
       }}
     >
       <React.Fragment key={shown.generation}>{children}</React.Fragment>
+      {/*
+        The same search Enter runs, as a button, whether or not there are
+        results yet. It is disabled only while the form could not search, and
+        then the reason is on the page in words, not only in the colour.
+      */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:col-span-2">
+        <Button type="submit" disabled={missing !== null} aria-describedby={missingId}>
+          Search
+        </Button>
+        <p id={missingId} aria-live="polite" className="text-ink-muted text-sm">
+          {missing}
+        </p>
+      </div>
     </form>
   );
 }
@@ -231,6 +365,96 @@ export function LiveResults({ children }: { children: React.ReactNode }) {
       data-pending={pending ? 'true' : 'false'}
       className="ease-standard duration-quick transition-opacity data-[pending=true]:opacity-60"
     >
+      {children}
+    </div>
+  );
+}
+
+/*
+ * The filter panel's show/hide, shared between the button in the toolbar and
+ * the panel further down the page. The server render is open, so without
+ * JavaScript the filters are there; on a phone-width screen the first client
+ * render closes it, so the trips come first.
+ */
+const DESKTOP_QUERY = '(min-width: 1024px)';
+
+interface FiltersState {
+  open: boolean;
+  toggle: () => void;
+  panelId: string;
+}
+
+const FiltersContext = React.createContext<FiltersState | null>(null);
+
+function useFilters(): FiltersState {
+  const value = React.useContext(FiltersContext);
+  if (!value) throw new Error('FiltersToggle and FiltersPanel belong inside FiltersDisclosure');
+  return value;
+}
+
+function subscribeDesktop(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {};
+  const query = window.matchMedia(DESKTOP_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+function getDesktopSnapshot(): boolean {
+  if (typeof window.matchMedia !== 'function') return true;
+  return window.matchMedia(DESKTOP_QUERY).matches;
+}
+
+function getDesktopServerSnapshot(): boolean {
+  return true;
+}
+
+export function FiltersDisclosure({ children }: { children: React.ReactNode }) {
+  const panelId = React.useId();
+  const [chosen, setChosen] = React.useState<boolean | null>(null);
+  const isDesktop = React.useSyncExternalStore(
+    subscribeDesktop,
+    getDesktopSnapshot,
+    getDesktopServerSnapshot,
+  );
+  const open = chosen ?? isDesktop;
+
+  const value = React.useMemo(
+    () => ({ open, panelId, toggle: () => setChosen(!open) }),
+    [open, panelId],
+  );
+  return <FiltersContext.Provider value={value}>{children}</FiltersContext.Provider>;
+}
+
+export function FiltersToggle({ className }: { className?: string }) {
+  const { open, toggle, panelId } = useFilters();
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      aria-expanded={open}
+      aria-controls={panelId}
+      onClick={toggle}
+      className={className}
+    >
+      Filters
+      <Icon
+        name="chevron-down"
+        className={cn('size-4 transition-transform', open && 'rotate-180')}
+      />
+    </Button>
+  );
+}
+
+export function FiltersPanel({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const { open, panelId } = useFilters();
+  return (
+    <div id={panelId} hidden={!open} className={className}>
       {children}
     </div>
   );

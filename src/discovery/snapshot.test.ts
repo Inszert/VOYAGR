@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryCacheStore } from '@/cache/memory';
+import { listPlaceableDestinations } from '@/search/destination-names';
+import { LAUNCH_SET } from '@/discovery/launch-set';
 import { DESTINATION_FIXTURES } from '@/providers/fixtures/destinations';
 import type { SearchOutcome } from '@/search/types';
 import {
@@ -72,9 +74,12 @@ describe('buildDiscoveryRequest', () => {
 
     expect(request).not.toBeNull();
     expect(request?.limits).toEqual(DISCOVERY_LIMITS);
-    // The limit must cover the catalogue, or the globe would silently show
-    // fewer places than the product can price.
-    expect(DISCOVERY_LIMITS.maxDestinations).toBeGreaterThanOrEqual(DESTINATION_FIXTURES.length);
+    // The limit must cover the launch set, and the search must put it first, or a round
+    // would price some other 28 places.
+    expect(DISCOVERY_LIMITS.maxDestinations).toBeGreaterThanOrEqual(LAUNCH_SET.length);
+    const placeable = new Set(listPlaceableDestinations());
+    const launch = LAUNCH_SET.filter((code) => placeable.has(code));
+    expect(request?.destinations.slice(0, launch.length).sort()).toEqual([...launch].sort());
     expect(request?.destinationNames?.AYT).toBe('Antalya');
   });
 

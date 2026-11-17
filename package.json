@@ -31,6 +31,7 @@
     "check:calendar": "tsx scripts/check-calendar-prices.mjs",
     "worker": "tsx --env-file-if-exists=.env scripts/worker.mjs",
     "vapid:generate": "node scripts/generate-vapid-keys.mjs",
+    "demo": "node scripts/demo.mjs",
     "devmap:update": "node scripts/update-devmap.mjs"
   },
   "dependencies": {

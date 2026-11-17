@@ -30,7 +30,10 @@ import { buildTrip } from '@/search/trip-builder';
 import { dealAgainstTypical } from '@/search/deal-score';
 import { budgetWhatIf } from '@/search/what-if';
 import { WhatIfPanel } from './what-if-panel';
+import { FiltersDisclosure, FiltersPanel, FiltersToggle } from './live-search';
 import { NearbyAirportsPanel } from './nearby-airports-panel';
+import { RouteLines } from './route-lines';
+import { MAX_ROUTE_LINES } from '@/discovery/search-routes';
 import { nearbyOrigins } from '@/search/destination-names';
 
 /**
@@ -136,6 +139,13 @@ export function SearchResults({
   const results = sortTrips(filteredTrips, sort);
   const filtered = hasActiveFilters(filters);
 
+  // Which departure airport has the cheapest trip, said only when the trips
+  // come from more than one. The ordering is the engine's `sortTrips`, not a
+  // comparison made here.
+  const originCodes = new Set(results.map((trip) => trip.candidate.origin));
+  const cheapestOrigin =
+    originCodes.size > 1 ? (sortTrips(results, 'cheapest')[0]?.candidate.origin ?? null) : null;
+
   /** This search, with some parameters changed and some removed. */
   const linkWith = (changes: Readonly<Record<string, string | null>>) => {
     const params = new URLSearchParams();
@@ -233,6 +243,12 @@ export function SearchResults({
           {diagnostics.plan.destinations.length}{' '}
           {diagnostics.plan.destinations.length === 1 ? 'destination' : 'destinations'}.
         </p>
+        {diagnostics.plan.destinationsRequested <= MAX_ROUTE_LINES ? (
+          <RouteLines
+            origins={diagnostics.plan.origins}
+            destinations={diagnostics.plan.destinations}
+          />
+        ) : null}
       </header>
 
       {/*
@@ -245,57 +261,61 @@ export function SearchResults({
         new one: the ranking is the whole trip's either way, and both figures
         are the engine's. Links, so the choice is part of the address.
       */}
-      <div className="voyagr-toolbar border-stage-glass-border bg-stage-glass backdrop-blur-glass static -mx-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-3 rounded-(--radius-card) border px-3 py-2.5 sm:sticky sm:gap-x-6">
-        <SortSelect
-          value={sort}
-          action={basePath}
-          hidden={Object.fromEntries(
-            Object.entries(searchValues).filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === 'string' &&
-                entry[1] !== '' &&
-                entry[0] !== 'fSort' &&
-                !(BUILD_KEYS as readonly string[]).includes(entry[0]),
-            ),
-          )}
-        />
-        <nav
-          aria-label="Price shown"
-          className="border-border flex rounded-(--radius-pill) border p-1"
-        >
-          {(
-            [
-              ['trip', 'Whole trip'],
-              ['flight', 'Flights only'],
-            ] as const
-          ).map(([option, text]) => (
-            <a
-              key={option}
-              href={linkWith({ view: option })}
-              aria-current={view === option ? 'page' : undefined}
-              className={
-                view === option
-                  ? 'bg-tint-ink text-surface inline-flex min-h-11 items-center rounded-(--radius-pill) px-3 text-sm font-semibold whitespace-nowrap sm:px-4'
-                  : 'text-ink-muted hover:text-ink ease-standard inline-flex min-h-11 items-center rounded-(--radius-pill) px-3 text-sm whitespace-nowrap transition-colors sm:px-4'
-              }
-            >
-              {text}
-            </a>
-          ))}
-        </nav>
-      </div>
+      <FiltersDisclosure>
+        <div className="voyagr-toolbar border-stage-glass-border bg-stage-glass backdrop-blur-glass static flex flex-wrap items-end justify-between gap-x-3 gap-y-3 rounded-(--radius-card) border px-3 py-2.5 sm:sticky sm:gap-x-6">
+          <SortSelect
+            value={sort}
+            action={basePath}
+            hidden={Object.fromEntries(
+              Object.entries(searchValues).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[1] === 'string' &&
+                  entry[1] !== '' &&
+                  entry[0] !== 'fSort' &&
+                  !(BUILD_KEYS as readonly string[]).includes(entry[0]),
+              ),
+            )}
+          />
+          {diagnostics.eligibleCount > 0 ? <FiltersToggle /> : null}
+          <nav
+            aria-label="Price shown"
+            className="border-border flex rounded-(--radius-pill) border p-1"
+          >
+            {(
+              [
+                ['trip', 'Whole trip'],
+                ['flight', 'Flights only'],
+              ] as const
+            ).map(([option, text]) => (
+              <a
+                key={option}
+                href={linkWith({ view: option })}
+                aria-current={view === option ? 'page' : undefined}
+                className={
+                  view === option
+                    ? 'bg-tint-ink text-surface inline-flex min-h-11 items-center rounded-(--radius-pill) px-3 text-sm font-semibold whitespace-nowrap sm:px-4'
+                    : 'text-ink-muted hover:text-ink ease-standard inline-flex min-h-11 items-center rounded-(--radius-pill) px-3 text-sm whitespace-nowrap transition-colors sm:px-4'
+                }
+              >
+                {text}
+              </a>
+            ))}
+          </nav>
+        </div>
 
-      {diagnostics.eligibleCount > 0 ? (
-        <Disclosure
-          summary={
-            filtered
-              ? 'Narrow these results (filters on)'
-              : 'Narrow these results, or see what a bigger budget would buy'
+        {/*
+        Nearby airports, above the results and always in view: adding one is a
+        decision about the search, not a detail to be found in a closed panel.
+      */}
+        <NearbyAirportsPanel
+          airports={nearbyOrigins(profile.origins).slice(0, 5)}
+          hrefFor={(code) =>
+            linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
           }
-          defaultOpen={filtered}
-          className="bg-surface-sunken"
-        >
-          <div className="grid items-start gap-8 lg:grid-cols-2">
+        />
+
+        {diagnostics.eligibleCount > 0 ? (
+          <FiltersPanel className="bg-surface-sunken border-border grid items-start gap-8 rounded-(--radius-card) border p-4 sm:p-6 lg:grid-cols-2">
             <ResultFiltersPanel
               filters={filters}
               searchValues={searchValues}
@@ -305,21 +325,13 @@ export function SearchResults({
               origin={profile.origins.join(', ')}
               arrivalsKnown={anyArrivalKnown(outcome.results)}
             />
-            <div className="flex flex-col gap-8">
-              <WhatIfPanel
-                steps={budgetWhatIf(outcome, profile)}
-                hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
-              />
-              <NearbyAirportsPanel
-                airports={nearbyOrigins(profile.origins).slice(0, 5)}
-                hrefFor={(code) =>
-                  linkWith({ ...noBuild, origins: [...profile.origins, code].join(', ') })
-                }
-              />
-            </div>
-          </div>
-        </Disclosure>
-      ) : null}
+            <WhatIfPanel
+              steps={budgetWhatIf(outcome, profile)}
+              hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
+            />
+          </FiltersPanel>
+        ) : null}
+      </FiltersDisclosure>
 
       {/*
         Quotes the vendor no longer stands behind, or observed too long ago.
@@ -506,6 +518,7 @@ export function SearchResults({
                   rank={index + 1}
                   deal={dealAgainstTypical(trip, outcome.destinationSummaries)}
                   view={view}
+                  cheapestOrigin={trip.candidate.origin === cheapestOrigin}
                   image={images?.get(trip.candidate.destination) ?? null}
                   country={countryOf(trip)}
                   buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}

@@ -9,6 +9,7 @@ import {
 import { addDays } from '@/core/dates';
 import { ageOf, freshnessOf, type Freshness } from '@/core/freshness';
 import type { IsoDate, IsoDateTime } from '@/core/trip/types';
+import { launchSetFirst } from '@/discovery/launch-set';
 import { searchFormDefaults } from '@/search/form-defaults';
 import { getLogger } from '@/lib/logger';
 import { listPlaceableDestinations, resolveDestinationNames } from '@/search/destination-names';
@@ -46,8 +47,8 @@ const log = getLogger('discovery.snapshot');
 /**
  * An hour. Prices on the front page are a picture, not a quote.
  *
- * Twice the default `PRICE_REFRESH_MINUTES`, so with the worker running a page
- * always finds a fresh entry and only a stopped worker lets one age.
+ * Shorter than the default `PRICE_REFRESH_MINUTES` (480): between refreshes a page serves a
+ * labelled, aged entry rather than calling a provider.
  */
 export const DISCOVERY_TTL_MS = 60 * 60 * 1000;
 
@@ -79,17 +80,17 @@ export const DISCOVERY_WINDOW = {
 /**
  * System limits for the discovery search.
  *
- * `maxDestinations` covers the whole catalogue with room to grow. The
- * per-route limits are tighter than a user's search: the globe needs one
- * honest figure per place, not forty combinations per place, and a snapshot
- * of the whole catalogue must stay cheaper than one ordinary search when the
- * providers are real. The results themselves are not what the globe reads -
- * `destinationSummaries` is, and that covers every eligible trip regardless
- * of `maxResults`.
+ * Sized to the launch set (the 28 places in `src/discovery/launch-set.ts`), not the catalogue: a
+ * round must not be able to make thousands of provider calls. The search keeps the first
+ * `maxDestinations` places it is given and `buildDiscoveryQuery` puts the launch set first, so
+ * these are the places a round prices. Per place: `maxDateWindows` flight calls plus a hotel, a
+ * weather and a transfer call, for each of `maxOrigins` - 28 x 7 x 2 = 392, so 400 is the ceiling.
+ * The per-route limits are tighter than a user's search: the globe needs one honest figure per
+ * place. The results themselves are not what the globe reads - `destinationSummaries` is.
  */
 export const DISCOVERY_LIMITS = {
   maxOrigins: 2,
-  maxDestinations: 400,
+  maxDestinations: 28,
   maxDateWindows: 4,
   // The globe needs one honest figure per place, not a priced calendar.
   calendarCoverageDays: 0,
@@ -97,8 +98,7 @@ export const DISCOVERY_LIMITS = {
   maxHotelOffersPerDestination: 3,
   maxCandidatesPerRoute: 6,
   maxResults: 10,
-  // Every place, each with a weather call, a transfer call and a hotel call.
-  maxProviderCalls: 2000,
+  maxProviderCalls: 400,
 } as const;
 
 /**
@@ -216,7 +216,9 @@ export function buildDiscoveryQuery(input: DiscoveryInput): Record<string, strin
   values.latestReturn = addDays(earliestDeparture, DISCOVERY_WINDOW.lengthDays);
   values.minNights = String(DISCOVERY_WINDOW.minNights);
   values.maxNights = String(DISCOVERY_WINDOW.maxNights);
-  values.destinations = (input.destinations ?? listPlaceableDestinations()).join(', ');
+  values.destinations = (input.destinations ?? launchSetFirst(listPlaceableDestinations())).join(
+    ', ',
+  );
   values.maxBudget = String(Math.ceil(Number(values.targetBudget) * CEILING_MULTIPLIER));
 
   return values;
