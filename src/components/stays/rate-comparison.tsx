@@ -2,7 +2,7 @@ import { format } from '@/core/money';
 import { DIFFERENCE_LABEL, type PriceComparison } from '@/core/stay/comparison';
 import { Icon } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { BOARD_LABEL, cancellationLabel } from './stay-card';
+import { BOARD_LABEL, cancellationLabel, taxLines } from './stay-card';
 
 /**
  * Every rate for one property, measured against the one the user picked.
@@ -116,13 +116,11 @@ export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
                   <p className="text-ink-muted text-sm tabular-nums">
                     {format(entry.rate.perNight)} a night
                   </p>
-                  {entry.rate.taxesAndFees ? (
-                    <p className="text-ink-muted text-xs tabular-nums">
-                      includes {format(entry.rate.taxesAndFees)} tax and fees
+                  {taxLines(entry.rate).map((line) => (
+                    <p key={line} className="text-ink-muted text-xs tabular-nums">
+                      {line}
                     </p>
-                  ) : (
-                    <p className="text-ink-muted text-xs">Taxes and fees not itemised</p>
-                  )}
+                  ))}
 
                   <p
                     className={cn(

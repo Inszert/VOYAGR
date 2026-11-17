@@ -40,6 +40,25 @@ export function cancellationLabel(rate: StayRate): string {
   return rate.cancellation.refundable ? 'Free cancellation' : 'Non-refundable';
 }
 
+/**
+ * What a rate says about tax, as lines of text. Values are used as given: the
+ * included amount is information about the total, and the amount payable at the
+ * property is never part of it. Both null is said as unknown, not as none.
+ */
+export function taxLines(rate: StayRate): string[] {
+  const lines: string[] = [];
+
+  if (rate.taxesAndFees) lines.push(`Includes taxes (${format(rate.taxesAndFees)})`);
+
+  if (rate.payableAtProperty) {
+    lines.push(
+      `Payable at the hotel: ${format(rate.payableAtProperty)} (not part of the price shown)`,
+    );
+  }
+
+  return lines.length > 0 ? lines : ['Taxes not stated'];
+}
+
 /** "air conditioning" alone on a line reads as a typo; "Air conditioning" does not. */
 function sentenceCase(text: string): string {
   return text.length === 0 ? text : `${text[0]!.toUpperCase()}${text.slice(1)}`;
@@ -202,6 +221,11 @@ export function StayCard({ stay, nights, href, priority = false }: StayCardProps
             >
               {cancellationLabel(best)}
             </p>
+            {taxLines(best).map((line) => (
+              <p key={line} className="text-muted text-[13px] tabular-nums">
+                {line}
+              </p>
+            ))}
 
             {/*
               The price anchors the bottom of every card in the row, whatever
