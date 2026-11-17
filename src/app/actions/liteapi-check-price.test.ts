@@ -21,7 +21,8 @@ vi.mock('@/lib/env', () => ({
   getEnv: () => ({ LITEAPI_API_KEY: mocks.apiKey, NODE_ENV: 'test' }),
 }));
 
-import { checkPriceAction, PRICE_CHECKS_PER_WINDOW } from './liteapi-check-price';
+import { PRICE_CHECKS_PER_WINDOW } from '@/booking/price-check-limits';
+import { checkPriceAction } from './liteapi-check-price';
 
 const input = {
   hotelId: 'lp1',

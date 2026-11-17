@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { getCurrentUser } from '@/auth/current-user';
 import { checkLiteApiPrice, type PriceCheck } from '@/booking/liteapi-prebook';
+import { PRICE_CHECK_WINDOW_MS, PRICE_CHECKS_PER_WINDOW } from '@/booking/price-check-limits';
 import { isIsoDate } from '@/core/dates';
 import type { StayQuery } from '@/core/stay/types';
 import { getEnv } from '@/lib/env';
@@ -17,10 +18,6 @@ import { getLogger } from '@/lib/logger';
  */
 
 const log = getLogger('app.liteapi-check-price');
-
-/** The one place the limit lives: checks per visitor, per fixed window. */
-export const PRICE_CHECKS_PER_WINDOW = 5;
-export const PRICE_CHECK_WINDOW_MS = 60 * 60 * 1000;
 
 const VISITOR_COOKIE = 'voyagr_visitor';
 
