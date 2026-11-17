@@ -51,6 +51,12 @@ export interface SearchLimits {
   readonly maxFlightOffersPerRoute: number;
   /** Hotel offers kept per destination, per date window, cheapest first. */
   readonly maxHotelOffersPerDestination: number;
+  /**
+   * Date windows per destination that get a hotel price, the ones with the cheapest flight. The
+   * rest are still assembled, with their stay shown as not priced. A choice of what to price, not
+   * a change to how anything is ranked.
+   */
+  readonly maxHotelWindowsPerDestination: number;
   /** Assembled combinations kept per destination, per date window. */
   readonly maxCandidatesPerRoute: number;
   /** Total combinations costed and scored across the whole search. */
@@ -124,6 +130,7 @@ export const DEFAULT_SEARCH_LIMITS: SearchLimits = {
   maxDestinations: 6,
   maxFlightOffersPerRoute: 3,
   maxHotelOffersPerDestination: 4,
+  maxHotelWindowsPerDestination: 3,
   maxCandidatesPerRoute: 12,
   maxCandidates: 600,
   maxResults: 40,

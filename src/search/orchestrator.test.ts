@@ -322,6 +322,82 @@ describe('runSearch degrades rather than failing when a provider is down', () =>
   });
 });
 
+describe('which windows get a hotel price', () => {
+  /** Counts the hotel calls and records which windows were asked about. */
+  const countingHotels = () => {
+    const real = createMockHotelProvider();
+    const asked: string[] = [];
+    const provider: HotelProvider = {
+      metadata: real.metadata,
+      checkHealth: async () => healthy,
+      searchHotels: async (query, options) => {
+        asked.push(`${query.destination}|${query.checkIn}|${query.checkOut}`);
+        return real.searchHotels(query, options);
+      },
+    };
+    return { provider, asked };
+  };
+
+  it('prices at most three windows per destination', async () => {
+    const { provider, asked } = countingHotels();
+
+    await search({ destinations: ['AYT'] }, { hotels: provider });
+
+    expect(DEFAULT_SEARCH_LIMITS.maxHotelWindowsPerDestination).toBe(3);
+    expect(new Set(asked).size).toBeGreaterThan(0);
+    expect(new Set(asked).size).toBeLessThanOrEqual(3);
+  });
+
+  it('prices the windows with the cheapest flight, and only those', async () => {
+    const { provider, asked } = countingHotels();
+
+    const outcome = await search({ destinations: ['AYT'] }, { hotels: provider });
+    const windowOf = (trip: (typeof outcome.results)[number]) =>
+      `AYT|${trip.candidate.dates.departureDate}|${trip.candidate.dates.returnDate}`;
+
+    const cheapestByWindow = new Map<string, number>();
+    for (const trip of [...outcome.results, ...outcome.nearMisses]) {
+      const key = windowOf(trip);
+      const price = trip.candidate.flight.price.amount;
+      cheapestByWindow.set(key, Math.min(price, cheapestByWindow.get(key) ?? price));
+    }
+    const priced = [...new Set(asked)];
+    const unpriced = [...cheapestByWindow.keys()].filter((key) => !priced.includes(key));
+
+    for (const key of priced) {
+      for (const other of unpriced) {
+        expect(cheapestByWindow.get(key)!).toBeLessThanOrEqual(cheapestByWindow.get(other)!);
+      }
+    }
+  });
+
+  it('shows a window left unpriced as a stay not priced, never a zero in the total', async () => {
+    const outcome = await search({ destinations: ['AYT'] });
+    const unpriced = outcome.results.filter((trip) => trip.candidate.hotel === null);
+
+    for (const trip of unpriced) {
+      const stay = trip.cost.excluded.find((line) => line.category === 'hotel');
+      expect(stay?.label).toBe('Stay not priced');
+      expect(trip.cost.total.amount).toBe(
+        trip.candidate.flight.price.amount +
+          (trip.candidate.transfer ? trip.candidate.transfer.pricePerDirection.amount * 2 : 0),
+      );
+    }
+  });
+
+  it('prices every window when the limit is raised', async () => {
+    const { provider, asked } = countingHotels();
+
+    const outcome = await search(
+      { destinations: ['AYT'], limits: { maxHotelWindowsPerDestination: 50 } },
+      { hotels: provider },
+    );
+
+    expect(new Set(asked).size).toBeGreaterThan(3);
+    expect(outcome.results.every((trip) => trip.candidate.hotel !== null)).toBe(true);
+  });
+});
+
 describe('runSearch with a provider that leaves facts unstated', () => {
   /** A provider that prices a flight but never says what is included. */
   const terseFlights: FlightProvider = {
@@ -478,7 +554,9 @@ describe('runSearch diagnostics and bounds', () => {
 
     const outcome = await search({}, { hotels: wrongCurrency });
 
-    expect(outcome.results).toEqual([]);
+    // No trip carries the mis-quoted stay. Windows that were never priced (only each
+    // destination's cheapest few are) remain as flights-only trips with the stay unpriced.
+    expect(outcome.results.every((trip) => trip.candidate.hotel === null)).toBe(true);
     expect(
       outcome.diagnostics.issues.some(
         (issue) => issue.kind === 'hotels' && issue.code === 'PROVIDER_ERROR',
@@ -797,7 +875,8 @@ describe('a provider quoting in another currency', () => {
      */
     const outcome = await search({}, { hotels: usdHotels() });
 
-    expect(outcome.results).toEqual([]);
+    // The unconvertible stay is never in a trip; the unpriced windows stay flights only.
+    expect(outcome.results.every((trip) => trip.candidate.hotel === null)).toBe(true);
     expect(
       outcome.diagnostics.issues.some((issue) =>
         issue.message.includes('USD to EUR exchange rate'),
@@ -857,7 +936,7 @@ describe('a provider quoting in another currency', () => {
       },
     );
 
-    expect(outcome.results).toEqual([]);
+    expect(outcome.results.every((trip) => trip.candidate.hotel === null)).toBe(true);
   });
 
   it('never touches the network for rates when the caller already supplied a table', async () => {

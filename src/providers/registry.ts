@@ -11,6 +11,7 @@ import type { ProviderMode } from '@/core/trip/provenance';
 import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
 import { createMockFlightProvider } from './flights/mock';
+import { createSnapshotHotelProvider } from './hotels/liteapi';
 import { createMockHotelProvider } from './hotels/mock';
 import { createMockPlacesProvider } from './places/mock';
 import { createWikidataPlacesProvider } from './places/wikidata';
@@ -275,8 +276,8 @@ function resolveHotelProvider(env: Env): HotelProvider {
 
   if (env.HOTEL_PROVIDER === 'liteapi') {
     requireLiteApiKey(env, 'HOTEL_PROVIDER');
-    // The key is present but the adapter is migration plan Part 2. Fail closed, never mock.
-    return liveProviderNotImplemented('hotels');
+    // Priced from our own stored snapshot (Part 10), never from a live LiteAPI call.
+    return createSnapshotHotelProvider(env);
   }
 
   if (env.HOTEL_PROVIDER === 'mock') {

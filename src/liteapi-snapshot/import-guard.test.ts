@@ -58,7 +58,7 @@ function importsOf(file: string): string[] {
 }
 
 /** Every file reachable from `roots`, each with the chain that reached it. */
-function reach(roots: readonly string[]): Map<string, string[]> {
+function reach(roots: readonly string[], allowed: readonly string[] = []): Map<string, string[]> {
   const chains = new Map<string, string[]>();
   const queue: string[] = [];
   for (const root of roots) {
@@ -67,6 +67,8 @@ function reach(roots: readonly string[]): Map<string, string[]> {
   }
   while (queue.length > 0) {
     const file = queue.shift()!;
+    // An allowed module is reached, but its own imports are not followed.
+    if (allowed.includes(file)) continue;
     for (const target of importsOf(file)) {
       if (chains.has(target)) continue;
       chains.set(target, [...chains.get(file)!, target]);
@@ -78,9 +80,12 @@ function reach(roots: readonly string[]): Map<string, string[]> {
 
 const rel = (file: string) => relative(SRC, file).split(sep).join('/');
 
+/** The one visitor-triggered module that may call the vendor: "Check this price" (Part 6). */
+const ALLOWED = [join(SRC, 'booking/liteapi-prebook.ts')];
+
 describe('the visitor import guard', () => {
   const appFiles = walk(join(SRC, 'app'));
-  const reachable = reach(appFiles);
+  const reachable = reach(appFiles, ALLOWED);
 
   it('looks at the app, and the graph walk finds real edges', () => {
     expect(appFiles.length).toBeGreaterThan(20);

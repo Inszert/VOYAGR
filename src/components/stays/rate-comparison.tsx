@@ -2,6 +2,7 @@ import { format } from '@/core/money';
 import { DIFFERENCE_LABEL, type PriceComparison } from '@/core/stay/comparison';
 import { Icon } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { CheckPrice } from './check-price';
 import { BOARD_LABEL, cancellationLabel, taxLines } from './stay-card';
 
 /**
@@ -134,6 +135,8 @@ export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
                   >
                     {priceDifference(entry)}
                   </p>
+
+                  <CheckPrice rate={entry.rate} showSteps={entry.isReference} />
 
                   {entry.isReference ? null : (
                     <a

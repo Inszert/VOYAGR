@@ -132,13 +132,27 @@ describe('an unapproved or unknown provider fails closed', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('fails closed on liteapi with a key while no adapter exists, never serving a mock', () => {
-    for (const kind of ['FLIGHT_PROVIDER', 'HOTEL_PROVIDER'] as const) {
-      expect(
-        () =>
-          new ProviderRegistry(env({ [kind]: 'liteapi', LITEAPI_API_KEY: 'k' } as Partial<Env>)),
-      ).toThrow(AppError);
-    }
+  it('fails closed on liteapi flights with a key while no adapter exists, never serving a mock', () => {
+    expect(
+      () =>
+        new ProviderRegistry(
+          env({ FLIGHT_PROVIDER: 'liteapi', LITEAPI_API_KEY: 'k' } as Partial<Env>),
+        ),
+    ).toThrow(AppError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('builds the liteapi hotel slot from the stored snapshot, with no outbound call', () => {
+    const registry = new ProviderRegistry(
+      env({ HOTEL_PROVIDER: 'liteapi', LITEAPI_API_KEY: 'sand_k' } as Partial<Env>),
+    );
+
+    expect(registry.hotels.metadata).toMatchObject({
+      id: 'liteapi',
+      kind: 'hotels',
+      isMock: false,
+      mode: 'test',
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

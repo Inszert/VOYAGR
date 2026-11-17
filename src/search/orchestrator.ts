@@ -1160,7 +1160,9 @@ export async function runSearch(
     }
   }
 
-  const perWindow = await Promise.all(
+  // Flights first, for every window, so the cheapest windows per destination are
+  // known before any stay is priced.
+  const windowFlights = await Promise.all(
     windows.map(async (window) => {
       const flightsByDestination =
         monthlyByDestination ??
@@ -1172,15 +1174,55 @@ export async function runSearch(
             },
           ),
         );
+      return { window, flightsByDestination };
+    }),
+  );
+
+  // For a month-at-a-time vendor the offers cover the whole month, so keep only
+  // the flights that fly this window.
+  const flightsFor = (
+    entry: (typeof windowFlights)[number],
+    destination: AirportCode,
+  ): readonly FlightOffer[] =>
+    (entry.flightsByDestination.get(destination) ?? []).filter(
+      (offer) => !monthlyByDestination || flightMatchesWindow(offer, entry.window),
+    );
+
+  /*
+   * Stays are priced only for each destination's cheapest few flight windows.
+   * This is a choice of what to price, and ranking is untouched: a window left
+   * out is still assembled, its stay reported as not priced, and the cost
+   * engine keeps that line out of the total. Cheapest flight first, the earlier
+   * departure on a tie, so the choice is the same on every run.
+   */
+  const pricedWindows = new Map<AirportCode, Set<DateWindow>>();
+  for (const destination of plan.destinations) {
+    const ranked = windowFlights
+      .map((entry) => {
+        const cheapest = flightsFor(entry, destination).reduce<number | null>(
+          (low, offer) => (low === null || offer.price.amount < low ? offer.price.amount : low),
+          null,
+        );
+        return { window: entry.window, cheapest };
+      })
+      .filter((entry): entry is { window: DateWindow; cheapest: number } => entry.cheapest !== null)
+      .sort(
+        (a, b) =>
+          a.cheapest - b.cheapest ||
+          a.window.departureDate.localeCompare(b.window.departureDate) ||
+          a.window.returnDate.localeCompare(b.window.returnDate),
+      )
+      .slice(0, plan.limits.maxHotelWindowsPerDestination);
+    pricedWindows.set(destination, new Set(ranked.map((entry) => entry.window)));
+  }
+
+  const perWindow = await Promise.all(
+    windowFlights.map(async (entry) => {
+      const { window } = entry;
 
       return Promise.all(
         plan.destinations.map(async (destination): Promise<TripCandidate[]> => {
-          // For a month-at-a-time vendor the offers cover the whole month, so
-          // keep only the flights that fly this window, before paying for a
-          // hotel call that nothing could use.
-          const routeFlights = (flightsByDestination.get(destination) ?? []).filter(
-            (offer) => !monthlyByDestination || flightMatchesWindow(offer, window),
-          );
+          const routeFlights = flightsFor(entry, destination);
           // No flights means no trip. Skipping the hotel call here is the
           // single biggest saving in the whole fan-out.
           if (routeFlights.length === 0) return [];
@@ -1191,7 +1233,7 @@ export async function runSearch(
           // Other failures are still reported, and the trip is still assembled
           // - without a stay - because the flights were real.
           const hotels =
-            deps.hotels.metadata.mode === 'absent'
+            deps.hotels.metadata.mode === 'absent' || !pricedWindows.get(destination)?.has(window)
               ? []
               : await fetchHotels(plan, deps, request, destination, window, issues, budget);
 
