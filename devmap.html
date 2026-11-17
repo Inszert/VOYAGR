@@ -264,7 +264,8 @@ const DATA = {
   ],
 
   failing: [
-    { tag: "Nuitee", text: "Flight fallback offers are labelled \"aviasales\" while the provider mode is test or live, so the provenance can be wrong", severity: "should fix", note: "Found in Part 4. Fix before flights show on the site.", src: "src/liteapi-snapshot/flights-read.ts" },
+    { tag: "Nuitee", text: "Privacy copy for the photo host and LiteAPI is draft wording; it must not go to main before the owner reviews it", severity: "blocks launch", note: "Main is held at ce524eb. The feature branch is 0cd6d67. Railway auto-deploys from main.", src: "docs/security.md; src/app/(column)/privacy/page.tsx" },
+    { tag: "Nuitee", text: "Hotel photos: no referrer-policy on the image, so the referrer is only trimmed by the site default", severity: "should fix", note: "The fix needs a change to the shared image component; an agent was denied that edit, so it waits for the owner.", src: "src/components/ui/media.tsx" },
     { tag: "Nuitee", text: "The queue test with Redis times out under the full parallel run; it passes when run alone", severity: "known limit", note: "Timing under load, not a logic failure.", src: "src/queue/bullmq.test.ts" },
     { tag: "Nuitee", text: "The snapshot Postgres tables are untested against a real database here (the contract cases skip without TEST_DATABASE_URL)", severity: "should fix", note: "Run the contract tests against a test database before production.", src: "src/db/liteapi-snapshot-contract.test.ts" },
     { tag: "Nuitee", text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; keep it off until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
@@ -272,7 +273,8 @@ const DATA = {
   ],
 
   needsOwner: [
-    { tag: "Nuitee", text: "Flights: how stored LiteAPI fares may be shown, since each offer expires about 10 minutes after its search (indicative with the time it was seen, or hidden)", src: "docs/liteapi-migration-plan.md Part 4 design, live check 2026-11-17" },
+    { tag: "Nuitee", text: "Approve the privacy wording for the photo host and LiteAPI, then publish to main", src: "src/app/(column)/privacy/page.tsx; docs/security.md" },
+    { tag: "Nuitee", text: "Approve a referrer-policy change to the shared image component (media.tsx) for the photo host", src: "src/components/ui/media.tsx" },
     { tag: "Nuitee", text: "Photos: the LiteAPI image host is not in the CSP, so no vendor photo shows. Add the host (needs a security review) or proxy the images through our origin", src: "docs/liteapi-migration-plan.md Part 3; src/consent/csp.ts" },
     { tag: "Nuitee", text: "Trips: windows outside the top three show as flights-only trips with \"Stay not priced\". Keep them, or drop them from the ranking", src: "docs/liteapi-migration-plan.md Part 2" },
     { tag: "Nuitee", text: "LiteAPI: confirm migration 0013 (the snapshot tables) ran on the real database, in the deploy log", src: "migration 0013_liteapi_snapshot; deploy pre-deploy step" },
