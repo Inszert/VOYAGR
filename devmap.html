@@ -253,6 +253,7 @@ const DATA = {
 
   // Done: only items the sources mark done, or that appear in the commits.
   done: [
+    { tag: "Nuitee", text: "LiteAPI sandbox trial: hotel list and one rates call both returned 200, with a EUR price, a taxes list and the sandbox flag", note: "Two calls on 2026-11-17 with the sandbox key from .env. The key was not printed or stored.", src: "live sandbox call, 2026-11-17" },
     { tag: "Nuitee", text: "LiteAPI env and deploy: liteapi provider values; a sandbox key is refused in production unless LITEAPI_SANDBOX_IN_PRODUCTION is set; the key never appears in logs", note: "Built 2026-11-17 (commit b182084). Tests pass. The owner still sets the variables.", src: "docs/liteapi-migration-plan.md Part 11" },
     { text: "Payment button placeholder: 'Payments are not switched on yet' on the explore and destination summaries, disabled", note: "Built 2026-11-17 (commit 2efbecf). No payment or booking code is called.", src: "docs/liteapi-migration-plan.md Part 7" },
     { text: "Transfers (Intui), eSIM (Yesim, GigSky) and AirHelp unchanged; links verified", note: "Checked 2026-11-17; no code change. A regression test already exists.", src: "docs/liteapi-migration-plan.md Part 8" },
