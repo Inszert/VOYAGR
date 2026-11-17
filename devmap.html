@@ -417,6 +417,7 @@ const DATA = {
     { text: "Test counts differ across sources (273 in STATUS; 1887 unit and 248 e2e in docs/testing.md); none re-run", severity: "known limit", src: "STATUS.md; docs/testing.md" },
     { text: "CSP lists 'unsafe-inline' as a constraint; a nonce proxy was added later, so verify which applies", severity: "known limit", src: "progress.md (constraints; 2026-11-04)" },
     { text: "AI_PROVIDER=anthropic is accepted by the schema and fails at startup; no adapter exists", severity: "known limit", src: "progress.md" },
+    { text: "Google Flights sidecar: requirements.txt now points at AWeirdDev/flights commit 5fd011e (parser fixes over PyPI fast-flights 3.1.0), not yet committed: the sidecar test run was blocked by a permission check", severity: "should fix", note: "Run python -m unittest test_server in services/google-flights and a manual /search, then commit. The source is off by default and Google's EU consent wall still blocks it (runbook 5a).", src: "owner request 2026-11-17; services/google-flights/requirements.txt" },
   ],
 
   // Needs the owner: keys, DNS records, decisions. Names only, never values.
