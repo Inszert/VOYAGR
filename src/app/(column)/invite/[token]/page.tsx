@@ -13,8 +13,8 @@ import { getCurrentUser } from '@/auth/current-user';
  * Kept out of search and sent with no referrer, because the address is the
  * secret.
  *
- * The sign-in flow has no "next" parameter, so a signed-out visitor signs in
- * and then opens the link again; the page says so rather than pretend.
+ * A signed-out visitor is sent to sign in or sign up with `next` set to this
+ * page, and the auth actions return them here (after `safeNextPath` validates it).
  */
 
 export const metadata: Metadata = {
@@ -33,6 +33,7 @@ export default async function InvitePage({
   const { token } = await params;
   const { failed } = await searchParams;
   const user = await getCurrentUser();
+  const nextPath = `/invite/${encodeURIComponent(token)}`;
 
   return (
     <div className="flex max-w-xl flex-col gap-5">
@@ -62,13 +63,13 @@ export default async function InvitePage({
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-ink-muted text-sm leading-relaxed">
-            You have been invited to a trip. Sign in to join it, then open this link again.
+            You have been invited to a trip. Sign in or create an account to join it.
           </p>
           <div className="flex flex-wrap gap-4 text-sm">
-            <Link href="/sign-in" className="text-brand-ink underline underline-offset-4">
+            <Link href={`/sign-in?next=${nextPath}`} className="text-brand-ink underline underline-offset-4">
               Sign in
             </Link>
-            <Link href="/sign-up" className="text-brand-ink underline underline-offset-4">
+            <Link href={`/sign-up?next=${nextPath}`} className="text-brand-ink underline underline-offset-4">
               Create an account
             </Link>
           </div>

@@ -396,3 +396,77 @@ void _stayLinkMatches;
 void _flightMatches;
 void _hotelMatches;
 void _transferMatches;
+
+// --- LiteAPI ----------------------------------------------------------------
+
+/**
+ * One hotel row from LiteAPI's `GET /v3.0/data/hotels`.
+ *
+ * Only what the documentation lists as required is required here; every other
+ * fact is optional on the wire and becomes an explicit `null` in our own model
+ * when the adapter maps it. Non-strict: a vendor adding a field is not a defect.
+ */
+export const liteapiHotelRowSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().trim().min(1).max(300),
+    latitude: z.number().finite().min(-90).max(90),
+    longitude: z.number().finite().min(-180).max(180),
+    city: z.string().nullish(),
+    country: z.string().nullish(),
+    address: z.string().nullish(),
+    zip: z.string().nullish(),
+    main_photo: z.string().nullish(),
+    stars: z.number().finite().nullish(),
+    rating: z.number().finite().nullish(),
+    reviewCount: z.number().int().nonnegative().nullish(),
+  })
+  .passthrough();
+
+/** A vendor amount: a non-negative decimal in major units, with its own currency. */
+const liteapiAmount = z
+  .object({
+    amount: z.number().finite().nonnegative(),
+    currency,
+  })
+  .passthrough();
+
+/**
+ * One hotel's entry in `POST /v3.0/hotels/rates`. A room type with no rate that
+ * carries a stated total is not a price, so it fails here and is dropped.
+ */
+export const liteapiRatesRowSchema = z
+  .object({
+    hotelId: z.string().min(1),
+    roomTypes: z.array(
+      z
+        .object({
+          offerId: z.string().min(1),
+          offerRetailRate: liteapiAmount.nullish(),
+          rates: z
+            .array(
+              z
+                .object({
+                  rateId: z.string().min(1),
+                  name: z.string().nullish(),
+                  boardType: z.string().nullish(),
+                  retailRate: z.object({ total: z.array(liteapiAmount).min(1) }).passthrough(),
+                  cancellationPolicies: z
+                    .object({ refundableTag: z.string().nullish() })
+                    .passthrough()
+                    .nullish(),
+                })
+                .passthrough(),
+            )
+            .min(1),
+        })
+        .passthrough(),
+    ),
+  })
+  .passthrough();
+
+/** The two envelopes. A body that is not one of these is a failure, not an empty list. */
+export const liteapiHotelsEnvelopeSchema = z.object({ data: z.array(z.unknown()) }).passthrough();
+export const liteapiRatesEnvelopeSchema = z
+  .object({ data: z.array(z.unknown()), sandbox: z.boolean().nullish() })
+  .passthrough();

@@ -35,6 +35,8 @@ export interface CredentialsFormProps {
   passwordAutoComplete: 'current-password' | 'new-password';
   /** A reason to be here that this form itself did not cause, e.g. "Password changed." */
   notice?: string | null;
+  /** A validated same-origin path to return to after success, carried as a hidden field. */
+  next?: string | null;
   footer: React.ReactNode;
 }
 
@@ -48,6 +50,7 @@ export function CredentialsForm({
   passwordHint,
   passwordAutoComplete,
   notice,
+  next,
   footer,
 }: CredentialsFormProps) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(action, {});
@@ -72,6 +75,7 @@ export function CredentialsForm({
       ) : null}
 
       <form action={formAction} className="flex flex-col gap-5" aria-busy={pending || undefined}>
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         {/*
           Always mounted, not conditionally rendered: a live region that appears
           at the same moment as its content is often missed by screen readers.

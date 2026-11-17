@@ -202,6 +202,12 @@ const envSchema = z.object({
    * has a default: with either unset the link adapter is unavailable rather
    * than guessing an id.
    */
+  /**
+   * LiteAPI (hotel rates), the owner's chosen hotel source. A secret, sent as `X-API-Key`.
+   * Unset, the adapter is absent and nothing else changes. A sandbox key returns sandbox
+   * rates, which the adapter labels `test`, never `live`.
+   */
+  LITEAPI_API_KEY: z.string().min(1).optional(),
   TRAVELPAYOUTS_HOTEL_PROGRAM_ID: z.string().min(1).optional(),
   TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID: z.string().min(1).optional(),
 
@@ -241,6 +247,7 @@ export const SECRET_ENV_KEYS = [
   // The token, not the marker: see the note beside them above.
   'AVIASALES_API_TOKEN',
   'GOOGLE_FLIGHTS_SIDECAR_KEY',
+  'LITEAPI_API_KEY',
   'VAPID_PRIVATE_KEY',
   'RESEND_API_KEY',
 ] as const satisfies readonly (keyof Env)[];

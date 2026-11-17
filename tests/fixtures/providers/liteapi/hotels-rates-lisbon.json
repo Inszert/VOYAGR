@@ -1,0 +1,72 @@
+{
+  "_note": "Written from the documented response shape of POST /v3.0/hotels/rates (docs.nuitee.com/reference/post_hotels-rates). Not a recording: no live call was made. Amounts are invented. lp1002 has no rates; the second entry is malformed on purpose.",
+  "data": [
+    {
+      "hotelId": "lp1001",
+      "roomTypes": [
+        {
+          "roomTypeId": "rt-b",
+          "offerId": "offer-breakfast",
+          "supplier": "nuitee",
+          "rates": [
+            {
+              "rateId": "r2",
+              "occupancyNumber": 1,
+              "name": "Superior Double",
+              "boardType": "BB",
+              "boardName": "Breakfast",
+              "retailRate": {
+                "total": [{ "amount": 412.5, "currency": "EUR" }],
+                "taxesAndFees": []
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [],
+                "hotelRemarks": [],
+                "refundableTag": "NRFN"
+              }
+            }
+          ],
+          "offerRetailRate": { "amount": 412.5, "currency": "EUR" }
+        },
+        {
+          "roomTypeId": "rt-a",
+          "offerId": "offer-room-only",
+          "supplier": "nuitee",
+          "rates": [
+            {
+              "rateId": "r1",
+              "occupancyNumber": 1,
+              "name": "Standard Double",
+              "boardType": "RO",
+              "boardName": "Room Only",
+              "retailRate": {
+                "total": [{ "amount": 333.33, "currency": "EUR" }],
+                "taxesAndFees": []
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [],
+                "hotelRemarks": [],
+                "refundableTag": "RFN"
+              }
+            }
+          ],
+          "offerRetailRate": { "amount": 333.33, "currency": "EUR" }
+        }
+      ]
+    },
+    { "hotelId": "lp1002", "roomTypes": [] },
+    {
+      "hotelId": "lp1xxx",
+      "roomTypes": [
+        {
+          "offerId": "bad",
+          "rates": [
+            { "rateId": "x", "retailRate": { "total": [{ "amount": "12.50", "currency": "EUR" }] } }
+          ]
+        }
+      ]
+    }
+  ],
+  "guestLevel": 0,
+  "sandbox": true
+}

@@ -21,14 +21,17 @@ async function show(search: Record<string, string> = {}) {
 describe('invite page', () => {
   beforeEach(() => getCurrentUser.mockReset());
 
-  it('offers plain sign-in and sign-up links, not a join button, when signed out', async () => {
+  it('offers sign-in and sign-up links that return here, not a join button, when signed out', async () => {
     getCurrentUser.mockResolvedValue(null);
     await show();
 
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/sign-in');
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      `/sign-in?next=/invite/${TOKEN}`,
+    );
     expect(screen.getByRole('link', { name: 'Create an account' })).toHaveAttribute(
       'href',
-      '/sign-up',
+      `/sign-up?next=/invite/${TOKEN}`,
     );
     expect(screen.queryByRole('button', { name: 'Join this trip' })).not.toBeInTheDocument();
   });

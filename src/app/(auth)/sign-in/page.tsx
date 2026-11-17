@@ -5,6 +5,7 @@ import { AuthShell } from '@/components/auth/auth-shell';
 import { CredentialsForm } from '@/components/auth/credentials-form';
 import { signInAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
+import { safeNextPath } from '@/auth/return-to';
 
 export const metadata: Metadata = {
   title: 'Sign in',
@@ -28,10 +29,12 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  // Nobody needs to sign in twice.
-  if (await getCurrentUser()) redirect('/account');
-
   const params = await searchParams;
+  const next = safeNextPath(typeof params.next === 'string' ? params.next : undefined);
+
+  // Nobody needs to sign in twice.
+  if (await getCurrentUser()) redirect(next ?? '/account');
+
   const flag = Object.keys(SIGN_IN_NOTICES).find((key) => params[key] !== undefined);
   const notice = flag ? SIGN_IN_NOTICES[flag] : null;
 
@@ -46,10 +49,14 @@ export default async function SignInPage({
         action={signInAction}
         passwordAutoComplete="current-password"
         notice={notice}
+        next={next}
         footer={
           <>
             No account yet?{' '}
-            <Link href="/sign-up" className="text-brand-ink underline underline-offset-4">
+            <Link
+              href={next ? `/sign-up?next=${encodeURIComponent(next)}` : '/sign-up'}
+              className="text-brand-ink underline underline-offset-4"
+            >
               Create one
             </Link>
             . Forgotten your password?{' '}

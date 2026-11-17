@@ -8,13 +8,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const register = vi.fn();
+const signIn = vi.fn();
 const redirect = vi.fn((to: string) => {
   throw Object.assign(new Error('NEXT_REDIRECT'), { to });
 });
 
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('@/auth/current-user', () => ({
-  getAuthService: () => ({ register }),
+  getAuthService: () => ({ register, signIn }),
   setSessionCookie: vi.fn(async () => {}),
   clearSessionCookie: vi.fn(),
   getCurrentUser: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock('@/lib/client-key', () => ({ resolveClientKey: vi.fn(async () => 'test')
 const logger = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => logger }));
 
-const { signUpAction } = await import('./auth');
+const { signInAction, signUpAction } = await import('./auth');
 const { AppError } = await import('@/lib/errors');
 
 const EMAIL = 'a@example.com';
@@ -54,6 +55,56 @@ const everythingLogged = () =>
     ...logger.warn.mock.calls,
     ...logger.info.mock.calls,
   ]);
+
+describe('signUpAction return path', () => {
+  beforeEach(() => {
+    register.mockReset();
+    signIn.mockReset();
+    redirect.mockClear();
+  });
+
+  it('returns to a safe next path after sign-up', async () => {
+    register.mockResolvedValue(issued(true));
+    const data = form();
+    data.set('next', '/invite/abc');
+    await expect(signUpAction({}, data)).rejects.toThrow('NEXT_REDIRECT');
+    expect(redirect).toHaveBeenCalledWith('/invite/abc');
+  });
+
+  it('ignores an unsafe next path', async () => {
+    register.mockResolvedValue(issued(true));
+    const data = form();
+    data.set('next', '//evil.com');
+    await expect(signUpAction({}, data)).rejects.toThrow('NEXT_REDIRECT');
+    expect(redirect).toHaveBeenCalledWith('/account');
+  });
+});
+
+describe('signInAction return path', () => {
+  beforeEach(() => {
+    signIn.mockReset();
+    redirect.mockClear();
+  });
+
+  it.each([
+    ['/invite/abc', '/invite/abc'],
+    ['https://evil.com', '/account'],
+    ['//evil.com', '/account'],
+    ['/\\evil', '/account'],
+  ])('next %s redirects to %s', async (next, expected) => {
+    signIn.mockResolvedValue({ token: 't' });
+    const data = form();
+    data.set('next', next);
+    await expect(signInAction({}, data)).rejects.toThrow('NEXT_REDIRECT');
+    expect(redirect).toHaveBeenCalledWith(expected);
+  });
+
+  it('goes to the account without a next', async () => {
+    signIn.mockResolvedValue({ token: 't' });
+    await expect(signInAction({}, form())).rejects.toThrow('NEXT_REDIRECT');
+    expect(redirect).toHaveBeenCalledWith('/account');
+  });
+});
 
 describe('signUpAction', () => {
   beforeEach(() => {

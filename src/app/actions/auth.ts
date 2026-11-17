@@ -8,6 +8,7 @@ import {
   getSessionToken,
   setSessionCookie,
 } from '@/auth/current-user';
+import { safeNextPath } from '@/auth/return-to';
 import type { Registered } from '@/auth/service';
 import {
   describeSignUpFailure,
@@ -52,6 +53,7 @@ export async function signUpAction(
 ): Promise<AuthFormState> {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+  const next = safeNextPath(formData.get('next'));
 
   let registered: Registered;
 
@@ -88,6 +90,9 @@ export async function signUpAction(
   // Signed in either way, so the sign-up page itself cannot be the place to
   // say the mail failed: it sends a signed-in visitor to the account, and the
   // re-render after this action would do exactly that. The account page says it.
+  // A person who arrived from an invite link goes back to it; `safeNextPath`
+  // admits only same-origin relative paths.
+  if (next) redirect(next);
   redirect(registered.verificationEmailSent ? '/account' : '/account?verification=unsent');
 }
 
@@ -97,6 +102,7 @@ export async function signInAction(
 ): Promise<AuthFormState> {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+  const next = safeNextPath(formData.get('next'));
 
   try {
     const issued = await getAuthService().signIn(email, password, await resolveClientKey());
@@ -105,7 +111,7 @@ export async function signInAction(
     return { error: publicMessage(error, 'Could not sign you in.'), email };
   }
 
-  redirect('/account');
+  redirect(next ?? '/account');
 }
 
 export async function signOutAction(): Promise<void> {

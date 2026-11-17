@@ -371,6 +371,7 @@ const DATA = {
 
   // Planned, not started. `note` says why, where the source does.
   planned: [
+    { text: "Hotel booking: not built (decided 2026-11-17: prices only; people book on the hotel site)", note: "Decision recorded in docs/provider-policy.md.", src: "owner decision 2026-11-17" },
     { text: "Globe default: show at least 3 places on the other side of the globe and 5 far-away places, without overloading the view", note: "Owner request 2026-11-17 (read \"plains\" as \"places\"; confirm). Not started.", src: "owner request" },
     { text: "Trip style selector on Discover for the selected place or city: chill, hike, city, food and others; choosing one builds the trip for that style", note: "Owner request 2026-11-17; not started.", src: "owner request" },
     { text: "Slider per part of the trip (flights, stay, activities, transfers and more) to set how much of each to include; the trip is generated from those settings", note: "Owner request 2026-11-17; not started.", src: "owner request" },
@@ -400,6 +401,15 @@ const DATA = {
 
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
+    { text: "Explore on phone: zoom control sits on top of the menu button", severity: "should fix", note: "Browser check 2026-11-17 (390 px).", src: "browser check" },
+    { text: "Explore: sticky Sort bar is tall (about 90 px desktop, 215 px phone) and covers results while scrolling; phone text clipped", severity: "should fix", note: "Browser check 2026-11-17.", src: "browser check" },
+    { text: "Explore globe zoomed: hard horizontal fade cuts the globe at the canvas bottom; diagonal banding over the Sahara", severity: "should fix", note: "Browser check 2026-11-17 (1440 px, zoomed).", src: "browser check" },
+    { text: "Explore globe zoomed: subtitle text is low contrast over bright desert imagery", severity: "should fix", note: "Browser check 2026-11-17.", src: "browser check" },
+    { text: "Destination hero has no image when IMAGERY_PROVIDER=none: an empty gradient box", severity: "known limit", note: "Expected with no imagery provider; check in production.", src: "browser check" },
+    { text: "Destination sticky section bar: phone bar hidden behind the Search trips button; tab labels clipped", severity: "should fix", note: "Browser check 2026-11-17 (390 px).", src: "browser check" },
+    { text: "Destination plan map is empty: place dots not drawn; only the centre and one ring show", severity: "should fix", note: "Browser check 2026-11-17. The DOM has the circles; they are not visible.", src: "browser check" },
+    { text: "Destination plan: two places show 0.0 km from the stop before, though the list gives 3.3 km and 7.0 km", severity: "should fix", note: "Browser check 2026-11-17. Possible data or mock inconsistency.", src: "browser check" },
+    { text: "Your trip on phone: the Change button sits on the arrival time; duration and stops wrap", severity: "should fix", note: "Browser check 2026-11-17 (390 px).", src: "browser check" },
     { text: "Many places still have no image (not only Malta)", severity: "should fix", note: "Owner report 2026-11-17: too many places show the initials tile. Partly fixed: photos added for Graz, Linz, Salzburg, Innsbruck and Bratislava; other places still show the initials tile.", src: "owner report; commit b39f7f3 (photos for more destinations)" },
     { text: "Aviasales returns 429 (rate limit) on some flight searches, so fares are missing", severity: "should fix", note: "Left after the flight 429 retry (commit dd9c042). The retry covers only a short reset time; the vendor's 429s remain on some calls.", src: "owner report 2026-11-17; commit dd9c042" },
     { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, committed in 9194117; not yet confirmed to fix this.", src: "owner report" },

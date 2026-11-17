@@ -1,0 +1,40 @@
+{
+  "_note": "Written from the documented response shape of GET /v3.0/data/hotels (docs.nuitee.com/reference/get_data-hotels). Not a recording: no live call was made. Names and ids are invented.",
+  "data": [
+    {
+      "id": "lp1001",
+      "name": "Hotel Alfama Test",
+      "currency": "EUR",
+      "country": "PT",
+      "city": "Lisbon",
+      "latitude": 38.711,
+      "longitude": -9.13,
+      "address": "Rua Exemplo 1",
+      "zip": "1100-001",
+      "main_photo": "https://static.example.test/lp1001.jpg",
+      "thumbnail": "https://static.example.test/lp1001-t.jpg",
+      "stars": 4,
+      "rating": 8.6,
+      "reviewCount": 312
+    },
+    {
+      "id": "lp1002",
+      "name": "Pensao Sem Preco",
+      "currency": "EUR",
+      "country": "PT",
+      "city": "Lisbon",
+      "latitude": 38.715,
+      "longitude": -9.14,
+      "address": null,
+      "zip": null,
+      "main_photo": "http://static.example.test/lp1002.jpg",
+      "thumbnail": null,
+      "stars": 0,
+      "rating": 0,
+      "reviewCount": 0
+    },
+    { "id": "lp1003", "name": "Bad Row With No Coordinates", "country": "PT", "city": "Lisbon" }
+  ],
+  "hotelIds": ["lp1001", "lp1002", "lp1003"],
+  "total": 3
+}

@@ -4,6 +4,7 @@ import type { DataSource } from '../data-source';
 import { getLogger } from '@/lib/logger';
 import { createAbsentStayProvider } from '../absent';
 import { mockAllowed } from '../mock-policy';
+import { createLiteApiStayProvider } from './liteapi';
 import { createMockStayProvider } from './mock';
 import { createTravelpayoutsLinksProvider } from './travelpayouts-links';
 import type { StayProvider } from './types';
@@ -30,11 +31,13 @@ import type { StayProvider } from './types';
 const log = getLogger('providers.stays.registry');
 
 /** Every adapter this build knows how to construct. */
-const ADAPTERS: Record<string, (env: Env) => StayProvider> = {
+const ADAPTERS: Record<string, (env: Env) => StayProvider | null> = {
   mock: () => createMockStayProvider(),
   absent: () => createAbsentStayProvider(),
   // Affiliate links, no prices. Unavailable until its three identifiers are set.
   'travelpayouts-links': (env) => createTravelpayoutsLinksProvider(env),
+  // Hotel rates. Absent (null) without LITEAPI_API_KEY, and only when STAY_PROVIDERS names it.
+  liteapi: (env) => createLiteApiStayProvider(env),
 };
 
 /**
@@ -95,7 +98,9 @@ export function getStayProviders(env: Env = getEnv(), source: DataSource = 'api'
       continue;
     }
 
-    providers.push(build(env));
+    const built = build(env);
+    if (built) providers.push(built);
+    else log.info({ provider: name }, 'stay provider absent: its credential is not set');
   }
 
   // Never an empty list: a search with no providers is an empty page with no
