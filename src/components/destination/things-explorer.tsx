@@ -9,6 +9,13 @@ import { THING_KINDS, type ThingKind, type ThingToDo } from '@/providers/types';
 import { placeImageUrl } from '@/providers/places/image-url';
 import { cn } from '@/lib/cn';
 import { KIND_ICON, KIND_TINT, KIND_WORDS, sentenceCase } from './place-kinds';
+import {
+  STYLE_WORDS,
+  TRIP_STYLES,
+  orderByStyle,
+  withStyleParam,
+  type TripStyle,
+} from './style-order';
 import { PlacesMap } from './places-map';
 import { usePlaces } from './places-context';
 import { useReducedMotion as useReducedMotionOrNull } from './use-media';
@@ -40,6 +47,8 @@ export interface ThingsExplorerProps {
   counts: Readonly<Record<ThingKind, number>>;
   /** The filter in force on arrival, already checked against `counts`. */
   initialKind: KindFilter;
+  /** The trip style in force on arrival (`?style=`), or null for the current order. */
+  initialStyle?: TripStyle | null;
   /** The most shown at once. */
   max: number;
   sample: boolean;
@@ -139,21 +148,34 @@ function PlaceCard({
   );
 }
 
-export function ThingsExplorer({ hrefs, counts, initialKind, max, sample }: ThingsExplorerProps) {
+export function ThingsExplorer({
+  hrefs,
+  counts,
+  initialKind,
+  initialStyle = null,
+  max,
+  sample,
+}: ThingsExplorerProps) {
   const { things, credits, centre, hoverId, setHoverId, open } = usePlaces();
   const reduced = useReducedMotionOrNull() === true;
   const [kind, setKind] = React.useState<KindFilter>(initialKind);
+  const [style, setStyle] = React.useState<TripStyle | null>(initialStyle);
   const [leaving, setLeaving] = React.useState<ReadonlySet<string>>(new Set());
   const gridRef = React.useRef<HTMLUListElement>(null);
   const before = React.useRef<Map<string, DOMRect> | null>(null);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // The style only reorders what the filter and the cap already chose: nothing is removed.
   const forKind = React.useCallback(
-    (next: KindFilter) =>
-      things.filter((thing) => next === null || thing.kind === next).slice(0, max),
+    (next: KindFilter, nextStyle: TripStyle | null) =>
+      orderByStyle(
+        things.filter((thing) => next === null || thing.kind === next).slice(0, max),
+        nextStyle,
+      ),
     [things, max],
   );
-  const shown = React.useMemo(() => forKind(kind), [forKind, kind]);
+  const shown = React.useMemo(() => forKind(kind, style), [forKind, kind, style]);
+  const hrefFor = (group: string) => withStyleParam(hrefs[group] ?? '?', style);
   const pictured = shown.filter((place) => place.imageFile !== null);
   const unpictured = shown.filter((place) => place.imageFile === null);
 
@@ -167,15 +189,30 @@ export function ThingsExplorer({ hrefs, counts, initialKind, max, sample }: Thin
     setKind(next);
   }, []);
 
+  const chooseStyle = (next: TripStyle | null) => {
+    if (next === style) return;
+    window.history.replaceState(
+      window.history.state,
+      '',
+      withStyleParam(hrefs[kind ?? 'all'] ?? '?', next),
+    );
+    const rects = new Map<string, DOMRect>();
+    gridRef.current?.querySelectorAll<HTMLElement>('[data-place-id]').forEach((element) => {
+      rects.set(element.dataset.placeId as string, element.getBoundingClientRect());
+    });
+    before.current = reduced ? null : rects;
+    setStyle(next);
+  };
+
   const choose = (next: KindFilter) => {
     if (next === kind) return;
-    window.history.replaceState(window.history.state, '', hrefs[next ?? 'all']);
+    window.history.replaceState(window.history.state, '', hrefFor(next ?? 'all'));
 
     if (reduced) {
       commit(next);
       return;
     }
-    const staying = new Set(forKind(next).map((place) => place.id));
+    const staying = new Set(forKind(next, style).map((place) => place.id));
     const going = new Set(pictured.filter((place) => !staying.has(place.id)).map((p) => p.id));
     setLeaving(going);
     if (timer.current) clearTimeout(timer.current);
@@ -216,7 +253,7 @@ export function ThingsExplorer({ hrefs, counts, initialKind, max, sample }: Thin
         );
       }
     });
-  }, [kind, reduced]);
+  }, [kind, style, reduced]);
 
   const creditsFor = pictured.filter((place) => place.imageFile);
 
@@ -244,7 +281,7 @@ export function ThingsExplorer({ hrefs, counts, initialKind, max, sample }: Thin
             return (
               <li key={group ?? 'all'}>
                 <Link
-                  href={hrefs[group ?? 'all'] ?? '#'}
+                  href={hrefFor(group ?? 'all')}
                   scroll={false}
                   aria-current={current ? 'true' : undefined}
                   onClick={(event) => {
@@ -266,6 +303,39 @@ export function ThingsExplorer({ hrefs, counts, initialKind, max, sample }: Thin
                       {Math.min(counts[group], max)}
                     </span>
                   ) : null}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <nav aria-label="Put places first by trip style">
+        <ul className="flex flex-wrap items-center gap-2">
+          <li className="text-ink-muted text-sm">Trip style</li>
+          {TRIP_STYLES.map((option) => {
+            const current = option === style;
+
+            return (
+              <li key={option}>
+                <Link
+                  href={withStyleParam(hrefs[kind ?? 'all'] ?? '?', current ? null : option)}
+                  scroll={false}
+                  aria-current={current ? 'true' : undefined}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0)
+                      return;
+                    event.preventDefault();
+                    chooseStyle(current ? null : option);
+                  }}
+                  className={cn(
+                    'ease-standard duration-quick inline-flex min-h-11 items-center rounded-full px-4 text-sm transition-colors active:scale-[0.97] motion-reduce:active:scale-100',
+                    current
+                      ? 'bg-ink text-surface font-medium'
+                      : 'border-border text-ink hover:bg-surface-sunken border',
+                  )}
+                >
+                  {STYLE_WORDS[option]}
                 </Link>
               </li>
             );

@@ -524,6 +524,42 @@ export interface TripRepository {
   removeMember(tripId: string, memberId: string): Promise<void>;
 }
 
+/**
+ * A shareable link to a trip. `tokenHash` is the SHA-256 of the token; the
+ * token itself exists only in the link the owner copies.
+ */
+export interface TripInviteRecord {
+  readonly id: string;
+  readonly tripId: string;
+  readonly tokenHash: string;
+  readonly createdBy: string;
+  readonly createdAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+  readonly revokedAt: IsoDateTime | null;
+  readonly uses: number;
+  readonly maxUses: number;
+}
+
+export type TripInviteInput = Pick<
+  TripInviteRecord,
+  'tripId' | 'tokenHash' | 'createdBy' | 'expiresAt' | 'maxUses'
+>;
+
+export interface TripInviteRepository {
+  create(input: TripInviteInput): Promise<TripInviteRecord>;
+  findByHash(tokenHash: string): Promise<TripInviteRecord | null>;
+  /** Links of the trip that are neither revoked nor expired at `at`. */
+  listActiveByTrip(tripId: string, at: IsoDateTime): Promise<TripInviteRecord[]>;
+  /** Revokes the trip's links, or just one when `inviteId` is given. Returns how many. */
+  revoke(tripId: string, at: IsoDateTime, inviteId?: string): Promise<number>;
+  /**
+   * Takes one use if the link is still good at `at` (not revoked, not expired,
+   * uses left), atomically. False when it is not, so two people racing for the
+   * last use cannot both get it.
+   */
+  claim(id: string, at: IsoDateTime): Promise<boolean>;
+}
+
 export type PlanItemInput = Omit<PlanItemRecord, 'id' | 'createdAt' | 'updatedAt'>;
 
 /** One stop of a traveller's own day-by-day plan: a plan item that has a day. */
@@ -642,6 +678,7 @@ export interface Repositories {
   readonly pushSubscriptions: PushSubscriptionRepository;
   readonly providerRequests: ProviderRequestRepository;
   readonly trips: TripRepository;
+  readonly tripInvites: TripInviteRepository;
   readonly planItems: PlanItemRepository;
   readonly tripExpenses: TripExpenseRepository;
   readonly emergencyContacts: EmergencyContactRepository;

@@ -409,3 +409,61 @@ export async function moveDayStopAction(input: {
     plans.moveStop(userId, String(input.tripId), String(input.itemId), input.direction),
   );
 }
+
+// --- Invite links ------------------------------------------------------------
+
+export interface InviteFormState {
+  readonly error?: string;
+  /** A site-relative path. Shown once, in this response; only its hash is stored. */
+  readonly path?: string;
+}
+
+/**
+ * Make an invite link. The token goes back to the owner in this response and
+ * nowhere else: it is not logged and not written into any page.
+ */
+export async function createInviteAction(
+  _previous: InviteFormState,
+  formData: FormData,
+): Promise<InviteFormState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: SIGN_IN };
+
+  const tripId = field(formData, 'tripId');
+  try {
+    const { token } = await service().createInvite(user.id, tripId);
+    log.info({ userId: user.id, tripId }, 'trip invite created');
+    return { path: `/invite/${token}` };
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+}
+
+export async function revokeInvitesAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect('/sign-in');
+
+  const tripId = field(formData, 'tripId');
+  await service().revokeInvite(user.id, tripId);
+  log.info({ userId: user.id, tripId }, 'trip invites revoked');
+  revalidatePath(`/trips/${tripId}`);
+}
+
+/** "Join this trip." The token comes from the form and is checked by the service. */
+export async function acceptInviteAction(formData: FormData): Promise<void> {
+  const token = field(formData, 'token');
+  const here = `/invite/${encodeURIComponent(token)}`;
+  const user = await getCurrentUser();
+  if (!user) redirect(here);
+
+  let tripId: string;
+  try {
+    ({ tripId } = await service().acceptInvite(user.id, token));
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'NOT_FOUND') redirect(`${here}?failed=1`);
+    throw error;
+  }
+  log.info({ userId: user.id, tripId }, 'trip invite accepted');
+  revalidatePath('/trips');
+  redirect(`/trips/${tripId}`);
+}

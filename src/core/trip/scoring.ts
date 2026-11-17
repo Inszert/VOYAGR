@@ -114,6 +114,78 @@ export function resolveWeights(style: TravelStyle, mode: OptimisationMode): Scor
   return raw;
 }
 
+/**
+ * How much the user cares about each part of a trip, for ranking only.
+ *
+ * A multiplier in 0..2 per part, 1 meaning "as the engine already weighs it".
+ * It scales the existing factors a part owns and invents none: flights own
+ * flight quality, stay owns hotel quality and location, activities own weather
+ * and usable time, transfers own the transfer. Budget fit and data confidence
+ * belong to no part and are never scaled.
+ *
+ * It re-orders trips. It never touches `TripScore.score` or a factor's value.
+ */
+export interface PartWeights {
+  readonly flights: number;
+  readonly stay: number;
+  readonly activities: number;
+  readonly transfers: number;
+}
+
+export type TripPart = keyof PartWeights;
+
+export const DEFAULT_PART_WEIGHTS: PartWeights = {
+  flights: 1,
+  stay: 1,
+  activities: 1,
+  transfers: 1,
+};
+
+export const PART_WEIGHT_MIN = 0;
+export const PART_WEIGHT_MAX = 2;
+
+const PART_OF_FACTOR: Partial<Record<ScoreFactorKey, TripPart>> = {
+  flight_quality: 'flights',
+  hotel_quality: 'stay',
+  location: 'stay',
+  weather: 'activities',
+  usable_time: 'activities',
+  transfer: 'transfers',
+};
+
+export function isDefaultPartWeights(weights: Partial<PartWeights> | undefined): boolean {
+  if (!weights) return true;
+  return (Object.keys(DEFAULT_PART_WEIGHTS) as TripPart[]).every(
+    (part) => (weights[part] ?? 1) === 1,
+  );
+}
+
+/**
+ * The number trips are ordered by when the user has set what matters to them.
+ *
+ * With no weights, or every weight at 1, this is exactly `score.score`, so the
+ * default ranking is untouched. Otherwise each factor's contribution is scaled
+ * by its part's multiplier and the result is renormalised to the 0-100 scale,
+ * unrounded so a small change still moves the order.
+ */
+export function weightedRankScore(score: TripScore, weights?: Partial<PartWeights>): number {
+  if (isDefaultPartWeights(weights)) return score.score;
+
+  let weighted = 0;
+  let total = 0;
+
+  for (const factor of score.factors) {
+    const part = PART_OF_FACTOR[factor.key];
+    const multiplier = part
+      ? Math.min(PART_WEIGHT_MAX, Math.max(PART_WEIGHT_MIN, weights?.[part] ?? 1))
+      : 1;
+    weighted += factor.value * factor.weight * multiplier;
+    total += factor.weight * multiplier;
+  }
+
+  return total === 0 ? score.score : clamp01(weighted / total) * 100;
+}
+
 function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0;
   return Math.min(1, Math.max(0, value));

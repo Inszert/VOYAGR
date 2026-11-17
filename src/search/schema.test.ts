@@ -390,3 +390,25 @@ describe('withMonthSelection', () => {
     expect(withMonthSelection(bad)).toBe(bad);
   });
 });
+
+describe('part weights in the address', () => {
+  it('are absent from the request by default', () => {
+    const result = parse({});
+    expect(result.ok && result.value.request.partWeights).toBeUndefined();
+  });
+
+  it('are read, clamped to the range and rounded to quarters', () => {
+    const result = parse({ wFlights: '2', wStay: '0', wActivities: '1.3337', wTransfers: '1' });
+    expect(result.ok && result.value.request.partWeights).toEqual({
+      flights: 2,
+      stay: 0,
+      activities: 1.25,
+      transfers: 1,
+    });
+  });
+
+  it('fall back to normal when unreadable or out of range', () => {
+    const result = parse({ wFlights: 'lots', wStay: '9', wActivities: '-1', wTransfers: '' });
+    expect(result.ok && result.value.request.partWeights).toBeUndefined();
+  });
+});

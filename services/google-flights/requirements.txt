@@ -1,6 +1,12 @@
 # Pinned: this is an unofficial scraper and Google changes its markup without notice.
 # Bump deliberately, and re-run test_server.py and a manual /search afterwards.
-fast-flights==3.1.0
+# Pinned to a commit of the upstream repository rather than the PyPI 3.1.0 release. The
+# upstream main at this commit is still version 3.1.0, but it carries parser fixes the release
+# lacks: it reads the remaining itinerary groups as well as the best ones, accepts an itinerary
+# with no fare (price None), and asks Google for all flights (tfu). Checked against
+# fast_flights-3.1.0 on 2026-11-17; the diff is in the parser, model, querying and Bright Data
+# integration only.
+fast-flights @ git+https://github.com/AWeirdDev/flights.git@5fd011e34da59c7fef4cf7ad9a5571622b70432d
 # fast-flights 3.1.0 imports typing_extensions but does not declare it; on Python 3.10
 # the import fails without it (verified on a clean venv).
 typing_extensions>=4.7

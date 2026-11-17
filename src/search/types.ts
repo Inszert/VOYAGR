@@ -2,7 +2,7 @@ import type { Money } from '@/core/money';
 import type { ErrorCode } from '@/lib/errors';
 import type { TripCost } from '@/core/trip/cost';
 import type { EligibilityResult, TravelWarning } from '@/core/trip/constraints';
-import type { TripScore } from '@/core/trip/scoring';
+import type { PartWeights, TripScore } from '@/core/trip/scoring';
 import type { UsableTimeResult } from '@/core/trip/usable-time';
 import type {
   AirportCode,
@@ -148,6 +148,11 @@ export interface SearchRequest {
    */
   readonly destinationNames?: Readonly<Record<AirportCode, string>>;
   readonly limits?: Partial<SearchLimits>;
+  /**
+   * How much each part of the trip matters to the person. Re-orders the results
+   * only; absent means every part counts as the engine already weighs it.
+   */
+  readonly partWeights?: PartWeights;
   /** Correlation id threaded into every provider call and log line. */
   readonly requestId?: string;
 }

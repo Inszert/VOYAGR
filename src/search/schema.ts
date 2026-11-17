@@ -3,6 +3,14 @@ import { fromMajor, toMajor } from '@/core/money';
 import { addDays, isIsoDate } from '@/core/dates';
 import type { OptimisationMode, SearchProfile, TravelStyle } from '@/core/trip/types';
 import { err, ok, type Result } from '@/lib/result';
+import {
+  DEFAULT_PART_WEIGHTS,
+  isDefaultPartWeights,
+  PART_WEIGHT_MAX,
+  PART_WEIGHT_MIN,
+  type PartWeights,
+} from '@/core/trip/scoring';
+import { PART_WEIGHT_PARAMS } from './part-weight-params';
 import type { SearchRequest } from './types';
 import {
   applyFlexibility,
@@ -373,6 +381,31 @@ export function withMonthSelection(
   return { ...input, departureDate: start, returnDate: addDays(start, nights) };
 }
 
+/**
+ * How much each part of the trip matters, from `?wFlights=&wStay=&wActivities=&wTransfers=`.
+ *
+ * Absent, empty, unreadable or out of 0..2 all mean "as normal" (1): a link
+ * that cannot be understood must never reorder results in a way nobody chose.
+ * Returns undefined when nothing differs from the default, so the default
+ * request is byte-for-byte the request it always was.
+ */
+export function parsePartWeights(
+  input: Readonly<Record<string, string | undefined>>,
+): PartWeights | undefined {
+  const weights = { ...DEFAULT_PART_WEIGHTS } as { -readonly [K in keyof PartWeights]: number };
+
+  for (const part of Object.keys(PART_WEIGHT_PARAMS) as (keyof PartWeights)[]) {
+    const raw = input[PART_WEIGHT_PARAMS[part]]?.trim();
+    if (!raw) continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < PART_WEIGHT_MIN || value > PART_WEIGHT_MAX) continue;
+    // Quarter steps: the control moves in halves, and a hand-typed 1.3337 is not a preference.
+    weights[part] = Math.round(value * 4) / 4;
+  }
+
+  return isDefaultPartWeights(weights) ? undefined : weights;
+}
+
 export function parseSearchForm(
   input: Readonly<Record<string, string | undefined>>,
   /**
@@ -426,8 +459,14 @@ export function parseSearchForm(
   const crossFieldErrors = checkCrossFieldRules(parsed.data);
   if (Object.keys(crossFieldErrors).length > 0) return err(crossFieldErrors);
 
+  const partWeights = parsePartWeights(input);
+
   return ok({
-    request: { profile: toSearchProfile(parsed.data), destinations: parsed.data.destinations },
+    request: {
+      profile: toSearchProfile(parsed.data),
+      destinations: parsed.data.destinations,
+      ...(partWeights ? { partWeights } : {}),
+    },
     values: parsed.data,
   });
 }

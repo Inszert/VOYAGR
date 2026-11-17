@@ -4,6 +4,7 @@ import { buildFirstPlan } from '@/discovery/first-plan';
 import type { ThingsToDoOutcome } from '@/discovery/things-to-do';
 import type { ThingKind } from '@/providers/types';
 import { FirstPlanSection } from './first-plan-section';
+import type { TripStyle } from './style-order';
 import { PlacesProvider } from './places-context';
 import { ThingsToDoSection } from './things-to-do-section';
 
@@ -20,6 +21,7 @@ export async function PlacesBoundary({
   city,
   centre,
   kind,
+  style = null,
   hrefFor,
   planTrips,
   initialPlaceId,
@@ -31,6 +33,7 @@ export async function PlacesBoundary({
   city: string;
   centre: readonly [number, number];
   kind: ThingKind | null;
+  style?: TripStyle | null;
   hrefFor: (kind: ThingKind | null) => string;
   planTrips: readonly PlanTrip[] | null;
   initialPlaceId: string | null;
@@ -53,7 +56,13 @@ export async function PlacesBoundary({
       planTrips={planTrips}
       initialPlaceId={initialPlaceId}
     >
-      <ThingsToDoSection outcome={resolved} city={city} hrefFor={hrefFor} kind={kind} />
+      <ThingsToDoSection
+        outcome={resolved}
+        city={city}
+        hrefFor={hrefFor}
+        kind={kind}
+        style={style}
+      />
       {plan ? <FirstPlanSection plan={plan} sample={startDate === null} /> : null}
     </PlacesProvider>
   );

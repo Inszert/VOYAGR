@@ -44,6 +44,7 @@ import {
   windowsFromOffers,
 } from './derive-windows';
 import { evaluateTrip } from './evaluate';
+import { weightedRankScore, type PartWeights } from '@/core/trip/scoring';
 import {
   combineProvenance,
   provenanceForMode,
@@ -899,9 +900,13 @@ function rankCandidate(
  * cosmetic: without it two equally scored trips could swap places between
  * refreshes and look like a change worth alerting on.
  */
-function compareRanked(a: RankedTrip, b: RankedTrip): number {
+function compareRanked(weights?: PartWeights) {
+  return (a: RankedTrip, b: RankedTrip): number => compareWeighted(a, b, weights);
+}
+
+function compareWeighted(a: RankedTrip, b: RankedTrip, weights?: PartWeights): number {
   return (
-    b.score.score - a.score.score ||
+    weightedRankScore(b.score, weights) - weightedRankScore(a.score, weights) ||
     a.cost.total.amount - b.cost.total.amount ||
     a.candidate.id.localeCompare(b.candidate.id)
   );
@@ -1283,8 +1288,12 @@ export async function runSearch(
     ranked.push({ ...trip, quoteFreshness: tripFreshness });
   }
 
-  const eligible = ranked.filter((trip) => trip.eligibility.eligible).sort(compareRanked);
-  const ineligible = ranked.filter((trip) => !trip.eligibility.eligible).sort(compareRanked);
+  const eligible = ranked
+    .filter((trip) => trip.eligibility.eligible)
+    .sort(compareRanked(request.partWeights));
+  const ineligible = ranked
+    .filter((trip) => !trip.eligibility.eligible)
+    .sort(compareRanked(request.partWeights));
 
   // The windows that were actually priced. For a month-at-a-time vendor they
   // are read off the flights, not the ones planned up front, and the date

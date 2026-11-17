@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { money } from '../money';
 import { costTripCandidate } from './cost';
 import {
+  BASE_WEIGHTS,
+  DEFAULT_PART_WEIGHTS,
+  weightedRankScore,
+  type ScoreFactorKey,
   itineraryCompleteness,
   resolveWeights,
   scoreBudgetFit,
@@ -301,5 +305,56 @@ describe('scoring a trip with no priced stay', () => {
   it('lowers data confidence, because a stay nobody priced is a fact we lack', () => {
     expect(score(unpriced).evidenceStrength).toBeLessThan(score(priced).evidenceStrength);
     expect(itineraryCompleteness(unpriced)).toBeLessThan(itineraryCompleteness(priced));
+  });
+});
+
+describe('weightedRankScore', () => {
+  const factor = (key: ScoreFactorKey, value: number, weight: number) => ({
+    key,
+    label: key,
+    value,
+    weight,
+    contribution: value * weight,
+  });
+
+  const tripScore = (values: Partial<Record<ScoreFactorKey, number>>, rounded: number) => {
+    const factors = (Object.keys(BASE_WEIGHTS) as ScoreFactorKey[]).map((key) =>
+      factor(key, values[key] ?? 0.5, BASE_WEIGHTS[key]),
+    );
+    return { score: rounded, factors, strengths: [], weaknesses: [], evidenceStrength: 0.5 };
+  };
+
+  // A has the better flight, B has the better stay. Equal overall.
+  const a = tripScore({ flight_quality: 0.9, hotel_quality: 0.3, location: 0.3 }, 50);
+  const b = tripScore({ flight_quality: 0.3, hotel_quality: 0.6, location: 0.6 }, 50);
+
+  it('is exactly the engine score with no weights or all weights at 1', () => {
+    expect(weightedRankScore(a)).toBe(50);
+    expect(weightedRankScore(a, DEFAULT_PART_WEIGHTS)).toBe(50);
+    expect(weightedRankScore(b, { ...DEFAULT_PART_WEIGHTS })).toBe(50);
+  });
+
+  it('raising flights moves the flight-strong trip ahead', () => {
+    const w = { ...DEFAULT_PART_WEIGHTS, flights: 2 };
+    expect(weightedRankScore(a, w)).toBeGreaterThan(weightedRankScore(b, w));
+  });
+
+  it('raising stay moves the stay-strong trip ahead', () => {
+    const w = { ...DEFAULT_PART_WEIGHTS, stay: 2 };
+    expect(weightedRankScore(b, w)).toBeGreaterThan(weightedRankScore(a, w));
+  });
+
+  it('ignoring a part removes its influence and stays on the 0-100 scale', () => {
+    const none = { ...DEFAULT_PART_WEIGHTS, flights: 0 };
+    const value = weightedRankScore(a, none);
+    expect(value).toBeGreaterThanOrEqual(0);
+    expect(value).toBeLessThanOrEqual(100);
+    expect(weightedRankScore(a, none)).toBeLessThan(weightedRankScore(b, none));
+  });
+
+  it('does not change the score the trip reports', () => {
+    const before = JSON.stringify(a);
+    weightedRankScore(a, { ...DEFAULT_PART_WEIGHTS, flights: 2 });
+    expect(JSON.stringify(a)).toBe(before);
   });
 });

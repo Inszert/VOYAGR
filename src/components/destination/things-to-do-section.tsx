@@ -2,6 +2,7 @@ import { Skeleton } from '@/components/ui';
 import { MAX_THINGS_SHOWN, countsByKind, type ThingsToDoOutcome } from '@/discovery/things-to-do';
 import { THING_KINDS, type ThingKind } from '@/providers/types';
 import { ThingsExplorer } from './things-explorer';
+import type { TripStyle } from './style-order';
 import './destination.css';
 
 /**
@@ -29,9 +30,17 @@ export interface ThingsToDoSectionProps {
   hrefFor: (kind: ThingKind | null) => string;
   /** The filter in force, or null for all. */
   kind: ThingKind | null;
+  /** The trip style in force (`?style=`), or null for the current order. */
+  style?: TripStyle | null;
 }
 
-export function ThingsToDoSection({ outcome, city, hrefFor, kind }: ThingsToDoSectionProps) {
+export function ThingsToDoSection({
+  outcome,
+  city,
+  hrefFor,
+  kind,
+  style = null,
+}: ThingsToDoSectionProps) {
   if (outcome.status !== 'ok' || outcome.things.length === 0) return null;
 
   const counts = countsByKind(outcome.things);
@@ -57,6 +66,7 @@ export function ThingsToDoSection({ outcome, city, hrefFor, kind }: ThingsToDoSe
         hrefs={hrefs}
         counts={counts}
         initialKind={active}
+        initialStyle={style}
         max={MAX_THINGS_SHOWN}
         sample={outcome.sample}
       />

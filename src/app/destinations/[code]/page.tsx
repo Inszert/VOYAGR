@@ -27,6 +27,7 @@ import { TripExtras } from '@/components/partners';
 import { buildDiscoveryQuery } from '@/discovery/snapshot';
 import { FlexDatesSection, loadFlexForTrip } from '@/components/search/flex-dates-section';
 import { ThingsToDoSkeleton } from '@/components/destination/things-to-do-section';
+import { parseStyle } from '@/components/destination/style-order';
 import { PlacesBoundary } from '@/components/destination/places-boundary';
 import { AirportTransfers } from '@/components/destination/airport-transfers';
 import { SectionBar, type SectionBarItem } from '@/components/destination/section-bar';
@@ -322,6 +323,7 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                 city={place.name}
                 centre={place.position}
                 kind={kind}
+                style={parseStyle(query.style)}
                 hrefFor={hrefForKind}
                 planTrips={planTrips}
                 initialPlaceId={single(query.place) ?? null}

@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { balances, settleUp, validateExpense, ExpenseError } from '@/core/expenses';
 import type { CurrencyBalances, Member, Transfer } from '@/core/expenses';
 import { PARTNER_OFFERS, type PartnerCategory, type PartnerOffer } from '@/booking/partners';
@@ -7,6 +8,7 @@ import type {
   Repositories,
   TripExpenseRecord,
   TripInput,
+  TripInviteRecord,
   TripMemberRecord,
   TripRecord,
 } from '@/db/repository';
@@ -55,6 +57,9 @@ const ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 export const TRIP_LIMITS = {
   tripsPerUser: 100,
   membersPerTrip: 30,
+  inviteDays: 14,
+  inviteUses: 10,
+  activeInvitesPerTrip: 5,
   contactsPerUser: 20,
 } as const;
 
@@ -79,13 +84,31 @@ export interface Ledger {
 
 export interface TripHubServiceOptions {
   readonly repositories: Repositories;
+  /** The clock, for the tests. Defaults to the real one. */
+  readonly now?: () => Date;
+}
+
+/** A token is 32 random bytes in base64url: 43 characters. Anything else cannot be one. */
+const INVITE_TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+
+/** The only thing a stranger or a failed link is ever told, whichever check failed. */
+function invalidInvite(): AppError {
+  return new AppError('NOT_FOUND', 'Invite not usable', {
+    publicMessage: 'This invite link is not valid any more. Ask for a new one.',
+  });
+}
+
+export function hashInviteToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 export class TripHubService {
   private readonly repositories: Repositories;
+  private readonly clock: () => Date;
 
   constructor(options: TripHubServiceOptions) {
     this.repositories = options.repositories;
+    this.clock = options.now ?? (() => new Date());
   }
 
   // --- Access ----------------------------------------------------------------
@@ -209,6 +232,95 @@ export class TripHubService {
     }
 
     await this.repositories.trips.removeMember(tripId, memberId);
+  }
+
+  // --- Invite links ------------------------------------------------------------
+
+  /**
+   * Make a link anyone can use to join the trip. Owner only.
+   *
+   * The token is returned once, here, and only its SHA-256 hash is kept: it
+   * cannot be shown again, and nobody reading the database can rebuild a link.
+   * Never log it.
+   */
+  async createInvite(
+    userId: string,
+    tripId: string,
+  ): Promise<{ token: string; invite: TripInviteRecord }> {
+    const { trip } = await this.requireOwner(userId, tripId);
+
+    const at = this.clock();
+    const active = await this.repositories.tripInvites.listActiveByTrip(trip.id, at.toISOString());
+    if (active.length >= TRIP_LIMITS.activeInvitesPerTrip) {
+      throw tooMany('There are already several live invite links. Revoke one first.');
+    }
+
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(at.getTime() + TRIP_LIMITS.inviteDays * 86_400_000).toISOString();
+    const invite = await this.repositories.tripInvites.create({
+      tripId: trip.id,
+      tokenHash: hashInviteToken(token),
+      createdBy: userId,
+      expiresAt,
+      maxUses: TRIP_LIMITS.inviteUses,
+    });
+    return { token, invite };
+  }
+
+  /** How many links are live, for the owner's control. Owner only. */
+  async activeInviteCount(userId: string, tripId: string): Promise<number> {
+    await this.requireOwner(userId, tripId);
+    const live = await this.repositories.tripInvites.listActiveByTrip(
+      tripId,
+      this.clock().toISOString(),
+    );
+    return live.length;
+  }
+
+  /** Switch off one link, or every live link of the trip when `inviteId` is omitted. Owner only. */
+  async revokeInvite(userId: string, tripId: string, inviteId?: string): Promise<void> {
+    await this.requireOwner(userId, tripId);
+    if (inviteId !== undefined && !ID_SHAPE.test(inviteId)) return;
+    await this.repositories.tripInvites.revoke(tripId, this.clock().toISOString(), inviteId);
+  }
+
+  /**
+   * Join the trip named by a link. Any signed-in user.
+   *
+   * Every way this can fail (no such link, expired, revoked, used up, trip
+   * full) is the same plain error, so a link cannot be probed. Someone who is
+   * already on the trip is simply sent there and nothing is used up.
+   */
+  async acceptInvite(userId: string, token: string): Promise<{ tripId: string }> {
+    if (typeof token !== 'string' || !INVITE_TOKEN_SHAPE.test(token)) throw invalidInvite();
+
+    const invite = await this.repositories.tripInvites.findByHash(hashInviteToken(token));
+    if (!invite) throw invalidInvite();
+
+    const members = await this.repositories.trips.listMembers(invite.tripId);
+    if (members.some((member) => member.userId === userId)) return { tripId: invite.tripId };
+
+    if (members.length >= TRIP_LIMITS.membersPerTrip) throw invalidInvite();
+
+    const user = await this.repositories.users.findById(userId);
+    if (!user) throw invalidInvite();
+
+    // The one atomic step: revoked, expired and used up are all decided here.
+    const claimed = await this.repositories.tripInvites.claim(
+      invite.id,
+      this.clock().toISOString(),
+    );
+    if (!claimed) throw invalidInvite();
+
+    const name = (user.email.split('@')[0] ?? '').trim().slice(0, 80) || 'Traveller';
+    try {
+      await this.repositories.trips.addMember({ tripId: invite.tripId, userId, name });
+    } catch (error) {
+      // A concurrent accept by the same person: the unique seat already exists.
+      const after = await this.repositories.trips.listMembers(invite.tripId);
+      if (!after.some((member) => member.userId === userId)) throw error;
+    }
+    return { tripId: invite.tripId };
   }
 
   // --- Plan --------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { initials } from '@/components/discovery/initials';
 import { ActionForm } from '@/components/trips/action-form';
 import { EmergencySection } from '@/components/trips/emergency-section';
 import { ExpensesSection } from '@/components/trips/expenses-section';
+import { InviteControl } from '@/components/trips/invite-control';
 import { MemberAvatars } from '@/components/trips/member-avatars';
 import { PlanSection } from '@/components/trips/plan-section';
 import { isTripTab } from '@/components/trips/trip-tab';
@@ -65,6 +66,7 @@ export default async function TripPage({
     service.contactsFor(user.id, id),
   ]);
 
+  const activeInvites = isOwner ? await service.activeInviteCount(user.id, id) : 0;
   const country = trip.destinationCountry ? findCountryByIso2(trip.destinationCountry) : null;
   const info = emergencyInfoFor(trip.destinationCountry);
   const { dates, nights, picture } = presentTrip(trip);
@@ -183,6 +185,8 @@ export default async function TripPage({
           />
         }
       />
+
+      {isOwner ? <InviteControl tripId={trip.id} activeCount={activeInvites} /> : null}
 
       {isOwner ? (
         <form action={deleteTripAction} className="border-border mt-4 border-t pt-8">

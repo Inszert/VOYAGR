@@ -38,6 +38,9 @@ import type {
   TripExpenseRecord,
   TripExpenseRepository,
   TripInput,
+  TripInviteInput,
+  TripInviteRecord,
+  TripInviteRepository,
   TripMemberRecord,
   TripRecord,
   TripRepository,
@@ -1192,6 +1195,85 @@ function toTripMember(row: TripMemberRow): TripMemberRecord {
   };
 }
 
+interface TripInviteRow {
+  id: string;
+  trip_id: string;
+  token_hash: string;
+  created_by: string;
+  created_at: Date;
+  expires_at: Date;
+  revoked_at: Date | null;
+  uses: number;
+  max_uses: number;
+}
+
+const INVITE_COLUMNS =
+  'id, trip_id, token_hash, created_by, created_at, expires_at, revoked_at, uses, max_uses';
+
+function toTripInvite(row: TripInviteRow): TripInviteRecord {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    tokenHash: row.token_hash,
+    createdBy: row.created_by,
+    createdAt: toIso(row.created_at),
+    expiresAt: toIso(row.expires_at),
+    revokedAt: toIsoOrNull(row.revoked_at),
+    uses: row.uses,
+    maxUses: row.max_uses,
+  };
+}
+
+class PostgresTripInviteRepository implements TripInviteRepository {
+  async create(input: TripInviteInput): Promise<TripInviteRecord> {
+    const rows = await query<TripInviteRow>(
+      `INSERT INTO trip_invites (trip_id, token_hash, created_by, expires_at, max_uses)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING ${INVITE_COLUMNS}`,
+      [input.tripId, input.tokenHash, input.createdBy, input.expiresAt, input.maxUses],
+    );
+    return toTripInvite(requireRow(rows[0], 'trip invite', input.tripId));
+  }
+
+  async findByHash(tokenHash: string): Promise<TripInviteRecord | null> {
+    const rows = await query<TripInviteRow>(
+      `SELECT ${INVITE_COLUMNS} FROM trip_invites WHERE token_hash = $1`,
+      [tokenHash],
+    );
+    return rows[0] ? toTripInvite(rows[0]) : null;
+  }
+
+  async listActiveByTrip(tripId: string, at: string): Promise<TripInviteRecord[]> {
+    const rows = await query<TripInviteRow>(
+      `SELECT ${INVITE_COLUMNS} FROM trip_invites
+        WHERE trip_id = $1 AND revoked_at IS NULL AND expires_at > $2
+        ORDER BY created_at DESC, id`,
+      [tripId, at],
+    );
+    return rows.map(toTripInvite);
+  }
+
+  async revoke(tripId: string, at: string, inviteId?: string): Promise<number> {
+    const rows = await query<{ id: string }>(
+      `UPDATE trip_invites SET revoked_at = $2
+        WHERE trip_id = $1 AND revoked_at IS NULL AND ($3::uuid IS NULL OR id = $3::uuid)
+        RETURNING id`,
+      [tripId, at, inviteId ?? null],
+    );
+    return rows.length;
+  }
+
+  async claim(id: string, at: string): Promise<boolean> {
+    const rows = await query<{ id: string }>(
+      `UPDATE trip_invites SET uses = uses + 1
+        WHERE id = $1 AND revoked_at IS NULL AND expires_at > $2 AND uses < max_uses
+        RETURNING id`,
+      [id, at],
+    );
+    return rows.length === 1;
+  }
+}
+
 class PostgresTripRepository implements TripRepository {
   async findById(id: string): Promise<TripRecord | null> {
     const rows = await query<TripRow>(`SELECT ${TRIP_COLUMNS} FROM trips WHERE id = $1`, [id]);
@@ -1730,6 +1812,7 @@ export function createPostgresRepositories(): Repositories {
     pushSubscriptions: new PostgresPushSubscriptionRepository(),
     providerRequests: new PostgresProviderRequestRepository(),
     trips: new PostgresTripRepository(),
+    tripInvites: new PostgresTripInviteRepository(),
     planItems: new PostgresPlanItemRepository(),
     tripExpenses: new PostgresTripExpenseRepository(),
     emergencyContacts: new PostgresEmergencyContactRepository(),

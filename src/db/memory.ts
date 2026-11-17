@@ -35,6 +35,9 @@ import type {
   TripExpenseRecord,
   TripExpenseRepository,
   TripInput,
+  TripInviteInput,
+  TripInviteRecord,
+  TripInviteRepository,
   TripMemberRecord,
   TripRecord,
   TripRepository,
@@ -834,6 +837,59 @@ class MemoryTripRepository implements TripRepository {
   }
 }
 
+class MemoryTripInviteRepository implements TripInviteRepository {
+  private readonly byId = new Map<string, TripInviteRecord>();
+
+  async create(input: TripInviteInput): Promise<TripInviteRecord> {
+    const record: TripInviteRecord = {
+      ...input,
+      id: randomUUID(),
+      createdAt: now(),
+      revokedAt: null,
+      uses: 0,
+    };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
+  async findByHash(tokenHash: string): Promise<TripInviteRecord | null> {
+    return [...this.byId.values()].find((invite) => invite.tokenHash === tokenHash) ?? null;
+  }
+
+  async listActiveByTrip(tripId: string, at: string): Promise<TripInviteRecord[]> {
+    return [...this.byId.values()]
+      .filter((i) => i.tripId === tripId && i.revokedAt === null && i.expiresAt > at)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+  }
+
+  async revoke(tripId: string, at: string, inviteId?: string): Promise<number> {
+    let count = 0;
+    for (const [id, invite] of this.byId) {
+      if (invite.tripId !== tripId || invite.revokedAt !== null) continue;
+      if (inviteId !== undefined && id !== inviteId) continue;
+      this.byId.set(id, { ...invite, revokedAt: at });
+      count += 1;
+    }
+    return count;
+  }
+
+  async claim(id: string, at: string): Promise<boolean> {
+    const invite = this.byId.get(id);
+    if (!invite || invite.revokedAt !== null || invite.expiresAt <= at) return false;
+    if (invite.uses >= invite.maxUses) return false;
+    this.byId.set(id, { ...invite, uses: invite.uses + 1 });
+    return true;
+  }
+
+  eraseTrip(tripId: string): void {
+    for (const [id, invite] of this.byId) if (invite.tripId === tripId) this.byId.delete(id);
+  }
+
+  eraseCreator(userId: string): void {
+    for (const [id, invite] of this.byId) if (invite.createdBy === userId) this.byId.delete(id);
+  }
+}
+
 class MemoryPlanItemRepository implements PlanItemRepository {
   private readonly byId = new Map<string, PlanItemRecord>();
   /** The day and place in the day of an item that is a day-plan stop. */
@@ -1036,6 +1092,7 @@ export function createMemoryRepositories(): Repositories {
   const providerRequests = new MemoryProviderRequestRepository();
   const trips = new MemoryTripRepository();
   const planItems = new MemoryPlanItemRepository();
+  const tripInvites = new MemoryTripInviteRepository();
   const tripExpenses = new MemoryTripExpenseRepository();
   const emergencyContacts = new MemoryEmergencyContactRepository();
 
@@ -1056,11 +1113,13 @@ export function createMemoryRepositories(): Repositories {
   // A trip takes its plan and its expenses with it.
   trips.cascade = (tripId) => {
     planItems.eraseTrip(tripId);
+    tripInvites.eraseTrip(tripId);
     tripExpenses.eraseTrip(tripId);
   };
 
   users.cascade = (userId) => {
     const watchIds = travelWatches.eraseUser(userId);
+    tripInvites.eraseCreator(userId);
     // Not in the summary: it is part of the same preferences the user set, and Postgres
     // removes it by cascade without counting it.
     alertPreferences.eraseUser(userId);
@@ -1098,6 +1157,7 @@ export function createMemoryRepositories(): Repositories {
     pushSubscriptions,
     providerRequests,
     trips,
+    tripInvites,
     planItems,
     tripExpenses,
     emergencyContacts,

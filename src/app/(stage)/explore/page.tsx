@@ -11,7 +11,9 @@ import {
 import { AirportInput } from '@/components/search/airport-input';
 import { LiveResults, LiveSearchForm } from '@/components/search/live-search';
 import { LIVE_FIELDS } from '@/components/search/live-fields';
-import { ANYWHERE } from '@/search/schema';
+import { ANYWHERE, parsePartWeights } from '@/search/schema';
+import { DEFAULT_PART_WEIGHTS } from '@/core/trip/scoring';
+import { PartWeightsControl } from '@/components/search/part-weights';
 import { format } from '@/core/money';
 import { getCurrentUser } from '@/auth/current-user';
 import { getRepositories } from '@/db';
@@ -340,6 +342,7 @@ export default async function ExplorePage({
                     </Button>
                   </noscript>
                 </LiveSearchForm>
+                <PartWeightsControl values={parsePartWeights(values) ?? DEFAULT_PART_WEIGHTS} />
                 <p className="text-ink flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="text-ink-muted tabular-nums">
                     {shortDate(page.profile.earliestDeparture)} to{' '}
