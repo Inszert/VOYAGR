@@ -127,6 +127,7 @@
   .mark { font-weight: 700; text-align: center; }
   .t { overflow-wrap: anywhere; }
   .n { color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
+  .tag { display: inline-block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 8px; margin-bottom: 4px; }
   .m-done { color: var(--ok); }
   .m-fail { color: var(--bad); }
   .m-owner { color: var(--warn); }
@@ -252,7 +253,7 @@ const DATA = {
 
   // Done: only items the sources mark done, or that appear in the commits.
   done: [
-    { text: "LiteAPI env and deploy: liteapi provider values; a sandbox key is refused in production unless LITEAPI_SANDBOX_IN_PRODUCTION is set; the key never appears in logs", note: "Built 2026-11-17 (commit b182084). Tests pass. The owner still sets the variables.", src: "docs/liteapi-migration-plan.md Part 11" },
+    { tag: "Nuitee", text: "LiteAPI env and deploy: liteapi provider values; a sandbox key is refused in production unless LITEAPI_SANDBOX_IN_PRODUCTION is set; the key never appears in logs", note: "Built 2026-11-17 (commit b182084). Tests pass. The owner still sets the variables.", src: "docs/liteapi-migration-plan.md Part 11" },
     { text: "Payment button placeholder: 'Payments are not switched on yet' on the explore and destination summaries, disabled", note: "Built 2026-11-17 (commit 2efbecf). No payment or booking code is called.", src: "docs/liteapi-migration-plan.md Part 7" },
     { text: "Transfers (Intui), eSIM (Yesim, GigSky) and AirHelp unchanged; links verified", note: "Checked 2026-11-17; no code change. A regression test already exists.", src: "docs/liteapi-migration-plan.md Part 8" },
     { text: "Real email delivery through Resend, with a verified domain", note: "Fixed 2026-11-17: domain verified in Resend, and the verification email arrives. Welcome mail to a fresh inbox still to confirm.", src: "owner check 2026-11-17" },
@@ -363,7 +364,7 @@ const DATA = {
 
   // In progress: being worked on, or uncommitted.
   inProgress: [
-    { text: "Stays: taxes split into included and 'payable at the hotel' in the data, kept out of totals; the page does not show them yet", note: "Mapping built 2026-11-17 (commit b182084). Not built: the tax lines on stay cards, and the snapshot routing (Part 10).", src: "docs/liteapi-migration-plan.md Part 1" },
+    { tag: "Nuitee", text: "Stays: taxes split into included and 'payable at the hotel' in the data, kept out of totals; the page does not show them yet", note: "Mapping built 2026-11-17 (commit b182084). Not built: the tax lines on stay cards, and the snapshot routing (Part 10).", src: "docs/liteapi-migration-plan.md Part 1" },
     { text: "Trip builder on explore: change flight or hotel and see the price move; hotel with photos, stars, location", note: "Built: flight and hotel swaps move the trip total (checked by hand 2026-11-17). Stars and location shown. Hotel photos are blocked: no photo source; needs the priced hotel feed key (owner decision).", src: "commits 25ccd4b to 39d2387" },
     { text: "Prices follow the traveller count everywhere; fuller date calendar", note: "Built: traveller count and dates apply in place on explore (commit dd9c042). Awaiting a browser check.", src: "owner report 2026-11-17" },
     { text: "Globe: more places as you rotate and zoom, never cut by a box, seasonal look by month", note: "Built: labels follow the view and grow with zoom; full-width globe; season follows the chosen dates; scroll-wheel zoom. Awaiting a browser check.", src: "commits 21eeea1 to 39d2387" },
@@ -375,19 +376,15 @@ const DATA = {
 
   // Planned, not started. `note` says why, where the source does.
   planned: [
-    { area: "LiteAPI migration", text: "Env and deploy: liteapi values for FLIGHT/HOTEL/EXPERIENCE providers, sandbox-key guard in production (hotel prices excepted, see Q2), policy doc updated", note: "Part 11. Sonnet. First.", src: "docs/liteapi-migration-plan.md" }, // changed: owner answer Q2
-    { area: "LiteAPI migration", text: "Caching and call budget: cache keys and TTLs per LiteAPI call, single-flight, call counter, LiteAPI search limits", note: "Part 10. Sonnet; limits designed by the lead.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Hotels search and stays page: sandbox rates, taxes included and 'Payable at the hotel' shown separately", note: "Part 1. Sonnet.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Hotel photos, stars, reviews and location from LiteAPI content", note: "Part 3. Sonnet.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Hotel prices in trip totals; 'Payable at the hotel' becomes an excluded line, never in the total", note: "Part 2. Sonnet; hotel-window cap designed by the lead.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Payment button placeholder: 'Payments are not switched on yet'", note: "Part 7. Haiku.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Reservation flow shown as disabled steps; no book call from the app", note: "Part 6. Sonnet; prebook allowed only as a no-money 'check this price' step (Q8); book is never called from the UI.", src: "docs/liteapi-migration-plan.md" }, // changed: owner answer Q8
-    { area: "LiteAPI migration", text: "Transfers (Intui), eSIM (Yesim, GigSky) and AirHelp unchanged, with a regression test", note: "Part 8. Haiku.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Flights search from LiteAPI in the sandbox; calendar stays on Aviasales", note: "Part 4. Sonnet; fan-out designed by the lead.", src: "docs/liteapi-migration-plan.md" },
-    { area: "LiteAPI migration", text: "Aviasales only as a fallback when LiteAPI flights fail or come back empty", note: "Part 9. Sonnet.", src: "docs/liteapi-migration-plan.md" }, // changed: owner answer Q9
-    { area: "LiteAPI migration", text: "Experiences (tours) from LiteAPI on the destination page, booking disabled", note: "Part 5. Sonnet; needs Experiences enabled on the sandbox key.", src: "docs/liteapi-migration-plan.md" },
+    { tag: "Nuitee", area: "LiteAPI migration", text: "LiteAPI snapshot in our own database: visitors read stored results; refreshed 3 times a day (configurable); no visitor request calls LiteAPI", note: "Part 10 and its addendum. Opus designed it; Sonnet builds. Polling stays off (LITEAPI_SNAPSHOT_ENABLED) until Nuitee confirms the terms.", src: "docs/liteapi-migration-plan.md Part 10 addendum" },
+    { tag: "Nuitee", area: "LiteAPI migration", text: "Hotel photos, stars, reviews and location from LiteAPI content", note: "Part 3. Sonnet.", src: "docs/liteapi-migration-plan.md" },
+    { tag: "Nuitee", area: "LiteAPI migration", text: "Hotel prices in trip totals; 'Payable at the hotel' becomes an excluded line, never in the total", note: "Part 2. Sonnet; hotel-window cap designed by the lead.", src: "docs/liteapi-migration-plan.md" },
+    { tag: "Nuitee", area: "LiteAPI migration", text: "Reservation flow shown as disabled steps; no book call from the app", note: "Part 6. Sonnet; prebook allowed only as a no-money 'check this price' step (Q8); book is never called from the UI.", src: "docs/liteapi-migration-plan.md" }, // changed: owner answer Q8
+    { tag: "Nuitee", area: "LiteAPI migration", text: "Flights search from LiteAPI in the sandbox; calendar stays on Aviasales", note: "Part 4. Sonnet; fan-out designed by the lead.", src: "docs/liteapi-migration-plan.md" },
+    { tag: "Nuitee", area: "LiteAPI migration", text: "Aviasales only as a fallback when LiteAPI flights fail or come back empty", note: "Part 9. Sonnet.", src: "docs/liteapi-migration-plan.md" }, // changed: owner answer Q9
+    { tag: "Nuitee", area: "LiteAPI migration", text: "Experiences (tours) from LiteAPI on the destination page, booking disabled", note: "Part 5. Sonnet; needs Experiences enabled on the sandbox key.", src: "docs/liteapi-migration-plan.md" },
     { area: "LiteAPI migration", text: "Devmap kept in step with each LiteAPI part", note: "Part 12. Haiku.", src: "docs/liteapi-migration-plan.md" },
-    { text: "Hotel booking: not built (decided 2026-11-17: prices only; people book on the hotel site)", note: "Decision recorded in docs/provider-policy.md.", src: "owner decision 2026-11-17" },
+    { tag: "Nuitee", text: "Hotel booking: not built (decided 2026-11-17: prices only; people book on the hotel site)", note: "Decision recorded in docs/provider-policy.md.", src: "owner decision 2026-11-17" },
     { text: "Globe default: show at least 3 places on the other side of the globe and 5 far-away places, without overloading the view", note: "Owner request 2026-11-17 (read \"plains\" as \"places\"; confirm). Not started.", src: "owner request" },
     { text: "Trip style selector on Discover for the selected place or city: chill, hike, city, food and others; choosing one builds the trip for that style", note: "Owner request 2026-11-17; not started.", src: "owner request" },
     { text: "Slider per part of the trip (flights, stay, activities, transfers and more) to set how much of each to include; the trip is generated from those settings", note: "Owner request 2026-11-17; not started.", src: "owner request" },
@@ -396,7 +393,7 @@ const DATA = {
     { text: "Trip hub: invites, edit expenses, currency picker, \"Add to my plan\" buttons", note: "Not built (progress.md table).", src: "STATUS.md; progress.md" },
     { text: "Promo codes on partner offers", note: "The type supports codes; none registered.", src: "STATUS.md; progress.md" },
     { text: "More partners: hotels, car rental, tours, insurance, trains, luggage", note: "Not registered. Waiting on the owner's tick or strike list.", src: "STATUS.md; WHAT-I-NEED-FROM-YOU.md" },
-    { text: "Priced hotel feed (LiteAPI, Amadeus or Booking.com) behind STAY_PROVIDERS", note: "Needs a key from the owner. Adapter skeleton not confirmed in sources.", src: "docs/finish-plan.md (D1, D3)" },
+    { tag: "Nuitee", text: "Priced hotel feed (LiteAPI, Amadeus or Booking.com) behind STAY_PROVIDERS", note: "Needs a key from the owner. Adapter skeleton not confirmed in sources.", src: "docs/finish-plan.md (D1, D3)" },
     { text: "Events group in Things to do (dated feed)", note: "Needs a free Ticketmaster key. Without it the group is absent.", src: "docs/finish-plan.md (D13)" },
     { text: "Hero video loops", note: "No video element exists. Higgsfield MCP was not connected in the earlier session.", src: "STATUS.md; docs/design-direction.md" },
     { text: "Upscaled image masters", note: "Masters are 1024 px wide; upscaling not done.", src: "STATUS.md; docs/design-direction.md" },
@@ -417,7 +414,7 @@ const DATA = {
 
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
-    { text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; do not set it until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
+    { tag: "Nuitee", text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; do not set it until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
     { text: "Explore on phone: zoom control sits on top of the menu button", severity: "should fix", note: "Browser check 2026-11-17 (390 px).", src: "browser check" },
     { text: "Explore: sticky Sort bar is tall (about 90 px desktop, 215 px phone) and covers results while scrolling; phone text clipped", severity: "should fix", note: "Browser check 2026-11-17.", src: "browser check" },
     { text: "Explore globe zoomed: hard horizontal fade cuts the globe at the canvas bottom; diagonal banding over the Sahara", severity: "should fix", note: "Browser check 2026-11-17 (1440 px, zoomed).", src: "browser check" },
@@ -453,20 +450,20 @@ const DATA = {
 
   // Needs the owner: keys, DNS records, decisions. Names only, never values.
   needsOwner: [
-    { text: "LiteAPI: add placeholders to .env.example (LITEAPI_API_KEY, LITEAPI_GUEST_NATIONALITY, LITEAPI_SANDBOX_IN_PRODUCTION, EXPERIENCE_PROVIDER); an agent could not edit it because of a permission setting", src: "docs/liteapi-migration-plan.md Part 11" },
-    { text: "LiteAPI: confirm in writing that periodic refresh for display is allowed (blocks the scheduled snapshot; Q10)", src: "docs/liteapi-migration-plan.md Part 10 addendum" },
-    { text: "LiteAPI: record one sandbox rates response to settle whether the price includes excluded taxes (the docs do not say)", src: "docs/liteapi-migration-plan.md Part 1, not verified" },
-    { text: "LiteAPI: written exception from Nuitee on the 5000:1 hotel and 1,500:1 flight search-to-book ratios before production; written confirmation of sandbox billing before any live key; owner decision on whether LiteAPI supersedes the 2026-11-04 no-paid-API rule", src: "docs/liteapi-migration-plan.md (Q1)" }, // changed: Q1 partly answered
-    { text: "LiteAPI: flights/rates margin, omitted or sent as 0; hotel markup 0 is set on the sandbox dashboard, live not yet stated", src: "docs/liteapi-migration-plan.md (Q3)" }, // changed: Q3 partly answered
-    { text: "LiteAPI: request Flights production access (Go-live and approval) and Experiences sandbox access", src: "docs/liteapi-migration-plan.md (Q4, Q5)" },
-    { text: "LiteAPI: guest nationality default and source (Q6), image and review reuse terms (Q7), whether an internal sandbox-only script may run book with ACC_CREDIT_CARD (Q8), and whether Aviasales stays for the calendar, flex strip and cache warm-up (Q9, second half, not addressed by the answers)", src: "docs/liteapi-migration-plan.md (Q6 to Q9)" }, // changed: Q8, Q9 partly answered
-    { text: "LiteAPI: which figures are current for this account, the $0.02 price index and public prices (owner) or the $0.05 price index (docs)", src: "docs/liteapi-migration-plan.md (Owner questions, Q9 'Also'; not in Part 12's list)" }, // added: not in Part 12's list
+    { tag: "Nuitee", text: "LiteAPI: add placeholders to .env.example (LITEAPI_API_KEY, LITEAPI_GUEST_NATIONALITY, LITEAPI_SANDBOX_IN_PRODUCTION, EXPERIENCE_PROVIDER); an agent could not edit it because of a permission setting", src: "docs/liteapi-migration-plan.md Part 11" },
+    { tag: "Nuitee", text: "LiteAPI: confirm in writing that periodic refresh for display is allowed (blocks the scheduled snapshot; Q10)", src: "docs/liteapi-migration-plan.md Part 10 addendum" },
+    { tag: "Nuitee", text: "LiteAPI: record one sandbox rates response to settle whether the price includes excluded taxes (the docs do not say)", src: "docs/liteapi-migration-plan.md Part 1, not verified" },
+    { tag: "Nuitee", text: "LiteAPI: written exception from Nuitee on the 5000:1 hotel and 1,500:1 flight search-to-book ratios before production; written confirmation of sandbox billing before any live key; owner decision on whether LiteAPI supersedes the 2026-11-04 no-paid-API rule", src: "docs/liteapi-migration-plan.md (Q1)" }, // changed: Q1 partly answered
+    { tag: "Nuitee", text: "LiteAPI: flights/rates margin, omitted or sent as 0; hotel markup 0 is set on the sandbox dashboard, live not yet stated", src: "docs/liteapi-migration-plan.md (Q3)" }, // changed: Q3 partly answered
+    { tag: "Nuitee", text: "LiteAPI: request Flights production access (Go-live and approval) and Experiences sandbox access", src: "docs/liteapi-migration-plan.md (Q4, Q5)" },
+    { tag: "Nuitee", text: "LiteAPI: guest nationality default and source (Q6), image and review reuse terms (Q7), whether an internal sandbox-only script may run book with ACC_CREDIT_CARD (Q8), and whether Aviasales stays for the calendar, flex strip and cache warm-up (Q9, second half, not addressed by the answers)", src: "docs/liteapi-migration-plan.md (Q6 to Q9)" }, // changed: Q8, Q9 partly answered
+    { tag: "Nuitee", text: "LiteAPI: which figures are current for this account, the $0.02 price index and public prices (owner) or the $0.05 price index (docs)", src: "docs/liteapi-migration-plan.md (Owner questions, Q9 'Also'; not in Part 12's list)" }, // added: not in Part 12's list
     { text: "Trip invite link: confirm migration 0012 ran on the real database (the deploy pre-deploy step runs db:migrate)", src: "migration 0012_trip_invites; deploy log" },
     { text: "Log in to Travelpayouts in the Playwright browser window (the account-setup agent is blocked)", src: "STATUS.md" },
     { text: "Run npm run db:migrate on production (migrations 0008, 0009 and 0010)", src: "STATUS.md; commit b39f7f3" },
     { text: "Resend account and verified domain voyagrfind.com", src: "WHAT-I-NEED-FROM-YOU.md" },
     { text: "DNS records for email: TXT and MX on send, TXT on resend._domainkey, TXT on _dmarc (values from Resend)", src: "WHAT-I-NEED-FROM-YOU.md" },
-    { text: "A priced hotel feed key (LiteAPI recommended; Amadeus or Booking.com alternatives) and its terms", src: "STATUS.md; WHAT-I-NEED-FROM-YOU.md" },
+    { tag: "Nuitee", text: "A priced hotel feed key (LiteAPI recommended; Amadeus or Booking.com alternatives) and its terms", src: "STATUS.md; WHAT-I-NEED-FROM-YOU.md" },
     { text: "Ticketmaster Discovery API free key, for the events group", src: "docs/finish-plan.md (D13)" },
     { text: "Tick or strike the affiliate programmes (car rental, tours, insurance, trains, luggage, and others)", src: "WHAT-I-NEED-FROM-YOU.md" },
     { text: "Confirm the cookie-consent approach: Drive loads only after Accept, as built", src: "WHAT-I-NEED-FROM-YOU.md; STATUS.md" },
@@ -553,7 +550,7 @@ const DATA = {
   }
 
   function itemSearch(it) {
-    return [it.text, it.area, it.note, it.src, it.severity, it.subject, it.hash, it.date]
+    return [it.text, it.area, it.tag, it.note, it.src, it.severity, it.subject, it.hash, it.date]
       .filter(Boolean).join(" ");
   }
 
@@ -566,6 +563,9 @@ const DATA = {
     return ["•", ""];
   }
 
+  // A small label for items that change or depend on LiteAPI (Nuitee).
+  function tagBadge(it) { return el("span", "tag", it.tag); }
+
   // A row with a mark, the text, and optional note and source.
   function renderRow(sectionKey, it, withNote) {
     var li = el("li");
@@ -573,6 +573,7 @@ const DATA = {
     var mk = markFor(sectionKey);
     li.appendChild(decor("span", "mark " + mk[1], mk[0]));
     var body = el("div");
+    if (it.tag) body.appendChild(tagBadge(it));
     body.appendChild(el("span", "t", it.text));
     if (withNote && it.note) body.appendChild(el("div", "n", it.note));
     if (it.src) body.appendChild(el("div", "src", "Source: " + it.src));
@@ -589,6 +590,7 @@ const DATA = {
     chip.appendChild(decor("span", "", markFor(sectionKey)[0]));
     chip.appendChild(document.createTextNode(word));
     li.appendChild(chip);
+    if (it.tag) li.appendChild(tagBadge(it));
     li.appendChild(el("div", "t", it.text));
     if (it.note) li.appendChild(el("div", "n", it.note));
     if (it.src) li.appendChild(el("div", "src", "Source: " + it.src));
@@ -600,6 +602,7 @@ const DATA = {
     li.dataset.search = itemSearch(it).toLowerCase();
     li.appendChild(decor("span", "box"));
     var body = el("div");
+    if (it.tag) body.appendChild(tagBadge(it));
     body.appendChild(el("div", "t", it.text));
     if (it.src) body.appendChild(el("div", "src", "Source: " + it.src));
     li.appendChild(body);
