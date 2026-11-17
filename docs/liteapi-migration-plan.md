@@ -517,6 +517,44 @@ Twelve parts. Order: 11 → 10 → 1 → 3 → 2 → 7 → 6 → 8 → 4 → 9 �
 
 ---
 
+### Part 10 addendum. Owner decision 2026-11-17: our own database, refreshed on a schedule
+
+This supersedes the per-visitor live caching above. Visitors never make a LiteAPI call. Their
+pages and searches read our own snapshot tables only.
+
+- **Scheduled refresh.** A worker job refreshes the launch destinations on a schedule. Default:
+  **3 times a day**, set in config. Hourly is possible but multiplies the cost by 8.
+- **Launch scope (default).** The six explore destinations from Part 1, each with its three
+  flex windows.
+- **Cost arithmetic.** Calls per day = destinations × windows × refreshes per day.
+  Six × three × three = **54 rates calls a day**. At $0.02 per call (worst case) that is
+  **$1.08 a day, about $32 a month**. Flights at EUR 0.005 beyond the ratio: 54 calls a day, about
+  EUR 0.27 a day, about EUR 8 a month. Hotel content and photos refresh weekly (free per the docs).
+  Each extra destination adds 9 rates calls a day at this schedule. Each extra daily refresh adds
+  18 calls a day for six destinations.
+- **Tables (proposed; an Opus design call decides the final shape).**
+  - `liteapi_hotels`: hotel id, content JSON, `fetched_at`, `expires_at`.
+  - `liteapi_rates_snapshot`: destination, check-in, check-out, occupancy signature, currency,
+    rates JSON, `observed_at`, `expires_at`.
+  - `liteapi_refresh_runs`: run id, job, started and finished times, calls made, status. This is
+    the audit trail and the real call counter.
+  - Recommended: a separate table set, not the generic `cache_entries`, so expiry and the call
+    counter stay clean. Reuse the existing queue and worker (`src/cache/refresh.ts`,
+    `targets.ts`) for the schedule.
+- **What a visitor sees.** `observedAt` on every price, with "Updated N hours ago". Older than
+  twice the interval: "Prices last checked N hours ago". No snapshot for a destination or window:
+  no price and a plain line, "Hotel prices are not loaded for these dates yet." A visitor request
+  never falls back to a live LiteAPI call. The Aviasales fallback (Part 9) still applies, because
+  Aviasales is already polled by the existing system.
+- **Prebook stays live**, one call per click, only for the "check this price" step (Q8 answer).
+  Its result is never stored as a price. Set a per-visitor limit in Part 10 (value to choose).
+- **Blocker: polling terms.** The plan's rule "no LiteAPI targets until the terms allow polling"
+  is still in force. The scheduled refresh ships behind a flag (`LITEAPI_SNAPSHOT_ENABLED`,
+  default off) until Nuitee confirms in writing that periodic refresh for display is allowed.
+  This is new owner question Q10.
+- **Sandbox.** The same job runs in sandbox with the same call counts, so the cost can be
+  measured there before any production key.
+
 ### Part 11. Env and deploy
 
 - **Goal:** LiteAPI is switched on by configuration only. It fails closed, and the policy document
