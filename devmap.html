@@ -258,13 +258,14 @@ const DATA = {
   ],
 
   planned: [
-    { tag: "Nuitee", text: "Visual check in a browser: sliders, stays with photos and tax lines, check this price, trip hotel prices (390 and 1440)", note: "Needs the final build. Lead does it.", src: "CLAUDE.md design workflow" },
     { tag: "Nuitee", text: "Part 5: experiences (tours) from LiteAPI on the destination page, booking disabled", note: "Needs Experiences enabled on the sandbox key.", src: "docs/liteapi-migration-plan.md Part 5" },
     { tag: "Nuitee", text: "Part 9: Aviasales as a fallback when LiteAPI errors or comes back empty", note: "Visitors read the existing cache only, never a live call.", src: "docs/liteapi-migration-plan.md Part 9" },
   ],
 
   failing: [
-    { tag: "Nuitee", text: "Privacy copy for the photo host and LiteAPI is draft wording; it must not go to main before the owner reviews it", severity: "blocks launch", note: "Main is held at ce524eb. The feature branch is 0cd6d67. Railway auto-deploys from main.", src: "docs/security.md; src/app/(column)/privacy/page.tsx" },
+    { tag: "Nuitee", text: "Destination page: some photo-credit and place-chip links are 24 to 25 px tall, below a comfortable touch target", severity: "should fix", note: "Browser check 2026-11-17 at 390 px. Passes the 24 px minimum; the design wants 44 px.", src: "browser check, 2026-11-17" },
+    { tag: "Nuitee", text: "Explore sliders: the focus ring on the Flights row sits a few pixels from the word \"more\" at 768 px", severity: "known limit", note: "Cosmetic. No overlap.", src: "browser check, 2026-11-17" },
+    { tag: "Nuitee", text: "Privacy copy for the photo host and LiteAPI is draft wording; it must not go to main before the owner reviews it", severity: "blocks launch", note: "Main is at 9498274 (the build fix only). The feature branch is ac6b0ad. Railway auto-deploys from main.", src: "docs/security.md; src/app/(column)/privacy/page.tsx" },
     { tag: "Nuitee", text: "Hotel photos: no referrer-policy on the image, so the referrer is only trimmed by the site default", severity: "should fix", note: "The fix needs a change to the shared image component; an agent was denied that edit, so it waits for the owner.", src: "src/components/ui/media.tsx" },
     { tag: "Nuitee", text: "The queue test with Redis times out under the full parallel run; it passes when run alone", severity: "known limit", note: "Timing under load, not a logic failure.", src: "src/queue/bullmq.test.ts" },
     { tag: "Nuitee", text: "The snapshot Postgres tables are untested against a real database here (the contract cases skip without TEST_DATABASE_URL)", severity: "should fix", note: "Run the contract tests against a test database before production.", src: "src/db/liteapi-snapshot-contract.test.ts" },
