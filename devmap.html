@@ -367,6 +367,11 @@ const DATA = {
 
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
+    { text: "Many places still have no image (not only Malta)", severity: "should fix", note: "Owner report 2026-11-17: too many places show the initials tile.", src: "owner report" },
+    { text: "Search shows \"This search is incomplete\": flights and weather unavailable (provider errors, weather response shape)", severity: "should fix", note: "Owner report 2026-11-17. Weather: unexpected response (known shape issue). Flights: Aviasales unavailable on several calls.", src: "owner report" },
+    { text: "In \"Your trip\" the \"What to do in <city>\" part cannot be opened", severity: "should fix", note: "Owner report 2026-11-17, seen on Chicago.", src: "owner report" },
+    { text: "Things to do in Chicago: the map needs a better design", severity: "should fix", note: "Owner report 2026-11-17. Also shown as planned earlier; now a should-fix.", src: "owner report" },
+    { text: "Small explanatory text around the globe and the page (sun-position note, price explanation, drag hint, imagery credit) should be removed or moved to the bottom", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
     { text: "After email verification the user gets no clear confirmation; add a visible success screen (e.g. \"Your email is confirmed\" with a link on to the account or search)", severity: "should fix", note: "Owner report 2026-11-17. Verification works; the step has no visible confirmation.", src: "owner report" },
     { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, committed in 9194117; not yet confirmed to fix this.", src: "owner report" },
     { text: "Changing the number of travellers should update the prices at once, without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started. Same fix as the season and map updates: live, without submit.", src: "owner report" },
