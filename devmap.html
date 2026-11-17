@@ -255,27 +255,25 @@ const DATA = {
   done: [],
 
   inProgress: [
-    { tag: "Nuitee", text: "Part 10: LiteAPI snapshot in our own database (tables, refresh three times a day, read path, status wording)", note: "Opus designed it; the build is starting. The scheduled job stays off (LITEAPI_SNAPSHOT_ENABLED) until the polling terms are confirmed.", src: "docs/liteapi-migration-plan.md Part 10" },
+    { tag: "Nuitee", text: "Part 2: hotel prices in trip totals, read from the snapshot", note: "Sonnet builds it. Reads the snapshot only; a missing price is an unpriced stay line.", src: "docs/liteapi-migration-plan.md Part 2" },
+    { tag: "Nuitee", text: "Part 3: hotel photos, stars, reviews and location from the snapshot content", note: "Sonnet builds it. Photos https only; the image policy is checked against the CSP.", src: "docs/liteapi-migration-plan.md Part 3" },
+    { tag: "Nuitee", text: "Part 6: check this price (prebook, no money), with a per-visitor limit; the later steps stay disabled", note: "Sonnet builds it. Re-quotes first, then prebooks; the result is never stored as a price; book is never called.", src: "docs/liteapi-migration-plan.md Part 6" },
   ],
 
   planned: [
-    { tag: "Nuitee", text: "Part 2: hotel prices in trip totals, read from the snapshot", note: "Caps the hotel windows per search. Depends on Part 10.", src: "docs/liteapi-migration-plan.md Part 2" },
-    { tag: "Nuitee", text: "Part 3: hotel photos, stars, reviews and location from LiteAPI content", note: "Photos over https only; the image policy needs a security check.", src: "docs/liteapi-migration-plan.md Part 3" },
     { tag: "Nuitee", text: "Part 4: flights search from LiteAPI in the sandbox; the calendar stays on Aviasales", note: "Its call budget is part of the snapshot design.", src: "docs/liteapi-migration-plan.md Part 4" },
     { tag: "Nuitee", text: "Part 5: experiences (tours) from LiteAPI on the destination page, booking disabled", note: "Needs Experiences enabled on the sandbox key.", src: "docs/liteapi-migration-plan.md Part 5" },
-    { tag: "Nuitee", text: "Part 6: reservation steps shown disabled; 'check this price' is the only live call, with no money", note: "Prebook only, per-visitor limit. Book is never called from the UI.", src: "docs/liteapi-migration-plan.md Part 6" },
     { tag: "Nuitee", text: "Part 9: Aviasales as a fallback when LiteAPI errors or comes back empty", note: "Visitors read the existing cache only, never a live call.", src: "docs/liteapi-migration-plan.md Part 9" },
-    { tag: "Nuitee", text: "Test prices note on the live site while the key is sandbox (Q2)", note: "Hotel prices only. Recorded as an exception to D20 in docs/finish-plan.md.", src: "docs/liteapi-migration-plan.md Owner answers" },
-    { tag: "Nuitee", text: "Visitor paths never import the live LiteAPI client (import guard test)", note: "Part 10 test. Only the worker and the Part 6 prebook module may.", src: "docs/liteapi-migration-plan.md Part 10 design" },
-    { tag: "Nuitee", text: "Docs: architecture, runbook and provider policy describe the snapshot and the call budget", note: "Done alongside the build.", src: "docs/liteapi-migration-plan.md Part 10 design" }
   ],
 
   failing: [
+    { tag: "Nuitee", text: "The snapshot Postgres tables are untested against a real database here (the contract cases skip without TEST_DATABASE_URL)", severity: "should fix", note: "Run the contract tests against a test database before production.", src: "src/db/liteapi-snapshot-contract.test.ts" },
     { tag: "Nuitee", text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; keep it off until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
     { tag: "Nuitee", text: "Experiences access on the sandbox key is not tested yet", severity: "known limit", note: "Part 5 starts with one check call.", src: "docs/getting-access-to-experiences.md" }
   ],
 
   needsOwner: [
+    { tag: "Nuitee", text: "LiteAPI: confirm migration 0013 (the snapshot tables) ran on the real database, in the deploy log", src: "migration 0013_liteapi_snapshot; deploy pre-deploy step" },
     { tag: "Nuitee", text: "LiteAPI: confirm in writing that periodic refresh for display is allowed (Q10); the scheduled job stays off until then", src: "docs/liteapi-migration-plan.md Part 10 addendum" },
     { tag: "Nuitee", text: "LiteAPI: written exception from Nuitee on the 5000:1 hotel and 1,500:1 flight search-to-book ratios before any production key (Q1)", src: "docs/liteapi-migration-plan.md Q1" },
     { tag: "Nuitee", text: "LiteAPI: confirm in writing that sandbox calls are not billed (the docs do not say)", src: "docs/liteapi-migration-plan.md Q1" },
