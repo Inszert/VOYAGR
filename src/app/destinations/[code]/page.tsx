@@ -20,6 +20,7 @@ import { resolveDestinationGeo } from '@/search/destination-names';
 import { resolveImagery } from '@/providers/imagery';
 import { getActiveDataSource } from '@/providers/request-source';
 import { FindStayLink } from '@/components/stays/find-stay-link';
+import { ReservePlaceholder } from '@/components/search/reserve-placeholder';
 import { loadStayLinks } from '@/search/stays/stay-links';
 import { offersForTrip } from '@/booking/partners';
 import '@/components/destination/destination.css';
@@ -410,6 +411,8 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                   <Icon name="arrow-right" size={1} aria-hidden="true" />
                 </a>
               </Button>
+
+              <ReservePlaceholder />
 
               {flightsFrom && planHref.startsWith('/explore?') ? (
                 <WatchThisPrice

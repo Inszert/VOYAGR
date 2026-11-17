@@ -54,20 +54,27 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
     <form
       onSubmit={(event) => event.preventDefault()}
       aria-label="What matters most"
-      className="flex flex-col gap-2"
+      className="border-border bg-surface-sunken flex min-w-0 flex-col gap-3 rounded-(--radius-surface) border p-4"
     >
-      <p className="text-ink text-sm font-medium">What matters most</p>
-      <p className="text-ink-muted text-xs">
-        Re-orders Best match. Prices and scores never change.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="flex flex-col gap-0.5">
+        <p className="text-ink text-sm font-medium">What matters most</p>
+        <p className="text-ink-muted text-xs">
+          Re-orders Best match. Prices and scores never change.
+        </p>
+      </div>
+      <div className="flex flex-col">
         {PARTS.map(({ part, label }) => {
           const id = `weight-${part}`;
           return (
-            <div key={part} className="flex flex-col gap-1">
-              <label htmlFor={id} className="text-ink text-sm">
-                {label}: <span className="text-ink-muted">{weightWord(shown[part])}</span>
-              </label>
+            <div key={part} className="flex min-h-11 flex-col justify-center gap-0.5 py-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <label htmlFor={id} className="text-ink text-sm">
+                  {label}
+                </label>
+                <span className="text-ink-muted text-xs" aria-hidden="true">
+                  {weightWord(shown[part])}
+                </span>
+              </div>
               <input
                 id={id}
                 name={PART_WEIGHT_PARAMS[part]}
@@ -91,7 +98,7 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
                     apply(part, Number(event.currentTarget.value));
                   }
                 }}
-                className="accent-tint h-6 w-full cursor-pointer"
+                className="accent-tint focus-visible:outline-accent-to h-6 w-full min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
               />
             </div>
           );

@@ -10,6 +10,7 @@ import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/book
 import type { PartnerOffer } from '@/booking/partners';
 import { PartnerOfferRow } from '@/components/partners/partner-offer-row';
 import { FindStayLink } from '@/components/stays/find-stay-link';
+import { ReservePlaceholder } from './reserve-placeholder';
 import { earthMonthOf } from '@/components/discovery/globe-style';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
@@ -704,6 +705,7 @@ export function YourTrip({
         ) : null}
 
         {primary}
+        <ReservePlaceholder />
 
         <ul className="divide-border border-border flex flex-col divide-y border-t text-sm">
           {returnLink ? (
