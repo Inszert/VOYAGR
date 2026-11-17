@@ -2,8 +2,9 @@ import { format } from '@/core/money';
 import { bestRateFor, ratesOf } from '@/core/stay/comparison';
 import type { CanonicalStay } from '@/core/stay/identity';
 import type { BoardType, StayRate } from '@/core/stay/types';
-import { Icon, Media, Price } from '@/components/ui';
+import { Icon, Price } from '@/components/ui';
 import { amenityIcon } from './stay-property';
+import { StayPhoto } from './stay-photo';
 
 /**
  * One property, however many providers are offering it.
@@ -107,42 +108,22 @@ export function StayCard({ stay, nights, href, priority = false }: StayCardProps
       moves the thing being read.
     */
     <article className="border-border bg-panel ease-standard duration-settled hover:bg-panel-2 group relative flex h-full w-full overflow-hidden rounded-(--radius-card) border transition-[border-color,background-color] hover:border-(--color-accent-ink)">
-      <Media
+      <StayPhoto
         // Keyed to the property rather than to its name, so the same hotel
         // keeps its colour when a provider spells it differently.
         seed={stay.key}
-        image={photo ? { url: photo.url, alt: photo.caption ?? '' } : null}
+        photo={photo}
+        hotelName={stay.property.name}
         priority={priority}
         zoomOnHover
-        scrim={photo ? 'none' : 'bottom'}
+        decorativePlaceholder
         className="min-h-32 w-28 shrink-0 sm:w-56 md:w-64 lg:w-72"
-      >
-        {photo ? null : (
-          /*
-            No photograph: the place, set in type, over its wash.
-
-            The provider sent no picture of this property, and a picture of
-            something else would be a claim about it that nobody made. What
-            is true is where it is, so that is what the space says. Hidden
-            from assistive technology: the same place is in the text below.
-          */
-          <div
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-3 text-white sm:p-4"
-          >
-            <Icon name="pin" size={0.95} className="opacity-80" />
-            <span className="font-display text-sm leading-tight sm:text-xl">
-              {stay.property.address.city ?? stay.property.name}
-            </span>
-          </div>
-        )}
-
-        {providers.size > 1 ? (
-          <span className="border-hairline bg-field/85 text-text absolute top-3 left-3 hidden rounded-(--radius-pill) border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md sm:inline">
-            {providers.size} providers
-          </span>
-        ) : null}
-      </Media>
+      />
+      {providers.size > 1 ? (
+        <span className="border-hairline bg-field/85 text-text absolute top-3 left-3 z-10 hidden rounded-(--radius-pill) border px-2.5 py-1 text-[11px] font-medium backdrop-blur-md sm:inline">
+          {providers.size} providers
+        </span>
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col px-4 pt-3.5 pb-4">
         {kind ? <p className="text-muted text-xs">{kind}</p> : null}

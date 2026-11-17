@@ -3,6 +3,7 @@ import { Icon, Media, type IconName } from '@/components/ui';
 import type { CanonicalStay } from '@/core/stay/identity';
 import type { LocatorMap as LocatorMapData } from '@/discovery/locator';
 import { LocatorMap } from './locator-map';
+import { StayPhoto, showablePhotos } from './stay-photo';
 import { cn } from '@/lib/cn';
 
 /**
@@ -50,7 +51,7 @@ function sentenceCase(text: string): string {
 
 export function StayProperty({ stay, backHref, locator, children }: StayPropertyProps) {
   const { property } = stay;
-  const photos = property.photos;
+  const photos = showablePhotos(property.photos);
   const address = [property.address.line, property.address.city, property.address.countryCode]
     .filter(Boolean)
     .join(', ');
@@ -132,10 +133,11 @@ export function StayProperty({ stay, backHref, locator, children }: StayProperty
         <>
           <div className="grid h-[18rem] grid-cols-4 grid-rows-2 gap-2 overflow-hidden rounded-(--radius-surface) sm:h-[24rem]">
             {photos.slice(0, 5).map((photo, index) => (
-              <Media
+              <StayPhoto
                 key={photo.url}
                 seed={`${stay.key}-${index}`}
-                image={{ url: photo.url, alt: photo.caption ?? '' }}
+                photo={photo}
+                hotelName={property.name}
                 priority={index === 0}
                 className={index === 0 ? 'col-span-4 row-span-2 sm:col-span-2' : 'hidden sm:block'}
               />
@@ -159,7 +161,9 @@ export function StayProperty({ stay, backHref, locator, children }: StayProperty
         >
           {header(true)}
           <p className="mt-4 text-xs text-white/70">
-            The provider sent no photographs of this property.
+            {property.photos.length > 0
+              ? 'Photographs of this property are not shown here.'
+              : 'The provider sent no photographs of this property.'}
           </p>
         </Media>
       )}
