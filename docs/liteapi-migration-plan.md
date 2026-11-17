@@ -661,6 +661,62 @@ name and worker registration; (5) read path: `read.ts`, `snapshot.ts`, the stays
 `docs/architecture.md`, `docs/runbook.md`. Not in the build: `.env.example` (permission-blocked, the
 owner adds it), and `devmap.html` (the lead edits it).
 
+### Part 4 design (lead, 2026-11-17): flights from the snapshot
+
+Owner answer: the departure cities the snapshot covers are **Budapest (BUD), Vienna (VIE), Prague
+(PRG) and London (LON)**. Use the city code LON if LiteAPI accepts it; if it does not, use LHR and
+say so in the report.
+
+**Cost.** 4 origins × 6 destinations × 3 windows × 3 refreshes = **216 flight calls a day**. Worst
+case EUR 0.005 each beyond the 1,500:1 ratio: about **EUR 1.08 a day, about EUR 32 a month**. The
+owner accepted this by choosing four origins. Add the flight calls to the daily ceiling.
+
+**Rules.**
+- Flights never run on a visitor path. Visitors read stored flights only.
+- Party and windows match the hotel snapshot: 2 adults, economy, EUR, round trip. Departure is the
+  window's check-in date and the return is its check-out date (4 nights).
+- A flight offer carries its own `expiration`. Store it, and never show an offer past it.
+- Freshness uses the same four states and the same wording as hotels, plus one fixed line under
+  every stored flight price: "Fares change often. Check the airline before you book."
+- Sandbox prices are not real. The "Test prices" note applies to flights too.
+
+**Storage.** Migration `0014_liteapi_flights_snapshot.sql`, one table `liteapi_flights_snapshot`:
+`origin`, `destination`, `departure_date`, `return_date`, `adults`, `currency`, `cabin`, `offers`
+JSONB (validated and mapped), `observed_at`, `expires_at` (observed plus 3 × interval), `environment`,
+`schema_version`, `run_id`. Primary key: origin, destination, departure_date, return_date, adults,
+currency, cabin. Parameterised SQL only. Repository methods follow the hotel ones, with the clock
+injected.
+
+**Job.** `liteapi.flights.refresh`, payload `{ origin, destination, departureDate, returnDate }`,
+one run per origin, destination and window. One flights call per run (the flights rates request
+the docs describe; read `post_flights-rates` for the exact fields). Same schedule, same per-run cap,
+same disabled flag as the hotel job. The worker registers it only with `LITEAPI_SNAPSHOT_ENABLED`.
+A provider failure keeps the old row and logs only the error code.
+
+**Config.** `LITEAPI_SNAPSHOT_ORIGINS`, a comma list of three-letter codes, default
+`BUD,VIE,PRG,LON`, validated in `src/lib/env.ts`.
+
+**Read path.**
+- A snapshot flight reader implements the flight provider interface and reads the table only.
+- A missing row, or one past `expires_at`, is "not loaded": no price from LiteAPI.
+- Part 9 applies here: when the stored row is missing, read the existing Aviasales cache with
+  `getCacheStore().get(key)` only. Never `loadAndStore`, never a live call. No entry means the
+  flight is unpriced and the page shows a search issue.
+- The calendar stays on Aviasales, as the plan says.
+
+**Files.** Migration 0014; `src/db/repository.ts`, `memory.ts`, `postgres.ts` and a contract test;
+`src/liteapi-snapshot/flights-job.ts`, `flights-read.ts` and tests; `src/providers/flights/liteapi.ts`
+(the live fetch, used only by the job) and `src/providers/flights/liteapi-snapshot.ts` (the reader)
+and tests; `src/providers/registry.ts` (`FLIGHT_PROVIDER=liteapi` builds the reader; a missing key
+still fails closed, as now); `src/queue/types.ts`; `src/worker/main.ts`; `src/lib/env.ts`; the import
+guard test (the live flights fetch may be reached only from the worker); `docs/architecture.md` and
+`docs/runbook.md` (the flight arithmetic).
+
+**Tests.** Repository contract for the table; the job with a fake provider (one call per run, cap,
+failure keeps the old row, log has no key); flag off makes zero calls; the reader's four states and
+the fixed fare line; a missing row with the Aviasales cache empty is unpriced, and a spy shows zero
+fetches; the import guard.
+
 ### Part 11. Env and deploy
 
 - **Goal:** LiteAPI is switched on by configuration only. It fails closed, and the policy document
