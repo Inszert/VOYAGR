@@ -41,6 +41,7 @@ const FETCH_LIMIT = 60;
 export const KIND_LABELS: Readonly<Record<ThingKind, string>> = {
   sights: 'Sights',
   museums: 'Museums',
+  beaches: 'Beaches',
   outdoors: 'Outdoors',
   neighbourhoods: 'Neighbourhoods',
   food: 'Food & markets',

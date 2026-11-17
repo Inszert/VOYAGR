@@ -92,6 +92,7 @@ describe('placesToShow', () => {
     expect(countsByKind(things)).toEqual({
       sights: 20,
       museums: 20,
+      beaches: 0,
       outdoors: 0,
       neighbourhoods: 0,
       food: 0,

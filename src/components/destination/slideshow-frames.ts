@@ -95,8 +95,8 @@ export function slideshowFrames(input: {
       placeId: place.id,
       caption: place.name,
       alt: `${place.name}, ${input.name}`,
-      src: placeImageUrl(place.imageFile, 1280),
-      srcSet: `${placeImageUrl(place.imageFile, 640)} 640w, ${placeImageUrl(place.imageFile, 1280)} 1280w`,
+      src: placeImageUrl(place.imageFile, 1600),
+      srcSet: `${placeImageUrl(place.imageFile, 640)} 640w, ${placeImageUrl(place.imageFile, 1280)} 1280w, ${placeImageUrl(place.imageFile, 1600)} 1600w`,
       credit: {
         text: creditText(credit),
         href:

@@ -14,9 +14,10 @@ import { getLogger } from '@/lib/logger';
  * `NextResponse.redirect`, not `redirect()` from `next/navigation` - that one
  * is for a render context (a Server Component or a Server Action unwinding
  * its own response) and this is a plain Route Handler, which returns its own
- * `Response` directly. Redirects to the account page either way, with a
- * query flag it reads to show a plain-language result - never a JSON error
- * a person clicking an email link has to parse.
+ * `Response` directly. A confirmed address lands on `/email-confirmed`, a
+ * page that says so in plain words. A rejected link goes to the account page
+ * with a query flag it reads to show a plain-language result - never a JSON
+ * error a person clicking an email link has to parse.
  *
  * **The redirect target's host comes from the `Host` header, not
  * `request.url`.** Confirmed by observation, not assumption: `request.url`
@@ -29,14 +30,22 @@ import { getLogger } from '@/lib/logger';
  */
 const log = getLogger('app.verify-email');
 
-function toAccount(request: Request, flag: string): NextResponse {
+function redirectTo(request: Request, pathname: string, search = ''): NextResponse {
   const url = new URL(request.url);
   const host = request.headers.get('host');
   if (host) url.host = host;
-  url.pathname = '/account';
-  url.search = `?verified=${flag}`;
+  url.pathname = pathname;
+  url.search = search;
 
   return NextResponse.redirect(url);
+}
+
+function toAccount(request: Request, flag: string): NextResponse {
+  return redirectTo(request, '/account', `?verified=${flag}`);
+}
+
+function toConfirmed(request: Request): NextResponse {
+  return redirectTo(request, '/email-confirmed');
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -46,7 +55,7 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     await getAuthService().verifyEmail(token);
-    return toAccount(request, '1');
+    return toConfirmed(request);
   } catch (error) {
     if (!isAppError(error)) throw error;
 

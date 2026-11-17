@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FetchLike } from '../http/types';
 import { placeImageUrl } from './image-url';
 import {
+  THUMBNAIL_WIDTHS,
   commonsThumbnailUrl,
   fetchCommonsCredits,
   isAllowedUpstream,
@@ -12,6 +13,13 @@ describe('commonsThumbnailUrl', () => {
   it('names the file on Commons at one of the offered widths, escaped', () => {
     expect(commonsThumbnailUrl("Hadrian's Gate.jpg", 640)).toBe(
       "https://commons.wikimedia.org/wiki/Special:FilePath/Hadrian's%20Gate.jpg?width=640",
+    );
+  });
+
+  it('offers the slideshow width, 1600, and nothing wider', () => {
+    expect(THUMBNAIL_WIDTHS).toEqual([320, 640, 1280, 1600]);
+    expect(commonsThumbnailUrl('Frame.jpg', 1600)).toBe(
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Frame.jpg?width=1600',
     );
   });
 

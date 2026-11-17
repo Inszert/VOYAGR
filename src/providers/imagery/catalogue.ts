@@ -167,6 +167,11 @@ const ARTICLES: Readonly<Record<string, string>> = {
   MVD: 'Montevideo',
   GYE: 'Guayaquil',
   CUZ: 'Cusco',
+  // Mdina, not Malta: the country's article leads with its flag and Valletta's
+  // with a textile, so neither is a picture of the place. Mdina's lead is a
+  // photograph taken in Malta. The name "Malta" still finds this entry, through
+  // `PLACE_ALIASES`.
+  MLA: 'Mdina',
 };
 
 /**
@@ -180,6 +185,7 @@ const PLACE_ALIASES: Readonly<Record<string, string>> = {
   singapore: 'SIN',
   'hong kong': 'HKG',
   maldives: 'MLE',
+  malta: 'MLA',
 };
 
 /** The lookup for a destination, or null when nobody has chosen one. */

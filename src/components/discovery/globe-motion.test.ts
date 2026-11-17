@@ -17,6 +17,7 @@ import {
   labelLimit,
   arcTargetOpacity,
   spinFactor,
+  wheelOwner,
 } from './globe-motion';
 
 describe('cubicBezier', () => {
@@ -184,5 +185,35 @@ describe('changedPins', () => {
 
   it('does not pulse a destination that was not seen before', () => {
     expect(changedPins({ AYT: 'from EUR 120.00' }, now)).toEqual([]);
+  });
+});
+
+describe('wheelOwner', () => {
+  const sphere = { x: 500, y: 400, diameter: 600 };
+  const base = { sphere, zoom: 1.5, minZoom: -1, maxZoom: 6, deltaY: -100 };
+
+  it('zooms the globe when the pointer is on the planet', () => {
+    expect(wheelOwner({ ...base, pointer: { x: 500, y: 400 } })).toBe('globe');
+    expect(wheelOwner({ ...base, pointer: { x: 790, y: 400 } })).toBe('globe');
+  });
+
+  it('scrolls the page when the pointer is off the planet', () => {
+    expect(wheelOwner({ ...base, pointer: { x: 810, y: 400 } })).toBe('page');
+    expect(wheelOwner({ ...base, pointer: { x: 20, y: 20 } })).toBe('page');
+  });
+
+  it('gives the page a turn that would only push past a zoom limit', () => {
+    const centre = { x: 500, y: 400 };
+    expect(wheelOwner({ ...base, pointer: centre, zoom: -1, deltaY: 100 })).toBe('page');
+    expect(wheelOwner({ ...base, pointer: centre, zoom: -1, deltaY: -100 })).toBe('globe');
+    expect(wheelOwner({ ...base, pointer: centre, zoom: 6, deltaY: -100 })).toBe('page');
+    expect(wheelOwner({ ...base, pointer: centre, zoom: 6, deltaY: 100 })).toBe('globe');
+  });
+
+  it('treats the whole canvas as the map when there is no sphere to be over', () => {
+    expect(wheelOwner({ ...base, sphere: null, pointer: { x: 20, y: 20 } })).toBe('globe');
+    expect(
+      wheelOwner({ ...base, sphere: { x: 0, y: 0, diameter: 0 }, pointer: { x: 20, y: 20 } }),
+    ).toBe('globe');
   });
 });

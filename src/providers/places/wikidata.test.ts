@@ -30,10 +30,23 @@ const ANTALYA = {
   position: [30.79, 36.9] as const,
 };
 
+/**
+ * The recording predates the beach classes, so its places request has the older,
+ * shorter class list in it. The places query is answered by that recording
+ * whatever its class list is now; the centre lookup still has to match exactly.
+ * Re-record against the live service to retire this (no network is used here).
+ */
 function antalya() {
-  return createWikidataPlacesProvider({
-    fetchImpl: replayingFetch(loadCassette('wikidata-antalya')),
-  });
+  const cassette = loadCassette('wikidata-antalya');
+  const queryOf = (url: string) => new URL(url).searchParams.get('query') ?? '';
+  const recordedPlaces = cassette.exchanges
+    .map((exchange) => exchange.request.url)
+    .find((url) => queryOf(url).includes('?class'));
+  const replay = replayingFetch(cassette, { allowRepeats: true });
+  const fetchImpl: FetchLike = (url, init) =>
+    replay(queryOf(url).includes('?class') && recordedPlaces ? recordedPlaces : url, init);
+
+  return createWikidataPlacesProvider({ fetchImpl });
 }
 
 const CENTRE = { latitude: 36.90812, longitude: 30.69556 };
@@ -426,5 +439,37 @@ describe('what it declares', () => {
     expect(metadata).toMatchObject({ id: 'wikidata', kind: 'places', isMock: false, mode: 'live' });
     expect(metadata.rateLimitPerMinute).toBeGreaterThan(0);
     expect(metadata.rateLimitPerMinute).toBeLessThanOrEqual(30);
+  });
+});
+
+describe('beaches', () => {
+  it('asks for beaches and seaside resorts in the query', () => {
+    const sparql = buildPlacesQuery([CENTRE.longitude, CENTRE.latitude], NEAR_RADIUS_KM);
+
+    expect(sparql).toContain('wd:Q40080');
+    expect(sparql).toContain('wd:Q1021711');
+  });
+
+  // Hand-written rows in the response shape, not a recording: no beach query has
+  // been run against the live service from this suite.
+  it('files a beach and a seaside resort as Beaches, and the beach wins over a park', () => {
+    const beach = 'http://www.wikidata.org/entity/Q40080';
+    const resort = 'http://www.wikidata.org/entity/Q1021711';
+    const park = 'http://www.wikidata.org/entity/Q22698';
+
+    const { places } = parsePlaces(
+      response(
+        binding('Q1', { class: { value: park } }),
+        binding('Q1', { class: { value: beach } }),
+        binding('Q2', { class: { value: resort } }),
+      ),
+      CENTRE,
+      'wikidata',
+    );
+
+    expect(places.map((place) => [place.id, place.kind])).toEqual([
+      ['Q1', 'beaches'],
+      ['Q2', 'beaches'],
+    ]);
   });
 });

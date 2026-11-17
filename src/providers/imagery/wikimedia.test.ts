@@ -185,6 +185,7 @@ describe('the imagery catalogue', () => {
     expect(imageryCodeForPlace('singapore')).toBe('SIN');
     expect(imageryCodeForPlace('Hong Kong')).toBe('HKG');
     expect(imageryCodeForPlace('Maldives')).toBe('MLE');
+    expect(imageryCodeForPlace('Malta')).toBe('MLA');
     expect(imageryCodeForPlace('')).toBeNull();
   });
 });

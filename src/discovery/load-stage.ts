@@ -32,6 +32,7 @@ import {
   getDiscoverySource,
   type DiscoveryAssumptions,
 } from './snapshot';
+import { recordSearch } from './record-search';
 import { buildStageData, withQuery, type StageData } from './stage-data';
 import { dependenciesFor } from '@/search/dependencies';
 import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-source';
@@ -241,6 +242,15 @@ export async function loadStagePage(
         outcome = cached.value;
         resultAgeMs = cached.ageMs ?? 0;
         observedAt = cached.observedAt;
+
+        // Signed-in visitors only; never throws, and the page does not wait on a failure.
+        if (user) {
+          await recordSearch(getRepositories().tripSearches, {
+            userId: user.id,
+            profile: request.profile,
+            destinations: request.destinations,
+          });
+        }
       } catch (error) {
         log.warn({ err: error }, 'search could not be run');
         errors = {

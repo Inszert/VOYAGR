@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AppError } from './errors';
 
 /**
  * Validated environment configuration.
@@ -289,8 +290,60 @@ function productionAwareDefaults(source: Record<string, unknown>): Record<string
   };
 }
 
+/**
+ * A production deployment must say where it lives.
+ *
+ * Verification and reset links are built from `NEXT_PUBLIC_APP_URL`. Its schema
+ * default is localhost, which is right on a laptop and wrong on a server: a
+ * production process that fell back to it would mail links that only work on
+ * the machine that sent them. So production refuses to start without a public
+ * origin, rather than sending the first email to nowhere.
+ */
+const LOOPBACK_HOSTNAME = /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|\[::1\])$/;
+
+const PRODUCTION_URL_HINT =
+  'Production needs the public address of this site, such as https://example.com, ' +
+  'because verification and reset links are built from it. ' +
+  'Set it in the production environment and restart.';
+
+function isLoopbackUrl(value: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(value).hostname;
+  } catch {
+    // Not a URL at all. The schema reports that with its own message.
+    return false;
+  }
+  return LOOPBACK_HOSTNAME.test(hostname);
+}
+
+function assertProductionAppUrl(source: Record<string, unknown>): void {
+  if (source.NODE_ENV !== 'production') return;
+
+  const appUrl = source.NEXT_PUBLIC_APP_URL;
+
+  if (appUrl === undefined) {
+    throw new AppError(
+      'CONFIGURATION_ERROR',
+      `NEXT_PUBLIC_APP_URL is not set. ${PRODUCTION_URL_HINT}`,
+      { context: { variable: 'NEXT_PUBLIC_APP_URL', problem: 'missing' } },
+    );
+  }
+
+  if (typeof appUrl === 'string' && isLoopbackUrl(appUrl)) {
+    throw new AppError(
+      'CONFIGURATION_ERROR',
+      `NEXT_PUBLIC_APP_URL points at this machine (localhost or 127.0.0.1). ${PRODUCTION_URL_HINT}`,
+      { context: { variable: 'NEXT_PUBLIC_APP_URL', problem: 'loopback' } },
+    );
+  }
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(productionAwareDefaults(stripEmptyStrings(source)));
+  const present = stripEmptyStrings(source);
+  assertProductionAppUrl(present);
+
+  const result = envSchema.safeParse(productionAwareDefaults(present));
 
   if (!result.success) {
     // Report which variable failed and why — never the offending value, which

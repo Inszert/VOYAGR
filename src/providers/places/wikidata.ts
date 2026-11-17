@@ -95,7 +95,8 @@ const QUERY_ROW_LIMIT = 250;
 const CLASSES: readonly { readonly id: string; readonly kind: ThingKind }[] = [
   { id: 'Q33506', kind: 'museums' }, // museum
   { id: 'Q330284', kind: 'food' }, // marketplace
-  { id: 'Q40080', kind: 'outdoors' }, // beach
+  { id: 'Q40080', kind: 'beaches' }, // beach (sandy and pebble beaches are subclasses)
+  { id: 'Q1021711', kind: 'beaches' }, // seaside resort
   { id: 'Q22698', kind: 'outdoors' }, // park
   { id: 'Q1107656', kind: 'outdoors' }, // garden
   { id: 'Q6017969', kind: 'outdoors' }, // scenic viewpoint

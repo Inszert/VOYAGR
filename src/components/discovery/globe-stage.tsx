@@ -79,6 +79,7 @@ import {
   STAGE_FRAME_EVENT,
   WIDE_MIN_WIDTH,
   spinFactor,
+  wheelOwner,
 } from './globe-motion';
 
 /** How long the camera takes to follow the globe's box between pages: inside 900-1400ms. */
@@ -190,6 +191,16 @@ export interface GlobeStageProps {
    * than being handed a second answer that could disagree with the first.
    */
   seasonDate: string;
+  /**
+   * The travel date the page's search form holds right now, before it has
+   * been submitted - or null when it holds none, or nothing has been changed.
+   *
+   * Only the season's photograph follows it: the month's tiles and the line
+   * that says which month they are. The light, the camera and everything the
+   * server answered stay with `seasonDate` until a search actually lands, so
+   * picking a date never moves the planet under somebody.
+   */
+  seasonPreviewDate?: string | null;
   /**
    * The selected country's states and provinces, or null when nothing is
    * selected and when the catalogue has no regions for it.
@@ -540,6 +551,7 @@ export function GlobeStage({
   cityLightsUrl,
   coastlineUrl,
   seasonDate,
+  seasonPreviewDate = null,
   regionsUrl,
   provenance,
   countryCounts,
@@ -606,9 +618,13 @@ export function GlobeStage({
    * registered at creation. They read these rather than closing over the
    * first render's values.
    */
-  const live = React.useRef({ variant, origins, seasonDate });
+  /** The month the planet's photograph shows: the form's dates first, then the page's. */
+  const month = earthMonthOf(seasonPreviewDate ?? seasonDate);
+  /** The month on the planet now, as a layer and its source. Set when the style is made. */
+  const earthRef = React.useRef<{ month: string; layer: string; source: string } | null>(null);
+  const live = React.useRef({ variant, origins, seasonDate, month });
   React.useEffect(() => {
-    live.current = { variant, origins, seasonDate };
+    live.current = { variant, origins, seasonDate, month };
   });
   /** The zoom the sphere rests at, so a resize refits only a globe nobody has zoomed. */
   const restingZoomRef = React.useRef(0);
@@ -676,6 +692,7 @@ export function GlobeStage({
     let stopSpin: (() => void) | null = null;
     let detailAdded = false;
     let stopResizing: (() => void) | null = null;
+    let stopWheel: (() => void) | null = null;
 
     const build = async () => {
       try {
@@ -703,17 +720,16 @@ export function GlobeStage({
           minZoom: -1,
           maxZoom: 6,
           /*
-           * No "use ctrl + scroll to zoom" overlay.
+           * The wheel zooms the planet - over the planet.
            *
-           * Cooperative gestures solve a real problem - a hero that eats the
-           * page scroll is a hero nobody can scroll past - but they solve it
-           * by putting a notice over the map, which reads as the map being
-           * broken. So the hero simply does not zoom on scroll: the page
-           * scrolls, the globe turns under the pointer, and the two buttons
-           * zoom it. The explorer is a page about a map, so there the wheel
-           * does what a wheel does.
+           * No "use ctrl + scroll to zoom" overlay: cooperative gestures put a
+           * notice over the map, which reads as the map being broken. Instead
+           * a capture listener below hands the wheel back to the page wherever
+           * the pointer is off the sphere, or the zoom is already at the limit
+           * the turn is pushing towards (`wheelOwner`), so the hero is still
+           * one anybody can scroll past. The zoom limits are the ones above.
            */
-          scrollZoom: live.current.variant === 'explorer',
+          scrollZoom: true,
           /*
            * No attribution control.
            *
@@ -727,7 +743,8 @@ export function GlobeStage({
           style: buildGlobeStyle({
             colors,
             // The season of the month being looked at, never the weather on the day.
-            earthTilesUrl: earthTilesUrl(earthMonthOf(seasonDate)),
+            earthTilesUrl: earthTilesUrl(live.current.month),
+            earthMonth: live.current.month,
             landUrl,
             iceUrl,
             placesUrl,
@@ -765,6 +782,34 @@ export function GlobeStage({
         const canvas = map.getCanvas();
         canvas.setAttribute('tabindex', '-1');
         canvas.setAttribute('aria-hidden', 'true');
+
+        // The style opened on this month, as `earth`; the season effect fades from it.
+        earthRef.current = { month: live.current.month, layer: 'earth', source: 'earth' };
+
+        /*
+         * The wheel is the globe's only over the globe.
+         *
+         * Captured on the container, before MapLibre's own handler on the
+         * canvas container inside it sees the event. Where `wheelOwner` says
+         * the turn is the page's, the event goes no further down - MapLibre
+         * never hears it, so it never cancels the scroll - and the browser
+         * scrolls the page as it would have anyway. Passive, so it can never
+         * hold a scroll up either.
+         */
+        const onWheel = (event: WheelEvent) => {
+          const box = element.getBoundingClientRect();
+          const owner = wheelOwner({
+            pointer: { x: event.clientX - box.left, y: event.clientY - box.top },
+            sphere: projectionRef.current === 'globe' ? readSphere(map, true) : null,
+            zoom: map.getZoom(),
+            minZoom: map.getMinZoom(),
+            maxZoom: map.getMaxZoom(),
+            deltaY: event.deltaY,
+          });
+          if (owner === 'page') event.stopPropagation();
+        };
+        element.addEventListener('wheel', onWheel, { capture: true, passive: true });
+        stopWheel = () => element.removeEventListener('wheel', onWheel, { capture: true });
 
         // A tooltip for the country under the pointer. DOM, not map text.
         const popup = new maplibre.Popup({
@@ -1606,6 +1651,7 @@ export function GlobeStage({
       cancelBuild();
       stopSpin?.();
       stopResizing?.();
+      stopWheel?.();
       for (const marker of markers.values()) marker.remove();
       for (const entry of namesRef.current.values()) entry.marker.remove();
       namesRef.current.clear();
@@ -1806,25 +1852,20 @@ export function GlobeStage({
    *
    * The planet shows the typical look of the month being travelled in - NASA's
    * Blue Marble for that month, snow where it snows then - never the weather on
-   * the day. Picking other dates moves the month; the new month's tiles are
-   * added above the old ones at zero opacity, and once they have arrived they
-   * fade up over 600ms (at once under reduced motion) and the old layer is
-   * removed. Only the month in use is ever fetched.
+   * the day. Picking other dates in the search form moves the month at once,
+   * before anything is submitted (`seasonPreviewDate`); the new month's tiles
+   * are added above the old ones at zero opacity, and once they have arrived
+   * they fade up over 600ms (at once under reduced motion) and the old layer
+   * is removed. Each month carries its own paint (`earthPaint`), so the snow
+   * of a winter month is stretched to read as snow. Only the month in use is
+   * ever fetched.
    */
-  const month = earthMonthOf(seasonDate);
-  const earthRef = React.useRef<{ month: string; layer: string; source: string } | null>(null);
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready') return;
 
-    // The style opened on the month it was created with, as `earth`.
-    earthRef.current ??= {
-      month: earthMonthOf(live.current.seasonDate),
-      layer: 'earth',
-      source: 'earth',
-    };
     const current = earthRef.current;
-    if (current.month === month) return;
+    if (!current || current.month === month) return;
 
     const next = { month, layer: `earth-${month}`, source: `earth-${month}` };
     const duration = prefersReducedMotion() ? 0 : 600;
@@ -1833,7 +1874,7 @@ export function GlobeStage({
       if (map.getLayer(next.layer)) map.removeLayer(next.layer);
       if (map.getSource(next.source)) map.removeSource(next.source);
       map.addSource(next.source, earthSource(month));
-      const layer = earthLayer(next.layer, next.source, 0);
+      const layer = earthLayer(next.layer, next.source, 0, month);
       map.addLayer(
         {
           ...layer,
@@ -2498,9 +2539,6 @@ export function GlobeStage({
     if (!map || status !== 'ready') return;
     if (previousVariant.current === variant) return;
     previousVariant.current = variant;
-
-    if (variant === 'explorer') map.scrollZoom.enable();
-    else map.scrollZoom.disable();
 
     // The canvas is still the old size until the observer fires next frame.
     map.resize();

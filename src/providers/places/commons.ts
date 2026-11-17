@@ -26,8 +26,11 @@ const log = getLogger('providers.commons');
 const API = 'https://commons.wikimedia.org/w/api.php';
 const TITLES_PER_REQUEST = 40;
 
-/** The only widths a thumbnail may be asked for: a card, and a card on a dense screen. */
-export const THUMBNAIL_WIDTHS = [320, 640, 1280] as const;
+/**
+ * The only widths a thumbnail may be asked for: a card, a card on a dense
+ * screen, a full-bleed slideshow frame, and that frame on a dense screen.
+ */
+export const THUMBNAIL_WIDTHS = [320, 640, 1280, 1600] as const;
 export type ThumbnailWidth = (typeof THUMBNAIL_WIDTHS)[number];
 
 /**

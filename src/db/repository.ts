@@ -425,6 +425,12 @@ export interface TripSearchRepository {
   findById(id: string): Promise<TripSearchRecord | null>;
   listByUser(userId: string): Promise<TripSearchRecord[]>;
   create(input: Omit<TripSearchRecord, 'createdAt' | 'updatedAt'>): Promise<TripSearchRecord>;
+  /**
+   * Insert a search under a caller-chosen id, or refresh the one already there.
+   * Replaces name, profile and destinations and moves `updatedAt` to now;
+   * `createdAt` and the owner are kept.
+   */
+  upsert(input: Omit<TripSearchRecord, 'createdAt' | 'updatedAt'>): Promise<TripSearchRecord>;
   update(
     id: string,
     patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,

@@ -30,13 +30,14 @@ import { ThingsToDoSkeleton } from '@/components/destination/things-to-do-sectio
 import { PlacesBoundary } from '@/components/destination/places-boundary';
 import { AirportTransfers } from '@/components/destination/airport-transfers';
 import { SectionBar, type SectionBarItem } from '@/components/destination/section-bar';
-import { TravellerStepper } from '@/components/destination/plan-panel-controls';
+import { TravellerStepper, WatchThisPrice } from '@/components/destination/plan-panel-controls';
 import { slideshowFrames } from '@/components/destination/slideshow-frames';
 import { airportToCentreMetres } from '@/discovery/transfer-compare';
 import { resolveAirport } from '@/providers/reference/airports';
 import { destinationGaps } from '@/discovery/destination-gaps';
 import { loadThingsToDo, parseKind, type ThingsToDoOutcome } from '@/discovery/things-to-do';
 import { getCurrentUser } from '@/auth/current-user';
+import { saveSearchAction } from '@/app/actions/watches';
 import { getRepositories } from '@/db';
 import type { ThingKind } from '@/providers/types';
 
@@ -408,14 +409,13 @@ export default async function DestinationPage({ params, searchParams }: PageProp
                 </a>
               </Button>
 
-              {flightsFrom ? (
-                <a
-                  href="/watches"
-                  className="text-ink inline-flex min-h-11 items-center gap-2 text-sm font-medium underline-offset-4 hover:underline"
-                >
-                  <Icon name="bell" size={0.95} aria-hidden="true" />
-                  Watch this price
-                </a>
+              {flightsFrom && planHref.startsWith('/explore?') ? (
+                <WatchThisPrice
+                  signedIn={user !== null}
+                  query={planHref.slice('/explore?'.length)}
+                  name={`${origin} to ${place.name}`}
+                  action={saveSearchAction}
+                />
               ) : null}
 
               {stayLinks.length > 0 ? (

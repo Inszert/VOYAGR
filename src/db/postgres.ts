@@ -730,6 +730,24 @@ class PostgresTripSearchRepository implements TripSearchRepository {
     return toTripSearch(requireRow(rows[0], 'trip search', input.id));
   }
 
+  async upsert(input: Omit<TripSearchRecord, 'createdAt' | 'updatedAt'>) {
+    // The WHERE keeps a row owned by someone else untouched; it then returns
+    // nothing and `requireRow` reports it.
+    const rows = await query<TripSearchRow>(
+      `INSERT INTO trip_searches (id, user_id, name, profile, destinations)
+       VALUES ($1, $2, $3, $4::jsonb, $5)
+       ON CONFLICT (id) DO UPDATE
+          SET name = EXCLUDED.name,
+              profile = EXCLUDED.profile,
+              destinations = EXCLUDED.destinations,
+              updated_at = now()
+        WHERE trip_searches.user_id = EXCLUDED.user_id
+       RETURNING ${SEARCH_COLUMNS}`,
+      [input.id, input.userId, input.name, JSON.stringify(input.profile), [...input.destinations]],
+    );
+    return toTripSearch(requireRow(rows[0], 'trip search', input.id));
+  }
+
   async update(
     id: string,
     patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,

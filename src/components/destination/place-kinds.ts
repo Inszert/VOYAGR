@@ -10,6 +10,7 @@ import type { ThingKind } from '@/providers/types';
 export const KIND_WORDS: Readonly<Record<ThingKind, string>> = {
   sights: 'Sights',
   museums: 'Museums',
+  beaches: 'Beaches',
   outdoors: 'Outdoors',
   neighbourhoods: 'Neighbourhoods',
   food: 'Food & markets',
@@ -20,6 +21,7 @@ export const KIND_WORDS: Readonly<Record<ThingKind, string>> = {
 export const KIND_ICON: Record<ThingKind, IconName> = {
   sights: 'pin',
   museums: 'sparkle',
+  beaches: 'sun',
   outdoors: 'sun',
   neighbourhoods: 'map',
   food: 'utensils',
@@ -29,6 +31,7 @@ export const KIND_ICON: Record<ThingKind, IconName> = {
 export const KIND_TINT: Record<ThingKind, Tint> = {
   sights: 'harbour',
   museums: 'leather',
+  beaches: 'harbour',
   outdoors: 'sage',
   neighbourhoods: 'sand',
   food: 'clay',

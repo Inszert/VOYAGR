@@ -31,6 +31,7 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const PURPOSE: Record<ThingKind, string> = {
   sights: 'A sight to see',
   museums: 'A museum to go inside',
+  beaches: 'Time on the beach',
   outdoors: 'Time outdoors',
   neighbourhoods: 'A neighbourhood to wander',
   food: 'Somewhere to eat and browse',

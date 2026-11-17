@@ -315,12 +315,13 @@ export interface PlacesQuery {
 /**
  * The groups a destination's things to do are sorted into.
  *
- * Six, so the filter row stays one line on a phone. The slug is what the URL
+ * Seven, so the filter row stays one line on a phone. The slug is what the URL
  * carries (`?kind=museums`); the label is in `src/discovery/things-to-do.ts`.
  */
 export const THING_KINDS = [
   'sights',
   'museums',
+  'beaches',
   'outdoors',
   'neighbourhoods',
   'food',

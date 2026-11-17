@@ -54,6 +54,7 @@
   .fact .k { flex: 0 0 5.5rem; color: var(--muted); }
   .fact .v { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fact .v code { margin-right: 6px; }
+  .live-status { color: var(--muted); font-size: .85rem; margin: 12px 0 0; overflow-wrap: anywhere; }
 
   /* Toolbar */
   .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 12px; }
@@ -202,6 +203,7 @@
   <h1>Voyagr</h1>
   <p class="tagline" id="tagline"></p>
   <div class="facts" id="facts"></div>
+  <p class="live-status" id="live-status" aria-live="polite"></p>
 </header>
 
 <div class="toolbar">
@@ -222,6 +224,8 @@
 <footer id="foot"></footer>
 </div>
 
+<!-- Optional: written by `npm run devmap:update`. The page renders without it. -->
+<script id="devmap-live" src="devmap-live.js"></script>
 <script>
 // ---------------------------------------------------------------------------
 // DATA: every fact on this page comes from this object. Edit statuses here by
@@ -260,6 +264,8 @@ const DATA = {
     { area: "Flights & prices", text: "Default search dates follow today; FLEX_DAYS setting added", src: "STATUS.md; commits ff14d21, 27074b3" },
     { area: "Flights & prices", text: "Flight prices labelled indicative, never a live quote", src: "progress.md (2026-11-03)" },
     { area: "Flights & prices", text: "Duffel removed from the provider choice; zero outbound calls proven by test", src: "progress.md (2026-11-04)" },
+    { area: "Flights & prices", text: "Pick your dates: instant redesign of the date and from/to selection", src: "commit 9194117 (Pick your dates redesign); owner request 2026-11-17" },
+    { area: "Flights & prices", text: "Search finds nothing for VIE to KZN", note: "Fixed: one-way fares, empty-search page", src: "STATUS.md (listed as a bug); commit c78f77e (one-way fares, empty-search page)" },
 
     { area: "Destination page", text: "Things to do: up to 30 real places per destination (Wikidata, Wikimedia photos)", src: "STATUS.md; commit ff14d21" },
     { area: "Destination page", text: "Destination page redesign, first pass", src: "STATUS.md" },
@@ -290,6 +296,8 @@ const DATA = {
     { area: "Accounts & email", text: "Travelpayouts Drive script, production only", src: "STATUS.md" },
     { area: "Accounts & email", text: "Partner offers as native cards: Intui, AirHelp, Yesim, GigSky", src: "STATUS.md" },
     { area: "Accounts & email", text: "A missing email setting fails the send, not every page", src: "STATUS.md; commit f22aba8" },
+    { area: "Accounts & email", text: "Email verification works for the test account", src: "owner confirmed 2026-11-17" },
+    { area: "Accounts & email", text: "Sign-up works on the live site", src: "owner confirmed 2026-11-17" },
 
     { area: "Trips hub", text: "Trip hub core: travel plan, shared expenses (Tricount-style), contacts", src: "STATUS.md; commit dc97376" },
     { area: "Trips hub", text: "Emergency numbers from Wikidata; a country with none shows \"No verified number on file\"", src: "docs/finish-plan.md (D17)" },
@@ -315,16 +323,13 @@ const DATA = {
 
   // In progress: being worked on, or uncommitted.
   inProgress: [
-    { text: "Pick your dates: instant redesign of the date and from/to selection", note: "Owner request 2026-11-17. Started now.", src: "owner request" },
-    { text: "Bug: search finds nothing for VIE to KZN", note: "Listed as in progress in STATUS.md.", src: "STATUS.md" },
-    { text: "Bug: images missing in Popular and in Things to do", note: "Listed as in progress in STATUS.md.", src: "STATUS.md" },
     { text: "Trip builder on explore: change flight or hotel and see the price move; hotel with photos, stars, location", note: "Spec written (commit 25ccd4b). STATUS.md does not say how much is built.", src: "STATUS.md; docs/design-trip-builder.md" },
     { text: "Prices follow the traveller count everywhere; fuller date calendar", note: "Listed as in progress.", src: "STATUS.md" },
     { text: "Globe: more places as you rotate and zoom, never cut by a box, seasonal look by month", note: "Listed as in progress.", src: "STATUS.md" },
     { text: "Stays redesign with a hotel map", note: "Listed as in progress.", src: "STATUS.md" },
     { text: "Destination page: slideshow, interactive things to do, day plan, airport section", note: "Listed as the next item. Spec written; build not reported.", src: "STATUS.md; docs/design-destination.md" },
     { text: "Paused by the usage limit: health check, midnight cache, pre-loading places, docs update", note: "STATUS.md says paused, not abandoned.", src: "STATUS.md" },
-    { text: "Working tree is not committed: 182 paths in git status (80 untracked)", note: "Many Done items may exist only in these uncommitted changes. Check before relying on the Done list.", src: "git status at generation time" }
+    { text: "Working tree is not committed: see the live working-tree line above", note: "Many Done items may exist only in these uncommitted changes. Check before relying on the Done list.", src: "git status at generation time" }
   ],
 
   // Planned, not started. `note` says why, where the source does.
@@ -363,7 +368,7 @@ const DATA = {
   // Failing or unverified. severity: "blocks launch" | "should fix" | "known limit"
   failing: [
     { text: "After email verification the user gets no clear confirmation; add a visible success screen (e.g. \"Your email is confirmed\" with a link on to the account or search)", severity: "should fix", note: "Owner report 2026-11-17. Verification works; the step has no visible confirmation.", src: "owner report" },
-    { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, which is in progress.", src: "owner report" },
+    { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, committed in 9194117; not yet confirmed to fix this.", src: "owner report" },
     { text: "Changing the number of travellers should update the prices at once, without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started. Same fix as the season and map updates: live, without submit.", src: "owner report" },
     { text: "Globe season: changing the date to January barely shows snow; the season should be clearly visible, and it should change without waiting for the search to be submitted", severity: "should fix", note: "Owner report 2026-11-17. Not started.", src: "owner report" },
     { text: "Places like Larnaca do not mention their beaches in things to do; beaches are missing from the place lists", severity: "should fix", note: "Owner report 2026-11-17. Not started.", src: "owner report" },
@@ -376,18 +381,14 @@ const DATA = {
     { text: "Slideshow images are low quality (higher-resolution source or upscaling needed)", severity: "should fix", note: "Owner report 2026-11-17.", src: "owner report" },
     { text: "Real email delivery through Resend, with a verified domain, not verified", severity: "blocks launch", src: "progress.md; STATUS.md" },
     { text: "Postgres migrations 0008 and 0009 not run against a real database", severity: "blocks launch", src: "STATUS.md; progress.md" },
-    { text: "Travelpayouts login pending; the account-setup agent is blocked", severity: "blocks launch", src: "STATUS.md" },
     { text: "Live Aviasales calendar calls from a deployed host not verified; real quota behaviour unknown", severity: "blocks launch", src: "progress.md" },
-    { text: "Background polling for Travel Watch: vendor terms not answered in writing; no vendor chosen", severity: "blocks launch", src: "progress.md (Next step)" },
     { text: "Local Postgres answers ECONNRESET; DATABASE_SSL=true suggested but not tried", severity: "should fix", src: "progress.md (2026-11-03, 2026-11-04)" },
     { text: "/api/health in production expected to answer 503 (absent slots); read from code, not run", severity: "should fix", src: "progress.md" },
-    { text: "Search finds nothing for VIE to KZN", severity: "should fix", src: "STATUS.md (bugs in progress)" },
     { text: "Images missing in Popular and in Things to do", severity: "should fix", src: "STATUS.md (bugs in progress)" },
     { text: "Trip builder: arrival time prints the departure time (06:10 VIE to 06:10 FCO); a defect to fix", severity: "should fix", src: "docs/design-trip-builder.md" },
     { text: "Booking.com URL parameters not verified on a live click", severity: "should fix", src: "progress.md (phase 3)" },
     { text: "Cache key roll-over at 00:00 UTC not verified on a live deployment", severity: "should fix", src: "progress.md" },
     { text: "Most new screens not reviewed in a browser by a person", severity: "should fix", src: "STATUS.md; progress.md" },
-    { text: "Drive \"Verify installation\" passes only after the next deploy of this branch", severity: "should fix", src: "WHAT-I-NEED-FROM-YOU.md" },
     { text: "Env docs out of sync with code: HOTEL_REFRESH_MINUTES and five *_PROVIDER_API_KEY read by no code; OPEN_METEO_API_KEY unread; VAPID name mismatch", severity: "should fix", src: "progress.md (found while writing docs)" },
     { text: "MapLibre LineAtlas runs out of space after many globe resizes; reported, not patched", severity: "should fix", src: "progress.md (2026-09-23)" },
     { text: "npm run format:check failed on 142 files (last checked 2026-11-03)", severity: "should fix", src: "progress.md (2026-11-03)" },
@@ -457,14 +458,18 @@ const DATA = {
 
   var state = {};  // section key -> open (true by default)
   var manual = {}; // while searching: section key -> open, set by a click
-  var SECTIONS = [
-    { key: "failing", title: "Failing or unverified", icon: "✕", list: DATA.failing, count: DATA.failing.length },
-    { key: "done", title: "Done", icon: "✓", list: DATA.done, count: DATA.done.length },
-    { key: "progress", title: "In progress", icon: "◐", list: DATA.inProgress, count: DATA.inProgress.length },
-    { key: "planned", title: "Planned, not started", icon: "○", list: DATA.planned, count: DATA.planned.length },
-    { key: "owner", title: "Needs the owner", icon: "⚑", list: DATA.needsOwner, count: DATA.needsOwner.length },
-    { key: "history", title: "Recent history", icon: "•", list: DATA.commits, count: DATA.commits.length }
-  ];
+  // Rebuilt on every render, so counts and lists follow DATA after a live update.
+  function sectionsFromData() {
+    return [
+      { key: "failing", title: "Failing or unverified", icon: "✕", list: DATA.failing, count: DATA.failing.length },
+      { key: "done", title: "Done", icon: "✓", list: DATA.done, count: DATA.done.length },
+      { key: "progress", title: "In progress", icon: "◐", list: DATA.inProgress, count: DATA.inProgress.length },
+      { key: "planned", title: "Planned, not started", icon: "○", list: DATA.planned, count: DATA.planned.length },
+      { key: "owner", title: "Needs the owner", icon: "⚑", list: DATA.needsOwner, count: DATA.needsOwner.length },
+      { key: "history", title: "Recent history", icon: "•", list: DATA.commits, count: DATA.commits.length }
+    ];
+  }
+  var SECTIONS = sectionsFromData();
   SECTIONS.forEach(function (s) { state[s.key] = true; });
 
   function el(tag, cls, text) {
@@ -594,8 +599,12 @@ const DATA = {
     row("Last commit", function (v) {
       v.appendChild(el("code", "", DATA.lastCommit.hash));
       v.appendChild(document.createTextNode(DATA.lastCommit.subject));
+      if (DATA.lastCommit.date) v.appendChild(el("span", "muted", "  " + DATA.lastCommit.date));
     }, DATA.lastCommit.hash + " " + DATA.lastCommit.subject);
-    row("Date", function (v) { v.textContent = DATA.generated; });
+    row("Working tree", function (v) {
+      v.textContent = DATA.uncommittedPaths + " paths, " + DATA.uncommittedUntracked + " untracked";
+    });
+    row("Generated", function (v) { v.textContent = DATA.generated; });
   }
 
   function buildStrip(main) {
@@ -858,10 +867,90 @@ const DATA = {
     }
   }
 
-  function init() {
+  // ---------------------------------------------------------------------------
+  // Live facts. devmap-live.js is written by `npm run devmap:update` and is
+  // optional. Only these DATA fields are overwritten; every other field stays
+  // as written in DATA above.
+  // ---------------------------------------------------------------------------
+  var LIVE_POLL_MS = 20000;
+  var liveLoaded = false;
+  var shownGenerated = null; // the `generated` value last rendered from live facts
+
+  function isStr(v) { return typeof v === "string"; }
+  function isNum(v) { return typeof v === "number" && isFinite(v); }
+  function applyLive() {
+    var live = window.DEVMAP_LIVE;
+    if (!live || typeof live !== "object" || !isStr(live.generated)) return;
+    liveLoaded = true;
+    shownGenerated = live.generated;
+    DATA.generated = live.generated;
+    if (isStr(live.branch)) DATA.branch = live.branch;
+    if (live.lastCommit && isStr(live.lastCommit.hash) && isStr(live.lastCommit.subject)) {
+      DATA.lastCommit = {
+        hash: live.lastCommit.hash,
+        subject: live.lastCommit.subject,
+        date: isStr(live.lastCommit.date) ? live.lastCommit.date : ""
+      };
+    }
+    if (isNum(live.uncommittedPaths)) DATA.uncommittedPaths = live.uncommittedPaths;
+    if (isNum(live.uncommittedUntracked)) DATA.uncommittedUntracked = live.uncommittedUntracked;
+    if (Array.isArray(live.commits)) {
+      DATA.commits = live.commits.filter(function (c) {
+        return c && isStr(c.hash) && isStr(c.date) && isStr(c.subject);
+      });
+    }
+  }
+
+  function pad2(n) { return n < 10 ? "0" + n : String(n); }
+  function setLiveStatus() {
+    var n = document.getElementById("live-status");
+    if (!n) return;
+    var d = liveLoaded ? new Date(DATA.generated) : null;
+    if (d && !isNaN(d.getTime())) {
+      n.textContent = "Live facts updated " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+    } else {
+      n.textContent = "Live facts not loaded: showing the values in this file. Run npm run devmap:update to refresh them.";
+    }
+  }
+
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function render() {
+    applyLive();
+    // Rebuilding replaces the nodes, so keep keyboard focus on a section toggle.
+    var active = document.activeElement;
+    var focusId = active && active.classList && active.classList.contains("toggle") ? active.id : "";
+    clear(document.getElementById("facts"));
+    clear(document.getElementById("main"));
+    SECTIONS = sectionsFromData();
     buildHeader();
     buildMain();
     applyFilter();
+    setLiveStatus();
+    if (focusId) {
+      var again = document.getElementById(focusId);
+      if (again) again.focus({ preventScroll: true });
+    }
+  }
+
+  // Re-load devmap-live.js every LIVE_POLL_MS. The cache-busting query works on
+  // file:// too; the old script element is removed so each load runs fresh.
+  function onLiveLoaded() {
+    var live = window.DEVMAP_LIVE;
+    if (live && isStr(live.generated) && live.generated !== shownGenerated) render();
+  }
+  function reloadLive() {
+    var old = document.getElementById("devmap-live");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var s = document.createElement("script");
+    s.id = "devmap-live";
+    s.src = "devmap-live.js?t=" + Date.now();
+    s.addEventListener("load", onLiveLoaded);
+    document.body.appendChild(s);
+  }
+
+  function init() {
+    render();
+    setInterval(reloadLive, LIVE_POLL_MS);
 
     document.getElementById("main").addEventListener("click", function (e) {
       var b = e.target.closest ? e.target.closest("button.toggle") : null;

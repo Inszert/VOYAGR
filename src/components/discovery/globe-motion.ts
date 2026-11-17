@@ -262,3 +262,40 @@ export const GLOBE_RELEASE_EVENT = 'voyagr:globe-release';
 
 /** Fired by the stage host when the page's box for the globe may have moved within the canvas. */
 export const STAGE_FRAME_EVENT = 'voyagr:stage-frame';
+
+/**
+ * Who a turn of the scroll wheel belongs to: the globe, or the page.
+ *
+ * The wheel zooms the globe, but only where the pointer is on the planet.
+ * Over the dark space round it the page scrolls as it always did, so a hero
+ * that fills the window is never one nobody can scroll past. And at a zoom
+ * limit, a turn that would only push further past it goes back to the page:
+ * scrolling down over a globe already as small as it gets moves the page
+ * rather than doing nothing.
+ *
+ * `sphere` is the painted disc in container pixels (`readSphere`), or null
+ * when there is no sphere to be over - the flat map, or a measurement that
+ * failed - in which case the whole canvas is the map's.
+ */
+export function wheelOwner(input: {
+  readonly pointer: { readonly x: number; readonly y: number };
+  readonly sphere: { readonly x: number; readonly y: number; readonly diameter: number } | null;
+  readonly zoom: number;
+  readonly minZoom: number;
+  readonly maxZoom: number;
+  /** The wheel event's `deltaY`: positive scrolls down, which zooms out. */
+  readonly deltaY: number;
+}): 'globe' | 'page' {
+  const { pointer, sphere, zoom, minZoom, maxZoom, deltaY } = input;
+
+  if (sphere && sphere.diameter > 0) {
+    const radius = sphere.diameter / 2;
+    if (Math.hypot(pointer.x - sphere.x, pointer.y - sphere.y) > radius) return 'page';
+  }
+
+  const EPSILON = 0.01;
+  if (deltaY > 0 && zoom <= minZoom + EPSILON) return 'page';
+  if (deltaY < 0 && zoom >= maxZoom - EPSILON) return 'page';
+
+  return 'globe';
+}

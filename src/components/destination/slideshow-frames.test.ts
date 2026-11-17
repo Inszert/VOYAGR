@@ -71,6 +71,18 @@ describe('slideshowFrames', () => {
     }
   });
 
+  it('asks for the widest offered width for each photograph, with the smaller ones in its srcset', () => {
+    const things = [thing('Q1', 'A.jpg'), thing('Q2', 'B.jpg'), thing('Q3', 'C.jpg')];
+    const frames = slideshowFrames({ code: 'ZZZ', name: 'Nowhere', outcome: ok(things) })!;
+
+    for (const frame of frames) {
+      expect(frame.kind === 'photo' && frame.src).toMatch(/w=1600$/);
+      expect(frame.kind === 'photo' && frame.srcSet).toMatch(
+        /w=640 640w, \/api\/places\/image\?.*w=1280 1280w, \/api\/places\/image\?.*w=1600 1600w$/,
+      );
+    }
+  });
+
   it('credits each photograph with its author and licence, and says when they are not stated', () => {
     const things = [thing('Q1', 'A.jpg'), thing('Q2', 'B.jpg'), thing('Q3', 'C.jpg')];
     const frames = slideshowFrames({

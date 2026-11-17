@@ -23,7 +23,7 @@ import {
  *
  *  - the name must pass the same pattern the provider's output is held to (no
  *    slash, no `..`, no percent-escape, an image extension);
- *  - the width must be one of the three we offer (the largest is for the slideshow);
+ *  - the width must be one of the four we offer (the largest is for the slideshow);
  *  - the address asked is built here, on `commons.wikimedia.org`, and its
  *    redirects are followed by hand: on Commons only through its own file
  *    redirects, a few hops at most, and the bytes only from its upload hosts;

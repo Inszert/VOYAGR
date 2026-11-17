@@ -607,6 +607,19 @@ describe.each(backends)('$name repository contract', (backend) => {
       expect(found?.destinations).toEqual(['AYT', 'CHQ']);
     });
 
+    it('upserts by id, keeping createdAt and refreshing the rest', async () => {
+      const user = await aUser();
+      const id = randomUUID();
+      const base = { id, userId: user.id, profile: buildProfile(), destinations: ['AYT'] };
+
+      const first = await repositories.tripSearches.upsert({ ...base, name: 'One' });
+      const second = await repositories.tripSearches.upsert({ ...base, name: 'Two' });
+
+      expect(second.name).toBe('Two');
+      expect(second.createdAt).toBe(first.createdAt);
+      expect(await repositories.tripSearches.listByUser(user.id)).toHaveLength(1);
+    });
+
     it('lists only the searches belonging to one user', async () => {
       const user = await aUser();
       const other = await aUser();

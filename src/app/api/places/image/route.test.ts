@@ -73,6 +73,18 @@ describe('GET /api/places/image', () => {
     ]);
   });
 
+  it('serves the slideshow width, 1600, from Commons at that width', async () => {
+    const fetchSpy = commons();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const response = await call('file=Frame.jpg&w=1600');
+
+    expect(response.status).toBe(200);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Frame.jpg?width=1600',
+    );
+  });
+
   it('serves the second request from memory', async () => {
     const fetchSpy = commons();
     vi.stubGlobal('fetch', fetchSpy);
@@ -95,6 +107,7 @@ describe('GET /api/places/image', () => {
     ['no extension', 'file=photo'],
     ['an over-long name', `file=${'x'.repeat(300)}.jpg`],
     ['a width that is not offered', 'file=ok.jpg&w=5000'],
+    ['a width just above the largest offered', 'file=ok.jpg&w=1700'],
     ['a width that is not a number', 'file=ok.jpg&w=abc'],
   ])('refuses %s without fetching anything', async (_label, query) => {
     const fetchSpy = commons();

@@ -1,5 +1,7 @@
 import type { StyleSpecification } from 'maplibre-gl';
 
+import { addDays, daysBetween, isIsoDate } from '@/core/dates';
+import type { IsoDate } from '@/core/trip/types';
 import { DUSK_STEPS, DUSK_STEP_ALPHA } from '@/discovery/terminator';
 
 /**
@@ -67,6 +69,8 @@ export interface GlobeStyleOptions {
   readonly countriesUrl: string;
   /** The satellite raster, as an XYZ template on our own origin. */
   readonly earthTilesUrl?: string;
+  /** The month those tiles are, `01`-`12`, which decides their paint (`earthPaint`). */
+  readonly earthMonth?: string;
   /** The land itself, dissolved: continents and islands, no boundaries. */
   readonly landUrl: string;
   /** Glaciers and ice shelves. */
@@ -115,19 +119,114 @@ export function earthMonthOf(date: string): string {
   return /^(0[1-9]|1[0-2])$/.test(month) ? month : '01';
 }
 
+/**
+ * The date a search form's current fields put the season on, before anybody
+ * submits it - or null when the fields hold no usable date.
+ *
+ * The same answer the server gives once the search lands (`load-stage.ts`
+ * lights the middle of the travel window): the middle of the two dates when
+ * both are there and in order, the departure alone otherwise, and the chosen
+ * month when the form is set to "anytime that month". Calendar arithmetic only
+ * through `@/core/dates`.
+ */
+export function formSeasonDate(fields: {
+  readonly flexibility: string | null;
+  readonly departureDate: string | null;
+  readonly returnDate: string | null;
+  readonly monthStart: string | null;
+}): IsoDate | null {
+  const valid = (value: string | null): value is IsoDate => value !== null && isIsoDate(value);
+
+  if (fields.flexibility === 'month') {
+    return valid(fields.monthStart) ? fields.monthStart : null;
+  }
+
+  if (!valid(fields.departureDate)) return null;
+  const from = fields.departureDate;
+  if (!valid(fields.returnDate)) return from;
+
+  const span = daysBetween(from, fields.returnDate);
+  return span <= 0 ? from : addDays(from, Math.floor(span / 2));
+}
+
 /** The month a style opens on when it is not told one. */
 export const EARTH_TILES_URL = earthTilesUrl('08');
 
+/**
+ * How much of the northern mid and high latitudes is snow in each month's
+ * tiles, in per cent.
+ *
+ * Measured, not chosen: the share of pixels between 35 and 72 degrees north
+ * (Greenland left out - it is ice in every month) whose darkest channel is
+ * above 170 of 255, read from the zoom-2 tiles in `public/geo/earth/v2/`.
+ * `globe-style.test.ts` measures the tiles again and fails if this table no
+ * longer describes them, so a rebuilt set (`v3`) has to come with its own
+ * numbers. The southern hemisphere is left out because its seasonal snow at
+ * these latitudes rounds to nothing (under 0.1 per cent in every month).
+ */
+export const EARTH_SNOW_COVER: Readonly<Record<string, number>> = {
+  '01': 34.7,
+  '02': 36.3,
+  '03': 34.1,
+  '04': 28.5,
+  '05': 22.2,
+  '06': 5.1,
+  '07': 1.1,
+  '08': 1.0,
+  '09': 5.0,
+  '10': 18.6,
+  '11': 25.7,
+  '12': 33.3,
+};
+
+const SNOWIEST = Math.max(...Object.values(EARTH_SNOW_COVER));
+
+/**
+ * The photograph's paint for a month: the season step.
+ *
+ * The tiles already carry the season - Scandinavia averages rgb(132,151,169)
+ * in January against rgb(33,52,48) in July - but the layer used to be painted
+ * the same way in every month, with its whites capped at 95 per cent and a
+ * light contrast, and at globe size that left January's snow a pale grey
+ * that read as haze rather than winter. So the paint follows the measured
+ * snow cover: the snowier the month, the more contrast and the higher the
+ * white point, up to a contrast of 0.25 and a white point of 1. A summer
+ * month is painted almost exactly as before (July: 0.105 and 0.952).
+ *
+ * No colour is added. Contrast and white point only stretch what NASA's
+ * photograph already has, so the white that appears is the snow in it. The
+ * step is global, because a raster cannot be painted by region: in January the
+ * southern summer gets the same slight extra contrast, which darkens its
+ * forests a little and leaves its colours alone.
+ */
+export function earthPaint(month: string): {
+  readonly saturation: number;
+  readonly contrast: number;
+  readonly brightnessMax: number;
+} {
+  const cover = EARTH_SNOW_COVER[month] ?? 0;
+  const winter = SNOWIEST > 0 ? Math.max(0, Math.min(1, cover / SNOWIEST)) : 0;
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+
+  return {
+    saturation: 0.15,
+    contrast: round(0.1 + 0.15 * winter),
+    brightnessMax: round(0.95 + 0.05 * winter),
+  };
+}
+
 /** The raster layer that paints a month, so the stage can cross-fade between two. */
-export function earthLayer(id: string, source: string, opacity = 1) {
+export function earthLayer(id: string, source: string, opacity = 1, month = '08') {
+  const paint = earthPaint(month);
+
   return {
     id,
     type: 'raster' as const,
     source,
     paint: {
-      'raster-saturation': 0.15,
-      'raster-contrast': 0.1,
-      'raster-brightness-max': 0.95,
+      'raster-saturation': paint.saturation,
+      'raster-contrast': paint.contrast,
+      'raster-brightness-max': paint.brightnessMax,
       'raster-fade-duration': 300,
       'raster-opacity': opacity,
     },
@@ -625,7 +724,7 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
        * globe shows while its tiles are still arriving, and under the night,
        * the lights and everything the product itself draws.
        */
-      earthLayer('earth', 'earth'),
+      earthLayer('earth', 'earth', 1, options.earthMonth),
       {
         id: 'poles',
         type: 'fill',

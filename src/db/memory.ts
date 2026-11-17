@@ -453,6 +453,24 @@ class MemoryTripSearchRepository implements TripSearchRepository {
     return record;
   }
 
+  async upsert(
+    input: Omit<TripSearchRecord, 'createdAt' | 'updatedAt'>,
+  ): Promise<TripSearchRecord> {
+    const timestamp = now();
+    const existing = this.byId.get(input.id);
+    // The owner is part of the key's meaning; never hand a row to another user.
+    if (existing && existing.userId !== input.userId) {
+      throw new AppError('CONFLICT', `Trip search ${input.id} belongs to another user`);
+    }
+    const record: TripSearchRecord = {
+      ...input,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    };
+    this.byId.set(record.id, record);
+    return record;
+  }
+
   async update(
     id: string,
     patch: Partial<Pick<TripSearchRecord, 'name' | 'profile' | 'destinations'>>,

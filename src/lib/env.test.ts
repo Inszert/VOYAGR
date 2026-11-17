@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { AppError } from './errors';
 import { describeEnv, EnvValidationError, getCapabilities, parseEnv, SECRET_ENV_KEYS } from './env';
+
+/** A production environment that has everything it needs to start. */
+const PRODUCTION = { NODE_ENV: 'production', NEXT_PUBLIC_APP_URL: 'https://example.com' };
+
+/** Runs `fn` and returns what it threw, failing the test if it returned normally. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (error) {
+    return error;
+  }
+  throw new Error('expected the function to throw');
+}
 
 describe('parseEnv', () => {
   it('applies defaults so the app boots with an empty environment', () => {
@@ -72,7 +86,7 @@ describe('provider defaults by environment', () => {
   it('defaults weather to the real keyless provider outside a test run', () => {
     expect(parseEnv({}).WEATHER_PROVIDER).toBe('open-meteo');
     expect(parseEnv({ NODE_ENV: 'development' }).WEATHER_PROVIDER).toBe('open-meteo');
-    expect(parseEnv({ NODE_ENV: 'production' }).WEATHER_PROVIDER).toBe('open-meteo');
+    expect(parseEnv(PRODUCTION).WEATHER_PROVIDER).toBe('open-meteo');
   });
 
   it('defaults weather to the mock under test, and honours an explicit choice anywhere', () => {
@@ -86,7 +100,7 @@ describe('provider defaults by environment', () => {
   });
 
   it('defaults the slots with no live adapter to absent in production, and to mock elsewhere', () => {
-    const production = parseEnv({ NODE_ENV: 'production' });
+    const production = parseEnv(PRODUCTION);
     expect([
       production.HOTEL_PROVIDER,
       production.TRANSFER_PROVIDER,
@@ -94,9 +108,7 @@ describe('provider defaults by environment', () => {
     ]).toEqual(['absent', 'absent', 'absent']);
     // Places have a real, keyless source, so production reads it rather than saying nothing.
     expect(production.PLACES_PROVIDER).toBe('wikidata');
-    expect(parseEnv({ NODE_ENV: 'production', PLACES_PROVIDER: 'absent' }).PLACES_PROVIDER).toBe(
-      'absent',
-    );
+    expect(parseEnv({ ...PRODUCTION, PLACES_PROVIDER: 'absent' }).PLACES_PROVIDER).toBe('absent');
 
     const development = parseEnv({ NODE_ENV: 'development' });
     expect([
@@ -107,10 +119,9 @@ describe('provider defaults by environment', () => {
   });
 
   it('does not allow fixtures in production unless asked for by name', () => {
-    expect(parseEnv({ NODE_ENV: 'production' }).ALLOW_MOCK_IN_PRODUCTION).toBe(false);
+    expect(parseEnv(PRODUCTION).ALLOW_MOCK_IN_PRODUCTION).toBe(false);
     expect(
-      parseEnv({ NODE_ENV: 'production', ALLOW_MOCK_IN_PRODUCTION: 'true' })
-        .ALLOW_MOCK_IN_PRODUCTION,
+      parseEnv({ ...PRODUCTION, ALLOW_MOCK_IN_PRODUCTION: 'true' }).ALLOW_MOCK_IN_PRODUCTION,
     ).toBe(true);
   });
 });
@@ -185,5 +196,76 @@ describe('describeEnv', () => {
     for (const key of SECRET_ENV_KEYS) {
       expect(typeof described[key]).toBe('boolean');
     }
+  });
+});
+
+describe('production app URL', () => {
+  function configurationErrorFor(source: Record<string, string | undefined>): AppError {
+    const error = thrownBy(() => parseEnv(source));
+    expect(error).toBeInstanceOf(AppError);
+    expect((error as AppError).code).toBe('CONFIGURATION_ERROR');
+    return error as AppError;
+  }
+
+  it('refuses to start in production when NEXT_PUBLIC_APP_URL is not set', () => {
+    const error = configurationErrorFor({ NODE_ENV: 'production' });
+
+    expect(error.message).toContain('NEXT_PUBLIC_APP_URL');
+    expect(error.message).toContain('is not set');
+  });
+
+  it('treats an empty NEXT_PUBLIC_APP_URL as not set', () => {
+    expect(configurationErrorFor({ ...PRODUCTION, NEXT_PUBLIC_APP_URL: '' }).message).toContain(
+      'is not set',
+    );
+  });
+
+  it.each([
+    'http://localhost:3000',
+    'https://localhost',
+    'http://127.0.0.1:3000',
+    'http://127.0.1.5',
+    'http://[::1]:3000',
+    'http://app.localhost:3000',
+  ])('refuses %s in production', (url) => {
+    const error = configurationErrorFor({ ...PRODUCTION, NEXT_PUBLIC_APP_URL: url });
+
+    expect(error.message).toContain('NEXT_PUBLIC_APP_URL');
+    expect(error.message).toContain('localhost');
+    // The value is not echoed back, only the variable and the problem.
+    expect(error.message).not.toContain(url);
+  });
+
+  it('accepts a public origin in production', () => {
+    expect(
+      parseEnv({ ...PRODUCTION, NEXT_PUBLIC_APP_URL: 'https://example.com' }).NEXT_PUBLIC_APP_URL,
+    ).toBe('https://example.com');
+  });
+
+  it('does not mistake a public host that merely mentions localhost for a local one', () => {
+    expect(
+      parseEnv({ ...PRODUCTION, NEXT_PUBLIC_APP_URL: 'https://localhost.example.com' })
+        .NEXT_PUBLIC_APP_URL,
+    ).toBe('https://localhost.example.com');
+    expect(
+      parseEnv({ ...PRODUCTION, NEXT_PUBLIC_APP_URL: 'https://example.com/localhost' })
+        .NEXT_PUBLIC_APP_URL,
+    ).toBe('https://example.com/localhost');
+  });
+
+  it('still reports a malformed URL in production as a validation error', () => {
+    expect(
+      thrownBy(() => parseEnv({ ...PRODUCTION, NEXT_PUBLIC_APP_URL: 'not-a-url' })),
+    ).toBeInstanceOf(EnvValidationError);
+  });
+
+  it('keeps the localhost default in development and test, and allows localhost there', () => {
+    expect(parseEnv({}).NEXT_PUBLIC_APP_URL).toBe('http://localhost:3000');
+    expect(parseEnv({ NODE_ENV: 'development' }).NEXT_PUBLIC_APP_URL).toBe('http://localhost:3000');
+    expect(parseEnv({ NODE_ENV: 'test' }).NEXT_PUBLIC_APP_URL).toBe('http://localhost:3000');
+    expect(
+      parseEnv({ NODE_ENV: 'test', NEXT_PUBLIC_APP_URL: 'http://127.0.0.1:3100' })
+        .NEXT_PUBLIC_APP_URL,
+    ).toBe('http://127.0.0.1:3100');
   });
 });

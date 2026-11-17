@@ -32,7 +32,7 @@ describe.each(Object.entries(templates))('%s mail', (_name, build) => {
   });
 
   it('has exactly one primary button, at least 44px tall', () => {
-    expect(mail.html.match(/background-color:#F2B84B;border-radius:12px;"><a /g)).toHaveLength(1);
+    expect(mail.html.match(/background-color:#A0633A;border-radius:12px;"><a /g)).toHaveLength(1);
     expect(mail.html).toContain('min-height:44px');
   });
 
@@ -46,11 +46,12 @@ describe.each(Object.entries(templates))('%s mail', (_name, build) => {
     expect(mail.html).toContain('padding-left: 16px');
   });
 
-  it('uses the night palette and the Georgia heading', () => {
-    for (const colour of ['#0B1020', '#121A2E', '#23304D', '#E8ECF5', '#9AA6BF', '#F2B84B']) {
+  it('uses the night palette, a copper button, and the Georgia wordmark and heading', () => {
+    for (const colour of ['#05070E', '#0C101B', '#232836', '#FFFFFF', '#98A0B0', '#A0633A', '#F2C46A']) {
       expect(mail.html).toContain(colour);
     }
     expect(mail.html).toMatch(/font:400 28px\/34px Georgia/);
+    expect(mail.html).toMatch(/font:400 30px\/36px Georgia[^>]*>Voyagr<\/td>/);
     expect(mail.html).toContain('16px/24px');
   });
 
@@ -116,6 +117,12 @@ describe('escaping', () => {
 });
 
 describe('footer', () => {
+  it('carries the support line in both parts', () => {
+    const mail = welcomeTemplate({ link: LINK, postalAddress: POSTAL });
+    expect(mail.html).toContain('href="mailto:support@voyagrfind.com"');
+    expect(mail.text).toContain('support@voyagrfind.com');
+  });
+
   it('shows a visible placeholder when no postal address is configured', () => {
     expect(welcomeTemplate({ link: LINK }).text).toContain(POSTAL_PLACEHOLDER);
   });

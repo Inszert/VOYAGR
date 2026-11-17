@@ -4,7 +4,8 @@ import { AppError } from '@/lib/errors';
 import { buildEmailProvider } from './registry';
 
 function build(source: Record<string, string>) {
-  return buildEmailProvider(parseEnv(source));
+  // Production needs a public site address (see src/lib/env.ts); give the tests one.
+  return buildEmailProvider(parseEnv({ NEXT_PUBLIC_APP_URL: 'https://www.voyagrfind.com', ...source }));
 }
 
 describe('buildEmailProvider', () => {

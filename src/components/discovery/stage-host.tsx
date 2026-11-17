@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { GlobeStage } from './globe-stage';
 import { STAGE_FRAME_EVENT } from './globe-motion';
+import { formSeasonDate } from './globe-style';
 import {
   getServerStageSnapshot,
   getStageSnapshot,
@@ -69,6 +70,15 @@ function documentBox(element: Element): Box {
   };
 }
 
+/** A search form's field by name, as the string it would submit, or null. */
+function fieldValue(form: HTMLFormElement, name: string): string | null {
+  if (name === 'flexibility') {
+    return form.querySelector<HTMLInputElement>('input[name="flexibility"]:checked')?.value ?? null;
+  }
+  const field = form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+  return field ? field.value : null;
+}
+
 function isStageUrl(url: URL): boolean {
   return (
     url.origin === window.location.origin && (url.pathname === '/' || url.pathname === '/explore')
@@ -89,6 +99,54 @@ export function StageHost() {
   const flipping = React.useRef<Animation | null>(null);
 
   const { slot, variant, data, pending } = snapshot;
+
+  /*
+   * The season follows the form, not only the search.
+   *
+   * Picking January in the search form shows January's planet straight away,
+   * before anything is submitted. The draft is remembered against the season
+   * the server last answered with, so once a search lands - with its own
+   * season - the server's answer is the one shown again, and a navigation
+   * that keeps the same season (opening a country) keeps the draft that the
+   * form on screen still holds.
+   */
+  const [draft, setDraft] = React.useState<{ date: string; over: string } | null>(null);
+  const serverSeason = data?.seasonDate ?? null;
+  const serverSeasonRef = React.useRef(serverSeason);
+  React.useEffect(() => {
+    serverSeasonRef.current = serverSeason;
+  }, [serverSeason]);
+
+  React.useEffect(() => {
+    const onEdit = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+      if (!['departureDate', 'returnDate', 'monthStart', 'flexibility'].includes(target.name)) {
+        return;
+      }
+      const form = target.form;
+      const over = serverSeasonRef.current;
+      if (!form || over === null) return;
+
+      const date = formSeasonDate({
+        flexibility: fieldValue(form, 'flexibility'),
+        departureDate: fieldValue(form, 'departureDate'),
+        returnDate: fieldValue(form, 'returnDate'),
+        monthStart: fieldValue(form, 'monthStart'),
+      });
+      setDraft(date ? { date, over } : null);
+    };
+
+    // Captured, so a field that stops its own events still reports its value.
+    document.addEventListener('input', onEdit, true);
+    document.addEventListener('change', onEdit, true);
+    return () => {
+      document.removeEventListener('input', onEdit, true);
+      document.removeEventListener('change', onEdit, true);
+    };
+  }, []);
+
+  const seasonPreviewDate = draft && draft.over === serverSeason ? draft.date : null;
 
   /* ---- Over the slot, and the FLIP between slots. ---- */
   React.useLayoutEffect(() => {
@@ -292,7 +350,14 @@ export function StageHost() {
         {pending ? 'Updating the map' : ''}
       </p>
 
-      {data ? <GlobeStage {...data} variant={variant} className={ROOT_CLASS[variant]} /> : null}
+      {data ? (
+        <GlobeStage
+          {...data}
+          seasonPreviewDate={seasonPreviewDate}
+          variant={variant}
+          className={ROOT_CLASS[variant]}
+        />
+      ) : null}
     </div>
   );
 }

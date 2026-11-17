@@ -80,3 +80,67 @@ export function TravellerStepper({ value }: { value: number }) {
     </div>
   );
 }
+
+/**
+ * "Watch this price": watch the trip the panel is showing.
+ *
+ * It posts the same query string the search ran with to the existing
+ * `saveSearchAction`, which re-validates it and goes through the watch
+ * service, so the plan limit and its wording are the service's. Signed out,
+ * it is a link to /sign-in rather than a button that would only fail.
+ */
+export type WatchTripAction = (
+  previous: { readonly error?: string; readonly saved?: boolean },
+  formData: FormData,
+) => Promise<{ readonly error?: string; readonly saved?: boolean }>;
+
+export function WatchThisPrice({
+  signedIn,
+  query,
+  name,
+  action,
+}: {
+  signedIn: boolean;
+  /** The search's query string, without the leading `?`. */
+  query: string;
+  name: string;
+  action: WatchTripAction;
+}) {
+  const [state, formAction, pending] = React.useActionState(action, {});
+  const link =
+    'text-ink inline-flex min-h-11 items-center gap-2 text-sm font-medium underline-offset-4 hover:underline';
+
+  if (!signedIn) {
+    return (
+      <a href="/sign-in" className={link}>
+        <Icon name="bell" size={0.95} aria-hidden="true" />
+        Sign in to watch this price
+      </a>
+    );
+  }
+
+  if (state.saved) {
+    return (
+      <p role="status" className="text-ink text-sm">
+        We are watching this trip. We will tell you if the price drops.{' '}
+        <a href="/watches" className="font-medium underline underline-offset-4">
+          See your watches
+        </a>
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="flex flex-col gap-1">
+      <input type="hidden" name="query" value={query} />
+      <input type="hidden" name="name" value={name} />
+      <button type="submit" disabled={pending} aria-busy={pending || undefined} className={link}>
+        <Icon name="bell" size={0.95} aria-hidden="true" />
+        {pending ? 'Starting the watch…' : 'Watch this price'}
+      </button>
+      <p role="alert" className="text-critical-ink text-sm empty:hidden">
+        {state.error}
+      </p>
+    </form>
+  );
+}

@@ -30,7 +30,8 @@
     "test:db": "vitest run src/db/repository-contract.test.ts",
     "check:calendar": "tsx scripts/check-calendar-prices.mjs",
     "worker": "tsx --env-file-if-exists=.env scripts/worker.mjs",
-    "vapid:generate": "node scripts/generate-vapid-keys.mjs"
+    "vapid:generate": "node scripts/generate-vapid-keys.mjs",
+    "devmap:update": "node scripts/update-devmap.mjs"
   },
   "dependencies": {
     "bullmq": "^6.3.7",
