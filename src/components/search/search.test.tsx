@@ -75,16 +75,18 @@ describe('CostBreakdown', () => {
     expect(within(table).getAllByText('Quoted').length).toBeGreaterThan(0);
   });
 
-  it('labels an estimate as an estimate, in words rather than by colour', () => {
+  it('labels a fee payable at the hotel in words, outside the total', () => {
+    // Part 2: payable-at-hotel fees are an excluded line, labelled in words, never added.
     const trip = buildRankedTrip({
       hotel: buildHotelOffer({ excludedFees: money(4000, 'EUR') }),
     });
 
     render(<CostBreakdown cost={trip.cost} passengers={2} nights={5} />);
 
-    expect(screen.getByText('Estimated')).toBeInTheDocument();
-    // The screen-reader prefix means the word is not the only thing carrying it.
-    expect(screen.getAllByText('Confidence:').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Not counted in this total' })).toBeInTheDocument();
+    // The label is listed in the excluded section, not only in the shares note.
+    const listed = screen.getAllByText(/Payable at the hotel/).filter((el) => el.tagName === 'LI');
+    expect(listed).toHaveLength(1);
   });
 
   it('surfaces an excluded cost instead of dropping it', () => {
