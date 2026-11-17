@@ -62,8 +62,10 @@ test.describe('data source switch', () => {
       'true',
     );
 
-    // And the page still says what the data is.
-    await expect(page.getByText(/demo data/i).first()).toBeVisible();
+    // And the page still says what the data is, for screen readers. The visible
+    // badge is gone by design (docs/finish-plan.md D20), so the words are attached
+    // to the page rather than visible.
+    await expect(page.getByText(/demo data/i).first()).toBeAttached();
   });
 
   test('keeps the choice across a navigation', async ({ page }) => {
