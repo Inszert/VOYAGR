@@ -36,6 +36,69 @@ describe('slots', () => {
   });
 });
 
+describe('the scheduler with flights', () => {
+  it('enqueues flights jobs for each origin, and not again after a restart in the same slot', async () => {
+    const clock = { now: at('2027-01-10T08:05:00Z') };
+    const repositories = createMemoryRepositories({ now: () => clock.now });
+    const queue = new MemoryQueueDriver();
+    const enqueue = vi.spyOn(queue, 'enqueue');
+    const options = {
+      refreshesPerDay: 3,
+      guestNationality: 'US',
+      now: () => clock.now,
+      checkMs: 3_600_000,
+      origins: ['VIE', 'LON'],
+    };
+
+    const first = startSnapshotScheduler(
+      { queue, repository: repositories.liteapiSnapshot },
+      options,
+    );
+    expect(await first.initial).toBe(true);
+    first.stop();
+
+    const flights = enqueue.mock.calls.filter(([name]) => name === 'liteapi.flights.refresh');
+    // VIE skips VIE (also a destination): 5 + LON: 6, each in 3 windows.
+    expect(flights).toHaveLength((5 + 6) * 3);
+    expect(flights[0]![1]).toMatchObject({ origin: 'VIE', returnDate: '2027-02-13' });
+
+    for (const [name, payload] of enqueue.mock.calls) {
+      await repositories.liteapiSnapshot.startRun({
+        runId: `r-${Math.random()}`,
+        job: name,
+        destinationCode: 'x',
+        checkIn: (payload as { checkIn?: string }).checkIn ?? '2027-02-09',
+        checkOut: '2027-02-13',
+        environment: 'sandbox',
+      });
+    }
+    enqueue.mockClear();
+    clock.now = at('2027-01-10T10:00:00Z');
+    const restarted = startSnapshotScheduler(
+      { queue, repository: repositories.liteapiSnapshot },
+      options,
+    );
+    expect(await restarted.initial).toBe(false);
+    restarted.stop();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('enqueues no flights job when no origins are given', async () => {
+    const clock = { now: at('2027-01-10T08:05:00Z') };
+    const repositories = createMemoryRepositories({ now: () => clock.now });
+    const queue = new MemoryQueueDriver();
+    const enqueue = vi.spyOn(queue, 'enqueue');
+    const s = startSnapshotScheduler(
+      { queue, repository: repositories.liteapiSnapshot },
+      { refreshesPerDay: 3, guestNationality: 'US', now: () => clock.now, checkMs: 3_600_000 },
+    );
+    await s.initial;
+    s.stop();
+
+    expect(enqueue.mock.calls.some(([name]) => name === 'liteapi.flights.refresh')).toBe(false);
+  });
+});
+
 describe('the scheduler', () => {
   let scheduler: SnapshotScheduler | undefined;
   afterEach(() => scheduler?.stop());

@@ -4,6 +4,8 @@ import { closePool, query } from './client';
 import { createMemoryRepositories } from './memory';
 import { createPostgresRepositories } from './postgres';
 import type {
+  LiteApiFlightsKey,
+  LiteApiFlightsRow,
   LiteApiHotelRow,
   LiteApiRatesKey,
   LiteApiRatesRow,
@@ -43,6 +45,7 @@ if (POSTGRES_URL) {
   resetEnvCache();
   try {
     await query('SELECT liteapi_refresh_runs.run_id FROM liteapi_refresh_runs LIMIT 1');
+    await query('SELECT liteapi_flights_snapshot.run_id FROM liteapi_flights_snapshot LIMIT 1');
     postgresActive = true;
   } catch {
     postgresActive = false;
@@ -53,7 +56,9 @@ if (POSTGRES_URL) {
       name: 'postgres',
       create: () => createPostgresRepositories({ now: clock }).liteapiSnapshot,
       reset: async () => {
-        await query('TRUNCATE liteapi_hotels, liteapi_rates_snapshot, liteapi_refresh_runs');
+        await query(
+          'TRUNCATE liteapi_hotels, liteapi_rates_snapshot, liteapi_flights_snapshot, liteapi_refresh_runs',
+        );
       },
     });
   }
@@ -83,6 +88,29 @@ function ratesRow(overrides: Partial<LiteApiRatesRow> = {}): LiteApiRatesRow {
     rates: [
       { property: { id: 'liteapi:1' }, rates: [{ total: { amount: 33333, currency: 'EUR' } }] },
     ],
+    observedAt: iso(clockMs),
+    expiresAt: iso(clockMs + 24 * HOUR),
+    runId: 'run-1',
+    ...overrides,
+  };
+}
+
+const FLIGHTS_KEY: LiteApiFlightsKey = {
+  origin: 'VIE',
+  destination: 'LIS',
+  departureDate: '2027-02-09',
+  returnDate: '2027-02-13',
+  adults: 2,
+  currency: 'EUR',
+  cabin: 'ECONOMY',
+};
+
+function flightsRow(overrides: Partial<LiteApiFlightsRow> = {}): LiteApiFlightsRow {
+  return {
+    ...FLIGHTS_KEY,
+    environment: 'sandbox',
+    schemaVersion: 1,
+    offers: [{ id: 'liteapi:o1', price: { amount: 25000, currency: 'EUR' } }],
     observedAt: iso(clockMs),
     expiresAt: iso(clockMs + 24 * HOUR),
     runId: 'run-1',
@@ -260,6 +288,64 @@ describe.each(backends)('$name LiteAPI snapshot repository', (backend) => {
 
     expect(await repo.callsSince(cutoff)).toBe(3);
     expect(await repo.callsSince(iso(clockMs + HOUR))).toBe(0);
+  });
+
+  it('round-trips a flights row, with dates as plain strings', async () => {
+    await repo.putFlights(flightsRow());
+
+    const read = await repo.getFlights(FLIGHTS_KEY);
+
+    expect(read).toEqual(flightsRow());
+    expect(read?.departureDate).toBe('2027-02-09');
+  });
+
+  it('replaces a flights row on a second put, and keeps other keys apart', async () => {
+    await repo.putFlights(flightsRow({ runId: 'run-1', offers: ['one'] }));
+    await repo.putFlights(flightsRow({ runId: 'run-2', offers: ['two'] }));
+    await repo.putFlights(flightsRow({ origin: 'BUD', offers: ['bud'] }));
+    await repo.putFlights(flightsRow({ adults: 3, offers: ['three'] }));
+    await repo.putFlights(flightsRow({ cabin: 'BUSINESS', offers: ['biz'] }));
+
+    expect((await repo.getFlights(FLIGHTS_KEY))?.offers).toEqual(['two']);
+    expect((await repo.getFlights({ ...FLIGHTS_KEY, origin: 'BUD' }))?.offers).toEqual(['bud']);
+    expect((await repo.getFlights({ ...FLIGHTS_KEY, adults: 3 }))?.offers).toEqual(['three']);
+    expect((await repo.getFlights({ ...FLIGHTS_KEY, cabin: 'BUSINESS' }))?.offers).toEqual(['biz']);
+    expect(await repo.getFlights({ ...FLIGHTS_KEY, currency: 'GBP' })).toBeNull();
+  });
+
+  it('reads an expired flights row as null, and deletes it on the next write', async () => {
+    await repo.putFlights(flightsRow({ expiresAt: iso(clockMs + HOUR) }));
+    expect(await repo.getFlights(FLIGHTS_KEY)).not.toBeNull();
+
+    clockMs += 2 * HOUR;
+    expect(await repo.getFlights(FLIGHTS_KEY)).toBeNull();
+
+    await repo.putFlights(
+      flightsRow({ origin: 'BUD', observedAt: iso(clockMs), expiresAt: iso(clockMs + HOUR) }),
+    );
+    clockMs -= 2 * HOUR;
+    expect(await repo.getFlights(FLIGHTS_KEY)).toBeNull();
+  });
+
+  it('counts calls and finds the latest run per job', async () => {
+    const base = {
+      destinationCode: 'VIE-LIS',
+      checkIn: '2027-02-09',
+      checkOut: '2027-02-13',
+      environment: 'sandbox' as const,
+    };
+    await repo.startRun({ ...base, runId: 'h1', job: 'liteapi.snapshot.refresh' });
+    await repo.finishRun('h1', { status: 'ok', callsMade: 2 });
+    clockMs += HOUR;
+    await repo.startRun({ ...base, runId: 'f1', job: 'liteapi.flights.refresh' });
+    await repo.finishRun('f1', { status: 'ok', callsMade: 1 });
+    const since = iso(clockMs - 2 * HOUR);
+
+    expect(await repo.callsSince(since)).toBe(3);
+    expect(await repo.callsSince(since, 'liteapi.flights.refresh')).toBe(1);
+    expect((await repo.latestRun())?.runId).toBe('f1');
+    expect((await repo.latestRun('liteapi.snapshot.refresh'))?.runId).toBe('h1');
+    expect(await repo.latestRun('nope')).toBeNull();
   });
 
   it('refuses to finish a run that was never started', async () => {

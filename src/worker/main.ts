@@ -3,6 +3,7 @@ import { getLogger } from '@/lib/logger';
 import { getRepositories } from '@/db';
 import { createQueueDriver } from '@/queue';
 import { createCacheRefreshHandler, startCacheRefresh } from '@/cache/refresh';
+import { createFlightsRefreshHandler } from '@/liteapi-snapshot/flights-job';
 import { createSnapshotRefreshHandler } from '@/liteapi-snapshot/job';
 import { startSnapshotScheduler, type SnapshotScheduler } from '@/liteapi-snapshot/schedule';
 import { createRefreshHandler } from '@/watches/refresh';
@@ -62,6 +63,14 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     createSnapshotRefreshHandler({ repositories, env: getEnv() }),
   );
 
+  // The flights job is registered only with the flag: with it off nothing can enqueue or run one.
+  if (getEnv().LITEAPI_SNAPSHOT_ENABLED) {
+    queue.register(
+      'liteapi.flights.refresh',
+      createFlightsRefreshHandler({ repositories, env: getEnv() }),
+    );
+  }
+
   await queue.start();
 
   // A restart must not wait a full interval before noticing work that fell due
@@ -97,6 +106,7 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
       {
         refreshesPerDay: env.LITEAPI_SNAPSHOT_REFRESHES_PER_DAY,
         guestNationality: env.LITEAPI_GUEST_NATIONALITY,
+        origins: env.LITEAPI_SNAPSHOT_ORIGINS,
       },
     );
   } else if (env.LITEAPI_SNAPSHOT_ENABLED) {

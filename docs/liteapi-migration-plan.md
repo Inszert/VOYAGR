@@ -717,6 +717,13 @@ failure keeps the old row, log has no key); flag off makes zero calls; the reade
 the fixed fare line; a missing row with the Aviasales cache empty is unpriced, and a spy shows zero
 fetches; the import guard.
 
+**Live check, 2026-11-17 (two sandbox calls, VIE and LON to LIS, one round trip).** Both returned
+200, so LON is accepted as an origin. Every offer's `expiration` was about **10 minutes** after the
+call. A stored offer is therefore expired within minutes of the refresh, and the rule "never show an
+offer past its expiry" hides every stored fare. Owner decision needed on how stored fares may be
+shown: indicative with the time they were seen, or not at all. `pricing.display.total` is the only
+price field returned; whether it covers both adults is not stated and is not yet verified.
+
 ### Part 11. Env and deploy
 
 - **Goal:** LiteAPI is switched on by configuration only. It fails closed, and the policy document

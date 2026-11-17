@@ -336,6 +336,20 @@ window or party not refreshed, or expired) "Hotel prices are not loaded for thes
 price; unknown (observed in the future) shows the price with no age claim. A sandbox key, or any
 rate marked `test`, adds a visible "Test prices" note (owner answer Q2).
 
+**Flights follow the same pattern** (Part 4). Migration `0014_liteapi_flights_snapshot.sql` adds
+`liteapi_flights_snapshot`: one row per origin, destination, departure and return day, adults, currency and
+cabin, holding the cheapest 30 validated offers (each with its own vendor `expiresAt`). The job
+`liteapi.flights.refresh` (`src/liteapi-snapshot/flights-job.ts`) makes one `POST /flights/rates` call per run
+through the same one `liteapi` limiter, and is registered, and its rounds scheduled, only with
+`LITEAPI_SNAPSHOT_ENABLED`. Origins come from `LITEAPI_SNAPSHOT_ORIGINS` (default `BUD,VIE,PRG,LON`).
+The live fetch (`src/providers/flights/liteapi.ts`) is reachable only from the worker; the reader
+(`src/providers/flights/liteapi-snapshot.ts`, built for `FLIGHT_PROVIDER=liteapi`) reads the table, never shows an
+offer past its own expiry, and on a missing row reads only the cached Aviasales one-way months with
+`store.get` (never `loadAndStore`, never a live call). No entry means the route is unpriced. Run records reuse
+`liteapi_refresh_runs` with the route as `ORIGIN-DESTINATION` in `destination_code`; hotels and flights
+count their daily calls separately (`callsSince(since, job)`). Stored flight prices carry the line "Fares
+change often. Check the airline before you book."
+
 ---
 
 ## 5. Data flow by kind
@@ -533,18 +547,19 @@ Routes `/trips` and `/trips/[id]` (migration 0009: `trips`, `trip_members`, `pla
 in name order, each recorded in `schema_migrations`, already-applied files skipped. Forward-only:
 there is no down migration and no rollback tooling.
 
-| File                             | Adds                                                                                                       |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `0001_init.sql`                  | users, preferences, searches, watches, price history, notifications, push subscriptions, provider requests |
-| `0002_accounts.sql`              | credentials, sessions                                                                                      |
-| `0003_saved_search_destinations` | destination columns on saved searches                                                                      |
-| `0004_notification_url.sql`      | `notifications.url`                                                                                        |
-| `0005_email_verification.sql`    | verification tokens, `users.email_verified_at`                                                             |
-| `0006_password_reset.sql`        | password reset tokens                                                                                      |
-| `0007_email_change.sql`          | email change tokens                                                                                        |
-| `0008_alert_preferences.sql`     | alert preferences                                                                                          |
-| `0009_trip_hub.sql`              | trips, members, plan items, expenses, emergency contacts                                                   |
-| `0013_liteapi_snapshot.sql`      | LiteAPI snapshot: hotels, rates by window, refresh runs (section 4.x)                                      |
+| File                                | Adds                                                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `0001_init.sql`                     | users, preferences, searches, watches, price history, notifications, push subscriptions, provider requests |
+| `0002_accounts.sql`                 | credentials, sessions                                                                                      |
+| `0003_saved_search_destinations`    | destination columns on saved searches                                                                      |
+| `0004_notification_url.sql`         | `notifications.url`                                                                                        |
+| `0005_email_verification.sql`       | verification tokens, `users.email_verified_at`                                                             |
+| `0006_password_reset.sql`           | password reset tokens                                                                                      |
+| `0007_email_change.sql`             | email change tokens                                                                                        |
+| `0008_alert_preferences.sql`        | alert preferences                                                                                          |
+| `0009_trip_hub.sql`                 | trips, members, plan items, expenses, emergency contacts                                                   |
+| `0013_liteapi_snapshot.sql`         | LiteAPI snapshot: hotels, rates by window, refresh runs (section 4.x)                                      |
+| `0014_liteapi_flights_snapshot.sql` | LiteAPI flights snapshot: offers by route and window (section 4.x)                                         |
 
 0008 and 0009 have not been run against a real Postgres.
 

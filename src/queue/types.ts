@@ -22,6 +22,8 @@ export const JOB_NAMES = [
   'cache.refresh',
   /** Refresh one LiteAPI destination and date window into our own snapshot tables. */
   'liteapi.snapshot.refresh',
+  /** Refresh one LiteAPI origin, destination and date window of flights into our own snapshot. */
+  'liteapi.flights.refresh',
 ] as const;
 
 /*
@@ -39,6 +41,12 @@ export interface JobPayloads {
   'notification.deliver': { notificationId: string };
   'cache.refresh': { targetId: string };
   'liteapi.snapshot.refresh': { destination: string; checkIn: string; checkOut: string };
+  'liteapi.flights.refresh': {
+    origin: string;
+    destination: string;
+    departureDate: string;
+    returnDate: string;
+  };
 }
 
 export interface Job<TName extends JobName = JobName> {

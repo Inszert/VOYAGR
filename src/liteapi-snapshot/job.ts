@@ -4,12 +4,13 @@ import type { StayOffer, StayProperty, StayRate } from '@/core/stay/types';
 import type { IsoDate } from '@/core/trip/types';
 import type { LiteApiRatesRow, Repositories } from '@/db/repository';
 import { liteApiEnvironment, type Env } from '@/lib/env';
-import { createLimiterPool, type Limiter } from '@/lib/concurrency';
+import type { Limiter } from '@/lib/concurrency';
 import { AppError, type ErrorCode } from '@/lib/errors';
 import { getLogger } from '@/lib/logger';
 import type { Job } from '@/queue/types';
 import type { ProviderResult } from '@/providers/types';
 import { LiteApiStayProvider } from '@/providers/stays/liteapi';
+import { liteapiLimiterPool } from './limiter';
 import { snapshotTtlMs } from './staleness';
 import {
   STORED_SCHEMA_VERSION,
@@ -56,13 +57,6 @@ export const MAX_CALLS_PER_RUN = 2;
 
 /** Hotel content (a list, photos, stars) changes slowly and is free: refreshed weekly. */
 const HOTEL_CONTENT_TTL_MS = 7 * 24 * 3_600_000;
-
-/**
- * Every snapshot call in the process shares this one limiter, keyed on the provider id. One
- * call at a time: this is background work with no one waiting, and the vendor's own rate limit
- * is not published.
- */
-const limiterPool = createLimiterPool(1);
 
 /** The two leaf calls the job needs; `LiteApiStayProvider` satisfies it. */
 export interface SnapshotClient {
@@ -169,7 +163,7 @@ export function createSnapshotRefreshHandler(dependencies: SnapshotJobDependenci
 
       // The daily ceiling: destinations x windows x refreshes (plus content calls).
       const ceiling = dailyCallCeiling(destinations.length, WINDOW_OFFSET_DAYS.length, refreshes);
-      const usedToday = await repo.callsSince(startOfUtcDay(now()));
+      const usedToday = await repo.callsSince(startOfUtcDay(now()), SNAPSHOT_JOB);
       const budget = Math.min(maxCalls, ceiling - usedToday);
       if (budget < 1) {
         log.warn(
@@ -180,7 +174,7 @@ export function createSnapshotRefreshHandler(dependencies: SnapshotJobDependenci
         return;
       }
 
-      const limiter = dependencies.limiter ?? limiterPool.for('liteapi', 1);
+      const limiter = dependencies.limiter ?? liteapiLimiterPool.for('liteapi', 1);
       const client = (dependencies.createClient ?? defaultClient)(env, now);
       const query = targetQuery(target);
 

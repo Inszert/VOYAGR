@@ -26,6 +26,29 @@ describe('startWorker', () => {
     const worker = await startWorker({ sweepOnStart: false });
     await worker.stop();
 
+    // The flights job is registered only with LITEAPI_SNAPSHOT_ENABLED; every other name always is.
+    expect([...registered].sort()).toEqual(
+      JOB_NAMES.filter((name) => name !== 'liteapi.flights.refresh').sort(),
+    );
+  });
+
+  it('registers the flights job too once the snapshot flag is on', async () => {
+    vi.stubEnv('LITEAPI_SNAPSHOT_ENABLED', 'true');
+    resetEnvCache();
+    const registered: string[] = [];
+    const register = MemoryQueueDriver.prototype.register;
+    vi.spyOn(MemoryQueueDriver.prototype, 'register').mockImplementation(function (
+      this: MemoryQueueDriver,
+      name,
+      handler,
+    ) {
+      registered.push(name);
+      return register.call(this, name, handler);
+    });
+
+    const worker = await startWorker({ sweepOnStart: false });
+    await worker.stop();
+
     expect([...registered].sort()).toEqual([...JOB_NAMES].sort());
   });
 

@@ -15,7 +15,12 @@ import { describe, expect, it } from 'vitest';
 const SRC = resolve(__dirname, '..');
 
 /** What a visitor must never reach. Paths relative to `src`, with `/` separators. */
-const FORBIDDEN = ['providers/stays/liteapi.ts', 'liteapi-snapshot/job.ts'];
+const FORBIDDEN = [
+  'providers/stays/liteapi.ts',
+  'liteapi-snapshot/job.ts',
+  'providers/flights/liteapi.ts',
+  'liteapi-snapshot/flights-job.ts',
+];
 
 function walk(directory: string): string[] {
   return readdirSync(directory).flatMap((name) => {
@@ -102,10 +107,15 @@ describe('the visitor import guard', () => {
   });
 
   it('keeps the read path free of the vendor client and of fetch', () => {
-    for (const file of ['liteapi-snapshot/read.ts', 'providers/stays/snapshot.ts']) {
+    for (const file of [
+      'liteapi-snapshot/read.ts',
+      'providers/stays/snapshot.ts',
+      'liteapi-snapshot/flights-read.ts',
+      'providers/flights/liteapi-snapshot.ts',
+    ]) {
       const source = readFileSync(join(SRC, file), 'utf8');
       expect(source).not.toMatch(/\bfetch\s*\(/);
-      expect(source).not.toMatch(/providers\/stays\/liteapi|\.\/liteapi['"]/);
+      expect(source).not.toMatch(/providers\/(stays|flights)\/liteapi['"]|\.\/liteapi['"]/);
     }
   });
 
@@ -114,6 +124,13 @@ describe('the visitor import guard', () => {
 
     expect(fromWorker.has(join(SRC, 'liteapi-snapshot/job.ts'))).toBe(true);
     expect(fromWorker.has(join(SRC, 'providers/stays/liteapi.ts'))).toBe(true);
+    expect(fromWorker.has(join(SRC, 'liteapi-snapshot/flights-job.ts'))).toBe(true);
+    expect(fromWorker.has(join(SRC, 'providers/flights/liteapi.ts'))).toBe(true);
+  });
+
+  it('reaches the flights reader from the app, through the registry', () => {
+    expect(reachable.has(join(SRC, 'providers/flights/liteapi-snapshot.ts'))).toBe(true);
+    expect(reachable.has(join(SRC, 'liteapi-snapshot/flights-read.ts'))).toBe(true);
   });
 
   it('would catch a violation: a graph containing the adapter does reach it', () => {

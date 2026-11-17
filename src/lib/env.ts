@@ -237,6 +237,26 @@ const envSchema = z.object({
   LITEAPI_SNAPSHOT_ENABLED: booleanish.default(false),
   /** Refresh rounds a day, at fixed UTC slots (3 gives 00:00, 08:00 and 16:00). */
   LITEAPI_SNAPSHOT_REFRESHES_PER_DAY: z.coerce.number().int().min(1).max(24).default(3),
+  /**
+   * The departure cities the flight snapshot prices (`liteapi.flights.refresh`): a comma list
+   * of three-letter IATA codes, airport or city. Each origin is priced to every launch
+   * destination in every window, so every origin added costs up to 54 flight calls a day at
+   * three refreshes. Only read by the worker, and only with `LITEAPI_SNAPSHOT_ENABLED`.
+   */
+  LITEAPI_SNAPSHOT_ORIGINS: z
+    .string()
+    .default('BUD,VIE,PRG,LON')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((code) => code.trim().toUpperCase())
+        .filter((code) => code.length > 0),
+    )
+    .refine(
+      (codes) => codes.length > 0 && codes.every((code) => /^[A-Z]{3}$/.test(code)),
+      'must be a comma list of three-letter IATA codes, such as BUD,VIE,PRG,LON',
+    )
+    .transform((codes) => [...new Set(codes)]),
   TRAVELPAYOUTS_HOTEL_PROGRAM_ID: z.string().min(1).optional(),
   TRAVELPAYOUTS_HOTEL_CAMPAIGN_ID: z.string().min(1).optional(),
 

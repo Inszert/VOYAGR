@@ -45,6 +45,7 @@ printed or logged; the environment report shows only whether each one is set.
 | `PRICE_REFRESH_MINUTES`              | `30` (1 to 1440)        | How often the worker re-prices what the front pages show. The worker reads it at start, so restart it after a change. Trade-off in section 5.                                                                                                                                                                            |
 | `PLACES_REFRESH_HOURS`               | `168` (1 to 720)        | How often the worker pre-warms things to do. Each round covers at most 40 destinations that are not already fresh, a minute apart. Read at worker start. Longer is kinder to Wikidata.                                                                                                                                   |
 | `LITEAPI_SNAPSHOT_ENABLED`           | `false`                 | Turns on the scheduled LiteAPI hotel snapshot in the worker (section 4a). Needs `LITEAPI_API_KEY`. Read at worker start.                                                                                                                                                                                                 |
+| `LITEAPI_SNAPSHOT_ORIGINS`           | `BUD,VIE,PRG,LON`       | Departure cities the flight snapshot prices (three-letter codes). Each adds up to 54 flight calls a day at three refreshes. Needs the snapshot flag.                                                                                                                                                                     |
 | `LITEAPI_SNAPSHOT_REFRESHES_PER_DAY` | `3` (1 to 24)           | Rounds a day at fixed UTC slots. Each adds 18 rates calls a day for six destinations.                                                                                                                                                                                                                                    |
 
 `NEXT_PUBLIC_APP_URL` has the `NEXT_PUBLIC_` prefix, but in this repository it is read on the server
@@ -156,6 +157,12 @@ calls a day**, at most about $1.08 a day or $32 a month at the worst-case $0.02 
 free and about six calls a week. Hourly would be 432 a day. Sandbox has the same counts and is reported
 free. The daily ceiling refuses a run once the day's calls reach destinations x windows x refreshes plus
 one content call a destination.
+
+**What flights cost.** Calls a day = origins x destinations x windows x refreshes. The default is 4 x 6 x 3 x 3 =
+216 at most (an origin that is also a destination is skipped, so about 189 are made), at EUR 0.005 a call beyond
+the 1,500:1 ratio: about EUR 1.08 a day, about EUR 32 a month. Each extra origin adds up to 54 a day. The flights
+ceiling is counted apart from the hotel one, so neither job can starve the other. `FLIGHT_PROVIDER=liteapi` on the web
+service reads the stored rows only.
 
 **Turn it off.** Unset `LITEAPI_SNAPSHOT_ENABLED` (or set it to `false`) and restart the worker: no
 scheduler starts, and any job still queued records `disabled` and calls nothing. Stored rows stay and age

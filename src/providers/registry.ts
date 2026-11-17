@@ -10,6 +10,7 @@ import {
 import type { ProviderMode } from '@/core/trip/provenance';
 import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
+import { createSnapshotFlightProvider } from './flights/liteapi-snapshot';
 import { createMockFlightProvider } from './flights/mock';
 import { createSnapshotHotelProvider } from './hotels/liteapi';
 import { createMockHotelProvider } from './hotels/mock';
@@ -260,8 +261,9 @@ function resolveFlightProvider(env: Env): FlightProvider {
 
   if (env.FLIGHT_PROVIDER === 'liteapi') {
     requireLiteApiKey(env, 'FLIGHT_PROVIDER');
-    // The key is present but the adapter is migration plan Part 4. Fail closed, never mock.
-    return liveProviderNotImplemented('flights');
+    // The reader of our own snapshot: no vendor call on a visitor path (migration plan Part 4).
+    // A missing key already failed closed above, and never falls back to the mock.
+    return createSnapshotFlightProvider(env)!;
   }
 
   if (env.FLIGHT_PROVIDER === 'mock') {

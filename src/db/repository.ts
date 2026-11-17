@@ -730,6 +730,29 @@ export interface LiteApiRunFinish {
   readonly errorCode?: string | null;
 }
 
+/** The columns that identify one flight snapshot row: a route, a pair of days and a party. */
+export interface LiteApiFlightsKey {
+  readonly origin: string;
+  readonly destination: string;
+  readonly departureDate: IsoDate;
+  readonly returnDate: IsoDate;
+  readonly adults: number;
+  /** Upper-case ISO 4217. */
+  readonly currency: string;
+  /** Upper-case, as the vendor names it: `ECONOMY`. */
+  readonly cabin: string;
+}
+
+export interface LiteApiFlightsRow extends LiteApiFlightsKey {
+  readonly environment: LiteApiEnvironment;
+  readonly schemaVersion: number;
+  /** The validated, mapped offers. Money is `{ amount, currency }`; each offer has its own expiry. */
+  readonly offers: unknown;
+  readonly observedAt: IsoDateTime;
+  readonly expiresAt: IsoDateTime;
+  readonly runId: string;
+}
+
 export interface LiteApiSnapshotRepository {
   /** The row for this key, or null when there is none or it has expired. */
   getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null>;
@@ -739,13 +762,23 @@ export interface LiteApiSnapshotRepository {
   putRates(row: LiteApiRatesRow): Promise<void>;
   /** Upsert hotel content by hotel id, then delete every expired row. */
   putHotels(rows: readonly LiteApiHotelRow[]): Promise<void>;
+  /** The flights row for this key, or null when there is none or it has expired. */
+  getFlights(key: LiteApiFlightsKey): Promise<LiteApiFlightsRow | null>;
+  /** Replace the flights row for its key, then delete every expired row. */
+  putFlights(row: LiteApiFlightsRow): Promise<void>;
   /** Record a run as `running`, stamped with the repository's clock. */
   startRun(input: LiteApiRunStart): Promise<LiteApiRunRecord>;
   finishRun(runId: string, result: LiteApiRunFinish): Promise<void>;
-  /** The most recently started run that was attempted. A `disabled` record is not an attempt. */
-  latestRun(): Promise<LiteApiRunRecord | null>;
-  /** Vendor calls made by runs started at or after `since`. The daily ceiling reads this. */
-  callsSince(since: IsoDateTime): Promise<number>;
+  /**
+   * The most recently started run that was attempted. A `disabled` record is not an attempt.
+   * With `job`, only that job's runs: hotels and flights each ask about their own rounds.
+   */
+  latestRun(job?: string): Promise<LiteApiRunRecord | null>;
+  /**
+   * Vendor calls made by runs started at or after `since`. The daily ceiling reads this. With
+   * `job`, only that job's calls, so each job is held to its own ceiling.
+   */
+  callsSince(since: IsoDateTime, job?: string): Promise<number>;
 }
 
 export interface Repositories {

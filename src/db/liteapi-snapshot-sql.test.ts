@@ -81,6 +81,39 @@ describe('Postgres LiteAPI snapshot SQL', () => {
     expect(queries.some((q) => q.params.includes(hostile))).toBe(true);
   });
 
+  it('binds every value of the flights statements too', async () => {
+    const repo = createPostgresRepositories({ now: () => NOW }).liteapiSnapshot;
+    const key = {
+      origin: hostile,
+      destination: 'LIS',
+      departureDate: '2027-02-09',
+      returnDate: '2027-02-13',
+      adults: 2,
+      currency: 'EUR',
+      cabin: 'ECONOMY',
+    };
+
+    await repo.getFlights(key);
+    await repo.putFlights({
+      ...key,
+      environment: 'sandbox',
+      schemaVersion: 1,
+      offers: [{ note: hostile }],
+      observedAt: '2027-01-10T11:00:00.000Z',
+      expiresAt: '2027-01-11T11:00:00.000Z',
+      runId: hostile,
+    });
+    await repo.latestRun(hostile);
+    await repo.callsSince('2027-01-10T00:00:00.000Z', hostile);
+
+    expect(queries.length).toBeGreaterThan(4);
+    for (const { text } of queries) {
+      expect(text).not.toContain('DROP TABLE');
+      expect(text).not.toMatch(/\$\{|undefined/);
+    }
+    expect(queries.some((q) => q.params.includes(hostile))).toBe(true);
+  });
+
   it('reads and sweeps against the injected clock, not the wall clock', async () => {
     const repo = createPostgresRepositories({ now: () => NOW }).liteapiSnapshot;
 

@@ -10,6 +10,8 @@ import type {
   EmergencyContactRecord,
   EmergencyContactRepository,
   ErasureSummary,
+  LiteApiFlightsKey,
+  LiteApiFlightsRow,
   LiteApiHotelRow,
   LiteApiRatesKey,
   LiteApiRatesRow,
@@ -1098,7 +1100,19 @@ const ratesKeyOf = (key: LiteApiRatesKey): string =>
     key.guestNationality,
   ].join('|');
 
+const flightsKeyOf = (key: LiteApiFlightsKey): string =>
+  [
+    key.origin,
+    key.destination,
+    key.departureDate,
+    key.returnDate,
+    key.adults,
+    key.currency,
+    key.cabin,
+  ].join('|');
+
 class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
+  private readonly flights = new Map<string, LiteApiFlightsRow>();
   private readonly rates = new Map<string, LiteApiRatesRow>();
   private readonly hotels = new Map<string, LiteApiHotelRow>();
   private readonly runs: LiteApiRunRecord[] = [];
@@ -1116,11 +1130,22 @@ class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
   private sweep(): void {
     for (const [key, row] of this.rates) if (!this.live(row.expiresAt)) this.rates.delete(key);
     for (const [key, row] of this.hotels) if (!this.live(row.expiresAt)) this.hotels.delete(key);
+    for (const [key, row] of this.flights) if (!this.live(row.expiresAt)) this.flights.delete(key);
   }
 
   async getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null> {
     const row = this.rates.get(ratesKeyOf(key));
     return row && this.live(row.expiresAt) ? structuredClone(row) : null;
+  }
+
+  async getFlights(key: LiteApiFlightsKey): Promise<LiteApiFlightsRow | null> {
+    const row = this.flights.get(flightsKeyOf(key));
+    return row && this.live(row.expiresAt) ? structuredClone(row) : null;
+  }
+
+  async putFlights(row: LiteApiFlightsRow): Promise<void> {
+    this.flights.set(flightsKeyOf(row), structuredClone(row));
+    this.sweep();
   }
 
   async getHotels(destinationCode: string): Promise<LiteApiHotelRow[]> {
@@ -1166,19 +1191,20 @@ class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
     };
   }
 
-  async latestRun(): Promise<LiteApiRunRecord | null> {
+  async latestRun(job?: string): Promise<LiteApiRunRecord | null> {
     // Later wins on a tie of timestamps: insertion order is start order.
     let latest: LiteApiRunRecord | null = null;
     for (const run of this.runs) {
       if (run.status === 'disabled') continue;
+      if (job !== undefined && run.job !== job) continue;
       if (!latest || run.startedAt >= latest.startedAt) latest = run;
     }
     return latest ? { ...latest } : null;
   }
 
-  async callsSince(since: string): Promise<number> {
+  async callsSince(since: string, job?: string): Promise<number> {
     return this.runs
-      .filter((run) => run.startedAt >= since)
+      .filter((run) => run.startedAt >= since && (job === undefined || run.job === job))
       .reduce((total, run) => total + run.callsMade, 0);
   }
 }
