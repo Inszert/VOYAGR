@@ -252,6 +252,7 @@ const DATA = {
 
   // Done: only items the sources mark done, or that appear in the commits.
   done: [
+    { text: "Real email delivery through Resend, with a verified domain", note: "Fixed 2026-11-17: domain verified in Resend, and the verification email arrives. Welcome mail to a fresh inbox still to confirm.", src: "owner check 2026-11-17" },
     { text: "Trip style selector on the destination page: chill, hike, city, food reorder the places (nothing removed)", note: "Built 2026-11-17. Awaiting a browser check.", src: "owner decision; commit pending" },
     { text: "Part sliders (flights, stay, activities, transfers) re-order trips under Best match; prices and scores never change", note: "Built 2026-11-17. Awaiting a browser check. The Cheapest sort ignores them.", src: "owner decision; commit pending" },
     { text: "Trip invite link: the owner shares a link; anyone who opens it and signs in joins the trip (14 days, up to 10 uses, revocable)", note: "Built 2026-11-17. Migration 0012 not yet run on a real database. Sign-in does not return to the link yet.", src: "owner decision; commit pending" },
@@ -402,8 +403,7 @@ const DATA = {
     { text: "Many places still have no image (not only Malta)", severity: "should fix", note: "Owner report 2026-11-17: too many places show the initials tile. Partly fixed: photos added for Graz, Linz, Salzburg, Innsbruck and Bratislava; other places still show the initials tile.", src: "owner report; commit b39f7f3 (photos for more destinations)" },
     { text: "Aviasales returns 429 (rate limit) on some flight searches, so fares are missing", severity: "should fix", note: "Left after the flight 429 retry (commit dd9c042). The retry covers only a short reset time; the vendor's 429s remain on some calls.", src: "owner report 2026-11-17; commit dd9c042" },
     { text: "From and To selectors should not use a side-to-side slider; they should show the airport or place clearly", severity: "should fix", note: "Owner report 2026-11-17. Not started. Belongs with the Pick your dates redesign, committed in 9194117; not yet confirmed to fix this.", src: "owner report" },
-    { text: "Real email delivery through Resend, with a verified domain, not verified", severity: "blocks launch", src: "progress.md; STATUS.md" },
-    { text: "Postgres migrations 0008, 0009 and 0010 not run against a real database", severity: "blocks launch", note: "Migration 0010 adds the signed-in day plans (commit b39f7f3).", src: "STATUS.md; progress.md; commit b39f7f3" },
+    { text: "Postgres migrations 0008 to 0012 need to be confirmed on the real database", severity: "blocks launch", note: "The deploy pre-deploy step runs db:migrate. Confirm in the deploy log that 0008 to 0012 applied. 0010 adds day plans; 0012 adds trip invites.", src: "deploy pre-deploy step" },
     { text: "Live Aviasales calendar calls from a deployed host not verified; real quota behaviour unknown", severity: "blocks launch", src: "progress.md" },
     { text: "Local Postgres answers ECONNRESET; DATABASE_SSL=true suggested but not tried", severity: "should fix", src: "progress.md (2026-11-03, 2026-11-04)" },
     { text: "/api/health in production expected to answer 503 (absent slots); read from code, not run", severity: "should fix", src: "progress.md" },
@@ -426,7 +426,7 @@ const DATA = {
 
   // Needs the owner: keys, DNS records, decisions. Names only, never values.
   needsOwner: [
-    { text: "Trip invite link: run migration 0012 on the real database (the deploy pre-deploy step does this)", src: "migration 0012_trip_invites" },
+    { text: "Trip invite link: confirm migration 0012 ran on the real database (the deploy pre-deploy step runs db:migrate)", src: "migration 0012_trip_invites; deploy log" },
     { text: "Log in to Travelpayouts in the Playwright browser window (the account-setup agent is blocked)", src: "STATUS.md" },
     { text: "Run npm run db:migrate on production (migrations 0008, 0009 and 0010)", src: "STATUS.md; commit b39f7f3" },
     { text: "Resend account and verified domain voyagrfind.com", src: "WHAT-I-NEED-FROM-YOU.md" },
