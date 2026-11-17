@@ -555,6 +555,112 @@ pages and searches read our own snapshot tables only.
 - **Sandbox.** The same job runs in sandbox with the same call counts, so the cost can be
   measured there before any production key.
 
+### Part 10 design (Opus, 2026-11-17)
+
+Binding for the build. Where this section and Parts 1 to 9 disagree, this section wins for the
+snapshot.
+
+**Storage** (`src/db/migrations/0013_liteapi_snapshot.sql`, additive, all SQL parameterised):
+
+- `liteapi_hotels`: `hotel_id` PK, `destination_code`, `content` JSONB (the mapped stay property),
+  `fetched_at`, `expires_at` (fetched plus 7 days). Index on (`destination_code`, `expires_at`).
+- `liteapi_rates_snapshot`: `destination_code`, `check_in`, `check_out`, `occupancy_sig` (for
+  example `a2-c0-r1`), `currency` CHAR(3), `guest_nationality` CHAR(2), `environment` CHECK IN
+  ('sandbox','production'), `schema_version` INT, `rates` JSONB (the validated mapped
+  `{ property, rates[] }[]`, Money as `{ amount, currency }`), `observed_at`, `expires_at`,
+  `run_id`. Primary key: all six key columns.
+- `liteapi_refresh_runs`: `run_id` PK, `job`, `destination_code`, `check_in`, `check_out`,
+  `environment`, `started_at`, `finished_at`, `calls_made`, `status` CHECK IN ('running','ok',
+  'failed','skipped_cap','disabled'), `error_code` (an `ErrorCode` only, never a message).
+  Indexes on (`destination_code`, `check_in`, `check_out`, `started_at` DESC) and (`started_at`).
+- Rates are one JSONB column, not normalised: a page reads a whole destination-and-window answer,
+  nothing queries inside a rate, and `StayRate` is still changing. `schema_version` lets the reader
+  reject an old row.
+
+**Repository** (`src/db/repository.ts`, memory and Postgres, clock injected as in
+`PostgresCacheStore`): `getRates(key)` and `getHotels(destination)` return unexpired rows only;
+`putRates` upserts then deletes expired rows; `putHotels`; `startRun`; `finishRun`; `latestRun`;
+`callsSince(since)` for the daily ceiling.
+
+**Refresh job** (`src/liteapi-snapshot/job.ts`, `schedule.ts`):
+
+- Job name `liteapi.snapshot.refresh`, payload `{ destination, checkIn, checkOut }`, one run per
+  destination and window, added to `JOB_NAMES`.
+- Schedule: `LITEAPI_SNAPSHOT_REFRESHES_PER_DAY` (integer 1 to 24, default 3). Rounds start at
+  fixed UTC slots (00:00, 08:00, 16:00 by default). A 30-second check starts a round when the slot
+  changes. After a restart, a round starts only if `latestRun()` shows none in the current slot.
+- Targets (`src/liteapi-snapshot/targets.ts`, pure, takes `today`): `LAUNCH_DESTINATIONS` (a single
+  constant, **owner to confirm**; placeholder LIS, BCN, PRG, BUD, ROM, VIE), three windows at
+  today+30, +33 and +36 with 4 nights each, 2 adults, 1 room, EUR, nationality from
+  `LITEAPI_GUEST_NATIONALITY` or `US`.
+- One run: (1) hotel content, one `data/hotels` call only if missing or expired; (2) one
+  `hotels/rates` call with the stored hotel ids; (3) map, then upsert the snapshot.
+- `liteapi.ts` exposes `listHotels()` and `fetchRates()`; `searchStays` composes them. Behaviour
+  is unchanged.
+- Concurrency: a process-level `LimiterPool` keyed `liteapi`. Only the two leaf calls are wrapped.
+- Caps: at most 2 calls per run (reaching the cap gives `skipped_cap`, no call). Daily ceiling =
+  destinations × windows × refreshes (plus destinations on a content day), checked with
+  `callsSince(start of UTC day)`; above it the run is refused and logged.
+- Provider failure: the run is finished `failed` with its `error_code`; nothing is written, so the
+  previous row stays. The log carries `runId`, destination, window, code and `callsMade`, never the
+  key. The job does not throw, so the queue does not retry it and spend more calls.
+- Flag `LITEAPI_SNAPSHOT_ENABLED` (default false) stops it in two places: the worker does not start
+  the scheduler, and the handler records `disabled` and returns before building the client. A
+  missing key behaves the same way.
+- Sandbox runs the same code with the same counts; `environment` comes from `liteApiEnvironment`.
+
+**Read path (zero LiteAPI calls):**
+
+- `src/providers/stays/snapshot.ts`: `SnapshotStayProvider`, metadata id `liteapi`. The stays
+  registry builds it for `liteapi`, not the live provider. `fanout.ts` and `exploreStayDates` do not
+  change. A missing row returns `ok([])`. Rows are re-validated with zod and Money is rebuilt.
+- `src/liteapi-snapshot/read.ts`: `snapshotStatus(query, now)` returns `{ state, observedAt, ageHours,
+  testPrices }` for `load-stays.ts`. States, using `freshnessOf` and `ageOf`:
+
+  | State | When | Wording |
+  | --- | --- | --- |
+  | fresh | age ≤ 2 × interval (16 h) | "Updated N hours ago" |
+  | aging | age > 2 × interval | "Prices last checked N hours ago" |
+  | missing | no row, a non-launch window or occupancy, or `expires_at` passed | "Hotel prices are not loaded for these dates yet." (no price) |
+  | unknown | `observedAt` in the future | price shown, no age claim |
+
+  `expires_at` is observed plus 3 × interval (24 h).
+- Part 2's LiteAPI hotel provider reads the snapshot too, never the live client.
+- Aviasales fallback (Q9, for flights in Part 4): on a LiteAPI error or an empty answer, the visitor
+  path reads only the existing cache store, never `loadAndStore` and never a live call. No cache
+  entry means the flight is unpriced and the page shows a search issue.
+- Hotels have no Aviasales fallback. An empty hotel snapshot shows the "not loaded" line; the
+  Travelpayouts links still show.
+
+**Money and provenance:** integer minor units throughout. `observedAt` on every rate is the instant
+of the rates call, and the row's `observed_at` is the same instant. If `environment = 'sandbox'` or
+any rate has `provenance: 'test'`, the page shows a visible "Test prices" note (Q2). Prebook results
+are never written to these tables.
+
+**Cost (calls a day = destinations × windows × refreshes):** 6 × 3 × 3 = **54 rates calls a day**,
+worst case $1.08 a day, about $32 a month. Flights, once Part 4 joins: 54 a day, about EUR 0.27 a
+day, about EUR 8 a month. Each extra destination adds 9 a day; each extra refresh a day adds 18;
+each extra window adds 18; hourly is eight times the cost (432 a day). Hotel content is about six
+`data/hotels` calls a week, free per the docs.
+
+**Tests:** repository contract (memory and Postgres: upsert replaces, expired reads as null,
+`latestRun` ordering, `callsSince`, parameterised SQL); targets (deterministic windows, stable
+occupancy signature, stable key); job with a fake provider (success writes a row, failure keeps the
+old row and logs no key, the cap stops the third call, the daily ceiling refuses a run, the limiter
+never has more than its limit in flight); scheduler (three rounds a day, a restart in the same slot
+makes zero calls); flag off (zero fetches, run recorded `disabled`); read path (all four states and
+their exact strings, "Test prices" for sandbox, `loadStaySearch` with `STAY_PROVIDERS=liteapi` and a
+key makes zero fetches); import guard (no file under `src/app/**` reaches
+`src/providers/stays/liteapi.ts` or `src/liteapi-snapshot/job.ts`, except through the worker).
+
+**Build order:** (1) storage: migration, repository, memory and Postgres, contract test; (2) env and
+the adapter split: `LITEAPI_SNAPSHOT_ENABLED`, `LITEAPI_SNAPSHOT_REFRESHES_PER_DAY`, `liteapi.ts`
+split; (3) pure logic: `targets.ts`, `staleness.ts`, `stored-schema.ts`; (4) job, schedule, queue
+name and worker registration; (5) read path: `read.ts`, `snapshot.ts`, the stays registry,
+`load-stays.ts`, the snapshot status component, `src/app/stays/page.tsx`; (6) import guard,
+`docs/architecture.md`, `docs/runbook.md`. Not in the build: `.env.example` (permission-blocked, the
+owner adds it), and `devmap.html` (the lead edits it).
+
 ### Part 11. Env and deploy
 
 - **Goal:** LiteAPI is switched on by configuration only. It fails closed, and the policy document
