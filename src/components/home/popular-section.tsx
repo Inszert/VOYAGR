@@ -165,7 +165,7 @@ export function PopularSection({
         {unpriced ? (
           <p role="status" className="text-ink-muted text-[13px]">
             {pricesLoading
-              ? 'Prices are loading. The globe shows the places without them for now; reload in a minute.'
+              ? 'Prices are not loaded yet. The globe shows these places without them.'
               : 'Prices could not be produced just now, so the globe shows places without them. Try again in a moment, or run a search.'}
           </p>
         ) : null}

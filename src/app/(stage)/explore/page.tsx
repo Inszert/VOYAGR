@@ -374,14 +374,14 @@ export default async function ExplorePage({
                   <AirportInput
                     label="From"
                     name="origins"
-                    defaultValue=""
+                    defaultValue={values.origins ?? ''}
                     airports={page.airports}
                     required
                   />
                   <AirportInput
                     label="To"
                     name="destinations"
-                    defaultValue={ANYWHERE}
+                    defaultValue={values.destinations?.trim() ? values.destinations : ANYWHERE}
                     airports={page.airports}
                     required
                   />
@@ -389,10 +389,10 @@ export default async function ExplorePage({
                     <DateRangeField
                       startLabel="Leaving"
                       startName="departureDate"
-                      startValue=""
+                      startValue={values.departureDate ?? ''}
                       endLabel="Back"
                       endName="returnDate"
-                      endValue=""
+                      endValue={values.returnDate ?? ''}
                       min={page.today}
                       required
                     />

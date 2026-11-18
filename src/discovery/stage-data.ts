@@ -78,6 +78,12 @@ export interface StageDataInput {
   readonly origins: readonly string[];
   /** The destinations the visitor named, to join to every origin. Empty for "anywhere". */
   readonly routeDestinations?: readonly string[];
+  /**
+   * Where the typed lines start when that differs from `origins`: a search
+   * that could not run yet still has two places typed, and they are joined.
+   * Defaults to `origins`.
+   */
+  readonly routeOrigins?: readonly string[];
   readonly provenance: DataProvenance;
   readonly assumptions: DiscoveryAssumptions | null;
   /** Builds the link a chip or card follows for a destination. */
@@ -153,7 +159,16 @@ export function buildStageData(input: StageDataInput): StageData {
     .filter((origin): origin is OriginPoint => origin !== null);
 
   // Both ends typed: every origin joined to every destination, priced or not.
-  const searchPairs = buildRoutePairs(input.origins, input.routeDestinations ?? []);
+  const typedOrigins = input.routeOrigins ?? input.origins;
+  const searchPairs = buildRoutePairs(typedOrigins, input.routeDestinations ?? []);
+  // A typed origin is a pin even when nothing priced starts there.
+  for (const code of typedOrigins) {
+    const point = resolveOriginGeo(code);
+    if (point && !originPoints.some((existing) => existing.code === point.code)) {
+      originPoints.push(point);
+    }
+  }
+  const pricedOrigins = originPoints.filter((point) => input.origins.includes(point.code));
 
   const countryCounts = Object.fromEntries(
     groupByCountry(points).map((group) => [group.adm0, group.points.length]),
@@ -233,7 +248,7 @@ export function buildStageData(input: StageDataInput): StageData {
     labels,
     chips,
     routes: routesToGeoJson(
-      mergeRoutes(routePairsToRoutes(searchPairs.pairs), buildRoutes(scoped, originPoints)),
+      mergeRoutes(routePairsToRoutes(searchPairs.pairs), buildRoutes(scoped, pricedOrigins)),
       input.selectedDestination,
     ),
     routePairs: searchPairs,

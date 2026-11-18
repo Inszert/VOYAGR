@@ -140,6 +140,15 @@ function middleDate(from: IsoDate, to: IsoDate): IsoDate {
   return span <= 0 ? from : addDays(from, Math.floor(span / 2));
 }
 
+/** The three-letter codes in a typed list; words such as "anywhere" are not codes. */
+function airportCodesIn(value: string | undefined): string[] {
+  const codes = (value ?? '')
+    .split(/[\s,]+/)
+    .map((code) => code.toUpperCase())
+    .filter((code) => /^[A-Z]{3}$/.test(code) && code !== 'ANY');
+  return [...new Set(codes)];
+}
+
 /** A GET form always submits its text inputs, so `origins` marks a real search. */
 export function wasSubmitted(params: Readonly<Record<string, string | undefined>>): boolean {
   return typeof params.origins === 'string';
@@ -337,6 +346,20 @@ export async function loadStagePage(
         : ''
     }`;
 
+  /*
+   * The places typed, when no search ran from them.
+   *
+   * A search that cannot run yet (the compact form sends no budget, so it does
+   * not validate) used to draw nothing. The two ends are still known, so the
+   * line between them is drawn from the address alone - no price involved.
+   */
+  const typedPlaces = outcome
+    ? { origins: [] as string[], destinations: [] as string[] }
+    : {
+        origins: airportCodesIn(values.origins),
+        destinations: airportCodesIn(values.destinations),
+      };
+
   const stage = buildStageData({
     outcome: stageOutcome,
     mode,
@@ -345,9 +368,17 @@ export async function loadStagePage(
     origins,
     // Named places only: "anywhere" is every airport, and a line to each is a
     // tangle. Those keep the priced routes alone.
-    routeDestinations:
-      outcome && outcome.diagnostics.plan.destinationsRequested <= MAX_ROUTE_LINES
+    routeOrigins: outcome
+      ? undefined
+      : typedPlaces.origins.length > 0
+        ? typedPlaces.origins
+        : undefined,
+    routeDestinations: outcome
+      ? outcome.diagnostics.plan.destinationsRequested <= MAX_ROUTE_LINES
         ? outcome.diagnostics.plan.destinations
+        : []
+      : typedPlaces.destinations.length <= MAX_ROUTE_LINES
+        ? typedPlaces.destinations
         : [],
     provenance,
     assumptions: snapshot?.assumptions ?? null,

@@ -44,9 +44,10 @@ export interface AirportInputProps {
   /** Drop the control's own border, for a segmented bar. */
   bare?: boolean;
   /**
-   * Not honoured. The suggestions always open directly under the field: a
-   * list that flips above it, depending on the caller, is what made it jump.
-   * Still accepted so existing callers keep type-checking.
+   * Open above the field instead of below it, for a bar at the foot of a
+   * clipped hero where a list below would be cut off. A fixed choice made by
+   * the caller, never measured at run time: a list that flips depending on
+   * the room left is what made it jump.
    */
   dropUp?: boolean;
 }
@@ -114,6 +115,7 @@ export function AirportInput({
   airports,
   limit = 8,
   bare = false,
+  dropUp = false,
 }: AirportInputProps) {
   const id = React.useId();
   const listId = `${id}-listbox`;
@@ -307,8 +309,12 @@ export function AirportInput({
           role="listbox"
           aria-label={`Airport suggestions for ${label.toLowerCase()}`}
           className={cn(
-            'border-border-strong bg-surface-raised shadow-floating absolute top-full right-0 left-0 z-30 mt-1',
-            'max-h-64 overflow-auto rounded-(--radius-control) border py-1',
+            // At least the field's width, wider when the field is narrow, so a
+            // name is read rather than cut to three letters.
+            'border-border-strong bg-panel shadow-floating absolute left-0 z-30',
+            dropUp ? 'bottom-full mb-2' : 'top-full mt-1',
+            'w-max max-w-[min(24rem,calc(100vw-2rem))] min-w-full',
+            'max-h-80 overflow-auto overscroll-contain rounded-(--radius-control) border py-1',
             open && suggestions.length > 0 ? '' : 'hidden',
           )}
         >
@@ -328,25 +334,30 @@ export function AirportInput({
                 }}
                 onMouseEnter={() => setActive(index)}
                 className={cn(
-                  'flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm',
+                  'flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-sm',
                   highlighted ? 'bg-surface-sunken' : '',
                 )}
               >
-                <span className="text-ink font-semibold tabular-nums">{airport.code}</span>
-                {/* Bold as well as shaded, so the highlighted row reads without colour. */}
-                <span
-                  className={cn(
-                    'text-ink min-w-0 truncate',
-                    highlighted ? 'font-semibold' : 'font-normal',
-                  )}
-                >
-                  {airport.name}
+                <span className="text-ink w-9 shrink-0 font-semibold tabular-nums">
+                  {airport.code}
                 </span>
-                {/* The airport's own name, which is what separates two airports in one place. */}
-                {airport.detail && airport.detail !== airport.name ? (
-                  <span className="text-ink-muted min-w-0 truncate text-xs">{airport.detail}</span>
-                ) : null}
-                <span className="text-ink-muted ml-auto shrink-0 text-xs">{airport.country}</span>
+                <span className="flex min-w-0 flex-col">
+                  {/* Bold as well as shaded, so the highlighted row reads without colour. */}
+                  <span
+                    className={cn(
+                      'text-ink truncate',
+                      highlighted ? 'font-semibold' : 'font-normal',
+                    )}
+                  >
+                    {airport.name}
+                  </span>
+                  {/* The airport's own name, which is what separates two airports in one place. */}
+                  <span className="text-ink-muted truncate text-xs">
+                    {airport.detail && airport.detail !== airport.name
+                      ? `${airport.detail} · ${airport.country}`
+                      : airport.country}
+                  </span>
+                </span>
               </li>
             );
           })}
