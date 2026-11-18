@@ -235,67 +235,61 @@
 // ---------------------------------------------------------------------------
 const DATA = {
   project: "Voyagr",
-  subtitle: "Nuitee (LiteAPI) transformation: prices from our own database, sandbox first, no payments",
-  generated: "2026-11-17",
+  subtitle: "Nuitee transformation and the explore and stays redesign: what is live, what is being built, what needs you",
+  generated: "2026-11-18",
   branch: "feat/voyagr-autonomous-product-completion",
-  lastCommit: { hash: "51e3be1", subject: "docs(devmap): LiteAPI sandbox trial passed (hotel list and rates, two calls)" },
+  lastCommit: { hash: "b84ee12", subject: "fix(maps): the stays and destination maps zoom out to the whole region" },
   uncommittedPaths: 0,
   uncommittedUntracked: 0,
 
-  // Recommended next step for the Nuitee transformation.
+  // Recommended next step.
   nextStep: {
     namesOne: true,
-    text: "Build the LiteAPI snapshot (Part 10): visitors read our stored prices, and a scheduled job fills them.",
-    pointer: "docs/liteapi-migration-plan.md, Part 10 design and addendum",
-    why: "No visitor request may trigger a paid call, and every other LiteAPI part reads through this snapshot.",
-    src: "docs/liteapi-migration-plan.md (owner decision 2026-11-17)"
+    text: "Redeploy the web app and the worker from main, then check that the landing page's 'Where you can go' list fills.",
+    pointer: "Railway: web and worker services, deploy from main",
+    why: "The refresh job ids were fixed, so completed jobs blocked every later refresh. The fix is in main; the running services still have the old code.",
+    src: "git log: fc716c4 (refresh job ids)"
   },
 
-  // Fresh start: finished work is removed here and kept in git history.
+  // Finished work leaves this list (git history keeps it).
   done: [],
 
   inProgress: [
+    { tag: "Nuitee", text: "Stays: start page (search, recent stays from real visitor searches, city cards) is assembled; the stays page is redesigned", note: "Opus designed it (docs/stays-redesign.md). Browser check still to do.", src: "docs/stays-redesign.md" },
+    { tag: "Nuitee", text: "Flights per day: the calendar lists outgoing and return flights for a chosen day, labelled flights only", note: "The trip list does not show them yet. The provider gives one fare per return date.", src: "src/search/day-prices.ts" },
+    { text: "Airport sizes on the globe: large, medium and small dots, with a legend", note: "Built by rank. Needs a browser check on the live site.", src: "src/components/discovery/airport-size-style.ts" },
+    { text: "Route lines follow the globe in globe view", note: "Checked: the arc moves with drag and zoom. Flat map view draws no line (open question).", src: "src/components/discovery/globe-arcs.ts" }
   ],
 
   planned: [
-    { tag: "Nuitee", text: "Part 5: experiences (tours) from LiteAPI on the destination page, booking disabled", note: "Needs Experiences enabled on the sandbox key.", src: "docs/liteapi-migration-plan.md Part 5" },
-    { tag: "Nuitee", text: "Part 9: Aviasales as a fallback when LiteAPI errors or comes back empty", note: "Visitors read the existing cache only, never a live call.", src: "docs/liteapi-migration-plan.md Part 9" },
+    { text: "Trip list shows the outgoing and return flights for the chosen day", note: "Calendar is done; the trip list is not.", src: "owner request" },
+    { text: "Swap-airports button on the explore form", note: "Missing from the stacked layout.", src: "owner request" },
+    { tag: "Nuitee", text: "Experiences (tours) from Nuitee on the destination page, booking disabled", note: "Needs Experiences access on the key.", src: "docs/liteapi-migration-plan.md Part 5" },
+    { tag: "Nuitee", text: "Flights from Nuitee for real (not the sandbox)", note: "Needs Nuitee Go-live for flights. Built and waiting behind FLIGHT_PROVIDER.", src: "docs/liteapi-migration-plan.md Part 4" }
   ],
 
   failing: [
-    { tag: "Nuitee", text: "Destination page: some photo-credit and place-chip links are 24 to 25 px tall, below a comfortable touch target", severity: "should fix", note: "Browser check 2026-11-17 at 390 px. Passes the 24 px minimum; the design wants 44 px.", src: "browser check, 2026-11-17" },
-    { tag: "Nuitee", text: "Explore sliders: the focus ring on the Flights row sits a few pixels from the word \"more\" at 768 px", severity: "known limit", note: "Cosmetic. No overlap.", src: "browser check, 2026-11-17" },
-    { tag: "Nuitee", text: "Privacy copy for the photo host and LiteAPI is draft wording; it must not go to main before the owner reviews it", severity: "blocks launch", note: "Main is at 9498274 (the build fix only). The feature branch is ac6b0ad. Railway auto-deploys from main.", src: "docs/security.md; src/app/(column)/privacy/page.tsx" },
-    { tag: "Nuitee", text: "Hotel photos: no referrer-policy on the image, so the referrer is only trimmed by the site default", severity: "should fix", note: "The fix needs a change to the shared image component; an agent was denied that edit, so it waits for the owner.", src: "src/components/ui/media.tsx" },
-    { tag: "Nuitee", text: "The queue test with Redis times out under the full parallel run; it passes when run alone", severity: "known limit", note: "Timing under load, not a logic failure.", src: "src/queue/bullmq.test.ts" },
-    { tag: "Nuitee", text: "The snapshot Postgres tables are untested against a real database here (the contract cases skip without TEST_DATABASE_URL)", severity: "should fix", note: "Run the contract tests against a test database before production.", src: "src/db/liteapi-snapshot-contract.test.ts" },
-    { tag: "Nuitee", text: "Setting STAY_PROVIDERS=liteapi now makes live LiteAPI calls from /stays; keep it off until the snapshot routing is in", severity: "blocks launch", note: "Found 2026-11-17. The default is mock, so nothing is live today.", src: "src/search/stays/load-stays.ts; src/providers/stays/fanout.ts" },
-    { tag: "Nuitee", text: "Experiences access on the sandbox key is not tested yet", severity: "known limit", note: "Part 5 starts with one check call.", src: "docs/getting-access-to-experiences.md" }
+    { text: "Route lines do not show in flat Map view (only the faint ground layer)", severity: "should fix", note: "Found in the browser check. Globe view works.", src: "globe-style.ts routes layers" },
+    { text: "Photos can all drop on a cold cache: the photo lookup takes about 4 s and the timeout is 2.5 s", severity: "should fix", note: "Found by the Riga check.", src: "src/providers/imagery/index.ts (LOOKUP_TIMEOUT_MS)" },
+    { text: "Postgres cache and visitor-search tables are untested against a real database", severity: "should fix", note: "Their tests skip without TEST_DATABASE_URL.", src: "src/db/liteapi-snapshot-contract.test.ts" }
   ],
 
   needsOwner: [
-    { tag: "Nuitee", text: "Approve the privacy wording for the photo host and LiteAPI, then publish to main", src: "src/app/(column)/privacy/page.tsx; docs/security.md" },
-    { tag: "Nuitee", text: "Approve a referrer-policy change to the shared image component (media.tsx) for the photo host", src: "src/components/ui/media.tsx" },
-    { tag: "Nuitee", text: "Photos: the LiteAPI image host is not in the CSP, so no vendor photo shows. Add the host (needs a security review) or proxy the images through our origin", src: "docs/liteapi-migration-plan.md Part 3; src/consent/csp.ts" },
-    { tag: "Nuitee", text: "Trips: windows outside the top three show as flights-only trips with \"Stay not priced\". Keep them, or drop them from the ranking", src: "docs/liteapi-migration-plan.md Part 2" },
-    { tag: "Nuitee", text: "LiteAPI: confirm migration 0013 (the snapshot tables) ran on the real database, in the deploy log", src: "migration 0013_liteapi_snapshot; deploy pre-deploy step" },
-    { tag: "Nuitee", text: "LiteAPI: confirm in writing that periodic refresh for display is allowed (Q10); the scheduled job stays off until then", src: "docs/liteapi-migration-plan.md Part 10 addendum" },
-    { tag: "Nuitee", text: "LiteAPI: written exception from Nuitee on the 5000:1 hotel and 1,500:1 flight search-to-book ratios before any production key (Q1)", src: "docs/liteapi-migration-plan.md Q1" },
-    { tag: "Nuitee", text: "LiteAPI: confirm in writing that sandbox calls are not billed (the docs do not say)", src: "docs/liteapi-migration-plan.md Q1" },
-    { tag: "Nuitee", text: "LiteAPI: confirm the six launch destinations for the snapshot (placeholder LIS, BCN, PRG, BUD, ROM, VIE)", src: "docs/liteapi-migration-plan.md Part 10 design" },
-    { tag: "Nuitee", text: "LiteAPI: request Flights production access and Experiences sandbox access (Q4, Q5)", src: "docs/liteapi-migration-plan.md Q4, Q5" },
-    { tag: "Nuitee", text: "LiteAPI: add placeholders to .env.example (LITEAPI_API_KEY, LITEAPI_GUEST_NATIONALITY, LITEAPI_SANDBOX_IN_PRODUCTION, EXPERIENCE_PROVIDER); an agent is blocked from editing it by a permission setting", src: "docs/liteapi-migration-plan.md Part 11" },
-    { tag: "Nuitee", text: "LiteAPI: guest nationality default and source (Q6), image and review reuse terms (Q7), flights margin (Q3)", src: "docs/liteapi-migration-plan.md Q3, Q6, Q7" },
-    { tag: "Nuitee", text: "LiteAPI: which price index is current for this account, $0.02 (owner) or $0.05 (docs)", src: "docs/liteapi-migration-plan.md Owner questions" }
+    { text: "Redeploy the web app AND the worker from main; then check the worker logs for 'cache refresh scheduled'", src: "Railway" },
+    { text: "Return flights: the provider gives one fare per return date. Do you want more calls to fetch more return flights per day? (costs money on the provider side)", src: "src/providers/flights/aviasales.ts" },
+    { text: "Privacy copy for the photo host, LiteAPI and the OpenStreetMap tiles: approve or change the wording (it is on main)", src: "src/app/(column)/privacy/page.tsx; docs/security.md" },
+    { text: "Nuitee: Go-live for flights and Experiences access (request in the dashboard)", src: "docs/liteapi-migration-plan.md" },
+    { text: "Rimini (RMI) is listed as a large airport in the public data; confirm or set it by hand", src: "src/providers/fixtures/airports.generated.json" },
+    { text: "The six stored launch cities: confirm them (LIS, BCN, PRG, BUD, ROM, VIE)", src: "src/liteapi-snapshot/targets.ts" }
   ],
 
   commits: [
-    { hash: "51e3be1", date: "2026-11-17", subject: "docs(devmap): LiteAPI sandbox trial passed (hotel list and rates, two calls)", kind: "docs" },
-    { hash: "f88f3b5", date: "2026-11-17", subject: "docs(devmap): mark LiteAPI / Nuitee items; drop stale planned rows; add the snapshot row", kind: "docs" },
-    { hash: "b182084", date: "2026-11-17", subject: "feat(liteapi): env and deploy guards, stay rate tax and payment mapping (parts 11 and 1, mapping only)", kind: "feat" },
-    { hash: "2efbecf", date: "2026-11-17", subject: "feat(search): calmer part-weight panel; disabled reserve and payment placeholder", kind: "feat" },
-    { hash: "4cfc7b4", date: "2026-11-17", subject: "docs: LiteAPI snapshot decision: visitors read our own database, refreshed on a schedule", kind: "docs" },
-    { hash: "01bf339", date: "2026-11-17", subject: "docs: LiteAPI migration plan and owner answers", kind: "docs" }
+    { hash: "b84ee12", date: "2026-11-18", subject: "fix(maps): the stays and destination maps zoom out to the whole region", kind: "fix" },
+    { hash: "d01dcbb", date: "2026-11-18", subject: "feat(explore): trip length defaults to any length", kind: "feat" },
+    { hash: "fc716c4", date: "2026-11-18", subject: "fix(cache): refresh jobs get a time-bucketed id, so later rounds are not ignored", kind: "fix" },
+    { hash: "78c0647", date: "2026-11-18", subject: "feat: record visitor searches; stays start page; calendar flights", kind: "feat" },
+    { hash: "c7982ae", date: "2026-11-18", subject: "feat(explore): the explore form has Discover's fields", kind: "feat" },
+    { hash: "489dc05", date: "2026-11-17", subject: "feat: airport size on the globe dots; route lines stay visible; airport catalogue covers 233 countries", kind: "feat" }
   ],
 };
 
