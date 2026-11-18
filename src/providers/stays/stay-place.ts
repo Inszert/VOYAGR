@@ -50,7 +50,24 @@ export function resolveStayPlace(input: {
   if (code) {
     const place = PLACES.find((candidate) => candidate.code === code);
     if (place) return fromPlace(place);
+  }
 
+  /*
+   * The typed city, matched against the catalogue, comes before an airport code the catalogue
+   * does not hold. A trip hands over the airport it flew to (JFK) for a city the catalogue knows
+   * by another code (New York is EWR): resolving the bare airport first left that city with no
+   * hotel list until the visitor searched again and the code was dropped.
+   */
+  const name = input.name ? fold(input.name.split(',')[0] ?? '') : '';
+  // The largest city of that name: Barcelona is Spain's before it is Venezuela's.
+  const best = name
+    ? PLACES.filter((place) => fold(place.city) === name).sort(
+        (a, b) => b.population - a.population,
+      )[0]
+    : undefined;
+  if (best) return fromPlace(best);
+
+  if (code) {
     const geo = resolveDestinationGeo(code);
     if (geo) {
       return {
@@ -62,13 +79,5 @@ export function resolveStayPlace(input: {
     }
   }
 
-  const name = input.name ? fold(input.name.split(',')[0] ?? '') : '';
-  if (!name) return null;
-
-  // The largest city of that name: Barcelona is Spain's before it is Venezuela's.
-  const best = PLACES.filter((place) => fold(place.city) === name).sort(
-    (a, b) => b.population - a.population,
-  )[0];
-
-  return best ? fromPlace(best) : null;
+  return null;
 }
