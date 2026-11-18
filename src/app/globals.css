@@ -500,6 +500,28 @@
 
   body {
     background-color: var(--color-surface);
+    /*
+     * Depth for the page, from tokens: a soft light from the top in the tint
+     * (the colour of wherever you are), a vignette that pulls the edges down to
+     * the deepest night, and a faint grain so the dark has texture rather than
+     * being one flat fill. Fixed to the viewport, so it never scrolls under the
+     * text. The lightest pixel is still a few percent of the tint over --bg, so
+     * every ink/surface pairing keeps its contrast.
+     */
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+      radial-gradient(
+        ellipse 120% 90% at 50% 100%,
+        transparent 55%,
+        color-mix(in oklab, var(--color-stage-deep) 85%, transparent) 100%
+      ),
+      radial-gradient(
+        ellipse 90% 60% at 50% -5%,
+        color-mix(in oklab, var(--color-tint) 16%, transparent) 0%,
+        color-mix(in oklab, var(--color-tint) 5%, transparent) 45%,
+        transparent 75%
+      );
+    background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

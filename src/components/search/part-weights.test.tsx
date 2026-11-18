@@ -14,14 +14,32 @@ import { PartWeightsControl } from './part-weights';
 
 const NORMAL = { stay: 1, transfers: 1, cost: 1, nature: 1, weather: 1, food: 1 };
 
+function openPanel() {
+  fireEvent.click(screen.getByRole('button', { name: 'What matters most' }));
+}
+
 describe('PartWeightsControl', () => {
   beforeEach(() => {
     push.mockClear();
     query = '';
   });
 
+  it('starts closed, and its button opens the sliders', () => {
+    render(<PartWeightsControl values={NORMAL} />);
+    const toggle = screen.getByRole('button', { name: 'What matters most' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('slider', { name: 'Stay' })).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('slider', { name: 'Stay' })).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('slider', { name: 'Stay' })).toBeNull();
+  });
+
   it('is one named group with sliders in order that read out words', () => {
     render(<PartWeightsControl values={{ ...NORMAL, stay: 2 }} />);
+    openPanel();
     expect(screen.getByRole('group', { name: 'What matters most' })).toBeTruthy();
     const sliders = screen.getAllByRole('slider');
     expect(sliders).toHaveLength(6);
@@ -45,12 +63,14 @@ describe('PartWeightsControl', () => {
 
   it('offers no reset while everything is normal', () => {
     render(<PartWeightsControl values={NORMAL} />);
+    openPanel();
     expect(screen.queryByRole('button', { name: /reset/i })).toBeNull();
   });
 
   it('resets every weight in one navigation', async () => {
     query = 'to=LIS&wCost=0&wStay=2';
     render(<PartWeightsControl values={{ ...NORMAL, cost: 0, stay: 2 }} />);
+    openPanel();
     await userEvent.click(screen.getByRole('button', { name: /reset/i }));
     expect(push).toHaveBeenCalledTimes(1);
     const url = String(push.mock.calls[0]?.[0]);
@@ -64,6 +84,7 @@ describe('PartWeightsControl', () => {
 
   it('lists Stay, Transfers, Cost, Nature, Weather, Food by name', () => {
     render(<PartWeightsControl values={NORMAL} />);
+    openPanel();
     expect(screen.getAllByRole('slider').map((el) => el.getAttribute('name'))).toEqual([
       'wStay',
       'wTransfers',
@@ -78,6 +99,7 @@ describe('PartWeightsControl', () => {
 
   it('writes wNature and wFood on release', () => {
     render(<PartWeightsControl values={NORMAL} />);
+    openPanel();
     fireEvent.change(screen.getByRole('slider', { name: 'Nature' }), { target: { value: '2' } });
     fireEvent.pointerUp(screen.getByRole('slider', { name: 'Nature' }));
     expect(String(push.mock.calls[0]?.[0])).toContain('wNature=2');
@@ -88,6 +110,7 @@ describe('PartWeightsControl', () => {
 
   it('applies a slider on release, not while dragging', () => {
     render(<PartWeightsControl values={NORMAL} />);
+    openPanel();
     const slider = screen.getByRole('slider', { name: 'Weather' });
     fireEvent.change(slider, { target: { value: '1.5' } });
     expect(push).not.toHaveBeenCalled();

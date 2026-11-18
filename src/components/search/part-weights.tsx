@@ -43,6 +43,8 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
   const router = useRouter();
   const search = useSearchParams().toString();
   const [shown, setShown] = React.useState(values);
+  const [open, setOpen] = React.useState(false);
+  const panelId = React.useId();
 
   // A navigation this control did not start (back, a link) is a different search.
   const incoming = JSON.stringify(values);
@@ -82,93 +84,111 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
       aria-label="What matters most"
       className="border-border bg-surface-sunken min-w-0 rounded-(--radius-card) border p-4"
     >
-      <fieldset
-        aria-describedby="weights-hint"
-        className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0"
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((current) => !current)}
+        className="min-h-11 w-full justify-between"
       >
-        <legend className="text-ink float-left w-full p-0 text-base font-medium">
-          What matters most
-        </legend>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <p id="weights-hint" className="text-ink-muted text-sm">
-              Re-orders Best match. Prices and scores never change.
-            </p>
+        What matters most
+        <span aria-hidden="true" className="text-ink-muted">
+          {open ? '−' : '+'}
+        </span>
+      </Button>
+      <div id={panelId} hidden={!open} className="mt-3">
+        <fieldset
+          aria-describedby="weights-hint"
+          className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0"
+        >
+          <legend className="text-ink float-left w-full p-0 text-base font-medium">
+            What matters most
+          </legend>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-1">
+              <p id="weights-hint" className="text-ink-muted text-sm">
+                Re-orders Best match. Prices and scores never change.
+              </p>
+            </div>
+            {changed ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="Reset what matters most to normal"
+                onClick={reset}
+                className="min-h-11 shrink-0"
+              >
+                Reset to normal
+              </Button>
+            ) : null}
           </div>
-          {changed ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label="Reset what matters most to normal"
-              onClick={reset}
-              className="min-h-11 shrink-0"
-            >
-              Reset to normal
-            </Button>
-          ) : null}
-        </div>
-        <div className="divide-border flex flex-col divide-y">
-          {PARTS.map(({ part, label }) => {
-            const id = `weight-${part}`;
-            const word = weightWord(shown[part]);
-            return (
-              <div key={part} className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-baseline justify-between gap-3">
-                  <label htmlFor={id} className="text-ink text-sm font-medium">
-                    {label}
-                  </label>
-                  <span
-                    aria-hidden="true"
-                    className={
-                      shown[part] === 1 ? 'text-ink-muted text-sm' : 'text-ink text-sm font-medium'
-                    }
-                  >
-                    {word}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col">
-                  <input
-                    id={id}
-                    name={PART_WEIGHT_PARAMS[part]}
-                    type="range"
-                    min={0}
-                    max={2}
-                    step={0.5}
-                    value={shown[part]}
-                    aria-valuetext={word}
-                    onChange={(event) => {
-                      const next = Number(event.currentTarget.value);
-                      setShown((current) => ({ ...current, [part]: next }));
-                    }}
-                    onPointerUp={(event) => apply(part, Number(event.currentTarget.value))}
-                    onKeyUp={(event) => {
-                      if (
-                        event.key.startsWith('Arrow') ||
-                        event.key === 'Home' ||
-                        event.key === 'End'
-                      ) {
-                        apply(part, Number(event.currentTarget.value));
+          <div className="divide-border flex flex-col divide-y">
+            {PARTS.map(({ part, label }) => {
+              const id = `weight-${part}`;
+              const word = weightWord(shown[part]);
+              return (
+                <div key={part} className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <label htmlFor={id} className="text-ink text-sm font-medium">
+                      {label}
+                    </label>
+                    <span
+                      aria-hidden="true"
+                      className={
+                        shown[part] === 1
+                          ? 'text-ink-muted text-sm'
+                          : 'text-ink text-sm font-medium'
                       }
-                    }}
-                    className="accent-tint focus-visible:outline-accent-to h-8 w-full min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
-                  />
-                  <span aria-hidden="true" className="flex justify-between px-2">
-                    {STOPS.map((stop) => (
-                      <span
-                        key={stop}
-                        className={
-                          stop === 1 ? 'bg-ink-muted h-2 w-px' : 'bg-ink-muted/60 h-1.5 w-px'
+                    >
+                      {word}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 flex-col">
+                    <input
+                      id={id}
+                      name={PART_WEIGHT_PARAMS[part]}
+                      type="range"
+                      min={0}
+                      max={2}
+                      step={0.5}
+                      value={shown[part]}
+                      aria-valuetext={word}
+                      onChange={(event) => {
+                        const next = Number(event.currentTarget.value);
+                        setShown((current) => ({ ...current, [part]: next }));
+                      }}
+                      onPointerUp={(event) => apply(part, Number(event.currentTarget.value))}
+                      onKeyUp={(event) => {
+                        if (
+                          event.key.startsWith('Arrow') ||
+                          event.key === 'Home' ||
+                          event.key === 'End'
+                        ) {
+                          apply(part, Number(event.currentTarget.value));
                         }
-                      />
-                    ))}
-                  </span>
+                      }}
+                      className="accent-tint focus-visible:outline-accent-to h-8 w-full min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
+                    />
+                    <span aria-hidden="true" className="flex justify-between px-2">
+                      {STOPS.map((stop) => (
+                        <span
+                          key={stop}
+                          className={
+                            stop === 1 ? 'bg-ink-muted h-2 w-px' : 'bg-ink-muted/60 h-1.5 w-px'
+                          }
+                        />
+                      ))}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </fieldset>
+              );
+            })}
+          </div>
+        </fieldset>
+      </div>
     </form>
   );
 }
