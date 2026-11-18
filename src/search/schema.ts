@@ -410,6 +410,19 @@ export function tripLengthSummary(minNights: number, maxNights: number): string 
 }
 
 /**
+ * The summary line's trip length: the nights only when the traveller chose a
+ * length ("under" / "over"), else "Any length". A window the search worked out
+ * for itself, or nights carried in an old link, is not that choice.
+ */
+export function chosenTripLengthSummary(
+  input: Readonly<Record<string, string | undefined>>,
+  minNights: number,
+  maxNights: number,
+): string {
+  return tripLengthBounds(input) ? tripLengthSummary(minNights, maxNights) : 'Any length';
+}
+
+/**
  * The trip length the traveller chose, as the nights it allows.
  *
  * The form sends `tripLength` (`any`, `under` or `over`) and `tripDays` (1 to

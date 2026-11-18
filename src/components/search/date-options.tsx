@@ -497,7 +497,7 @@ export function DateOptions({
             return (
               <li key={key}>
                 <a
-                  href={href(basePath, searchValues, isSelected ? null : key)}
+                  href={href(basePath, searchValues, key)}
                   aria-current={isSelected ? 'true' : undefined}
                   className={cn(
                     '-mx-2 block rounded-(--radius-control) px-2 py-2.5',

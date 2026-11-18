@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { PriceCalendar, type PriceCalendarLoad } from './price-calendar';
 
 /**
@@ -177,6 +177,9 @@ describe('PriceCalendar loading', () => {
     expect(day.getAttribute('aria-label')).not.toMatch(/whole trip|flights only|cheapest/);
   });
 
+  /** The days a return can be chosen on: the calendar's links, in date order. */
+  const returnCells = () => screen.getAllByRole('gridcell').filter((cell) => cell.tagName === 'A');
+
   describe('return options for a chosen departure', () => {
     const ret = (returnDate: string, amount: number) => ({
       returnDate,
@@ -192,11 +195,13 @@ describe('PriceCalendar loading', () => {
       const returns = [ret(`${name}-18`, 150), ret(`${name}-15`, 90), ret(`${name}-16`, 120)].sort(
         (a, b) => a.amount - b.amount,
       );
-      days[`${name}-12`] = { ...returns[0]!, returns };
+      // Only the 12th is priced, so every return listed is one it holds itself.
+      for (const day of Object.keys(days)) delete days[day];
+      if (name === '2026-12') days[`${name}-12`] = { ...returns[0]!, returns };
       return base;
     }
 
-    it('lists each return with its date and total, cheapest first; the day cell keeps the cheapest', async () => {
+    it('shows each return on its own day in the calendar, with its price and nights; the day cell keeps the cheapest', async () => {
       const asked = stubFetch((name) => json(monthWithReturns(name)));
 
       renderCalendar();
@@ -204,24 +209,71 @@ describe('PriceCalendar loading', () => {
       expect(cell.textContent).toContain('€90');
       fireEvent.click(cell);
 
-      const list = await screen.findByRole('list', { name: /Return options for leaving/ });
-      const links = within(list).getAllByRole('link');
+      await screen.findByRole('status');
+      const links = returnCells();
       expect(links).toHaveLength(3);
+      expect(screen.queryByRole('list', { name: /Return options for leaving/ })).toBeNull();
       expect(links.map((link) => link.getAttribute('href'))).toEqual([
         '/explore?departureDate=2026-12-12&returnDate=2026-12-15',
         '/explore?departureDate=2026-12-12&returnDate=2026-12-16',
         '/explore?departureDate=2026-12-12&returnDate=2026-12-18',
       ]);
-      expect(links[0]!.textContent).toContain('€90.00');
-      expect(links[2]!.textContent).toContain('€150.00');
-      expect(links[0]!.textContent).toContain('15 December 2026');
+      expect(links[0]!.textContent).toContain('€90');
+      expect(links[0]!.textContent).toContain('3 nights');
+      expect(links[2]!.textContent).toContain('€150');
+      expect(links[0]!.getAttribute('aria-label') ?? links[0]!.textContent).toContain(
+        '15 December 2026',
+      );
 
       // Choosing one adds no request: only the months, fetched before the pick.
       const before = asked.length;
       expect(vi.mocked(fetch).mock.calls.length).toBe(before);
     });
 
-    it('lists the other returns the month holds for a day the search already priced, trips first', async () => {
+    it('offers every priced later day as a return, cheapest first, each with its own price and nights', async () => {
+      const day = (name: string, d: number, amount: number) => ({
+        returnDate: `${name}-${String(d + 2).padStart(2, '0')}`,
+        exact: `€${amount}.00`,
+        whole: `€${amount}`,
+        perPerson: `€${amount}`,
+        amount,
+      });
+      stubFetch((name) => {
+        const base = month(name);
+        const days = base.days as Record<string, unknown>;
+        for (const key of Object.keys(days)) delete days[key];
+        // The 12th has one stored return; three later days are priced as days to leave.
+        if (name !== '2026-12') return json(base);
+        days[`${name}-12`] = day(name, 12, 90);
+        days[`${name}-15`] = day(name, 15, 200);
+        days[`${name}-17`] = day(name, 17, 130);
+        days[`${name}-20`] = day(name, 20, 160);
+        return json(base);
+      });
+
+      renderCalendar();
+      fireEvent.click(
+        await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ }),
+      );
+
+      await waitFor(() => expect(returnCells().length).toBeGreaterThanOrEqual(4));
+      const links = returnCells();
+      expect(screen.getByRole('status').textContent).toContain('4 return dates priced');
+      // The stored pair (14 Dec, 90) plus the three later priced days, in date order.
+      expect(links.map((link) => link.getAttribute('href'))).toEqual([
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-14',
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-15',
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-17',
+        '/explore?departureDate=2026-12-12&returnDate=2026-12-20',
+      ]);
+      const seventeenth = screen.getByRole('gridcell', { name: /17 December 2026/ });
+      expect(seventeenth.textContent).toContain('5 nights');
+      expect(seventeenth.textContent).toContain('€130');
+      expect(seventeenth.getAttribute('aria-label') ?? seventeenth.textContent).toBeTruthy();
+      expect(seventeenth.textContent).toContain('flights only');
+    });
+
+    it('shows the other returns the month holds for a day the search already priced, trip and flights each on their day', async () => {
       stubFetch((name) => json(monthWithReturns(name)));
       const priced = {
         kind: 'trip' as const,
@@ -251,15 +303,14 @@ describe('PriceCalendar loading', () => {
       await waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(0));
       fireEvent.click(cell);
 
-      const list = await screen.findByRole('list', { name: /Return options for leaving/ });
-      await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(3));
-      const links = within(list).getAllByRole('link');
-      // The searched trip first, then the flights alone, each cheapest first.
-      expect(links[0]!.textContent).toContain('€400.00');
+      await waitFor(() => expect(returnCells()).toHaveLength(3));
+      const links = returnCells();
+      // The searched trip, then the flights alone, each on its own day.
+      expect(links[0]!.textContent).toContain('€400');
       expect(links[0]!.textContent).not.toContain('flights only');
       expect(links[1]!.textContent).toContain('flights only');
-      expect(links[1]!.textContent).toContain('€120.00');
-      expect(links[2]!.textContent).toContain('€150.00');
+      expect(links[1]!.textContent).toContain('€120');
+      expect(links[2]!.textContent).toContain('€150');
     });
 
     it('offers no return longer than "under 5" nights, or shorter than "over 3"', async () => {
@@ -268,7 +319,8 @@ describe('PriceCalendar loading', () => {
         const days = base.days as Record<string, Record<string, unknown>>;
         // 2, 4 and 7 nights from the 12th.
         const returns = [ret(`${name}-14`, 90), ret(`${name}-16`, 100), ret(`${name}-19`, 110)];
-        days[`${name}-12`] = { ...returns[0]!, returns };
+        for (const day of Object.keys(days)) delete days[day];
+        if (name === '2026-12') days[`${name}-12`] = { ...returns[0]!, returns };
         return base;
       };
       const open = async (load: PriceCalendarLoad) => {
@@ -287,10 +339,8 @@ describe('PriceCalendar loading', () => {
         fireEvent.click(
           await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ }),
         );
-        const list = await screen.findByRole('list', { name: /Return options for leaving/ });
-        return within(list)
-          .getAllByRole('link')
-          .map((link) => link.getAttribute('href'));
+        await screen.findByRole('status');
+        return returnCells().map((link) => link.getAttribute('href'));
       };
 
       const under = await open({ ...LOAD, lengthMin: 1, lengthMax: 5 });
@@ -303,13 +353,39 @@ describe('PriceCalendar loading', () => {
       expect(over.join()).not.toContain('returnDate=2026-12-14');
     });
 
-    it('lists a departure with one return as a list of one, with no error', async () => {
-      stubFetch((name) => json(month(name)));
+    it('clicking the chosen departure again keeps it chosen; only the explicit control undoes it', async () => {
+      stubFetch((name) => json(monthWithReturns(name)));
+
+      renderCalendar();
+      fireEvent.click(
+        await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ }),
+      );
+      for (let click = 0; click < 2; click += 1) {
+        fireEvent.click(screen.getByRole('gridcell', { name: /12 December 2026, your departure/ }));
+        expect((await screen.findByRole('status')).textContent).toContain('3 return dates priced');
+        expect(returnCells()).toHaveLength(3);
+      }
+
+      fireEvent.click(screen.getByRole('button', { name: 'Change the day you leave' }));
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.getByRole('gridcell', { name: /12 December 2026, flights only/ })).toBeTruthy();
+    });
+
+    it('shows a departure with one return as one priced day, with no error', async () => {
+      stubFetch((name) => {
+        const base = month(name);
+        const days = base.days as Record<string, Record<string, unknown>>;
+        const only = ret(`${name}-15`, 90);
+        for (const day of Object.keys(days)) delete days[day];
+        if (name === '2026-12') days[`${name}-12`] = { ...only, returns: [only] };
+        return json(base);
+      });
 
       renderCalendar();
       const cell = await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ });
       fireEvent.click(cell);
-      expect(await screen.findByRole('list', { name: /Return options for leaving/ })).toBeTruthy();
+      expect((await screen.findByRole('status')).textContent).toContain('1 return date priced');
+      expect(returnCells()).toHaveLength(1);
       expect(screen.queryByRole('alert')).toBeNull();
     });
   });

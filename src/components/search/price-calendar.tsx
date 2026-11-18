@@ -433,31 +433,8 @@ export function PriceCalendar({
     })
     .map((month) => monthName(month));
 
-  // Leaving: the cheapest total on each day somebody could leave. Coming back:
-  // the total for each return that goes with the day already chosen.
-  const byDay = React.useMemo(() => {
-    const map = new Map<IsoDate, PriceCalendarOption>();
-
-    // A whole trip is a better answer than a flight alone on the same day, and
-    // among the same kind the cheaper one wins.
-    const better = (a: PriceCalendarOption, b: PriceCalendarOption) =>
-      (a.kind ?? 'trip') !== (b.kind ?? 'trip')
-        ? (a.kind ?? 'trip') === 'trip'
-        : a.amount < b.amount;
-
-    for (const option of options) {
-      if (departure !== null && option.departure !== departure) continue;
-
-      const day = departure === null ? option.departure : option.returnDate;
-      const current = map.get(day);
-      if (!current || better(option, current)) map.set(day, option);
-    }
-
-    return map;
-  }, [options, departure]);
-
   // The returns for the departure chosen: one per return date, cheapest first,
-  // at most MAX_RETURN_OPTIONS. Only what the search and the month already hold.
+  // Only what the search and the month already hold.
   const returnList = React.useMemo(() => {
     if (departure === null) return [];
     const byReturn = new Map<IsoDate, PriceCalendarOption>();
@@ -472,15 +449,71 @@ export function PriceCalendar({
         byReturn.set(option.returnDate, option);
       }
     }
+    // Every later day that is priced as a day to leave is also a day to come
+    // back: offered with that day's own price and labels, unless the stored
+    // pairs already hold a return for the date. The length filter still applies.
+    if (load) {
+      const cheapestOut = new Map<IsoDate, PriceCalendarOption>();
+      for (const option of options) {
+        const seen = cheapestOut.get(option.departure);
+        if (
+          !seen ||
+          tripFirst(option, seen) < 0 ||
+          (tripFirst(option, seen) === 0 && option.amount < seen.amount)
+        ) {
+          cheapestOut.set(option.departure, option);
+        }
+      }
+      const onScreen = new Set(months.slice(offset, offset + 2).map((month) => month.slice(0, 7)));
+      for (const [day, priced] of cheapestOut) {
+        if (!isAfter(day, departure) || byReturn.has(day)) continue;
+        if (!onScreen.has(day.slice(0, 7))) continue;
+        const nights = daysBetween(departure, day);
+        if (load.lengthMin !== undefined && nights < load.lengthMin) continue;
+        if (load.lengthMax !== undefined && nights > load.lengthMax) continue;
+        byReturn.set(day, {
+          ...priced,
+          key: `flight:${departure}..${day}`,
+          departure,
+          returnDate: day,
+          nights,
+          delta: null,
+          href: load.hrefTemplate.replace('__DEPARTURE__', departure).replace('__RETURN__', day),
+        });
+      }
+    }
     // A whole trip is a different price from a flight alone, so the two are not
     // mixed into one ranking: trips first, then flights, each cheapest first.
-    return [...byReturn.values()]
-      .sort(
-        (a, b) =>
-          tripFirst(a, b) || a.amount - b.amount || a.returnDate.localeCompare(b.returnDate),
-      )
-      .slice(0, MAX_RETURN_OPTIONS);
-  }, [options, departure]);
+    return [...byReturn.values()].sort(
+      (a, b) => tripFirst(a, b) || a.amount - b.amount || a.returnDate.localeCompare(b.returnDate),
+    );
+  }, [options, departure, load, months, offset]);
+
+  // Leaving: the cheapest total on each day somebody could leave. Coming back:
+  // each day's cell is the return in `returnList` - the one source the cell and
+  // the figure it stands for both come from, so they cannot disagree.
+  const byDay = React.useMemo(() => {
+    const map = new Map<IsoDate, PriceCalendarOption>();
+
+    if (departure !== null) {
+      for (const option of returnList) map.set(option.returnDate, option);
+      return map;
+    }
+
+    // A whole trip is a better answer than a flight alone on the same day, and
+    // among the same kind the cheaper one wins.
+    const better = (a: PriceCalendarOption, b: PriceCalendarOption) =>
+      (a.kind ?? 'trip') !== (b.kind ?? 'trip')
+        ? (a.kind ?? 'trip') === 'trip'
+        : a.amount < b.amount;
+
+    for (const option of options) {
+      const current = map.get(option.departure);
+      if (!current || better(option, current)) map.set(option.departure, option);
+    }
+
+    return map;
+  }, [options, departure, returnList]);
 
   const sortedAmounts = React.useMemo(
     // Only whole trips set the scale: a flight alone is not a rival price.
@@ -512,6 +545,8 @@ export function PriceCalendar({
       : null;
 
   const inShown = (day: IsoDate) => shown.some((month) => month.slice(0, 7) === day.slice(0, 7));
+  // The return dates priced in the months on screen: what the calendar draws.
+  const returnCount = phase === 'return' ? [...byDay.keys()].filter(inShown).length : 0;
 
   // The one day Tab lands on: where the keyboard last was, else the day leaving,
   // else the first day with a price, else the first of the month.
@@ -698,35 +733,11 @@ export function PriceCalendar({
         </div>
 
         {phase === 'return' ? (
-          returnList.length > 0 ? (
-            <ul
-              aria-label={`Return options for leaving ${shortDay(departure!)}, cheapest first`}
-              className="flex flex-col gap-2"
-            >
-              {returnList.map((option) => (
-                <li key={option.key}>
-                  <a
-                    href={option.href}
-                    className="border-hairline text-ink hover:border-border-strong focus-visible:outline-accent-to flex min-h-11 flex-wrap items-center justify-between gap-x-4 rounded-(--radius-control) border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-                  >
-                    <span>
-                      Back {spoken(option.returnDate)}
-                      <span className="text-ink-muted"> - {option.nights} nights</span>
-                      {option.kind === 'flight' ? (
-                        <span className="text-ink-muted"> - flights only</span>
-                      ) : null}
-                    </span>
-                    <span className="tabular-nums">{option.exact}</span>
-                    <span className="sr-only"> for {party}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p role="status" className="text-ink-muted text-sm">
-              No return priced for this departure yet.
-            </p>
-          )
+          <p role="status" className="text-ink-muted text-sm">
+            {returnCount > 0
+              ? `${returnCount} return ${returnCount === 1 ? 'date' : 'dates'} priced after ${shortDay(departure!)}, shown in the calendar below.`
+              : 'No return priced for this departure yet.'}
+          </p>
         ) : null}
 
         {phase === 'return'
@@ -919,13 +930,17 @@ export function PriceCalendar({
                               key={day}
                               role="gridcell"
                               aria-disabled="true"
-                              aria-label={`${spoken(day)}, ${
-                                isStart
-                                  ? 'your departure, selected, '
-                                  : isEnd
-                                    ? 'your return, '
-                                    : ''
-                              }no price yet`}
+                              aria-label={
+                                isStart && phase === 'return'
+                                  ? `${spoken(day)}, your departure, selected`
+                                  : `${spoken(day)}, ${
+                                      isStart
+                                        ? 'your departure, selected, '
+                                        : isEnd
+                                          ? 'your return, '
+                                          : ''
+                                    }no price yet`
+                              }
                               {...cellKeys(day)}
                               className={cn(
                                 'focus-visible:outline-accent-to flex min-h-12 flex-col items-stretch rounded-(--radius-control) p-1.5 text-sm focus-visible:outline-2 md:min-h-14',
@@ -940,9 +955,17 @@ export function PriceCalendar({
                               >
                                 <span>{number}</span>
                                 <span className="text-[10px] leading-none">
-                                  {isStart ? 'Out' : isEnd ? 'Back' : ''}
+                                  {isStart ? '✓' : isEnd ? 'Back' : ''}
                                 </span>
                               </span>
+                              {isStart && phase === 'return' ? (
+                                <span
+                                  aria-hidden="true"
+                                  className="mt-auto text-[10px] leading-none font-medium"
+                                >
+                                  Leaving
+                                </span>
+                              ) : null}
                               {edge ? null : (
                                 <span
                                   aria-hidden="true"
@@ -975,7 +998,7 @@ export function PriceCalendar({
                               <span className="text-sm font-medium">{number}</span>
                               <span className="text-[10px] leading-none">
                                 {isDeparture
-                                  ? 'Out ✓'
+                                  ? '✓'
                                   : isReturn || isLeaveEnd
                                     ? 'Back'
                                     : isBest
@@ -996,6 +1019,20 @@ export function PriceCalendar({
                               {flightOnly ? <span className="mr-0.5">✈</span> : null}
                               {option.perPerson}
                             </span>
+                            {phase === 'return' ? (
+                              <span
+                                aria-hidden="true"
+                                className={cn(
+                                  'text-[10px] leading-tight tabular-nums',
+                                  isDeparture || isReturn ? 'text-white/85' : 'text-ink-muted',
+                                )}
+                              >
+                                <span className="md:hidden">{option.nights}n</span>
+                                <span className="whitespace-nowrap max-md:hidden">
+                                  {option.nights} {option.nights === 1 ? 'night' : 'nights'}
+                                </span>
+                              </span>
+                            ) : null}
                             {/*
                               Once a departure is chosen, each return is read
                               against the cheapest return for that same day - a
@@ -1007,7 +1044,7 @@ export function PriceCalendar({
                               <span
                                 aria-hidden="true"
                                 className={cn(
-                                  'text-[10px] leading-none tabular-nums',
+                                  'text-[10px] leading-none tabular-nums max-md:hidden',
                                   isDeparture || isReturn ? 'text-white/75' : 'text-ink-muted',
                                 )}
                               >
@@ -1021,7 +1058,7 @@ export function PriceCalendar({
                                 : `whole trip ${option.perPerson} per person, ${option.exact} for ${party}`}
                               {phase === 'leave' && !flightOnly
                                 ? ' at the cheapest'
-                                : `, ${option.nights} nights`}
+                                : `, ${option.nights} ${option.nights === 1 ? 'night' : 'nights'}`}
                               {phase === 'return' && option.delta
                                 ? `, ${option.delta} against the cheapest return for this departure`
                                 : ''}
@@ -1097,6 +1134,14 @@ export function PriceCalendar({
         {/* What the marks mean. Text, so colour is not the only thing saying it. */}
         <ul className="text-ink-muted flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
           <li className="text-ink">Prices per person, for {party}</li>
+          {phase === 'return' ? (
+            <>
+              <li>
+                <span aria-hidden="true">✓ </span>Leaving: the day you leave, the filled cell
+              </li>
+              <li>Under each price: the nights away (3n is 3 nights)</li>
+            </>
+          ) : null}
           <li>
             <span aria-hidden="true">▼ </span>Cheapest dates, and the cheapest flight in each month
           </li>

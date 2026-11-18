@@ -6,6 +6,7 @@ import {
   toSearchProfile,
   withMonthSelection,
   tripLengthSummary,
+  chosenTripLengthSummary,
 } from './schema';
 
 /**
@@ -448,5 +449,15 @@ describe('tripLengthSummary', () => {
     expect(tripLengthSummary(1, 30)).toBe('Any length');
     expect(tripLengthSummary(7, 7)).toBe('7 nights');
     expect(tripLengthSummary(3, 5)).toBe('3-5 nights');
+  });
+});
+
+describe('chosenTripLengthSummary', () => {
+  it('never shows nights the visitor did not choose', () => {
+    expect(chosenTripLengthSummary({}, 7, 7)).toBe('Any length');
+    expect(chosenTripLengthSummary({ tripLength: 'any' }, 7, 7)).toBe('Any length');
+    expect(chosenTripLengthSummary({ tripLength: 'under', tripDays: '7' }, 1, 7)).toBe(
+      '1-7 nights',
+    );
   });
 });
