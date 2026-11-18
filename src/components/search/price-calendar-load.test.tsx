@@ -221,6 +221,47 @@ describe('PriceCalendar loading', () => {
       expect(vi.mocked(fetch).mock.calls.length).toBe(before);
     });
 
+    it('lists the other returns the month holds for a day the search already priced, trips first', async () => {
+      stubFetch((name) => json(monthWithReturns(name)));
+      const priced = {
+        kind: 'trip' as const,
+        key: 'trip:2026-12-12..2026-12-15',
+        departure: '2026-12-12',
+        returnDate: '2026-12-15',
+        nights: 3,
+        exact: '€400.00',
+        whole: '€400',
+        perPerson: '€400',
+        amount: 400,
+        delta: null,
+        href: '/explore?trip',
+      };
+      render(
+        <PriceCalendar
+          options={[priced]}
+          load={LOAD}
+          selected={null}
+          cheapestKey={null}
+          bestValueKey={null}
+          clearHref={null}
+          chips={[]}
+        />,
+      );
+      const cell = await screen.findByRole('gridcell', { name: /12 December 2026/ });
+      await waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(0));
+      fireEvent.click(cell);
+
+      const list = await screen.findByRole('list', { name: /Return options for leaving/ });
+      await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(3));
+      const links = within(list).getAllByRole('link');
+      // The searched trip first, then the flights alone, each cheapest first.
+      expect(links[0]!.textContent).toContain('€400.00');
+      expect(links[0]!.textContent).not.toContain('flights only');
+      expect(links[1]!.textContent).toContain('flights only');
+      expect(links[1]!.textContent).toContain('€120.00');
+      expect(links[2]!.textContent).toContain('€150.00');
+    });
+
     it('lists a departure with one return as a list of one, with no error', async () => {
       stubFetch((name) => json(month(name)));
 

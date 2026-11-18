@@ -94,6 +94,21 @@ describe('CompactSearch date options', () => {
 });
 
 describe('CompactSearch', () => {
+  it('puts the month and trip length where the dates are, not in the folded options', () => {
+    const { container } = renderForm({ variant: 'bar' });
+    const month = container.querySelector<HTMLSelectElement>('select[name="monthStart"]')!;
+    const nights = container.querySelector<HTMLSelectElement>('select[name="tripNights"]')!;
+    const leaving = container.querySelector<HTMLInputElement>('input[name="departureDate"]')!;
+    // One field each, so the form submits one month and one length.
+    expect(container.querySelectorAll('select[name="monthStart"]')).toHaveLength(1);
+    // Not in the options panel that stays shut until it is opened.
+    expect(month.closest('.border-b')).toBeNull();
+    expect(nights.closest('.border-b')).toBeNull();
+    // Beside the dates, in the same cell.
+    expect(month.closest('div.relative, div[class*="cell"]') ?? month.parentElement).toBeTruthy();
+    expect(leaving.closest('form')).toBe(month.closest('form'));
+  });
+
   it('starts folded when nothing was refused', () => {
     // On a phone every field - and so every message about one - is behind the
     // toggle. Left folded, a refused search looks like a button that does nothing.

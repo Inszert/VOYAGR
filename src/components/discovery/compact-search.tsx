@@ -662,23 +662,6 @@ function BarSearch({
 
           {/* How flexible, and the folded fields: only when open. */}
           <div className="border-hairline hidden min-h-0 flex-col gap-3 overflow-y-auto border-b px-3 py-3 group-has-[#hero-search-open:checked]/s:flex">
-            <div className="hidden grid-cols-2 gap-2 group-has-[input[name=flexibility][value=month]:checked]/form:grid">
-              <Select
-                label="Month"
-                name="monthStart"
-                defaultValue={values.monthStart ?? ''}
-                options={monthOptions(today)}
-                bare
-              />
-              <Select
-                label="Trip length"
-                name="tripNights"
-                defaultValue={values.tripNights ?? '7'}
-                options={TRIP_NIGHTS}
-                bare
-              />
-            </div>
-
             <details className="group/more">
               <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
                 <Icon
@@ -745,6 +728,28 @@ function BarSearch({
                     flexibility={form.value('flexibility')}
                     today={today}
                     monthStart={values.monthStart}
+                  />
+                </div>
+                {/*
+                  "Anytime that month" swaps the two dates for a month and a trip
+                  length. They sit here, in the cell the dates left, not in the
+                  folded options: the choice is made in the calendar, and the
+                  fields it asks for have to appear where the dates were.
+                */}
+                <div className="hidden grid-cols-2 gap-2 group-has-[input[name=flexibility][value=month]:checked]/form:grid">
+                  <Select
+                    label="Month"
+                    name="monthStart"
+                    defaultValue={values.monthStart ?? ''}
+                    options={monthOptions(today)}
+                    bare
+                  />
+                  <Select
+                    label="Trip length"
+                    name="tripNights"
+                    defaultValue={values.tripNights ?? '7'}
+                    options={TRIP_NIGHTS}
+                    bare
                   />
                 </div>
               </div>

@@ -9,6 +9,29 @@ const airports = [
   { code: 'BRU', name: 'Brussels', country: 'Belgium', priceable: true },
 ] as never;
 
+describe('the stand-in "anywhere"', () => {
+  it('is selected on focus, so typing a code replaces it', () => {
+    render(
+      <AirportInput label="To" name="destinations" defaultValue="anywhere" airports={airports} />,
+    );
+    const field = screen.getByRole('combobox', { name: 'To' }) as HTMLInputElement;
+    fireEvent.focus(field);
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe('anywhere'.length);
+  });
+
+  it('leaves a typed list alone', () => {
+    render(
+      <AirportInput label="To" name="destinations" defaultValue="BUD, BTS" airports={airports} />,
+    );
+    const field = screen.getByRole('combobox', { name: 'To' }) as HTMLInputElement;
+    field.setSelectionRange(3, 3);
+    fireEvent.focus(field);
+    expect(field.selectionStart).toBe(3);
+    expect(field.selectionEnd).toBe(3);
+  });
+});
+
 describe('the airport suggestions', () => {
   it('stay directly under the field as the suggestions change', () => {
     render(

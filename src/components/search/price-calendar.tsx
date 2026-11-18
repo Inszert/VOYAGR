@@ -42,6 +42,13 @@ import {
  * legend says what each means.
  */
 
+/** Orders a whole trip before a flight alone; 0 when they are the same kind. */
+function tripFirst(a: PriceCalendarOption, b: PriceCalendarOption): number {
+  const x = (a.kind ?? 'trip') === 'trip' ? 0 : 1;
+  const y = (b.kind ?? 'trip') === 'trip' ? 0 : 1;
+  return x - y;
+}
+
 export interface PriceCalendarOption {
   /**
    * A whole trip (the default), or only the flights.
@@ -309,6 +316,9 @@ export function PriceCalendar({
     if (!load) return { options: searchOptions, monthCheapest: new Set<string>() };
 
     const priced = new Set(searchOptions.map((option) => option.departure));
+    const searchPairs = new Set(
+      searchOptions.map((option) => `${option.departure}..${option.returnDate}`),
+    );
     const extra: PriceCalendarOption[] = [];
     const cheapest = new Set<string>();
 
@@ -318,10 +328,13 @@ export function PriceCalendar({
       let low: PriceCalendarOption | null = null;
 
       for (const [day, price] of Object.entries(entry.days)) {
-        if (priced.has(day)) continue;
+        // A day the search priced keeps its trip total in the cell; the month's
+        // other returns for it are still offered once that departure is chosen.
+        const searchPriced = priced.has(day);
 
         // Every return the month holds for this departure, not only the cheapest.
         for (const ret of price.returns ?? [price]) {
+          if (searchPriced && searchPairs.has(`${day}..${ret.returnDate}`)) continue;
           const option: PriceCalendarOption = {
             kind: 'flight',
             key: `flight:${day}..${ret.returnDate}`,
@@ -339,7 +352,7 @@ export function PriceCalendar({
           };
 
           extra.push(option);
-          if (!low || option.amount < low.amount) low = option;
+          if (!searchPriced && (!low || option.amount < low.amount)) low = option;
         }
       }
 
@@ -405,10 +418,21 @@ export function PriceCalendar({
     for (const option of options) {
       if (option.departure !== departure) continue;
       const seen = byReturn.get(option.returnDate);
-      if (!seen || option.amount < seen.amount) byReturn.set(option.returnDate, option);
+      if (
+        !seen ||
+        tripFirst(option, seen) < 0 ||
+        (tripFirst(option, seen) === 0 && option.amount < seen.amount)
+      ) {
+        byReturn.set(option.returnDate, option);
+      }
     }
+    // A whole trip is a different price from a flight alone, so the two are not
+    // mixed into one ranking: trips first, then flights, each cheapest first.
     return [...byReturn.values()]
-      .sort((a, b) => a.amount - b.amount || a.returnDate.localeCompare(b.returnDate))
+      .sort(
+        (a, b) =>
+          tripFirst(a, b) || a.amount - b.amount || a.returnDate.localeCompare(b.returnDate),
+      )
       .slice(0, MAX_RETURN_OPTIONS);
   }, [options, departure]);
 
@@ -640,6 +664,9 @@ export function PriceCalendar({
                     <span>
                       Back {spoken(option.returnDate)}
                       <span className="text-ink-muted"> - {option.nights} nights</span>
+                      {option.kind === 'flight' ? (
+                        <span className="text-ink-muted"> - flights only</span>
+                      ) : null}
                     </span>
                     <span className="tabular-nums">{option.exact}</span>
                     <span className="sr-only"> for {party}</span>

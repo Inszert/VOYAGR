@@ -256,6 +256,14 @@ export function AirportInput({
             setOpen(token.text.length > 0);
           }}
           onKeyDown={onKeyDown}
+          // "anywhere" is a stand-in for a place, not text to type after:
+          // focusing it selects it, so the first letters typed replace it
+          // instead of becoming "LISanywhere", which is no airport.
+          onFocus={(event) => {
+            if (event.currentTarget.value.trim().toLowerCase() === 'anywhere') {
+              event.currentTarget.select();
+            }
+          }}
           // A blur that lands on a suggestion must not close the list before
           // the click registers, so the close waits a frame.
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
