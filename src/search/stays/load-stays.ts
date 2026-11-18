@@ -9,6 +9,7 @@ import { defaultDemoLive } from '@/providers/demo-live';
 import { getStayProviders } from '@/providers/stays/registry';
 import type { DataSource } from '@/providers/data-source';
 import { findAllStayLinks, searchAllStays, type StayFanoutFailure } from '@/providers/stays/fanout';
+import { recordVisitorSearchFromRequest } from '@/search/visitor-search';
 import { exploreStayDates, type StayDatePrice } from './calendar';
 
 /**
@@ -137,6 +138,16 @@ export async function loadStaySearch(
   dependencies: StaySearchDependencies = {},
 ): Promise<StayViewModel> {
   const { query, errors } = parseStayParams(params, today);
+  // What visitors look for feeds the recommendations. Never throws; no destination, no record.
+  if (query.destination.code) {
+    await recordVisitorSearchFromRequest({
+      destinationCodes: [query.destination.code],
+      checkIn: query.checkIn,
+      checkOut: query.checkOut,
+      partySize: query.occupancy.adults + query.occupancy.children,
+      currency: query.currency,
+    });
+  }
   // Which vendors answer, chosen by the runtime data-source switch. `mock`
   // is the fixture list whatever is configured; `api` is the configuration.
   const providers = getStayProviders(undefined, source);

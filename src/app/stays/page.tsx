@@ -18,6 +18,9 @@ import { tintFor } from '@/lib/tint';
 import { imageryCodeForPlace, imageryRefFor, resolveImagery } from '@/providers/imagery';
 import { loadStaySearch, stayHref, type StayParams } from '@/search/stays/load-stays';
 import type { IsoDate } from '@/core/trip/types';
+import { StayStart } from '@/components/stays/stay-start';
+import { loadRecommendations } from '@/search/stays/recommendations';
+import { coveredCities } from '@/search/stays/start-cities';
 import { getActiveDataSource } from '@/providers/request-source';
 
 /**
@@ -78,6 +81,38 @@ export default async function StaysPage({
   // A flight chosen on the trip, carried here as words; null unless the link came from a trip.
   const tripCarry = parseTripCarry(params);
 
+  const nothingSearched = !params.destination && !params.checkIn && !params.property;
+
+  /*
+   * The start screen: nothing searched yet. Stored hotels and the cities we
+   * cover, read on the server from our own snapshot - no vendor call. Every
+   * later step below is untouched.
+   */
+  if (nothingSearched) {
+    const cards = await loadRecommendations({ seed: today, count: 4 });
+    return (
+      <div className="stage-scope bg-bg text-text min-h-screen" data-tint={tintFor(null)}>
+        <Container size="wide" className="flex flex-col gap-8 py-10 lg:gap-5 lg:py-6">
+          <SearchKindTabs
+            active="stays"
+            hrefFor={(kind) =>
+              kind === 'stays'
+                ? stayHref(params, { with: undefined })
+                : `/explore?view=${kind === 'flights' ? 'flight' : 'trip'}`
+            }
+          />
+          <StayStart
+            query={view.query}
+            today={today}
+            cards={cards}
+            cities={coveredCities()}
+            errors={view.errors}
+          />
+        </Container>
+      </div>
+    );
+  }
+
   /*
    * The place's photograph, for the header.
    *
@@ -101,8 +136,6 @@ export default async function StaysPage({
     params,
     dataSource.effective,
   );
-  const nothingSearched = !params.destination && !params.checkIn && !params.property;
-
   const searchKindHref = (kind: 'flights' | 'stays' | 'both') =>
     kind === 'stays'
       ? stayHref(params, { with: undefined })
@@ -117,19 +150,15 @@ export default async function StaysPage({
         <header className="flex flex-col gap-4">
           <SearchKindTabs active={withFlights ? 'both' : 'stays'} hrefFor={searchKindHref} />
 
-          {nothingSearched ? (
-            <h1 className="text-ink font-display text-display-sm">Find a place to stay</h1>
-          ) : (
-            <StayHeader
-              name={view.query.destination.name ?? 'Stays'}
-              imageCode={imageCode}
-              image={image}
-              checkIn={view.query.checkIn}
-              checkOut={view.query.checkOut}
-              nights={view.nights}
-              occupancy={view.query.occupancy}
-            />
-          )}
+          <StayHeader
+            name={view.query.destination.name ?? 'Stays'}
+            imageCode={imageCode}
+            image={image}
+            checkIn={view.query.checkIn}
+            checkOut={view.query.checkOut}
+            nights={view.nights}
+            occupancy={view.query.occupancy}
+          />
         </header>
 
         {tripCarry ? <TripFlightCard carry={tripCarry} /> : null}
@@ -232,7 +261,7 @@ export default async function StaysPage({
           <SnapshotStatusLine status={view.snapshot} />
         ) : null}
 
-        {view.step === 'dates' && !nothingSearched ? (
+        {view.step === 'dates' ? (
           <DatePriceGrid
             city={view.query.destination.name ?? null}
             prices={view.calendar}

@@ -789,6 +789,46 @@ export interface LiteApiSnapshotRepository {
   callsSince(since: IsoDateTime, job?: string): Promise<number>;
 }
 
+export interface VisitorSearchInput {
+  /** Upper-case IATA city or airport code. */
+  readonly destinationCode: string;
+  readonly checkIn: IsoDate;
+  readonly checkOut: IsoDate;
+  readonly partySize: number;
+  /** Upper-case ISO 4217. */
+  readonly currency: string;
+  /** A one-way hash that tells repeats of one search apart. Never personal data. */
+  readonly dedupeKey: string;
+}
+
+export interface VisitorSearchRecord {
+  readonly destinationCode: string;
+  readonly checkIn: IsoDate;
+  readonly checkOut: IsoDate;
+  readonly partySize: number;
+  readonly currency: string;
+  readonly searchedAt: IsoDateTime;
+}
+
+export const VISITOR_SEARCH_DEDUPE_MS = 10 * 60_000;
+export const VISITOR_SEARCH_WINDOW_MS = 30 * 86_400_000;
+
+export interface VisitorSearchRepository {
+  /**
+   * Store a search, stamped with the repository's clock. Returns false, storing nothing, when the
+   * same `dedupeKey` was stored in the last ten minutes.
+   */
+  record(input: VisitorSearchInput): Promise<boolean>;
+  /**
+   * Searches of the last 30 days, newest first, at most `limit` (clamped to 1..200). With
+   * `destinationCodes`, only those destinations.
+   */
+  listRecent(input: {
+    readonly destinationCodes?: readonly string[];
+    readonly limit: number;
+  }): Promise<VisitorSearchRecord[]>;
+}
+
 export interface Repositories {
   readonly users: UserRepository;
   readonly credentials: UserCredentialRepository;
@@ -810,6 +850,7 @@ export interface Repositories {
   readonly tripExpenses: TripExpenseRepository;
   readonly emergencyContacts: EmergencyContactRepository;
   readonly liteapiSnapshot: LiteApiSnapshotRepository;
+  readonly visitorSearches: VisitorSearchRepository;
   /** Identifies the active backend, for diagnostics. */
   readonly backend: 'memory' | 'postgres';
 }

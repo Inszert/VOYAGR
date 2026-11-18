@@ -389,6 +389,18 @@ export function PriceCalendar({
     return map;
   }, [loaded]);
 
+  // Every stored single flight on one day, flights only: out on the day chosen,
+  // and back on the day the cheapest return names. Never a trip price.
+  const storedFlights = (
+    key: 'oneWayOptions' | 'oneWayBack',
+    day: IsoDate | null,
+  ): readonly OneWayPriceJson[] => {
+    if (day === null) return [];
+    const entry = loaded[day.slice(0, 7)];
+    if (entry === undefined || entry === 'failed') return [];
+    return (entry[key]?.[day] ?? []).slice(0, MAX_RETURN_OPTIONS);
+  };
+
   const loading = (day: IsoDate) =>
     load !== undefined && day >= load.today && loaded[day.slice(0, 7)] === undefined;
 
@@ -693,6 +705,39 @@ export function PriceCalendar({
             </p>
           )
         ) : null}
+
+        {phase === 'return'
+          ? (
+              [
+                ['oneWayOptions', 'out', departure, 'Flights out'],
+                ['oneWayBack', 'back', returnList[0]?.returnDate ?? null, 'Flights back'],
+              ] as const
+            ).map(([key, id, day, title]) => {
+              const list = storedFlights(key, day);
+              if (day === null || list.length === 0) return null;
+              return (
+                <ul
+                  key={id}
+                  aria-label={`${title} on ${shortDay(day)}, flights only, cheapest first`}
+                  className="flex flex-col gap-2"
+                >
+                  {list.map((fare, index) => (
+                    <li
+                      key={`${fare.amount}-${index}`}
+                      className="border-hairline text-ink-muted flex min-h-11 flex-wrap items-center justify-between gap-x-4 rounded-(--radius-control) border border-dotted px-3 py-2 text-sm"
+                    >
+                      <span>
+                        {title} {spoken(day)}
+                        <span> - flights only</span>
+                      </span>
+                      <span className="tabular-nums">{fare.exact}</span>
+                      <span className="sr-only"> for {party}</span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })
+          : null}
 
         <div ref={gridRoot} onKeyDown={onGridKeyDown} className="flex flex-col gap-3">
           <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">

@@ -133,6 +133,11 @@ export interface MonthDayPrices {
    * can show one as a return price. A day can be in both.
    */
   readonly oneWay: ReadonlyMap<IsoDate, OneWayEntry>;
+  /**
+   * Up to `MAX_RETURN_OPTIONS` single flights out per day, cheapest first, one
+   * per distinct price. The first of each is what `oneWay` holds for that day.
+   */
+  readonly oneWayOptions: ReadonlyMap<IsoDate, readonly OneWayEntry[]>;
   /** The party every figure is for. */
   readonly passengers: number;
   /** When the cached answer was loaded; null when nothing is known. */
@@ -159,10 +164,15 @@ interface StoredDay extends StoredFare {
 interface StoredMonth {
   /** Per departure day: its returns, cheapest first, at most `MAX_RETURN_OPTIONS`. */
   readonly returns: Record<IsoDate, StoredDay[]>;
-  readonly oneWay: Record<IsoDate, StoredFare>;
+  /** Per day: single flights out, cheapest first, at most `MAX_RETURN_OPTIONS`. */
+  readonly oneWay: Record<IsoDate, StoredFare[]>;
 }
 
-const STORED_SHAPE = 3;
+const STORED_SHAPE = 4;
+
+function toOneWayEntry(stored: StoredFare): OneWayEntry {
+  return { price: money(stored.amount, stored.currency), observedAt: stored.observedAt };
+}
 
 function defaultPool(): LimiterPool {
   return sharedVendorLimiters();
@@ -177,15 +187,26 @@ function firstOf(month: string): IsoDate {
 }
 
 /**
- * Keep the cheaper of what is there and `fare`, per day.
+ * Keep a day's cheapest single flights, one per distinct price.
  *
- * The cheapest known fare wins and keeps its own observed time. A second
- * currency for one day is not comparable, so the first one stays.
+ * The vendor's one-way question answers with every fare it has seen; the
+ * cheapest is the "from" price and the others are kept, up to
+ * `MAX_RETURN_OPTIONS`, so a day can list several. A second currency is not
+ * comparable, so the first stays. The vendor states a price, not a flight
+ * number, so two rows at one price are one option.
  */
-function keepCheapest<T extends StoredFare>(into: Map<IsoDate, T>, day: IsoDate, fare: T): void {
-  const seen = into.get(day);
-  if (seen && (seen.currency !== fare.currency || seen.amount <= fare.amount)) return;
-  into.set(day, fare);
+function keepOneWays(into: Map<IsoDate, StoredFare[]>, day: IsoDate, fare: StoredFare): void {
+  const list = into.get(day);
+  if (!list) {
+    into.set(day, [fare]);
+    return;
+  }
+  if (list[0]!.currency !== fare.currency) return;
+  if (list.some((seen) => seen.amount === fare.amount)) return;
+
+  list.push(fare);
+  list.sort((a, b) => a.amount - b.amount);
+  if (list.length > MAX_RETURN_OPTIONS) list.length = MAX_RETURN_OPTIONS;
 }
 
 /**
@@ -259,7 +280,7 @@ function mergeDayFares(
   minNights: number,
   maxNights: number,
   days: Map<IsoDate, StoredDay[]>,
-  oneWay: Map<IsoDate, StoredFare>,
+  oneWay: Map<IsoDate, StoredFare[]>,
 ): void {
   for (const fare of fares) {
     const fields = {
@@ -269,7 +290,7 @@ function mergeDayFares(
     };
 
     if (fare.returnDate === null) {
-      if (fare.departureDate.startsWith(month)) keepCheapest(oneWay, fare.departureDate, fields);
+      if (fare.departureDate.startsWith(month)) keepOneWays(oneWay, fare.departureDate, fields);
       continue;
     }
 
@@ -298,7 +319,7 @@ async function fetchMonth(
   );
 
   const found = new Map<IsoDate, StoredDay[]>();
-  const oneWay = new Map<IsoDate, StoredFare>();
+  const oneWay = new Map<IsoDate, StoredFare[]>();
   const failures: AppError[] = [];
 
   // One leaf call per request, each taking its own slot; the fan-out around
@@ -397,6 +418,7 @@ export async function loadMonthDayPrices(
     days: new Map(),
     returns: new Map(),
     oneWay: new Map(),
+    oneWayOptions: new Map(),
     passengers,
     loadedAt: null,
     reason,
@@ -467,12 +489,13 @@ export async function loadMonthDayPrices(
     }
 
     const oneWay = new Map<IsoDate, OneWayEntry>();
-    for (const [day, stored] of Object.entries(read.value.oneWay)) {
+    const oneWayOptions = new Map<IsoDate, readonly OneWayEntry[]>();
+    for (const [day, list] of Object.entries(read.value.oneWay)) {
       if (deps.today && day < deps.today) continue;
-      oneWay.set(day, {
-        price: money(stored.amount, stored.currency),
-        observedAt: stored.observedAt,
-      });
+      const entries = list.map(toOneWayEntry);
+      if (entries.length === 0) continue;
+      oneWay.set(day, entries[0]!);
+      oneWayOptions.set(day, entries);
     }
 
     return {
@@ -480,6 +503,7 @@ export async function loadMonthDayPrices(
       days,
       returns,
       oneWay,
+      oneWayOptions,
       passengers,
       loadedAt: read.observedAt,
       reason: read.error ? 'Showing earlier prices; they could not be refreshed.' : null,
@@ -488,5 +512,127 @@ export async function loadMonthDayPrices(
     // Registry or store trouble is a missing price, never a broken page.
     log.warn({ month: query.month, err: error }, 'day prices unavailable');
     return empty('Prices for this month could not be loaded. Try again in a moment.');
+  }
+}
+
+/**
+ * The single flights coming back, per day of the month: from the destination
+ * to the origin, cheapest first, at most `MAX_RETURN_OPTIONS` a day.
+ *
+ * Read from the cache before any call, and stored in its own entry (the
+ * direction is in the key). The vendor answers by month, so a day that is not
+ * stored is a month that is not stored: one question per destination and
+ * source, then the whole month is kept. A vendor with no month questions, or a
+ * failing one, gives an empty map and a reason; it never throws. Each fare is
+ * for one direction and labelled "flights only" by the page, never a trip price.
+ */
+export async function loadMonthReturnFlights(
+  query: DayPriceQuery,
+  deps: DayPriceDeps = {},
+): Promise<{
+  readonly flights: ReadonlyMap<IsoDate, readonly OneWayEntry[]>;
+  readonly reason: string | null;
+}> {
+  const none = (reason: string | null) => ({
+    flights: new Map<IsoDate, readonly OneWayEntry[]>(),
+    reason,
+  });
+  if (!isMonth(query.month) || query.destinations.length === 0) return none('No month to price.');
+
+  try {
+    const flights = deps.flights ?? getProviderRegistry().flights;
+    const store = deps.store ?? getCacheStore();
+    const pool = deps.pool ?? defaultPool();
+    const passengers = query.passengers ?? 1;
+    if (!flights.metadata.answersByMonth || !flights.monthFareSources?.length) return none(null);
+
+    const read = await readThrough<Record<IsoDate, StoredFare[]>>(
+      store,
+      cacheKey('flex', {
+        shape: STORED_SHAPE,
+        direction: 'back',
+        provider: flights.metadata.id,
+        origin: query.origin,
+        destinations: [...query.destinations].sort(),
+        month: query.month,
+        currency: query.currency,
+        passengers,
+      }),
+      {
+        freshMs: DAY_PRICES_FRESH_MS,
+        staleMs: DAY_PRICES_STALE_MS,
+        now: deps.now ?? Date.now,
+        load: async () => {
+          const admit = deps.admit ?? (deps.store ? undefined : admitFromSharedBudget);
+          if (admit && !admit()) {
+            throw new AppError('RATE_LIMITED', 'Day-price load budget spent', {
+              publicMessage: 'Prices are busy right now. Try again shortly.',
+              retryable: true,
+            });
+          }
+          const limiter = pool.for(
+            flights.metadata.id,
+            concurrencyFor(
+              flights.metadata.rateLimitPerMinute,
+              CONCURRENCY_CEILING,
+              flights.metadata.typicalLatencyMs ?? null,
+            ),
+          );
+          const found = new Map<IsoDate, StoredFare[]>();
+          const failures: AppError[] = [];
+          const asks: Promise<void>[] = [];
+          for (const destination of query.destinations) {
+            for (const source of flights.monthFareSources ?? []) {
+              asks.push(
+                (async () => {
+                  // Flying back: the destination is where the flight starts.
+                  const result = await limiter.run(() =>
+                    source.fetch({
+                      origin: destination,
+                      destination: query.origin,
+                      month: query.month,
+                      currency: query.currency,
+                      passengers,
+                    }),
+                  );
+                  if (!isOk(result)) {
+                    failures.push(result.error);
+                    return;
+                  }
+                  for (const fare of result.value) {
+                    if (fare.returnDate !== null || !fare.departureDate.startsWith(query.month)) {
+                      continue;
+                    }
+                    keepOneWays(found, fare.departureDate, {
+                      amount: fare.price.amount,
+                      currency: fare.price.currency,
+                      observedAt: fare.observedAt,
+                    });
+                  }
+                })(),
+              );
+            }
+          }
+          await Promise.all(asks);
+          if (found.size === 0 && failures.length > 0) throw failures[0];
+          return Object.fromEntries(found) as Record<IsoDate, StoredFare[]>;
+        },
+      },
+    );
+
+    if (read.value === null) return none('Flights back could not be loaded.');
+
+    const out = new Map<IsoDate, readonly OneWayEntry[]>();
+    for (const [day, list] of Object.entries(read.value)) {
+      if (deps.today && day < deps.today) continue;
+      if (list.length > 0) out.set(day, list.map(toOneWayEntry));
+    }
+    return {
+      flights: out,
+      reason: read.error ? 'Showing earlier prices; they could not be refreshed.' : null,
+    };
+  } catch (error) {
+    log.warn({ month: query.month, err: error }, 'flights back unavailable');
+    return none('Flights back could not be loaded.');
   }
 }

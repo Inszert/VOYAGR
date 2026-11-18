@@ -1,4 +1,5 @@
 import { ANYWHERE } from '@/search/schema';
+import { recordVisitorSearchFromRequest } from '@/search/visitor-search';
 import { resolveWorldRegion } from '@/search/world-regions';
 import { addDays, daysBetween } from '@/core/dates';
 import { resolveEntitlements } from '@/core/entitlements';
@@ -205,6 +206,14 @@ export async function loadStagePage(
       // resolved from a plan in both cases rather than being a constant here.
       const entitlements = user?.entitlements ?? resolveEntitlements();
       profile = parsed.value.request.profile;
+      // What visitors look for feeds the stays recommendations. Never throws.
+      await recordVisitorSearchFromRequest({
+        destinationCodes: airportCodesIn(values.destinations),
+        checkIn: profile.earliestDeparture,
+        checkOut: profile.latestReturn,
+        partySize: profile.passengers,
+        currency: profile.maxBudget.currency,
+      });
 
       const request = {
         ...parsed.value.request,

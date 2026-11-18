@@ -42,7 +42,9 @@
     "types/**/*.d.ts",
     ".next/dev/types/**/*.ts",
     ".next-demo/types/**/*.ts",
-    ".next-demo/dev/types/**/*.ts"
+    ".next-demo/dev/types/**/*.ts",
+    ".next-airport/types/**/*.ts",
+    ".next-airport/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

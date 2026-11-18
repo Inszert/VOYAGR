@@ -13,8 +13,12 @@ import type {
   LiteApiRunRecord,
   LiteApiRunStart,
   LiteApiSnapshotRepository,
+  VisitorSearchInput,
+  VisitorSearchRecord,
+  VisitorSearchRepository,
 } from './repository';
-import type { SearchProfile } from '@/core/trip/types';
+import { VISITOR_SEARCH_DEDUPE_MS, VISITOR_SEARCH_WINDOW_MS } from './repository';
+import type { IsoDate, SearchProfile } from '@/core/trip/types';
 import type {
   AlertPreferencesInput,
   AlertPreferencesRecord,
@@ -2150,10 +2154,73 @@ class PostgresLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
   }
 }
 
+interface VisitorSearchDbRow {
+  destination_code: string;
+  check_in: string;
+  check_out: string;
+  party_size: number;
+  currency: string;
+  searched_at: Date | string;
+}
+
+class PostgresVisitorSearchRepository implements VisitorSearchRepository {
+  constructor(private readonly clock: () => number) {}
+
+  async record(input: VisitorSearchInput): Promise<boolean> {
+    const now = this.clock();
+    const rows = await query<{ destination_code: string }>(
+      `INSERT INTO visitor_searches
+         (destination_code, check_in, check_out, party_size, currency, dedupe_key, searched_at)
+       SELECT $1::text, $2::date, $3::date, $4::int, $5::text, $6::text, $7::timestamptz
+        WHERE NOT EXISTS (
+          SELECT 1 FROM visitor_searches WHERE dedupe_key = $6::text AND searched_at > $8::timestamptz
+        )
+       RETURNING destination_code`,
+      [
+        input.destinationCode,
+        input.checkIn,
+        input.checkOut,
+        input.partySize,
+        input.currency,
+        input.dedupeKey,
+        new Date(now).toISOString(),
+        new Date(now - VISITOR_SEARCH_DEDUPE_MS).toISOString(),
+      ],
+    );
+    return rows.length > 0;
+  }
+
+  async listRecent(input: {
+    readonly destinationCodes?: readonly string[];
+    readonly limit: number;
+  }): Promise<VisitorSearchRecord[]> {
+    const limit = Math.min(200, Math.max(1, Math.trunc(input.limit) || 1));
+    const since = new Date(this.clock() - VISITOR_SEARCH_WINDOW_MS).toISOString();
+    const rows = await query<VisitorSearchDbRow>(
+      `SELECT destination_code, check_in::text AS check_in, check_out::text AS check_out,
+              party_size, currency, searched_at
+         FROM visitor_searches
+        WHERE searched_at >= $1 AND ($2::text[] IS NULL OR destination_code = ANY($2::text[]))
+        ORDER BY searched_at DESC
+        LIMIT $3`,
+      [since, input.destinationCodes ? [...input.destinationCodes] : null, limit],
+    );
+    return rows.map((row) => ({
+      destinationCode: row.destination_code,
+      checkIn: row.check_in as IsoDate,
+      checkOut: row.check_out as IsoDate,
+      partySize: row.party_size,
+      currency: row.currency,
+      searchedAt: toIso(row.searched_at),
+    }));
+  }
+}
+
 /** The Postgres-backed persistence surface. */
 export function createPostgresRepositories(options: RepositoryOptions = {}): Repositories {
   return {
     liteapiSnapshot: new PostgresLiteApiSnapshotRepository(options.now ?? Date.now),
+    visitorSearches: new PostgresVisitorSearchRepository(options.now ?? Date.now),
     users: new PostgresUserRepository(),
     credentials: new PostgresUserCredentialRepository(),
     sessions: new PostgresSessionRepository(),

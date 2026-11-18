@@ -18,7 +18,7 @@ export default function StaysLoading() {
           <Skeleton className="h-[12rem] rounded-(--radius-surface) sm:h-[15rem]" />
         </div>
 
-        <Skeleton className="h-20 rounded-(--radius-card)" label="Looking for places to stay" />
+        <Skeleton className="h-20 rounded-(--radius-card)" label="Loading stays" />
 
         <div className="flex flex-col gap-3">
           <Skeleton className="h-7 w-60" />

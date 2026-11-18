@@ -13,7 +13,7 @@ import type {
   MonthFareQuery,
   MonthFareSource,
 } from '@/providers/types';
-import { loadMonthDayPrices } from './day-prices';
+import { loadMonthDayPrices, loadMonthReturnFlights } from './day-prices';
 import { MAX_RETURN_OPTIONS, toMonthPricesJson } from './day-prices-json';
 
 /**
@@ -387,5 +387,86 @@ describe('further day sources, merged per day', () => {
       await loadMonthDayPrices(query, deps);
       expect(calls.length).toBe(made);
     });
+  });
+});
+
+describe('single flights per day, out and back, read from the store first', () => {
+  const day = '2026-12-10';
+
+  /** A vendor with one one-way question; `fares` is what it answers for each direction. */
+  function oneWayVendor(fares: { out: readonly number[]; back: readonly number[] }) {
+    const vendor = fakeVendor();
+    const asked: MonthFareQuery[] = [];
+    (vendor.provider as { monthFareSources?: MonthFareSource[] }).monthFareSources = [
+      {
+        id: 'one-way',
+        async fetch(q) {
+          asked.push(q);
+          const list = q.origin === 'VIE' ? fares.out : fares.back;
+          return ok(
+            list.map((amount) => ({
+              departureDate: day,
+              returnDate: null,
+              price: money(amount * q.passengers, 'EUR'),
+              observedAt: '2026-11-14T00:00:00.000Z',
+            })),
+          );
+        },
+      },
+    ];
+    return { ...setup(vendor), asked };
+  }
+
+  it('lists several outgoing and several return flights, cheapest first', async () => {
+    const { deps, query } = oneWayVendor({ out: [9000, 4000, 6500], back: [7000, 3000] });
+    const result = await loadMonthDayPrices(query, deps);
+    const back = await loadMonthReturnFlights(query, deps);
+
+    expect(result.oneWayOptions.get(day)?.map((e) => e.price.amount)).toEqual([4000, 6500, 9000]);
+    expect(result.oneWay.get(day)?.price).toEqual(money(4000, 'EUR'));
+    expect(back.flights.get(day)?.map((e) => e.price.amount)).toEqual([3000, 7000]);
+
+    const json = toMonthPricesJson(result, back.flights);
+    expect(json.oneWayOptions?.[day]).toHaveLength(3);
+    expect(json.oneWayBack?.[day]).toHaveLength(2);
+  });
+
+  it('holds at most the limit, one per price', async () => {
+    const { deps, query } = oneWayVendor({
+      out: [100, 100, 200, 300, 400, 500, 600, 700],
+      back: [],
+    });
+    const result = await loadMonthDayPrices(query, deps);
+    expect(result.oneWayOptions.get(day)?.map((e) => e.price.amount)).toEqual([
+      100, 200, 300, 400, 500,
+    ]);
+  });
+
+  it('a stored month is read with zero provider calls; a missing one is one call, then stored', async () => {
+    const { deps, query, asked } = oneWayVendor({ out: [4000], back: [3000, 5000] });
+
+    const first = await loadMonthReturnFlights(query, deps);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({ origin: 'AYT', destination: 'VIE' });
+    expect(first.flights.get(day)).toHaveLength(2);
+
+    const again = await loadMonthReturnFlights(query, deps);
+    expect(asked).toHaveLength(1);
+    expect(again.flights.get(day)).toHaveLength(2);
+
+    // Another month was never stored: one more call, and then it is.
+    await loadMonthReturnFlights({ ...query, month: '2027-01' }, deps);
+    expect(asked).toHaveLength(2);
+    await loadMonthReturnFlights({ ...query, month: '2027-01' }, deps);
+    expect(asked).toHaveLength(2);
+  });
+
+  it('a provider that gives one fare per day shows one, and the data cannot hold more', async () => {
+    const { deps, query } = oneWayVendor({ out: [4000], back: [3000] });
+    const result = await loadMonthDayPrices(query, deps);
+    const back = await loadMonthReturnFlights(query, deps);
+
+    expect(result.oneWayOptions.get(day)).toHaveLength(1);
+    expect(back.flights.get(day)).toHaveLength(1);
   });
 });

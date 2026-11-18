@@ -4,7 +4,7 @@ import { FixedWindowLimiter } from '@/lib/fixed-window';
 import { resolveClientKey } from '@/lib/client-key';
 import { getProviderRegistry } from '@/providers/registry';
 import { getActiveDataSource } from '@/providers/request-source';
-import { isMonth, loadMonthDayPrices } from '@/search/day-prices';
+import { isMonth, loadMonthDayPrices, loadMonthReturnFlights } from '@/search/day-prices';
 import { toMonthPricesJson } from '@/search/day-prices-json';
 
 /**
@@ -115,23 +115,22 @@ export async function GET(request: Request) {
   };
 
   const source = (await getActiveDataSource()).effective;
-  const prices = await loadMonthDayPrices(
-    {
-      origin,
-      destinations,
-      month,
-      currency,
-      passengers,
-      ...optionalNights('minNights'),
-      ...optionalNights('maxNights'),
-    },
-    {
-      flights: getProviderRegistry(source).flights,
-      today,
-    },
-  );
+  const query = {
+    origin,
+    destinations,
+    month,
+    currency,
+    passengers,
+    ...optionalNights('minNights'),
+    ...optionalNights('maxNights'),
+  };
+  const deps = { flights: getProviderRegistry(source).flights, today };
+  const [prices, back] = await Promise.all([
+    loadMonthDayPrices(query, deps),
+    loadMonthReturnFlights(query, deps),
+  ]);
 
-  return NextResponse.json(toMonthPricesJson(prices), {
+  return NextResponse.json(toMonthPricesJson(prices, back.flights), {
     headers: { 'Cache-Control': 'no-store' },
   });
 }

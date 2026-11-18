@@ -89,3 +89,40 @@ describe('loadRecommendations', () => {
     expect(a).toEqual(b);
   });
 });
+
+describe('loadRecommendations from visitor searches', () => {
+  const lisRow = () => row({ rates: toStoredRates([{ property: aProperty, rates: [aRate] }]) });
+  const otherProperty = { ...aProperty, id: 'liteapi:par1', name: 'Hotel Seine' };
+  const parRow = () =>
+    row({
+      destinationCode: 'PAR',
+      rates: toStoredRates([{ property: otherProperty, rates: [aRate] }]),
+    });
+  const searches = (codes: string[]) => ({
+    listRecent: async () =>
+      codes.map((destinationCode) => ({
+        destinationCode,
+        checkIn: '2027-02-09' as const,
+        checkOut: '2027-02-13' as const,
+        partySize: 2,
+        currency: 'EUR',
+        searchedAt: new Date(NOW).toISOString(),
+      })),
+  });
+
+  it('recommends the destination a visitor recently searched', async () => {
+    const cards = await loadRecommendations(
+      { seed: 's', count: 5 },
+      { ...deps([lisRow(), parRow()]), searches: searches(['PAR']) },
+    );
+    expect(cards.map((card) => card.name)).toEqual(['Hotel Seine']);
+  });
+
+  it('uses the stored rates when there are no recent searches', async () => {
+    const cards = await loadRecommendations(
+      { seed: 's', count: 5 },
+      { ...deps([lisRow(), parRow()]), searches: searches([]) },
+    );
+    expect(cards.map((card) => card.name).sort()).toEqual(['Hotel Alfama', 'Hotel Seine']);
+  });
+});

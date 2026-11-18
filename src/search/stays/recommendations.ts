@@ -4,7 +4,11 @@ import { cheapestRate } from '@/core/stay/comparison';
 import { pickRecommendations, type RecommendCandidate } from '@/core/stay/recommend';
 import type { StayProperty } from '@/core/stay/types';
 import { getRepositories } from '@/db';
-import type { LiteApiEnvironment, LiteApiSnapshotRepository } from '@/db/repository';
+import type {
+  LiteApiEnvironment,
+  LiteApiSnapshotRepository,
+  VisitorSearchRepository,
+} from '@/db/repository';
 import { getEnv, liteApiEnvironment } from '@/lib/env';
 import { getLogger } from '@/lib/logger';
 import { readStoredRates } from '@/liteapi-snapshot/stored-schema';
@@ -21,6 +25,7 @@ import { readStoredRates } from '@/liteapi-snapshot/stored-schema';
 const log = getLogger('search.stays.recommendations');
 
 const ROW_LIMIT = 12;
+const SEARCH_LIMIT = 100;
 
 export interface RecommendationPrice {
   /** The whole stay, as quoted. Never includes anything payable at the hotel. */
@@ -46,6 +51,8 @@ export interface RecommendationCard extends RecommendCandidate {
 
 export interface RecommendationDependencies {
   readonly repository: Pick<LiteApiSnapshotRepository, 'recentRates'>;
+  /** Recent visitor searches. Absent means the stored prices alone choose. */
+  readonly searches?: Pick<VisitorSearchRepository, 'listRecent'>;
   readonly environment: LiteApiEnvironment;
   readonly now: number;
 }
@@ -53,6 +60,7 @@ export interface RecommendationDependencies {
 function defaultDependencies(): RecommendationDependencies {
   return {
     repository: getRepositories().liteapiSnapshot,
+    searches: getRepositories().visitorSearches,
     environment: liteApiEnvironment(getEnv()) ?? 'sandbox',
     now: Date.now(),
   };
@@ -103,10 +111,24 @@ export async function loadRecommendations(
   dependencies?: RecommendationDependencies,
 ): Promise<RecommendationCard[]> {
   const deps = dependencies ?? defaultDependencies();
-  const rows = await deps.repository.recentRates({
+  const allRows = await deps.repository.recentRates({
     environment: deps.environment,
     limit: ROW_LIMIT,
   });
+  /*
+   * What visitors searched for comes first: the stored hotels and prices of each recently searched
+   * destination. With no recent searches, or none we hold prices for, the newest stored rows
+   * stand in. Either way it is our own database; no vendor is called.
+   */
+  const searched = await deps.searches
+    ?.listRecent({ limit: SEARCH_LIMIT })
+    .catch((error: unknown) => {
+      log.warn({ error: error instanceof Error ? error.message : 'unknown' }, 'searches unread');
+      return [];
+    });
+  const searchedCodes = new Set((searched ?? []).map((search) => search.destinationCode));
+  const fromSearches = allRows.filter((row) => searchedCodes.has(row.destinationCode));
+  const rows = fromSearches.length > 0 ? fromSearches : allRows;
 
   // Newest row first; a hotel seen twice keeps its newest, priced card.
   const byHotel = new Map<string, RecommendationCard>();

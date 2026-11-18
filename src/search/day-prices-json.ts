@@ -1,7 +1,7 @@
 import { format, toMajor, type Money } from '@/core/money';
 import { perTraveller } from '@/core/party';
 import type { IsoDate } from '@/core/trip/types';
-import type { DayPriceEntry, MonthDayPrices } from './day-prices';
+import type { DayPriceEntry, MonthDayPrices, OneWayEntry } from './day-prices';
 
 /**
  * A month of day prices as the calendar receives it.
@@ -57,6 +57,10 @@ export interface MonthPricesJson {
   readonly days: Readonly<Record<IsoDate, DayPriceJson>>;
   /** Days with a one-way fare out. A day can be here and in `days`. */
   readonly oneWay: Readonly<Record<IsoDate, OneWayPriceJson>>;
+  /** Every stored single flight out per day, cheapest first, at most `MAX_RETURN_OPTIONS`. Flights only. */
+  readonly oneWayOptions?: Readonly<Record<IsoDate, readonly OneWayPriceJson[]>>;
+  /** The same for the direction back (destination to origin). Flights only. */
+  readonly oneWayBack?: Readonly<Record<IsoDate, readonly OneWayPriceJson[]>>;
   readonly reason: string | null;
 }
 
@@ -74,7 +78,10 @@ export function formatPerPersonWhole(total: Money, travellers: number): string {
   return formatWhole(perTraveller(total, travellers).each);
 }
 
-export function toMonthPricesJson(prices: MonthDayPrices): MonthPricesJson {
+export function toMonthPricesJson(
+  prices: MonthDayPrices,
+  back?: ReadonlyMap<IsoDate, readonly OneWayEntry[]>,
+): MonthPricesJson {
   const days: Record<IsoDate, DayPriceJson> = {};
 
   const toOption = (entry: DayPriceEntry): ReturnOptionJson => ({
@@ -105,11 +112,25 @@ export function toMonthPricesJson(prices: MonthDayPrices): MonthPricesJson {
     };
   }
 
+  const listJson = (source: ReadonlyMap<IsoDate, readonly OneWayEntry[]>) => {
+    const out: Record<IsoDate, readonly OneWayPriceJson[]> = {};
+    for (const [day, list] of source) {
+      out[day] = list.slice(0, MAX_RETURN_OPTIONS).map((entry) => ({
+        exact: format(entry.price),
+        perPerson: formatPerPersonWhole(entry.price, prices.passengers),
+        amount: toMajor(entry.price),
+      }));
+    }
+    return out;
+  };
+
   return {
     month: prices.month,
     passengers: prices.passengers,
     days,
     oneWay,
+    oneWayOptions: listJson(prices.oneWayOptions),
+    ...(back ? { oneWayBack: listJson(back) } : {}),
     reason: prices.reason,
   };
 }

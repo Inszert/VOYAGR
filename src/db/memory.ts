@@ -20,6 +20,9 @@ import type {
   LiteApiRunRecord,
   LiteApiRunStart,
   LiteApiSnapshotRepository,
+  VisitorSearchInput,
+  VisitorSearchRecord,
+  VisitorSearchRepository,
   NotificationRecord,
   NotificationRepository,
   PasswordResetRepository,
@@ -60,6 +63,7 @@ import type {
   UserRecord,
   UserRepository,
 } from './repository';
+import { VISITOR_SEARCH_DEDUPE_MS, VISITOR_SEARCH_WINDOW_MS } from './repository';
 import { AppError } from '@/lib/errors';
 import { summariseProviderCalls } from '@/providers/observability';
 
@@ -1222,7 +1226,50 @@ class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
   }
 }
 
+class MemoryVisitorSearchRepository implements VisitorSearchRepository {
+  private readonly rows: (VisitorSearchRecord & { dedupeKey: string })[] = [];
+
+  constructor(private readonly clock: () => number) {}
+
+  async record(input: VisitorSearchInput): Promise<boolean> {
+    const now = this.clock();
+    const repeat = this.rows.some(
+      (row) =>
+        row.dedupeKey === input.dedupeKey &&
+        now - Date.parse(row.searchedAt) < VISITOR_SEARCH_DEDUPE_MS,
+    );
+    if (repeat) return false;
+    this.rows.push({
+      destinationCode: input.destinationCode,
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
+      partySize: input.partySize,
+      currency: input.currency,
+      dedupeKey: input.dedupeKey,
+      searchedAt: new Date(now).toISOString(),
+    });
+    return true;
+  }
+
+  async listRecent(input: {
+    readonly destinationCodes?: readonly string[];
+    readonly limit: number;
+  }): Promise<VisitorSearchRecord[]> {
+    const limit = Math.min(200, Math.max(1, Math.trunc(input.limit) || 1));
+    const since = this.clock() - VISITOR_SEARCH_WINDOW_MS;
+    const codes = input.destinationCodes ? new Set(input.destinationCodes) : null;
+    return this.rows
+      .filter(
+        (row) => Date.parse(row.searchedAt) >= since && (!codes || codes.has(row.destinationCode)),
+      )
+      .sort((a, b) => Date.parse(b.searchedAt) - Date.parse(a.searchedAt))
+      .slice(0, limit)
+      .map(({ dedupeKey: _key, ...record }) => record);
+  }
+}
+
 export function createMemoryRepositories(options: RepositoryOptions = {}): Repositories {
+  const visitorSearches = new MemoryVisitorSearchRepository(options.now ?? Date.now);
   const liteapiSnapshot = new MemoryLiteApiSnapshotRepository(options.now ?? Date.now);
   const users = new MemoryUserRepository();
   const credentials = new MemoryUserCredentialRepository();
@@ -1310,6 +1357,7 @@ export function createMemoryRepositories(options: RepositoryOptions = {}): Repos
     tripExpenses,
     emergencyContacts,
     liteapiSnapshot,
+    visitorSearches,
     backend: 'memory',
   };
 }
