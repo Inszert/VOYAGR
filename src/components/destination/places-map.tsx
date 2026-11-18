@@ -113,6 +113,7 @@ export function PlacesMap({
           container: element,
           bounds,
           fitBoundsOptions: { padding: 40, maxZoom: focus ? 15 : MAX_FIT_ZOOM },
+          minZoom: 1,
           maxZoom: 18,
           dragRotate: false,
           pitchWithRotate: false,

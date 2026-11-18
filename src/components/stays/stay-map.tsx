@@ -15,9 +15,8 @@ import type { StayRow } from './stay-rows';
  * raster tiles via `@/components/map/osm`, with the licence's credit line always
  * on screen. Each hotel sits at its real coordinates.
  *
- * **Constrained to the city.** `maxBounds` is the listing box plus a margin and
- * the minimum zoom is the one that fits it, so the map cannot be dragged off to
- * somewhere the list says nothing about.
+ * **Opens on the city, zooms out to the world.** The map fits the hotels, but the
+ * visitor may zoom out (minimum zoom 1) to see where the city sits.
  *
  * **Every pin is a button.** Tab order is list order; focus or hover opens the
  * card (a Radix popover anchored to the pin) and Escape closes it; a click
@@ -108,8 +107,6 @@ export function StayMap({
         if (cancelled) return;
         maplibre.setWorkerUrl(`/maplibre/${maplibre.getVersion()}/maplibre-gl-worker.mjs`);
 
-        const width = area.east - area.west;
-        const height = area.north - area.south;
         /*
          * Opens on where the hotels are - the middle eighty per cent of them,
          * so one guest house at the edge of the box does not zoom the whole
@@ -138,10 +135,7 @@ export function StayMap({
           container: element,
           bounds,
           fitBoundsOptions: { padding: 24 },
-          maxBounds: [
-            [area.west - width * 0.25, area.south - height * 0.25],
-            [area.east + width * 0.25, area.north + height * 0.25],
-          ],
+          minZoom: 1,
           maxZoom: 17,
           dragRotate: false,
           pitchWithRotate: false,
@@ -182,8 +176,6 @@ export function StayMap({
 
         map.once('load', () => {
           if (cancelled || !map) return;
-          // Cannot zoom out of the city: the fitted zoom is the floor.
-          map.setMinZoom(Math.max(0, map.getZoom() - 0.5));
           setStatus('ready');
         });
         map.on('error', () => {
