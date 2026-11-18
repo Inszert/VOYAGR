@@ -221,7 +221,11 @@ describe('YourTrip', () => {
   it('shows the eSIM, transfer and compensation partners with their links', () => {
     const extras = offersForTrip({ categories: ['esim', 'transfer', 'compensation'] });
     renderTrip(built(), { extras });
-    const section = screen.getByRole('region', { name: 'Add to this trip' });
+    const section = screen.getByRole('complementary', { name: 'Partners' });
+    expect(within(section).getByRole('heading', { name: 'Partners' })).toBeTruthy();
+    expect(
+      within(screen.getByRole('complementary', { name: 'Trip summary' })).queryByText('Yesim'),
+    ).toBeNull();
     for (const name of ['Yesim', 'GigSky', 'Intui', 'AirHelp']) {
       expect(within(section).getByText(name)).toBeTruthy();
     }

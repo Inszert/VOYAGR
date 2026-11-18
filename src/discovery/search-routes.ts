@@ -1,5 +1,6 @@
 import { resolveDestinationGeo, resolveOriginGeo } from '@/search/destination-names';
 import { greatCirclePath } from './geo';
+import { LAUNCH_SET } from './launch-set';
 import type { Route } from './map-model';
 
 /**
@@ -116,4 +117,40 @@ export function routeCountText(result: RoutePairs): string {
   const noun = shown === 1 ? 'route' : 'routes';
   const more = result.beyondCeiling > 0 ? `, ${result.beyondCeiling} more not drawn` : '';
   return `${shown} ${noun} shown${more}`;
+}
+
+/** Where the default lines start when nobody has typed an origin. */
+export const DEFAULT_ROUTE_ORIGIN = 'VIE';
+/** How many default lines are drawn from it. */
+export const DEFAULT_ROUTE_COUNT = 8;
+
+/**
+ * The places to join before anybody has searched.
+ *
+ * An empty globe says nothing, so with no search the page draws routes from
+ * Vienna (or the origin typed) to launch-set airports that have coordinates.
+ * They are routes only: no price is attached or implied. A typed destination
+ * list is used as typed.
+ */
+export function defaultRoutePlaces(
+  typedOrigins: readonly string[],
+  typedDestinations: readonly string[],
+  positionOf: PositionOf = airportPosition,
+): { origins: string[]; destinations: string[] } {
+  const origins = typedOrigins.length > 0 ? [...typedOrigins] : [DEFAULT_ROUTE_ORIGIN];
+  if (typedDestinations.length > 0) return { origins, destinations: [...typedDestinations] };
+
+  const destinations: string[] = [];
+  for (const code of LAUNCH_SET) {
+    if (destinations.length >= DEFAULT_ROUTE_COUNT) break;
+    if (origins.includes(code)) continue;
+    let placed = null;
+    try {
+      placed = positionOf(code);
+    } catch {
+      // Not placeable: skipped.
+    }
+    if (placed) destinations.push(code);
+  }
+  return { origins, destinations };
 }

@@ -43,6 +43,8 @@ export interface DateRangeFieldProps {
   /** Drop each half's border, for a segmented bar. See `Field`. */
   bare?: boolean;
   className?: string;
+  /** Anything that belongs with the calendar, drawn under its months. */
+  footer?: React.ReactNode;
 }
 
 const iso = (value: string | undefined): IsoDate | null =>
@@ -62,6 +64,7 @@ export function DateRangeField({
   required,
   bare = false,
   className,
+  footer,
 }: DateRangeFieldProps) {
   const startId = React.useId();
   const endId = React.useId();
@@ -316,6 +319,8 @@ export function DateRangeField({
             />
           </div>
         </div>
+
+        {footer ? <div className="border-hairline mt-3 border-t pt-3">{footer}</div> : null}
       </PopoverPanel>
     </Popover>
   );

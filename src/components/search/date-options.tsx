@@ -264,6 +264,7 @@ export function DateOptions({
    * screen, so the chip means "this month, this many nights" rather than
    * nothing at all.
    */
+  const todayIso = new Date().toISOString().slice(0, 10);
   const first = breakdown.options[0]!.window;
   const current = searchValues.flexibility ?? 'plus-minus-3';
 
@@ -281,7 +282,12 @@ export function DateOptions({
             }
           : { flexibility: preset },
       ),
-      active: current === preset,
+      active:
+        current === preset &&
+        !(
+          preset === 'month' &&
+          (searchValues.monthStart ?? '').slice(0, 7) === startOfMonth(todayIso).slice(0, 7)
+        ),
     })),
     {
       label: 'Exact window',
@@ -291,24 +297,17 @@ export function DateOptions({
   ];
 
   /*
-   * The four quick choices, shown above the calendar.
+   * "This month", the one quick choice that is not a preset of its own.
    *
-   * Each is a value of the same `flexibility` parameter the chips above use,
-   * not a new one. "This month" is the month preset anchored on the current
-   * month; "Any date" is the same preset anchored on the month of the dates
-   * on screen, which is how far the search can open the dates up.
+   * It is the `month` preset anchored on the current month, so it submits the
+   * same `flexibility` the other options do. It joins the presets in the one
+   * list of date options in the calendar; "Any date" is gone because it was
+   * "Anytime that month" under another name.
    */
-  const todayIso = new Date().toISOString().slice(0, 10);
   const thisMonth = startOfMonth(todayIso);
   const onThisMonth =
     current === 'month' && (searchValues.monthStart ?? '').slice(0, 7) === thisMonth.slice(0, 7);
   const tripNights = searchValues.tripNights ?? String(first.nights);
-  const preset = (value: 'plus-minus-3' | 'plus-minus-7'): PriceCalendarChip => ({
-    label: FLEXIBILITY_LABELS[value],
-    href: linkWith(basePath, searchValues, { flexibility: value }),
-    active: current === value,
-  });
-
   const shortcuts: PriceCalendarChip[] = [
     {
       label: 'This month',
@@ -318,17 +317,6 @@ export function DateOptions({
         tripNights,
       }),
       active: onThisMonth,
-    },
-    preset('plus-minus-3'),
-    preset('plus-minus-7'),
-    {
-      label: 'Any date',
-      href: linkWith(basePath, searchValues, {
-        flexibility: 'month',
-        monthStart: startOfMonth(first.departureDate),
-        tripNights,
-      }),
-      active: current === 'month' && !onThisMonth,
     },
   ];
 

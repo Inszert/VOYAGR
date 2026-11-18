@@ -15,9 +15,9 @@ import { weightWord } from './part-weight-words';
  * computed here. A change applies on release (the native `change` event of a
  * range input), not on every pixel the thumb crosses.
  *
- * Layout: one fieldset, one grid. Label, track and word are three columns shared by
- * every row (subgrid), so the words and the tracks line up. Five tick marks under each
- * track are the five stops, so the word and the thumb's position agree. "Reset to
+ * Layout: one calm card. Each row has its name on the left and its current word on the
+ * right, with the track beneath. Five tick marks under each track are the five stops, so
+ * the word and the thumb's position agree. "Reset to
  * normal" only exists while something is not normal.
  */
 
@@ -80,17 +80,21 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
     <form
       onSubmit={(event) => event.preventDefault()}
       aria-label="What matters most"
-      className="border-border bg-surface-sunken min-w-0 rounded-(--radius-surface) border p-4"
+      className="border-border bg-surface-sunken min-w-0 rounded-(--radius-card) border p-4"
     >
       <fieldset
         aria-describedby="weights-hint"
-        className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0"
+        className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0"
       >
-        <legend className="text-ink p-0 text-sm font-medium">What matters most</legend>
-        <div className="flex min-h-11 items-start justify-between gap-3">
-          <p id="weights-hint" className="text-ink-muted min-w-0 text-xs">
-            Re-orders Best match. Prices and scores never change.
-          </p>
+        <legend className="text-ink float-left w-full p-0 text-base font-medium">
+          What matters most
+        </legend>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <p id="weights-hint" className="text-ink-muted text-sm">
+              Re-orders Best match. Prices and scores never change.
+            </p>
+          </div>
           {changed ? (
             <Button
               type="button"
@@ -104,18 +108,25 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
             </Button>
           ) : null}
         </div>
-        <div className="grid grid-cols-[max-content_minmax(0,1fr)_3.25rem] gap-x-3">
+        <div className="divide-border flex flex-col divide-y">
           {PARTS.map(({ part, label }) => {
             const id = `weight-${part}`;
             const word = weightWord(shown[part]);
             return (
-              <div
-                key={part}
-                className="col-span-3 grid min-h-11 grid-cols-subgrid items-center py-1"
-              >
-                <label htmlFor={id} className="text-ink text-sm">
-                  {label}
-                </label>
+              <div key={part} className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <label htmlFor={id} className="text-ink text-sm font-medium">
+                    {label}
+                  </label>
+                  <span
+                    aria-hidden="true"
+                    className={
+                      shown[part] === 1 ? 'text-ink-muted text-sm' : 'text-ink text-sm font-medium'
+                    }
+                  >
+                    {word}
+                  </span>
+                </div>
                 <div className="flex min-w-0 flex-col">
                   <input
                     id={id}
@@ -140,27 +151,19 @@ export function PartWeightsControl({ values }: PartWeightsControlProps) {
                         apply(part, Number(event.currentTarget.value));
                       }
                     }}
-                    className="accent-tint focus-visible:outline-accent-to h-6 w-full min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="accent-tint focus-visible:outline-accent-to h-8 w-full min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
                   />
                   <span aria-hidden="true" className="flex justify-between px-2">
                     {STOPS.map((stop) => (
                       <span
                         key={stop}
                         className={
-                          stop === 1 ? 'bg-ink-muted h-1.5 w-px' : 'bg-ink-muted/60 h-1 w-px'
+                          stop === 1 ? 'bg-ink-muted h-2 w-px' : 'bg-ink-muted/60 h-1.5 w-px'
                         }
                       />
                     ))}
                   </span>
                 </div>
-                <span
-                  aria-hidden="true"
-                  className={
-                    shown[part] === 1 ? 'text-ink-muted text-xs' : 'text-ink text-xs font-medium'
-                  }
-                >
-                  {word}
-                </span>
               </div>
             );
           })}

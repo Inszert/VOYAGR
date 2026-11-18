@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import {
   FLEXIBILITY_HINTS,
@@ -25,11 +27,30 @@ export interface FlexibilityChipsProps {
   /** What the row is called, for the group. */
   label?: string;
   className?: string;
+  /** Today, so "This month" can tell which month it means. */
+  today?: string;
+  /** The month chosen, as the form has it, to tell "This month" from "Any date". */
+  monthStart?: string;
+  /** Set to drive the choice from outside, when the radios are not in the form's own tree. */
+  choice?: Choice;
+  onChoiceChange?: (choice: Choice) => void;
 }
 
 type Value = FlexibilityPreset | 'custom';
 
-const ORDER: readonly Value[] = [
+/**
+ * What can be chosen, as radios of the one `flexibility` field.
+ *
+ * `this-month` is not a value of its own: it is the `month` preset with the
+ * Month field set to the current month, so it submits exactly what "Anytime
+ * that month" submits - `flexibility=month` - and only the month differs.
+ */
+export type FlexibilityChoice = Value | 'this-month';
+type Choice = FlexibilityChoice;
+
+/** Every option, once, in this order. */
+const OPTIONS: readonly Choice[] = [
+  'this-month',
   'exact',
   'plus-minus-1',
   'plus-minus-3',
@@ -40,14 +61,47 @@ const ORDER: readonly Value[] = [
   'custom',
 ];
 
-function labelFor(value: Value): string {
-  return value === 'custom' ? 'Exact window' : FLEXIBILITY_LABELS[value];
+/** The value a choice submits. */
+export function flexibilityValueOf(choice: Choice): Value {
+  return choice === 'this-month' ? 'month' : choice;
 }
 
-function hintFor(value: Value): string {
-  return value === 'custom'
-    ? 'The window you set under More options, and a trip length inside it.'
-    : FLEXIBILITY_HINTS[value];
+/** Which choice a submitted value and month stand for. */
+export function flexibilityChoiceOf(
+  defaultValue: string | undefined,
+  today?: string,
+  monthStart?: string,
+): Choice {
+  const known: Value = (FLEXIBILITY_PRESETS as readonly string[]).includes(defaultValue ?? '')
+    ? (defaultValue as FlexibilityPreset)
+    : defaultValue === 'custom'
+      ? 'custom'
+      : DEFAULT;
+  const onThisMonth =
+    known === 'month' && !!today && !!monthStart && monthStart.slice(0, 7) === today.slice(0, 7);
+  return onThisMonth ? 'this-month' : known;
+}
+
+function labelFor(value: Choice): string {
+  switch (value) {
+    case 'this-month':
+      return 'This month';
+    case 'custom':
+      return 'Exact window';
+    default:
+      return FLEXIBILITY_LABELS[value];
+  }
+}
+
+function hintFor(value: Choice): string {
+  switch (value) {
+    case 'this-month':
+      return 'Any trip that leaves this month, for the trip length set below.';
+    case 'custom':
+      return 'The window you set under More options, and a trip length inside it.';
+    default:
+      return FLEXIBILITY_HINTS[value];
+  }
 }
 
 const DEFAULT: Value = 'plus-minus-3';
@@ -57,14 +111,44 @@ export function FlexibilityChips({
   defaultValue,
   label = 'Dates',
   className,
+  today,
+  monthStart,
+  choice,
+  onChoiceChange,
 }: FlexibilityChipsProps) {
   const id = React.useId();
+  const initial = flexibilityChoiceOf(defaultValue, today, monthStart);
+  const controlled = choice !== undefined;
 
-  const known = (FLEXIBILITY_PRESETS as readonly string[]).includes(defaultValue ?? '')
-    ? (defaultValue as FlexibilityPreset)
-    : defaultValue === 'custom'
-      ? 'custom'
-      : DEFAULT;
+  const chip = (value: Choice) => (
+    <label key={value} title={hintFor(value)} className="shrink-0">
+      <input
+        type="radio"
+        name={name}
+        value={flexibilityValueOf(value)}
+        {...(controlled ? { checked: choice === value } : { defaultChecked: initial === value })}
+        onChange={(event) => {
+          if (onChoiceChange) onChoiceChange(value);
+          else if (value === 'this-month' && today) {
+            const field = event.currentTarget.form?.elements.namedItem('monthStart');
+            if (field instanceof HTMLSelectElement) field.value = today;
+          }
+        }}
+        className="peer sr-only"
+      />
+      <span
+        className={cn(
+          'inline-flex min-h-11 cursor-pointer items-center rounded-(--radius-pill) border px-3.5 text-[13px] font-medium whitespace-nowrap',
+          'ease-standard duration-quick transition-colors',
+          'border-hairline text-ink-muted hover:border-border-strong hover:text-ink',
+          'peer-checked:border-accent-to peer-checked:bg-accent-to/15 peer-checked:text-ink',
+          'peer-focus-visible:outline-accent-to peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2',
+        )}
+      >
+        {labelFor(value)}
+      </span>
+    </label>
+  );
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
@@ -75,34 +159,8 @@ export function FlexibilityChips({
         {label}
       </span>
 
-      {/* One line you can swipe on a phone, a wrapped row where there is room. */}
-      <div
-        role="radiogroup"
-        aria-labelledby={`${id}-label`}
-        className="-mx-0.5 flex [scrollbar-width:none] gap-1.5 overflow-x-auto px-0.5 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden"
-      >
-        {ORDER.map((value) => (
-          <label key={value} title={hintFor(value)} className="shrink-0">
-            <input
-              type="radio"
-              name={name}
-              value={value}
-              defaultChecked={known === value}
-              className="peer sr-only"
-            />
-            <span
-              className={cn(
-                'inline-flex min-h-10 cursor-pointer items-center rounded-(--radius-pill) border px-3.5 text-[13px] font-medium whitespace-nowrap',
-                'ease-standard duration-quick transition-colors',
-                'border-hairline text-ink-muted hover:border-border-strong hover:text-ink',
-                'peer-checked:border-accent-to peer-checked:bg-accent-to/15 peer-checked:text-ink',
-                'peer-focus-visible:outline-accent-to peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2',
-              )}
-            >
-              {labelFor(value)}
-            </span>
-          </label>
-        ))}
+      <div role="radiogroup" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-1.5">
+        {OPTIONS.map(chip)}
       </div>
     </div>
   );

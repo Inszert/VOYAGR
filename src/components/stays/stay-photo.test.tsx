@@ -37,7 +37,9 @@ describe('showablePhoto', () => {
     const hosts = imgSrc
       .split(' ')
       .filter((t) => t.startsWith('https://'))
-      .map((t) => new URL(t).hostname);
+      .map((t) => new URL(t).hostname)
+      // The street map's tile host is a map layer, not a photograph host.
+      .filter((host) => host !== 'tile.openstreetmap.org');
     expect([...IMAGE_HOSTS_IN_CSP].sort()).toEqual(hosts.sort());
   });
 

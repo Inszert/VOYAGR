@@ -257,14 +257,51 @@ describe('PriceCalendar', () => {
   it('offers each flexibility as a link, and says which is on', () => {
     renderCalendar();
 
-    const group = screen.getByRole('group', { name: 'How flexible are your dates' });
+    const group = screen.getByRole('group', { name: 'Date options' });
 
-    expect(within(group).getByRole('link', { name: '± 3 days' }).getAttribute('aria-current')).toBe(
-      'true',
-    );
+    expect(
+      within(group)
+        .getByRole('link', { name: /± 3 days/ })
+        .getAttribute('aria-current'),
+    ).toBe('true');
     expect(within(group).getByRole('link', { name: 'A weekend' }).getAttribute('href')).toContain(
       'flexibility=weekend',
     );
+  });
+});
+
+describe('PriceCalendar date options', () => {
+  it('draws each option once, inside the calendar, when shortcuts and presets overlap', () => {
+    render(
+      <PriceCalendar
+        options={OPTIONS}
+        selected={null}
+        cheapestKey={null}
+        bestValueKey={null}
+        clearHref={null}
+        shortcuts={[
+          { label: 'This month', href: '/explore?flexibility=month', active: false },
+          { label: '± 3 days', href: '/explore?flexibility=plus-minus-3', active: true },
+        ]}
+        chips={[
+          { label: '± 3 days', href: '/explore?flexibility=plus-minus-3', active: true },
+          { label: 'A weekend', href: '/explore?flexibility=weekend', active: false },
+          { label: 'Anytime that month', href: '/explore?flexibility=month', active: false },
+        ]}
+      />,
+    );
+
+    const calendar = screen.getByRole('group', { name: 'Calendar' });
+    const options = within(calendar).getByRole('group', { name: 'Date options' });
+    for (const name of ['This month', '± 3 days', 'A weekend', 'Anytime that month']) {
+      expect(within(calendar).getAllByRole('link', { name: new RegExp(`^${name}`) })).toHaveLength(
+        1,
+      );
+      expect(
+        options.contains(within(calendar).getByRole('link', { name: new RegExp(`^${name}`) })),
+      ).toBe(true);
+    }
+    expect(screen.queryByRole('group', { name: 'How flexible are your dates' })).toBeNull();
   });
 });
 
@@ -279,7 +316,52 @@ describe('FlexibilityChips', () => {
       false,
     );
     // Every preset the search understands, plus the typed window.
-    expect(screen.getAllByRole('radio')).toHaveLength(8);
+    expect(screen.getAllByRole('radio')).toHaveLength(9);
+  });
+
+  it('lists every option once, in the one row, with no More control', () => {
+    const { container } = render(<FlexibilityChips name="flexibility" />);
+
+    expect(container.querySelectorAll('details, summary')).toHaveLength(0);
+    const names = screen.getAllByRole('radio').map((radio) => radio.closest('label')!.textContent);
+    expect(names).toEqual([
+      'This month',
+      'Exact dates',
+      '± 1 day',
+      '± 3 days',
+      '± 7 days',
+      'A weekend',
+      'A long weekend',
+      'Anytime that month',
+      'Exact window',
+    ]);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('submits the same values the explore shortcuts set', () => {
+    const { container } = render(
+      <form>
+        <FlexibilityChips name="flexibility" today="2026-11-18" />
+        <select name="monthStart" defaultValue="2026-12-01">
+          <option value="2026-11-18">November</option>
+          <option value="2026-12-01">December</option>
+        </select>
+      </form>,
+    );
+    const form = container.querySelector('form')!;
+    const value = () => new FormData(form).get('flexibility');
+    const month = () => new FormData(form).get('monthStart');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'A long weekend' }));
+    expect(value()).toBe('long-weekend');
+    fireEvent.click(screen.getByRole('radio', { name: '± 7 days' }));
+    expect(value()).toBe('plus-minus-7');
+    fireEvent.click(screen.getByRole('radio', { name: 'Anytime that month' }));
+    expect(value()).toBe('month');
+    expect(month()).toBe('2026-12-01');
+    fireEvent.click(screen.getByRole('radio', { name: 'This month' }));
+    expect(value()).toBe('month');
+    expect(month()).toBe('2026-11-18');
   });
 });
 
@@ -365,7 +447,7 @@ describe('PriceCalendar date shortcuts', () => {
   it('shows the four shortcuts without opening anything', () => {
     renderWithShortcuts();
 
-    const group = screen.getByRole('group', { name: 'Date shortcuts' });
+    const group = screen.getByRole('group', { name: 'Date options' });
     for (const name of ['This month', '± 3 days', '± 7 days', 'Any date']) {
       expect(within(group).getByRole('link', { name: new RegExp(`^${name}`) })).toBeTruthy();
     }
@@ -378,7 +460,7 @@ describe('PriceCalendar date shortcuts', () => {
   it('sets the same flexibility value the existing control sets', () => {
     renderWithShortcuts();
 
-    const group = screen.getByRole('group', { name: 'Date shortcuts' });
+    const group = screen.getByRole('group', { name: 'Date options' });
     const href = within(group)
       .getByRole('link', { name: /^± 3 days/ })
       .getAttribute('href')!;
@@ -395,7 +477,7 @@ describe('PriceCalendar date shortcuts', () => {
   it('says which one is on, in words and by a mark', () => {
     renderWithShortcuts();
 
-    const group = screen.getByRole('group', { name: 'Date shortcuts' });
+    const group = screen.getByRole('group', { name: 'Date options' });
     const active = within(group).getByRole('link', { name: /^± 3 days\s*\(selected\)/ });
     expect(active.getAttribute('aria-current')).toBe('true');
     expect(active.textContent).toContain('✓');

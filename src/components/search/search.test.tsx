@@ -606,9 +606,7 @@ describe('what the dates are worth', () => {
 
     const section = screen.getByRole('region', { name: 'Pick your dates' });
 
-    expect(
-      within(section).getByRole('group', { name: 'How flexible are your dates' }),
-    ).toBeTruthy();
+    expect(within(section).getByRole('group', { name: 'Date options' })).toBeTruthy();
     expect(within(section).getAllByRole('gridcell').length).toBeGreaterThan(0);
   });
 

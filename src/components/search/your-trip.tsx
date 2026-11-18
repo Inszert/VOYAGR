@@ -974,24 +974,6 @@ export function YourTrip({
 
           {whatToDo}
 
-          {extras.length > 0 ? (
-            <section aria-labelledby={`${id}-extras`} className="flex flex-col gap-3">
-              <SectionHeading id={`${id}-extras`} eyebrow="Partners" title="Add to this trip" />
-              <ul className="flex flex-col gap-3">
-                {extras.map((offer) => (
-                  <li key={offer.id} className="flex flex-col gap-1">
-                    <span className="text-dim text-[11px] font-semibold tracking-[0.16em] uppercase">
-                      {CATEGORY_LABEL[offer.category]}
-                    </span>
-                    <PartnerOfferRow offer={offer} />
-                    <span className="text-ink-muted text-sm">{offer.description}</span>
-                  </li>
-                ))}
-              </ul>
-              <AffiliateDisclosure />
-            </section>
-          ) : null}
-
           {/* Good to know: what to check, one line each. */}
           <section aria-labelledby={`${id}-know`} className="flex flex-col gap-3">
             <SectionHeading id={`${id}-know`} eyebrow="Before you pay" title="Good to know" />
@@ -1067,12 +1049,35 @@ export function YourTrip({
           </section>
         </div>
 
-        <aside
-          aria-label="Trip summary"
-          className="bg-surface-raised border-border hidden self-start rounded-(--radius-card) border p-5 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+5.5rem)] lg:block"
-        >
-          {panel('h3')}
-        </aside>
+        <div className="flex min-w-0 flex-col gap-5 self-start lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+5.5rem)]">
+          <aside
+            aria-label="Trip summary"
+            className="bg-surface-raised border-border hidden rounded-(--radius-card) border p-5 lg:block"
+          >
+            {panel('h3')}
+          </aside>
+
+          {extras.length > 0 ? (
+            <aside
+              aria-labelledby={`${id}-extras`}
+              className="bg-surface-raised border-border flex flex-col gap-4 rounded-(--radius-card) border p-5"
+            >
+              <SectionHeading id={`${id}-extras`} eyebrow="Add to this trip" title="Partners" />
+              <ul className="flex flex-col gap-4">
+                {extras.map((offer) => (
+                  <li key={offer.id} className="flex flex-col gap-1">
+                    <span className="text-dim text-[11px] font-semibold tracking-[0.16em] uppercase">
+                      {CATEGORY_LABEL[offer.category]}
+                    </span>
+                    <PartnerOfferRow offer={offer} />
+                    <span className="text-ink-muted text-sm">{offer.description}</span>
+                  </li>
+                ))}
+              </ul>
+              <AffiliateDisclosure />
+            </aside>
+          ) : null}
+        </div>
       </div>
 
       <SummaryBar

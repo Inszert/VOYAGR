@@ -8,9 +8,6 @@ import { getCurrentUser } from '@/auth/current-user';
 import { preferencesToFormDefaults, readExplicitPreferences } from '@/auth/preferences';
 import { searchFormDefaults } from '@/search/form-defaults';
 import { getRepositories } from '@/db';
-import { isAppError } from '@/lib/errors';
-import { getLogger } from '@/lib/logger';
-import { cacheKey, getCacheStore, readThrough } from '@/cache';
 import { requestCacheRefresh } from '@/cache/request-refresh';
 import { ageOf } from '@/core/freshness';
 import {
@@ -20,7 +17,6 @@ import {
   type AirportSuggestion,
 } from '@/search/destination-names';
 import { parseFilters, type ResultFilters } from '@/search/filters';
-import { runSearch } from '@/search/orchestrator';
 import { parseSearchForm, type SearchFormErrors } from '@/search/schema';
 import type { RankedTrip, SearchOutcome } from '@/search/types';
 import { parseMapMode, type MapMode } from './map-model';
@@ -32,9 +28,9 @@ import {
   type DiscoveryAssumptions,
 } from './snapshot';
 import { recordSearch } from './record-search';
-import { MAX_ROUTE_LINES } from './search-routes';
+import { MAX_ROUTE_LINES, defaultRoutePlaces } from './search-routes';
 import { buildStageData, withQuery, type StageData } from './stage-data';
-import { dependenciesFor } from '@/search/dependencies';
+import { airportCodesIn, liveSearch, LIVE_SEARCH_FRESH_MS, withRouteDefaults } from './live-search';
 import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-source';
 
 /**
@@ -50,13 +46,7 @@ import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-
  * results through.
  */
 
-const log = getLogger('discovery.load-stage');
-
-/**
- * How long a stored live-search result is reused: one hour, the owner's rule. A search younger
- * than this is read from the store; an older one is run again and saved. No stale window.
- */
-export const LIVE_SEARCH_FRESH_MS = 60 * 60 * 1000;
+export { LIVE_SEARCH_FRESH_MS };
 
 export type StageAction = '/' | '/explore';
 
@@ -140,15 +130,6 @@ function middleDate(from: IsoDate, to: IsoDate): IsoDate {
   return span <= 0 ? from : addDays(from, Math.floor(span / 2));
 }
 
-/** The three-letter codes in a typed list; words such as "anywhere" are not codes. */
-function airportCodesIn(value: string | undefined): string[] {
-  const codes = (value ?? '')
-    .split(/[\s,]+/)
-    .map((code) => code.toUpperCase())
-    .filter((code) => /^[A-Z]{3}$/.test(code) && code !== 'ANY');
-  return [...new Set(codes)];
-}
-
 /** A GET form always submits its text inputs, so `origins` marks a real search. */
 export function wasSubmitted(params: Readonly<Record<string, string | undefined>>): boolean {
   return typeof params.origins === 'string';
@@ -212,7 +193,12 @@ export async function loadStagePage(
 
   if (wasSubmitted(values)) {
     // `anywhere` in the destination expands to everything we can price.
-    const parsed = parseSearchForm(values, listPlaceableDestinations(), resolveWorldRegion);
+    // A route typed in the compact bar has no budget; fill what it left out so it can run.
+    const parsed = parseSearchForm(
+      withRouteDefaults(values, today, defaults),
+      listPlaceableDestinations(),
+      resolveWorldRegion,
+    );
 
     if (parsed.ok) {
       // Anonymous visitors get the default plan's allowance, so the limit is
@@ -233,30 +219,17 @@ export async function loadStagePage(
         },
       };
 
-      try {
-        // Cached at the page, never inside `runSearch`: a Travel Watch
-        // refresh exists to find out whether the price moved. Live, but
-        // remembered for an hour by query key, with no stale window -
-        // an explicit search is a question about now.
-        const cached = await readThrough(
-          getCacheStore(),
-          cacheKey('search', { request, source: dataSource.effective }),
-          {
-            freshMs: LIVE_SEARCH_FRESH_MS,
-            staleMs: 0,
-            load: () => runSearch(request, dependenciesFor(dataSource.effective)),
-          },
-        );
+      /*
+       * Asked live now, inside the search's own call ceiling, and kept for an
+       * hour; see `live-search.ts`. A failure comes back as a plain message,
+       * never as an empty page with no reason.
+       */
+      const live = await liveSearch(request, dataSource.effective);
 
-        // No value means the run failed and nothing was cached: report it the
-        // way a thrown search always was.
-        if (cached.value === null) {
-          throw cached.error instanceof Error ? cached.error : new Error('search failed');
-        }
-
-        outcome = cached.value;
-        resultAgeMs = cached.ageMs ?? 0;
-        observedAt = cached.observedAt;
+      if (live.ok) {
+        outcome = live.outcome;
+        resultAgeMs = live.ageMs;
+        observedAt = live.observedAt;
 
         // Signed-in visitors only; never throws, and the page does not wait on a failure.
         if (user) {
@@ -266,13 +239,8 @@ export async function loadStagePage(
             destinations: request.destinations,
           });
         }
-      } catch (error) {
-        log.warn({ err: error }, 'search could not be run');
-        errors = {
-          form: isAppError(error)
-            ? error.publicMessage
-            : 'Something went wrong running that search.',
-        };
+      } else {
+        errors = { form: live.message };
       }
     } else {
       /*
@@ -360,6 +328,12 @@ export async function loadStagePage(
         destinations: airportCodesIn(values.destinations),
       };
 
+  // No search: the globe is never empty. Routes from VIE (or the typed origin)
+  // to launch airports; routes only, no price.
+  const linePlaces = outcome
+    ? null
+    : defaultRoutePlaces(typedPlaces.origins, typedPlaces.destinations);
+
   const stage = buildStageData({
     outcome: stageOutcome,
     mode,
@@ -368,17 +342,13 @@ export async function loadStagePage(
     origins,
     // Named places only: "anywhere" is every airport, and a line to each is a
     // tangle. Those keep the priced routes alone.
-    routeOrigins: outcome
-      ? undefined
-      : typedPlaces.origins.length > 0
-        ? typedPlaces.origins
-        : undefined,
+    routeOrigins: linePlaces ? linePlaces.origins : undefined,
     routeDestinations: outcome
       ? outcome.diagnostics.plan.destinationsRequested <= MAX_ROUTE_LINES
         ? outcome.diagnostics.plan.destinations
         : []
-      : typedPlaces.destinations.length <= MAX_ROUTE_LINES
-        ? typedPlaces.destinations
+      : linePlaces!.destinations.length <= MAX_ROUTE_LINES
+        ? linePlaces!.destinations
         : [],
     provenance,
     assumptions: snapshot?.assumptions ?? null,

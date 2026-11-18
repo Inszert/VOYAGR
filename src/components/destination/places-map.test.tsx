@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThingToDo } from '@/providers/types';
-import { PlacesMap, dotRadius, layoutPlaces } from './places-map';
+import { PlacesMap, dotLabel, dotRadius } from './places-map';
+
+// jsdom has no WebGL: MapLibre cannot start, so the map shows its failure line
+// while the DOM carries every fact. That is the contract worth testing here.
+vi.mock('maplibre-gl', () => {
+  throw new Error('no webgl in jsdom');
+});
 
 const CENTRE = [33.63, 34.92] as const;
 
@@ -33,49 +39,52 @@ describe('dotRadius', () => {
 });
 
 describe('PlacesMap', () => {
-  it('stays hidden from assistive technology', () => {
-    const { container } = render(<PlacesMap places={PLACES} centre={CENTRE} />);
+  it('renders a named map region for the street map', () => {
+    render(<PlacesMap places={PLACES} centre={CENTRE} />);
 
-    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('region', { name: 'Street map of the places' })).toBeTruthy();
   });
 
-  it('names the centre, labels rings in kilometres, and carries a legend in words', () => {
-    const { container } = render(<PlacesMap places={PLACES} centre={CENTRE} />);
-    const text = container.textContent ?? '';
+  it('always shows the OpenStreetMap credit line, linked to the copyright page', () => {
+    render(<PlacesMap places={PLACES} centre={CENTRE} />);
+    const credit = screen.getByRole('link', { name: '© OpenStreetMap contributors' });
 
-    expect(text).toContain('City centre');
-    expect(text).toMatch(/\d(\.\d)? km from centre/);
-    expect(text).toContain('Each dot is a place');
-    expect(text).toContain('Dashed rings show straight-line distance');
-    expect(layoutPlaces(PLACES, CENTRE).rings.length).toBeGreaterThan(0);
+    expect(credit.getAttribute('href')).toBe('https://www.openstreetmap.org/copyright');
   });
 
-  it('sizes the better-covered place larger', () => {
-    const { container } = render(<PlacesMap places={PLACES} centre={CENTRE} />);
-    const radius = (id: string) =>
-      Number(container.querySelector(`[data-place-dot="${id}"] .voyagr-dot`)?.getAttribute('r'));
+  it('puts every place in the DOM with its name and distance', () => {
+    render(<PlacesMap places={PLACES} centre={CENTRE} />);
+    const list = screen.getByRole('list', { name: 'Places on the map' });
 
-    expect(radius('Q1')).toBeGreaterThan(radius('Q2'));
+    expect(list.querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: dotLabel(PLACES[0]!) })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Mckenzie, .* km from centre/ })).toBeTruthy();
   });
 
-  it('names and rings the place a card points at, and reports hover back', () => {
+  it('reports focus and selection back, so a card and its dot stay in step', () => {
     const onActive = vi.fn();
-    const { container } = render(
-      <PlacesMap places={PLACES} centre={CENTRE} activeId="Q2" onActive={onActive} />,
-    );
+    const onSelect = vi.fn();
+    render(<PlacesMap places={PLACES} centre={CENTRE} onActive={onActive} onSelect={onSelect} />);
+    const button = screen.getByRole('button', { name: /Finikoudes/ });
 
-    expect(container.querySelector('[data-place-label]')?.textContent).toBe('Mckenzie');
-    expect(container.querySelector('[data-place-distance]')?.textContent).toMatch(/km from centre/);
-    expect(container.querySelector('[data-place-line]')).not.toBeNull();
-
-    fireEvent.pointerEnter(container.querySelector('[data-place-dot="Q1"]')!);
+    fireEvent.focus(button);
     expect(onActive).toHaveBeenCalledWith('Q1');
+    fireEvent.click(button);
+    expect(onSelect).toHaveBeenCalledWith('Q1');
   });
 
-  it('drops the legend and the label for the sheet locator', () => {
-    const { container } = render(<PlacesMap places={PLACES} centre={CENTRE} focusId="Q1" />);
+  it('says so, and keeps the list, when the map cannot load', async () => {
+    render(<PlacesMap places={PLACES} centre={CENTRE} />);
 
+    expect(await screen.findByRole('status')).toBeTruthy();
+    expect(screen.getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('explains the dots in words, except in the sheet locator', () => {
+    const { container, rerender } = render(<PlacesMap places={PLACES} centre={CENTRE} />);
+    expect(container.querySelector('[data-legend]')?.textContent).toContain('Each dot is a place');
+
+    rerender(<PlacesMap places={PLACES} centre={CENTRE} focusId="Q1" />);
     expect(container.querySelector('[data-legend]')).toBeNull();
-    expect(container.querySelector('[data-place-label]')).toBeNull();
   });
 });

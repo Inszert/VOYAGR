@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_ROUTE_LINES,
   buildRoutePairs,
+  defaultRoutePlaces,
   routeCountText,
   routePairsToRoutes,
   routeText,
@@ -52,5 +53,39 @@ describe('buildRoutePairs', () => {
     const [route] = routePairsToRoutes(pairs);
     expect(route?.origin).toBe('VIE');
     expect(route?.path[0]?.length).toBeGreaterThan(2);
+  });
+});
+
+describe('defaultRoutePlaces', () => {
+  const known: Record<string, [number, number]> = {};
+  const position = (code: string): [number, number] | null => known[code] ?? null;
+
+  it('draws at least seven routes from VIE with coordinates on the real data', () => {
+    const { origins, destinations } = defaultRoutePlaces([], []);
+    expect(origins).toEqual(['VIE']);
+    const result = buildRoutePairs(origins, destinations);
+    expect(result.pairs.length).toBeGreaterThanOrEqual(7);
+    for (const pair of result.pairs) {
+      expect(pair.origin).toBe('VIE');
+      expect(pair.from).toHaveLength(2);
+      expect(pair.to).toHaveLength(2);
+    }
+    expect(destinations).not.toContain('VIE');
+  });
+
+  it('uses the typed origin instead of VIE', () => {
+    const { origins, destinations } = defaultRoutePlaces(['LHR'], []);
+    expect(origins).toEqual(['LHR']);
+    expect(buildRoutePairs(origins, destinations).pairs.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('keeps typed destinations as typed', () => {
+    expect(defaultRoutePlaces([], ['LIS'])).toEqual({ origins: ['VIE'], destinations: ['LIS'] });
+  });
+
+  it('skips airports with no position', () => {
+    known.VIE = [16, 48];
+    known.LIS = [-9, 38];
+    expect(defaultRoutePlaces([], [], position).destinations).toEqual(['LIS']);
   });
 });

@@ -29,6 +29,13 @@ const DRIVE_AUTH_ORIGIN = 'https://www.travelpayouts.com';
  */
 export const IMAGE_HOSTS: readonly string[] = ['static.cupid.travel'];
 
+/**
+ * The street map on a destination page draws OpenStreetMap raster tiles. They are
+ * fetched by MapLibre's worker (connect-src) and decoded as images (img-src), so
+ * the one host is named in both and nowhere else.
+ */
+export const TILE_HOST = 'https://tile.openstreetmap.org';
+
 export function buildContentSecurityPolicy({ nonce, isDev, driveOrigin }: CspInput): string {
   const drive = driveOrigin ? ` ${driveOrigin}` : '';
   const driveStyle = driveOrigin ? ` ${driveOrigin}` : '';
@@ -39,9 +46,9 @@ export function buildContentSecurityPolicy({ nonce, isDev, driveOrigin }: CspInp
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}${drive}`,
     `style-src 'self' 'unsafe-inline'${driveStyle}`,
-    `img-src 'self' blob: data: ${IMAGE_HOSTS.map((h) => `https://${h}`).join(' ')}`,
+    `img-src 'self' blob: data: ${IMAGE_HOSTS.map((h) => `https://${h}`).join(' ')} ${TILE_HOST}`,
     "font-src 'self' data:",
-    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}${driveConnect}`,
+    `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}${drive}${driveConnect} ${TILE_HOST}`,
     `worker-src 'self'${driveWorker}`,
     "manifest-src 'self'",
     "frame-ancestors 'none'",

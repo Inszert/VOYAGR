@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { listAirports } from '@/search/destination-names';
 import { parseSearchForm } from '@/search/schema';
 import { CompactSearch } from './compact-search';
@@ -56,6 +57,42 @@ function submission(form: HTMLFormElement): Record<string, string> {
   return values;
 }
 
+describe('CompactSearch date options', () => {
+  const OPTIONS = [
+    'This month',
+    'Exact dates',
+    '± 1 day',
+    '± 3 days',
+    '± 7 days',
+    'A weekend',
+    'A long weekend',
+    'Anytime that month',
+  ];
+
+  for (const variant of ['panel', 'bar'] as const) {
+    it(`${variant}: shows each option once, inside the calendar, and submits the same value`, async () => {
+      const { container } = renderForm({ variant });
+      expect(screen.queryByRole('radio', { name: '± 7 days' })).toBeNull();
+
+      await userEvent.click(
+        screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
+      );
+      const group = screen.getByRole('radiogroup', { name: 'How flexible are the dates' });
+      for (const name of OPTIONS) {
+        expect(within(group).getAllByRole('radio', { name })).toHaveLength(1);
+        expect(screen.getAllByRole('radio', { name })).toHaveLength(1);
+      }
+
+      const form = container.querySelector('form')!;
+      expect(submission(form).flexibility).toBe('plus-minus-3');
+      await userEvent.click(within(group).getByRole('radio', { name: 'A long weekend' }));
+      expect(submission(form).flexibility).toBe('long-weekend');
+      await userEvent.click(within(group).getByRole('radio', { name: 'Anytime that month' }));
+      expect(submission(form).flexibility).toBe('month');
+    }, 20_000);
+  }
+});
+
 describe('CompactSearch', () => {
   it('starts folded when nothing was refused', () => {
     // On a phone every field - and so every message about one - is behind the
@@ -79,8 +116,8 @@ describe('CompactSearch', () => {
     for (const label of ['From', 'To', 'Leaving', 'Back', 'Travellers']) {
       expect(screen.getByLabelText(new RegExp(`^${label}\\b`))).toBeInTheDocument();
     }
-    // "Dates" is also the heading of a More options group, so name the control by its role.
-    expect(screen.getByRole('radiogroup', { name: 'Dates' })).toBeInTheDocument();
+    // The date options are inside the calendar, not a second list beside the dates.
+    expect(screen.queryByRole('radiogroup', { name: /flexible/i })).toBeNull();
     expect(screen.getByRole('button', { name: 'Search trips' })).toBeInTheDocument();
   });
 

@@ -88,11 +88,24 @@ describe('buildContentSecurityPolicy', () => {
     expect(csp).toContain(`connect-src 'self' ${DRIVE_ORIGIN}`);
   });
 
+  it('names the OpenStreetMap tile host in img-src and connect-src, for everyone', () => {
+    for (const driveOrigin of [null, DRIVE_ORIGIN]) {
+      const csp = buildContentSecurityPolicy({ ...base, driveOrigin });
+      const directive = (name: string) => csp.split('; ').find((d) => d.startsWith(name)) ?? '';
+      expect(directive('img-src')).toContain('https://tile.openstreetmap.org');
+      expect(directive('connect-src')).toContain('https://tile.openstreetmap.org');
+      expect(directive('default-src')).not.toContain('openstreetmap');
+      expect(directive('script-src')).not.toContain('openstreetmap');
+    }
+  });
+
   it('widens worker, style and connect for an accepted visitor, and only those', () => {
     const csp = buildContentSecurityPolicy({ ...base, driveOrigin: DRIVE_ORIGIN });
     expect(csp).toContain("worker-src 'self' blob:;");
     expect(csp).toContain(`style-src 'self' 'unsafe-inline' ${DRIVE_ORIGIN};`);
-    expect(csp).toContain(`connect-src 'self' ${DRIVE_ORIGIN} https://www.travelpayouts.com;`);
+    expect(csp).toContain(
+      `connect-src 'self' ${DRIVE_ORIGIN} https://www.travelpayouts.com https://tile.openstreetmap.org;`,
+    );
     // No wildcards anywhere in the widened directives.
     expect(csp).not.toMatch(/(worker|style|connect)-src[^;]*\*/);
   });
@@ -107,7 +120,7 @@ describe('buildContentSecurityPolicy', () => {
     const csp = buildContentSecurityPolicy({ ...base, driveOrigin: null });
     expect(csp).toContain("worker-src 'self';");
     expect(csp).toContain("style-src 'self' 'unsafe-inline';");
-    expect(csp).toContain("connect-src 'self';");
+    expect(csp).toContain("connect-src 'self' https://tile.openstreetmap.org;");
     expect(csp).not.toContain('blob:;');
     expect(csp).not.toContain('travelpayouts');
   });
@@ -124,10 +137,12 @@ describe('buildContentSecurityPolicy', () => {
     }
   });
 
-  it('allows images from self, blob, data and the one LiteAPI photo host, no wildcard', () => {
+  it('allows images from self, blob, data, the LiteAPI photo host and the tile host, no wildcard', () => {
     for (const driveOrigin of [null, DRIVE_ORIGIN]) {
       const csp = buildContentSecurityPolicy({ ...base, driveOrigin });
-      expect(csp).toContain("img-src 'self' blob: data: https://static.cupid.travel;");
+      expect(csp).toContain(
+        "img-src 'self' blob: data: https://static.cupid.travel https://tile.openstreetmap.org;",
+      );
       expect(csp).not.toMatch(/img-src[^;]*\*/);
       expect(csp).not.toMatch(/img-src[^;]*http:/);
     }

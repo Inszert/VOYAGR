@@ -447,7 +447,7 @@ export async function loadMonthDayPrices(
 
     if (read.value === null) {
       log.warn({ month: query.month, err: read.error }, 'day prices could not be loaded');
-      return empty('Prices for this month could not be loaded.');
+      return empty('Prices for this month could not be loaded. Try again in a moment.');
     }
 
     const days = new Map<IsoDate, DayPriceEntry>();
@@ -487,6 +487,6 @@ export async function loadMonthDayPrices(
   } catch (error) {
     // Registry or store trouble is a missing price, never a broken page.
     log.warn({ month: query.month, err: error }, 'day prices unavailable');
-    return empty('Prices for this month could not be loaded.');
+    return empty('Prices for this month could not be loaded. Try again in a moment.');
   }
 }

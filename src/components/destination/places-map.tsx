@@ -1,98 +1,36 @@
 'use client';
 
 import * as React from 'react';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { formatKilometres } from '@/core/distance';
 import type { ThingToDo } from '@/providers/types';
 
 /**
- * The places, placed: a plan of the city around its centre.
+ * The places, placed: a street map of the city with a dot per place.
  *
- * Drawn from our own data and nothing else - no tiles, no request. The only
- * geography we hold at city scale is the places themselves (the globe's own
- * tiles stop at about ten kilometres a pixel), so this is a plan rather than a
- * street map: the centre, rings at round distances, and a dot per place at its
- * true bearing and distance. The cards beside it are the accessible version of
- * every fact here, which is why the plan hides from assistive technology and
- * its dots are not focusable: a focused card rings its dot instead.
+ * The base is OpenStreetMap's raster tiles (`TILE_URL`), the one third-party
+ * host the page talks to for this; `src/consent/csp.ts` names it in `img-src`
+ * and `connect-src` and nowhere else. Each dot sits at the place's real
+ * coordinates and the view is fitted to them. The credit line is part of the
+ * licence and is always on screen.
+ *
+ * The canvas and the dots are for the eye. The same facts are in the DOM twice
+ * over: the cards beside the map, and a list of buttons here that names every
+ * place and how far it is from the centre. A focused card rings its dot.
  *
  * Positions are for drawing only. A distance that is shown in words comes from
  * `src/core/distance`.
  */
 
-const WIDTH = 640;
-/** The plan itself. The legend band sits below it, outside the maths. */
-const HEIGHT = 280;
-const LEGEND_HEIGHT = 80;
-/** Dot radius runs from the least to the most covered place on the plan. */
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const DOT_MIN = 3.5;
 const DOT_MAX = 7;
-const PAD = 36;
-const RING_STEPS_METRES = [250, 500, 1000, 2000, 5000, 10_000, 20_000, 50_000];
-
-const METRES_PER_DEGREE_LAT = 110_574;
-const METRES_PER_DEGREE_LON = 111_320;
-
-interface Placed {
-  readonly place: ThingToDo;
-  readonly x: number;
-  readonly y: number;
-}
-
-/** Offsets in metres east and north of the centre, good enough to draw a city. */
-function offsets(centre: readonly [number, number], place: ThingToDo) {
-  const [lon0, lat0] = centre;
-
-  return {
-    east: (place.longitude - lon0) * METRES_PER_DEGREE_LON * Math.cos((lat0 * Math.PI) / 180),
-    north: (place.latitude - lat0) * METRES_PER_DEGREE_LAT,
-  };
-}
-
-export function layoutPlaces(
-  places: readonly ThingToDo[],
-  centre: readonly [number, number],
-  focusId: string | null = null,
-): { placed: Placed[]; pixelsPerMetre: number; rings: { radius: number; label: string }[] } {
-  const raw = places.map((place) => ({ place, ...offsets(centre, place) }));
-  /*
-   * What the plan has to fit. For the sheet's locator: the centre and the one
-   * place, with room. For the list: the places that most of them are inside -
-   * the nearest 85% - because one outlier ten kilometres out would shrink every
-   * other dot into a corner. A place beyond the edge is clipped, and its card
-   * and its sheet still say how far away it is.
-   */
-  const focus = focusId ? raw.find((item) => item.place.id === focusId) : undefined;
-  const fitted = focus
-    ? [focus]
-    : [...raw]
-        .sort((a, b) => Math.hypot(a.east, a.north) - Math.hypot(b.east, b.north))
-        .slice(0, Math.max(1, Math.ceil(raw.length * 0.85)));
-  const margin = focus ? 1.35 : 1.05;
-  const reachX = Math.max(300, ...fitted.map((item) => Math.abs(item.east) * margin));
-  const reachY = Math.max(300, ...fitted.map((item) => Math.abs(item.north) * margin));
-  const pixelsPerMetre = Math.min((WIDTH / 2 - PAD) / reachX, (HEIGHT / 2 - PAD) / reachY);
-
-  const placed = raw.map((item) => ({
-    place: item.place,
-    x: WIDTH / 2 + item.east * pixelsPerMetre,
-    y: HEIGHT / 2 - item.north * pixelsPerMetre,
-  }));
-
-  // Rings that fit inside the plan, at most three, at round distances.
-  const fitting = RING_STEPS_METRES.filter(
-    (metres) => metres * pixelsPerMetre <= HEIGHT / 2 - 8 && metres * pixelsPerMetre >= 28,
-  ).slice(-3);
-  const rings = fitting.map((metres) => ({
-    radius: metres * pixelsPerMetre,
-    label: formatKilometres(metres),
-  }));
-
-  return { placed, pixelsPerMetre, rings };
-}
+const MAX_FIT_ZOOM = 16;
 
 /**
  * A dot's radius from its sitelink count (how many Wikipedia editions cover the
- * place), scaled across the places on the plan. Drawing only: the count itself is
+ * place), scaled across the places on the map. Drawing only: the count itself is
  * the source's, and equal counts - or one place - get the middle size.
  */
 export function dotRadius(notability: number, lowest: number, highest: number): number {
@@ -100,6 +38,11 @@ export function dotRadius(notability: number, lowest: number, highest: number): 
   const share = (Math.min(Math.max(notability, lowest), highest) - lowest) / (highest - lowest);
 
   return DOT_MIN + (DOT_MAX - DOT_MIN) * share;
+}
+
+/** What a dot says to somebody who cannot see the map. */
+export function dotLabel(place: ThingToDo): string {
+  return `${place.name}, ${formatKilometres(place.distanceFromCentreMetres)} from centre`;
 }
 
 export interface PlacesMapProps {
@@ -115,6 +58,9 @@ export interface PlacesMapProps {
   className?: string;
 }
 
+const DOT_BASE =
+  'block rounded-full border-2 border-white bg-brand-ink shadow-[0_0_0_1px_rgb(0_0_0/0.55)] transition-[scale,opacity] duration-150 motion-reduce:transition-none';
+
 export function PlacesMap({
   places,
   centre,
@@ -124,220 +70,194 @@ export function PlacesMap({
   focusId = null,
   className,
 }: PlacesMapProps) {
-  const { placed, rings } = React.useMemo(
-    () => layoutPlaces(places, centre, focusId),
-    [places, centre, focusId],
-  );
-  const counts = places.map((place) => place.notability);
-  const lowest = Math.min(...counts);
-  const highest = Math.max(...counts);
+  const container = React.useRef<HTMLDivElement>(null);
+  const dots = React.useRef(new Map<string, HTMLElement>());
+  const [status, setStatus] = React.useState<'loading' | 'ready' | 'failed'>('loading');
   const legend = focusId === null;
-  const height = legend ? HEIGHT + LEGEND_HEIGHT : HEIGHT;
-  const activePlace = placed.find(({ place }) => place.id === activeId && focusId === null);
+
+  // Handlers registered once read the latest callbacks.
+  const latest = React.useRef({ onActive, onSelect });
+  React.useEffect(() => {
+    latest.current = { onActive, onSelect };
+  });
+
+  React.useEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    let cancelled = false;
+    let map: MapLibreMap | null = null;
+    const markers: Marker[] = [];
+    const byId = dots.current;
+
+    void (async () => {
+      try {
+        const maplibre = await import('maplibre-gl');
+        if (cancelled) return;
+        maplibre.setWorkerUrl(`/maplibre/${maplibre.getVersion()}/maplibre-gl-worker.mjs`);
+
+        const counts = places.map((place) => place.notability);
+        const lowest = Math.min(...counts);
+        const highest = Math.max(...counts);
+
+        // The view: the one place for the sheet's locator, otherwise all of them and the centre.
+        const focus = focusId ? places.find((place) => place.id === focusId) : undefined;
+        const fitted = focus ? [focus] : places;
+        const lons = [...fitted.map((place) => place.longitude), centre[0]];
+        const lats = [...fitted.map((place) => place.latitude), centre[1]];
+        const bounds: [[number, number], [number, number]] = [
+          [Math.min(...lons), Math.min(...lats)],
+          [Math.max(...lons), Math.max(...lats)],
+        ];
+
+        map = new maplibre.Map({
+          container: element,
+          bounds,
+          fitBoundsOptions: { padding: 40, maxZoom: focus ? 15 : MAX_FIT_ZOOM },
+          maxZoom: 18,
+          dragRotate: false,
+          pitchWithRotate: false,
+          touchZoomRotate: true,
+          cooperativeGestures: true,
+          attributionControl: false,
+          style: {
+            version: 8,
+            projection: { type: 'mercator' },
+            sources: {
+              osm: {
+                type: 'raster',
+                tiles: [TILE_URL],
+                tileSize: 256,
+                maxzoom: 19,
+              },
+            },
+            layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+          },
+        });
+
+        // The canvas is decoration; the dots' list and the cards are the content.
+        map.getCanvas().setAttribute('aria-hidden', 'true');
+        map.getCanvas().setAttribute('tabindex', '-1');
+
+        map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
+
+        map.once('load', () => {
+          if (!cancelled) setStatus('ready');
+        });
+        map.on('error', () => {
+          if (!map?.isStyleLoaded()) setStatus('failed');
+        });
+
+        // The city centre, named by the legend and ringed on the map.
+        const centreDot = document.createElement('span');
+        centreDot.setAttribute('aria-hidden', 'true');
+        centreDot.className =
+          'block size-4 rounded-full border-2 border-black bg-white shadow-[0_0_0_2px_rgb(255_255_255/0.9)]';
+        markers.push(new maplibre.Marker({ element: centreDot }).setLngLat([...centre]).addTo(map));
+
+        for (const place of places) {
+          const dot = document.createElement('span');
+          // Decorative: the list below the map is the keyboard and screen-reader way in.
+          dot.setAttribute('aria-hidden', 'true');
+          dot.dataset.placeDot = place.id;
+          const faint = focusId !== null && place.id !== focusId;
+          const diameter =
+            focusId !== null
+              ? faint
+                ? 10
+                : 20
+              : Math.round(dotRadius(place.notability, lowest, highest) * 2 + 8);
+          dot.className = `${DOT_BASE} ${faint ? 'opacity-40' : ''} ${onSelect ? 'cursor-pointer' : ''}`;
+          dot.style.width = `${diameter}px`;
+          dot.style.height = `${diameter}px`;
+          dot.addEventListener('pointerenter', () => latest.current.onActive?.(place.id));
+          dot.addEventListener('pointerleave', () => latest.current.onActive?.(null));
+          dot.addEventListener('click', () => latest.current.onSelect?.(place.id));
+
+          markers.push(
+            new maplibre.Marker({ element: dot })
+              .setLngLat([place.longitude, place.latitude])
+              .addTo(map),
+          );
+          byId.set(place.id, dot);
+        }
+      } catch {
+        if (!cancelled) setStatus('failed');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      for (const marker of markers) marker.remove();
+      byId.clear();
+      map?.remove();
+    };
+    // The map is built once per set of places and focus; hover is applied below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [places, centre, focusId]);
+
+  // The dot a card points at is ringed and lifted.
+  React.useEffect(() => {
+    for (const [id, dot] of dots.current) {
+      const active = id === activeId || id === focusId;
+      dot.toggleAttribute('data-active', active);
+      dot.style.setProperty('scale', active ? '1.35' : '');
+      dot.style.setProperty('outline', id === activeId && focusId === null ? '3px solid #fff' : '');
+      dot.style.setProperty('z-index', active ? '2' : '');
+    }
+  }, [activeId, focusId, status]);
 
   return (
-    <svg
-      viewBox={`0 0 ${WIDTH} ${height}`}
-      aria-hidden="true"
-      focusable="false"
-      className={className}
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <rect width={WIDTH} height={height} className="fill-surface-sunken" rx="14" />
-      {legend ? (
-        <line x1="0" x2={WIDTH} y1={HEIGHT} y2={HEIGHT} className="stroke-border" strokeWidth="1" />
-      ) : null}
-
-      {/* The two axes through the centre: a plan needs a way to read bearing. */}
-      <path
-        d={`M${WIDTH / 2} 14V${HEIGHT - 14}M14 ${HEIGHT / 2}H${WIDTH - 14}`}
-        className="stroke-border"
-        strokeWidth="1"
-      />
-      {legend ? (
-        <text
-          x={WIDTH - 22}
-          y="28"
-          textAnchor="middle"
-          className="fill-dim text-[13px] font-medium"
-        >
-          N
-        </text>
-      ) : null}
-
-      {rings.map((ring) => (
-        <g key={ring.label}>
-          <circle
-            cx={WIDTH / 2}
-            cy={HEIGHT / 2}
-            r={ring.radius}
-            className="stroke-border-strong fill-none"
-            strokeWidth="1.25"
-            strokeDasharray="3 5"
-          />
-          <Pill
-            x={WIDTH / 2 + ring.radius * 0.7071}
-            y={HEIGHT / 2 - ring.radius * 0.7071}
-            text={`${ring.label} from centre`}
-            className="fill-ink-muted"
-          />
-        </g>
-      ))}
-
-      {/* A line from the centre to the place a card points at, so distance is visible. */}
-      {activePlace ? (
-        <line
-          x1={WIDTH / 2}
-          y1={HEIGHT / 2}
-          x2={activePlace.x}
-          y2={activePlace.y}
-          className="stroke-ink"
-          strokeWidth="1.5"
-          strokeDasharray="4 4"
-          data-place-line=""
+    <div className={className} data-places-map>
+      <div className="relative">
+        <div
+          ref={container}
+          className="voyagr-stay-map bg-surface-sunken h-72 w-full overflow-hidden rounded-[14px] sm:h-96"
+          role="region"
+          aria-label="Street map of the places"
         />
-      ) : null}
-
-      {/* The centre, named. */}
-      <g transform={`translate(${WIDTH / 2} ${HEIGHT / 2})`}>
-        <circle r="10" className="stroke-ink fill-surface-sunken" strokeWidth="2" />
-        <circle r="3.5" className="fill-ink" />
-      </g>
-      <Pill x={WIDTH / 2 + 14} y={HEIGHT / 2 + 22} text="City centre" className="fill-ink" strong />
-
-      {placed.map(({ place, x, y }) => {
-        const active = place.id === activeId || place.id === focusId;
-        const faint = focusId !== null && place.id !== focusId;
-        const dim = activePlace !== undefined && !active;
-        const radius = focusId !== null ? 4.5 : dotRadius(place.notability, lowest, highest);
-
-        return (
-          <g
-            key={place.id}
-            data-place-dot={place.id}
-            onPointerEnter={onActive ? () => onActive(place.id) : undefined}
-            onPointerLeave={onActive ? () => onActive(null) : undefined}
-            onClick={onSelect ? () => onSelect(place.id) : undefined}
-            className={onSelect ? 'cursor-pointer' : undefined}
+        {/* The licence's credit line, ours rather than the control's, so it is always on screen. */}
+        <p className="absolute right-0 bottom-0 z-10 rounded-tl-lg rounded-br-[14px] bg-black/75 px-2 py-0.5 text-[11px] text-white">
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
           >
-            {/* A generous invisible target so a dot is easy to hit with a mouse. */}
-            <circle cx={x} cy={y} r="12" fill="transparent" />
-            {active ? (
-              <>
-                <circle cx={x} cy={y} r={radius + 9} className="fill-brand-ink" opacity="0.18" />
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={radius + 5}
-                  className="stroke-ink fill-none"
-                  strokeWidth="2.5"
-                />
-              </>
-            ) : null}
-            <circle
-              cx={x}
-              cy={y}
-              r={active ? radius + 1.5 : radius}
-              className="voyagr-dot fill-brand-ink stroke-surface"
-              strokeWidth="1.5"
-              opacity={faint ? 0.35 : dim ? 0.4 : 1}
-            />
-          </g>
-        );
-      })}
+            © OpenStreetMap contributors
+          </a>
+        </p>
+        {status === 'failed' ? (
+          <p
+            role="status"
+            className="text-ink-muted bg-surface-sunken absolute inset-x-0 top-0 rounded-[14px] p-4 text-sm"
+          >
+            The map did not load. Every place it would show is listed below the map.
+          </p>
+        ) : null}
+      </div>
 
-      {/* The name of the place a card or a dot is pointing at, drawn last so nothing covers it. */}
-      {activePlace ? (
-        <>
-          <Pill
-            x={activePlace.x}
-            y={activePlace.y - 22}
-            text={activePlace.place.name}
-            className="fill-ink"
-            strong
-            centred
-            data-place-label=""
-          />
-          <Pill
-            x={activePlace.x}
-            y={activePlace.y + 28}
-            text={`${formatKilometres(activePlace.place.distanceFromCentreMetres)} from centre`}
-            className="fill-ink-muted"
-            centred
-            data-place-distance=""
-          />
-        </>
-      ) : null}
+      {/* The accessible version of every dot: a name and a distance each. */}
+      <ul aria-label="Places on the map" className="sr-only">
+        {places.map((place) => (
+          <li key={place.id}>
+            <button
+              type="button"
+              onFocus={() => onActive?.(place.id)}
+              onBlur={() => onActive?.(null)}
+              onClick={() => onSelect?.(place.id)}
+            >
+              {dotLabel(place)}
+            </button>
+          </li>
+        ))}
+      </ul>
 
       {legend ? (
-        <g className="fill-ink-muted text-[14px]" data-legend="">
-          <circle cx="22" cy={HEIGHT + 17} r={DOT_MIN} className="fill-brand-ink" />
-          <circle cx="36" cy={HEIGHT + 17} r={DOT_MAX} className="fill-brand-ink" />
-          <text x="52" y={HEIGHT + 22}>
-            Each dot is a place. Bigger means more Wikipedia languages cover it.
-          </text>
-          <circle
-            cx="29"
-            cy={HEIGHT + 40}
-            r="7"
-            className="stroke-border-strong fill-none"
-            strokeDasharray="2 3"
-          />
-          <text x="52" y={HEIGHT + 45}>
-            Dashed rings show straight-line distance from the city centre.
-          </text>
-          <circle cx="29" cy={HEIGHT + 63} r="6" className="stroke-ink fill-none" strokeWidth="2" />
-          <text x="52" y={HEIGHT + 68}>
-            Point at a card, or tab to it, and its dot is ringed and named here.
-          </text>
-        </g>
+        <p className="text-ink-muted mt-3 text-sm" data-legend="">
+          Each dot is a place, at its real position. Bigger means more Wikipedia languages cover it.
+          The white ring is the city centre.
+        </p>
       ) : null}
-    </svg>
-  );
-}
-
-/** A label on a pill of the plan's own surface, so text stays readable over rings and dots. */
-function Pill({
-  x,
-  y,
-  text,
-  className,
-  strong = false,
-  centred = false,
-  ...rest
-}: {
-  x: number;
-  y: number;
-  text: string;
-  className: string;
-  strong?: boolean;
-  centred?: boolean;
-} & Record<`data-${string}`, string>) {
-  const width = Math.round(text.length * (strong ? 8.4 : 7.6) + 14);
-  // Kept inside the plan: a label never runs off the edge.
-  const left = Math.min(Math.max(centred ? x - width / 2 : x, 6), WIDTH - width - 6);
-
-  return (
-    <g>
-      <rect
-        x={left}
-        y={y - 12}
-        width={width}
-        height="22"
-        rx="11"
-        className="fill-surface-raised stroke-border"
-        strokeWidth="1"
-        opacity="0.94"
-      />
-      <text
-        x={left + width / 2}
-        y={y + 3.5}
-        textAnchor="middle"
-        className={`${className} text-[13px] ${strong ? 'font-semibold' : ''}`}
-        {...rest}
-      >
-        {text}
-      </text>
-    </g>
+    </div>
   );
 }

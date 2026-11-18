@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { Button, DateRangeField, Icon, NumberStepperField, Select } from '@/components/ui';
+import { Button, Icon, NumberStepperField, Select } from '@/components/ui';
 import { readForm, type SearchFormProps } from '@/components/search/search-form';
 import { AirportInput } from '@/components/search/airport-input';
-import { FlexibilityChips } from '@/components/search/flexibility-chips';
+import { FlexibleDateRange } from '@/components/search/flexible-date-range';
 import { DISCOVERY_CATEGORIES } from '@/discovery/categories';
 import { categoryQuery } from '@/discovery/preset';
 import type { AirportSuggestion } from '@/search/destination-names';
@@ -431,7 +431,7 @@ export function CompactSearch({
                   rule={false}
                   className="group-has-[input[name=flexibility][value=month]:checked]:hidden sm:col-span-3"
                 >
-                  <DateRangeField
+                  <FlexibleDateRange
                     startLabel="Leaving"
                     startName="departureDate"
                     startValue={form.value('departureDate')}
@@ -442,6 +442,9 @@ export function CompactSearch({
                     endError={errors.returnDate}
                     min={today}
                     bare
+                    flexibility={form.value('flexibility')}
+                    today={today}
+                    monthStart={values.monthStart}
                   />
                 </Cell>
 
@@ -464,17 +467,6 @@ export function CompactSearch({
                     bare
                   />
                 </Cell>
-
-                {/*
-                  How flexible the dates are, in view under them.
-
-                  Every preset the search understands as a chip, not a
-                  dropdown: "a weekend" and "anytime that month" are the first
-                  thing somebody flexible decides, and a closed list hid them.
-                */}
-                <div className="border-hairline min-w-0 border-t px-2.5 py-2.5 sm:col-span-3">
-                  <FlexibilityChips name="flexibility" defaultValue={form.value('flexibility')} />
-                </div>
               </div>
             </div>
 
@@ -687,8 +679,6 @@ function BarSearch({
               />
             </div>
 
-            <FlexibilityChips name="flexibility" defaultValue={form.value('flexibility')} />
-
             <details className="group/more">
               <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
                 <Icon
@@ -741,7 +731,7 @@ function BarSearch({
 
               <div className={cell}>
                 <div className="group-has-[input[name=flexibility][value=month]:checked]/form:hidden">
-                  <DateRangeField
+                  <FlexibleDateRange
                     startLabel="Leaving"
                     startName="departureDate"
                     startValue={form.value('departureDate')}
@@ -752,6 +742,9 @@ function BarSearch({
                     endError={errors.returnDate}
                     min={today}
                     bare
+                    flexibility={form.value('flexibility')}
+                    today={today}
+                    monthStart={values.monthStart}
                   />
                 </div>
               </div>

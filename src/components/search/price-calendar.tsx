@@ -197,8 +197,14 @@ export function PriceCalendar({
   // The collapsed state only exists on a phone: from `md` up the body is always there.
   const [open, setOpen] = React.useState(false);
   const bodyId = React.useId();
-  const flexId = React.useId();
-  const activeShortcut = shortcuts.find((shortcut) => shortcut.active);
+  /*
+   * One list of date options, each once. The quick choices come first and the
+   * presets follow; a label already in the list is not drawn a second time.
+   */
+  const dateOptions = [...shortcuts, ...chips].filter(
+    (option, index, all) => all.findIndex((other) => other.label === option.label) === index,
+  );
+  const activeShortcut = dateOptions.find((option) => option.active);
   // The day the keyboard is on. One day in the whole grid is a tab stop; arrows move it.
   const [focusDay, setFocusDay] = React.useState<IsoDate | null>(null);
   const pendingFocus = React.useRef(false);
@@ -493,16 +499,16 @@ export function PriceCalendar({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div role="group" aria-label="Calendar" className="flex flex-col gap-4">
       {/*
         Shortcuts for how many dates to look at. Above the calendar and outside
         the part that folds on a phone, so they are there before anything is
         opened. The chosen one is said in words and marked with a tick.
       */}
-      {shortcuts.length > 0 ? (
+      {dateOptions.length > 0 ? (
         <div className="flex flex-col gap-2">
           <p className="text-ink text-sm font-medium">
-            Date shortcuts
+            Date options
             {activeShortcut ? (
               <span className="text-ink-muted font-normal">
                 {' '}
@@ -510,8 +516,8 @@ export function PriceCalendar({
               </span>
             ) : null}
           </p>
-          <div role="group" aria-label="Date shortcuts" className="flex flex-wrap gap-2">
-            {shortcuts.map((shortcut) => (
+          <div role="group" aria-label="Date options" className="flex flex-wrap gap-2">
+            {dateOptions.map((shortcut) => (
               <a
                 key={shortcut.label}
                 href={shortcut.href}
@@ -595,39 +601,6 @@ export function PriceCalendar({
       </div>
 
       <div id={bodyId} className={cn('flex flex-col gap-4', !open && 'max-md:hidden')}>
-        {/* Flexibility: one visible choice, in words. Each is a new search with that much give. */}
-        {chips.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <p id={flexId} className="text-ink text-sm font-medium">
-              How flexible are your dates
-            </p>
-            <div
-              role="group"
-              aria-labelledby={flexId}
-              className="border-hairline grid grid-cols-2 gap-1 rounded-(--radius-card) border p-1 sm:flex sm:flex-wrap"
-            >
-              {chips.map((chip) => (
-                <a
-                  key={chip.label}
-                  href={chip.href}
-                  aria-current={chip.active ? 'true' : undefined}
-                  className={cn(
-                    'flex min-h-11 items-center justify-center gap-1.5 rounded-(--radius-control) border px-3.5 text-center text-[13px] font-medium sm:whitespace-nowrap',
-                    'ease-standard duration-quick transition-colors',
-                    'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-2',
-                    chip.active
-                      ? 'border-accent-to bg-accent-to/15 text-ink'
-                      : 'text-ink-muted hover:bg-surface-sunken hover:text-ink border-transparent',
-                  )}
-                >
-                  {chip.active ? <span aria-hidden="true">✓</span> : null}
-                  {chip.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
         {/* What step this is, and what is chosen so far. */}
         <div
           className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
