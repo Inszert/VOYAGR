@@ -113,14 +113,15 @@ describe('the explorer form', () => {
       expect(calendarGroup).toContainElement(monthSelect);
       expect(calendarGroup).toContainElement(screen.getByRole('group', { name: 'Trip length' }));
       expect(screen.getAllByLabelText('Trip length').length).toBeGreaterThan(0);
-      // The trip length is chosen in the calendar, beside the days, and nothing is chosen by default.
+      // The trip length is chosen in the calendar, beside the days, and Not set is checked by default.
       const length = screen.getByRole('group', { name: 'Trip length' });
       for (const name of ['Not set', 'Under X days', 'Over X days']) {
         const choice = within(length).getByRole('radio', { name: new RegExp(name) });
         expect(choice).toBeInTheDocument();
-        expect(choice).not.toBeChecked();
+        if (name === 'Not set') expect(choice).toBeChecked();
+        else expect(choice).not.toBeChecked();
       }
-      expect(screen.getByLabelText(/Number of days/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Number of days/)).toHaveValue(null);
       unmount();
     }
   }, 30_000);

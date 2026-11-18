@@ -240,16 +240,18 @@ describe('CompactSearch', () => {
         screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
       );
 
-    it('offers Not set, Under X days and Over X days in the calendar, none chosen, with a labelled number field', async () => {
+    it('offers Not set, Under X days and Over X days in the calendar, Not set checked, with a labelled number field', async () => {
       renderForm();
       await openCalendar();
       const group = screen.getByRole('group', { name: 'Trip length' });
       for (const name of ['Not set', 'Under X days', 'Over X days']) {
         const choice = within(group).getByRole('radio', { name: new RegExp(name) });
         expect(choice).toBeInTheDocument();
-        expect(choice).not.toBeChecked();
+        if (name === 'Not set') expect(choice).toBeChecked();
+        else expect(choice).not.toBeChecked();
       }
       const days = screen.getByLabelText(/Number of days/);
+      expect(days).toHaveValue(null);
       expect(days).toHaveAttribute('min', '1');
       expect(days).toHaveAttribute('max', '30');
     });

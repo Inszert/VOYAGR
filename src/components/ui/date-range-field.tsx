@@ -45,6 +45,8 @@ export interface DateRangeFieldProps {
   className?: string;
   /** Anything that belongs with the calendar, drawn under its months. */
   footer?: React.ReactNode;
+  /** Show the nights between the dates in the header. Off when the length is not the visitor's choice. */
+  showNights?: boolean;
 }
 
 const iso = (value: string | undefined): IsoDate | null =>
@@ -65,6 +67,7 @@ export function DateRangeField({
   bare = false,
   className,
   footer,
+  showNights = true,
 }: DateRangeFieldProps) {
   const startId = React.useId();
   const endId = React.useId();
@@ -130,7 +133,9 @@ export function DateRangeField({
       ? `Choose ${startLabel.toLowerCase()} and ${endLabel.toLowerCase()}`
       : end === null
         ? `${startLabel} set. Choose ${endLabel.toLowerCase()}.`
-        : `${nights} ${nights === 1 ? 'night' : 'nights'}`;
+        : !showNights
+          ? 'Dates chosen'
+          : `${nights} ${nights === 1 ? 'night' : 'nights'}`;
 
   const half = (
     id: string,

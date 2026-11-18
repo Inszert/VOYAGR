@@ -21,7 +21,7 @@ export { monthOptions } from './month-options';
 
 export const TRIP_NIGHTS = Array.from({ length: 20 }, (_, index) => ({
   value: String(index + 2),
-  label: `${index + 2} nights`,
+  label: `${index + 2}-night trip`,
 }));
 
 /** The Trip length select that "Anytime that month" asks for; the month is chosen in the calendar. */

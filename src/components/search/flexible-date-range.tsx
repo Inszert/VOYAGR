@@ -98,6 +98,7 @@ export function FlexibleDateRange({
       <div hidden={inMonth}>
         <DateRangeField
           {...range}
+          showNights={lengthMode === 'under' || lengthMode === 'over'}
           required={inMonth ? false : range.required}
           footer={
             <div className="flex flex-col gap-4">

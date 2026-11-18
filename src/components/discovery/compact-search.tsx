@@ -486,6 +486,8 @@ function BarSearch({
                     flexibility={form.value('flexibility')}
                     today={today}
                     monthStart={values.monthStart}
+                    tripLength={form.value('tripLength')}
+                    tripDays={form.value('tripDays')}
                   />
                 </div>
                 {/*

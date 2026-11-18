@@ -28,7 +28,7 @@ export function tripLengthModeOf(value: string | undefined): TripLengthMode {
 
 export function tripDaysOf(value: string | undefined): string {
   const days = Number(value);
-  return Number.isInteger(days) && days >= 1 && days <= 30 ? String(days) : '7';
+  return Number.isInteger(days) && days >= 1 && days <= 30 ? String(days) : '';
 }
 
 export interface TripLengthChoiceProps {
@@ -57,7 +57,8 @@ export function TripLengthChoice({
       <legend className="text-ink mb-1 text-sm font-medium">Trip length</legend>
       <div className="flex flex-wrap items-center gap-2">
         {CHOICES.map((choice) => {
-          const on = mode === choice.value;
+          // Nothing chosen is Not set: one radio is always checked.
+          const on = (mode === '' ? 'any' : mode) === choice.value;
           return (
             <label
               key={choice.value}
@@ -73,7 +74,12 @@ export function TripLengthChoice({
                 {...(named ? { name: 'tripLength' } : {})}
                 value={choice.value}
                 checked={on}
-                onChange={() => onModeChange(choice.value)}
+                onChange={() => {
+                  onModeChange(choice.value);
+                  if ((choice.value === 'under' || choice.value === 'over') && days === '') {
+                    onDaysChange('7');
+                  }
+                }}
                 className="accent-accent-to size-4 shrink-0"
               />
               {choice.label}

@@ -405,7 +405,7 @@ export const TRIP_LENGTH_MAX_DAYS = 30;
  */
 export function tripLengthSummary(minNights: number, maxNights: number): string {
   if (minNights <= 1 && maxNights >= TRIP_LENGTH_MAX_DAYS) return 'Any length';
-  if (minNights === maxNights) return `${minNights} nights`;
+  if (minNights === maxNights) return `${minNights} ${minNights === 1 ? 'night' : 'nights'}`;
   return `${minNights}-${maxNights} nights`;
 }
 
