@@ -71,6 +71,18 @@ describe('results controls', () => {
     expect(screen.getByRole('checkbox', { name: 'Direct only' })).toBeInTheDocument();
   });
 
+  it('keeps the filters in the side panel, not in the main results column', () => {
+    renderResults();
+    const side = screen.getByRole('complementary', { name: 'Filters' });
+    const heading = screen.getByRole('heading', { name: 'Narrow these results' });
+    expect(side).toContainElement(heading);
+    expect(side).toContainElement(screen.getByRole('checkbox', { name: 'Direct only' }));
+    expect(side).toHaveTextContent(
+      'Filters narrow what the search already found. They do not search again.',
+    );
+    expect(side).not.toContainElement(screen.getAllByText(/from VIE/)[0]!);
+  });
+
   it('shows and hides the filters from a button beside the sort', () => {
     renderResults();
     const button = screen.getByRole('button', { name: 'Filters' });

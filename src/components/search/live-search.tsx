@@ -445,6 +445,34 @@ export function FiltersToggle({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The results and the side column that holds the filters. The side column
+ * takes its share of the row only while the filters are open, so closing them
+ * gives the whole width back to the trips.
+ */
+export function FiltersLayout({
+  className,
+  hasPanel,
+  children,
+}: {
+  className?: string;
+  hasPanel: boolean;
+  children: React.ReactNode;
+}) {
+  const { open } = useFilters();
+  return (
+    <div
+      className={cn(
+        className,
+        open && hasPanel && 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)] lg:items-start',
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The side-panel card: the filters, shown and hidden by the Filters button. */
 export function FiltersPanel({
   className,
   children,
@@ -454,8 +482,8 @@ export function FiltersPanel({
 }) {
   const { open, panelId } = useFilters();
   return (
-    <div id={panelId} hidden={!open} className={className}>
+    <aside id={panelId} aria-label="Filters" hidden={!open} className={className}>
       {children}
-    </div>
+    </aside>
   );
 }

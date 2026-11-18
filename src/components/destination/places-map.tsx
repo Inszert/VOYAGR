@@ -5,11 +5,12 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { formatKilometres } from '@/core/distance';
 import type { ThingToDo } from '@/providers/types';
+import { OsmCredit, osmStyle } from '@/components/map/osm';
 
 /**
  * The places, placed: a street map of the city with a dot per place.
  *
- * The base is OpenStreetMap's raster tiles (`TILE_URL`), the one third-party
+ * The base is OpenStreetMap's raster tiles (`OSM_TILE_URL`), the one third-party
  * host the page talks to for this; `src/consent/csp.ts` names it in `img-src`
  * and `connect-src` and nowhere else. Each dot sits at the place's real
  * coordinates and the view is fitted to them. The credit line is part of the
@@ -23,7 +24,6 @@ import type { ThingToDo } from '@/providers/types';
  * `src/core/distance`.
  */
 
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const DOT_MIN = 3.5;
 const DOT_MAX = 7;
 const MAX_FIT_ZOOM = 16;
@@ -119,19 +119,7 @@ export function PlacesMap({
           touchZoomRotate: true,
           cooperativeGestures: true,
           attributionControl: false,
-          style: {
-            version: 8,
-            projection: { type: 'mercator' },
-            sources: {
-              osm: {
-                type: 'raster',
-                tiles: [TILE_URL],
-                tileSize: 256,
-                maxzoom: 19,
-              },
-            },
-            layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-          },
+          style: osmStyle(),
         });
 
         // The canvas is decoration; the dots' list and the cards are the content.
@@ -215,17 +203,7 @@ export function PlacesMap({
           role="region"
           aria-label="Street map of the places"
         />
-        {/* The licence's credit line, ours rather than the control's, so it is always on screen. */}
-        <p className="absolute right-0 bottom-0 z-10 rounded-tl-lg rounded-br-[14px] bg-black/75 px-2 py-0.5 text-[11px] text-white">
-          <a
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2"
-          >
-            © OpenStreetMap contributors
-          </a>
-        </p>
+        <OsmCredit />
         {status === 'failed' ? (
           <p
             role="status"

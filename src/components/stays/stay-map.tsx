@@ -4,19 +4,16 @@ import * as React from 'react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { Popover } from 'radix-ui';
+import { OsmCredit, osmStyle } from '@/components/map/osm';
 import { clusterPins } from './pin-clusters';
 import type { StayRow } from './stay-rows';
 
 /**
  * The selected city, flat, with its places to stay on it.
  *
- * **Drawn from our own origin only.** The base is the same Natural Earth land,
- * coastline and country outlines the globe draws, from `/geo/`; there is no
- * tile, glyph or sprite host in the style. That means no streets: street-level
- * detail would need a third-party tile server or a self-hosted city extract,
- * and neither exists here, so the map is honest about being a locator - where
- * each hotel is relative to the centre and to the others - rather than a
- * street map.
+ * **A street map, shared with the destination page.** The base is OpenStreetMap's
+ * raster tiles via `@/components/map/osm`, with the licence's credit line always
+ * on screen. Each hotel sits at its real coordinates.
  *
  * **Constrained to the city.** `maxBounds` is the listing box plus a margin and
  * the minimum zoom is the one that fits it, so the map cannot be dragged off to
@@ -50,26 +47,11 @@ export interface StayMapProps {
   readonly className?: string;
 }
 
-const LAND_URL = '/geo/land-50m.v2.json';
-const COASTLINE_URL = '/geo/coastline.v2.json';
-const COUNTRIES_URL = '/geo/countries-50m.v2.json';
-
 /** Two pins closer than this on screen are one cluster. */
 const CLUSTER_RADIUS = 34;
 
 function reducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-/** A token as a colour MapLibre reads (it does not read OKLCH; a canvas does). */
-function tokenColour(token: string, fallback: string): string {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
-  const context = document.createElement('canvas').getContext('2d');
-  if (!raw || !context) return fallback;
-  context.fillStyle = fallback;
-  context.fillStyle = raw;
-  const value = String(context.fillStyle);
-  return value.startsWith('#') || value.startsWith('rgb') ? value : fallback;
 }
 
 /** What a pin says to somebody who cannot see the map. */
@@ -165,13 +147,8 @@ export function StayMap({
           pitchWithRotate: false,
           touchZoomRotate: true,
           attributionControl: false,
-          style: {
-            version: 8,
-            projection: { type: 'mercator' },
+          style: osmStyle({
             sources: {
-              land: { type: 'geojson', data: LAND_URL },
-              coastline: { type: 'geojson', data: COASTLINE_URL },
-              countries: { type: 'geojson', data: COUNTRIES_URL },
               centre: {
                 type: 'geojson',
                 data: {
@@ -183,63 +160,24 @@ export function StayMap({
             },
             layers: [
               {
-                id: 'sea',
-                type: 'background',
-                // The sea in the globe's own blue, quietened: land and water must read apart.
-                paint: {
-                  'background-color': tokenColour('--color-stage-sea', '#1b3a5c'),
-                  'background-opacity': 0.55,
-                },
-              },
-              {
-                id: 'land',
-                type: 'fill',
-                source: 'land',
-                paint: { 'fill-color': tokenColour('--color-surface-sunken', '#10151f') },
-              },
-              {
-                id: 'coast',
-                type: 'line',
-                source: 'coastline',
-                paint: {
-                  'line-color': tokenColour('--color-stage-shelf', '#4b86b4'),
-                  'line-opacity': 0.5,
-                  'line-width': 1,
-                },
-              },
-              {
-                id: 'borders',
-                type: 'line',
-                source: 'countries',
-                paint: { 'line-color': 'rgba(255,255,255,0.18)', 'line-width': 0.8 },
-              },
-              {
                 id: 'centre-ring',
                 type: 'circle',
                 source: 'centre',
                 paint: {
                   'circle-radius': 7,
-                  'circle-color': 'rgba(0,0,0,0)',
-                  'circle-stroke-color': tokenColour('--color-brand-ink', '#d9a877'),
+                  'circle-color': '#ffffff',
+                  'circle-stroke-color': '#000000',
                   'circle-stroke-width': 2,
                 },
               },
             ],
-          },
+          }),
         });
 
         // The canvas is decoration; the pins and the list are the content.
         map.getCanvas().setAttribute('aria-hidden', 'true');
         map.getCanvas().setAttribute('tabindex', '-1');
 
-        map.addControl(
-          new maplibre.AttributionControl({
-            compact: false,
-            customAttribution:
-              '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · Natural Earth',
-          }),
-          'bottom-right',
-        );
         map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
 
         map.once('load', () => {
@@ -397,8 +335,9 @@ export function StayMap({
         ref={container}
         className="voyagr-stay-map h-full w-full"
         role="region"
-        aria-label={`Map of places to stay in ${city}`}
+        aria-label={`Street map of places to stay in ${city}`}
       />
+      <OsmCredit />
 
       {status === 'loading' ? (
         <div

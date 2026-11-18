@@ -30,7 +30,7 @@ import { buildTrip } from '@/search/trip-builder';
 import { dealAgainstTypical } from '@/search/deal-score';
 import { budgetWhatIf } from '@/search/what-if';
 import { WhatIfPanel } from './what-if-panel';
-import { FiltersDisclosure, FiltersPanel, FiltersToggle } from './live-search';
+import { FiltersDisclosure, FiltersLayout, FiltersPanel, FiltersToggle } from './live-search';
 import { NearbyAirportsPanel } from './nearby-airports-panel';
 import { RouteLines } from './route-lines';
 import { MAX_ROUTE_LINES } from '@/discovery/search-routes';
@@ -314,335 +314,349 @@ export function SearchResults({
           }
         />
 
-        {diagnostics.eligibleCount > 0 ? (
-          <FiltersPanel className="bg-surface-sunken border-border grid items-start gap-8 rounded-(--radius-card) border p-4 sm:p-6 lg:grid-cols-2">
-            <ResultFiltersPanel
-              filters={filters}
-              searchValues={searchValues}
-              hidden={hidden}
-              currency={profile.targetBudget.currency}
-              basePath={basePath}
-              origin={profile.origins.join(', ')}
-              arrivalsKnown={anyArrivalKnown(outcome.results)}
-            />
-            <WhatIfPanel
-              steps={budgetWhatIf(outcome, profile)}
-              hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
-            />
-          </FiltersPanel>
-        ) : null}
-      </FiltersDisclosure>
+        <FiltersLayout hasPanel={diagnostics.eligibleCount > 0} className="flex flex-col gap-6">
+          {diagnostics.eligibleCount > 0 ? (
+            /*
+              The filters live in the side column, as one card, beside the
+              trips rather than between the dates and them. On a phone the card
+              comes first, as the panel always did; from 1024px it moves to the
+              right and stays in view while the list scrolls.
+            */
+            <FiltersPanel className="bg-surface-sunken border-border flex min-w-0 flex-col gap-8 rounded-(--radius-card) border p-4 sm:p-5 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+5.5rem)] lg:order-2 lg:max-h-[calc(100vh-var(--voyagr-header-h,4.5rem)-7rem)] lg:overflow-y-auto">
+              <ResultFiltersPanel
+                filters={filters}
+                searchValues={searchValues}
+                hidden={hidden}
+                currency={profile.targetBudget.currency}
+                basePath={basePath}
+                origin={profile.origins.join(', ')}
+                arrivalsKnown={anyArrivalKnown(outcome.results)}
+              />
+              <WhatIfPanel
+                steps={budgetWhatIf(outcome, profile)}
+                hrefFor={(ceiling) => linkWith({ maxBudget: String(ceiling) })}
+              />
+            </FiltersPanel>
+          ) : null}
 
-      {/*
+          <div className="flex min-w-0 flex-col gap-6 lg:order-1">
+            {/*
         Quotes the vendor no longer stands behind, or observed too long ago.
         Said before the trips, because a price that may have moved is the one
         surprise worth leading with.
       */}
-      {diagnostics.quoteFreshness.stale > 0 ? (
-        <p role="status" className="text-ink-muted text-sm">
-          <span className="text-caution-ink font-medium">Some prices may have moved.</span>{' '}
-          {diagnostics.quoteFreshness.stale} of these trips{' '}
-          {diagnostics.quoteFreshness.stale === 1 ? 'carries' : 'carry'} an older quote; check the
-          price before booking.{' '}
-          <a
-            href={linkWith({})}
-            className="text-tint-ink inline-flex min-h-11 items-center font-medium underline underline-offset-4"
-          >
-            Search again
-          </a>
-        </p>
-      ) : null}
+            {diagnostics.quoteFreshness.stale > 0 ? (
+              <p role="status" className="text-ink-muted text-sm">
+                <span className="text-caution-ink font-medium">Some prices may have moved.</span>{' '}
+                {diagnostics.quoteFreshness.stale} of these trips{' '}
+                {diagnostics.quoteFreshness.stale === 1 ? 'carries' : 'carry'} an older quote; check
+                the price before booking.{' '}
+                <a
+                  href={linkWith({})}
+                  className="text-tint-ink inline-flex min-h-11 items-center font-medium underline underline-offset-4"
+                >
+                  Search again
+                </a>
+              </p>
+            ) : null}
 
-      {/*
+            {/*
         A provider that did not answer, in plain words: what is missing, what
         that means for the list, and a way to ask again.
       */}
-      {diagnostics.degraded ? (
-        <div
-          role="status"
-          className="border-caution-500/30 bg-caution-500/10 flex flex-col gap-3 rounded-(--radius-card) border p-4"
-        >
-          <div>
-            <h3 className="text-caution-ink text-sm font-semibold">This search is incomplete</h3>
-            <p className="text-ink mt-1 text-sm">
-              One or more travel data sources did not answer, so there may be trips we did not see.
-            </p>
-          </div>
-          <ul className="flex flex-col gap-1">
-            {diagnostics.issues.map((issue) => (
-              <li key={`${issue.scope}-${issue.code}`} className="text-ink text-sm">
-                <span className="text-caution-ink font-medium capitalize">
-                  <span className="sr-only">Unavailable: </span>
-                  {issue.kind}
-                </span>
-                {' — '}
-                {issue.message}
-              </li>
-            ))}
-          </ul>
-          <a
-            href={linkWith({})}
-            className="text-tint-ink inline-flex min-h-11 w-fit items-center gap-1.5 text-sm font-medium underline underline-offset-4"
-          >
-            Try the search again
-            <Icon name="arrow-right" size={0.9} aria-hidden="true" />
-          </a>
-        </div>
-      ) : null}
+            {diagnostics.degraded ? (
+              <div
+                role="status"
+                className="border-caution-500/30 bg-caution-500/10 flex flex-col gap-3 rounded-(--radius-card) border p-4"
+              >
+                <div>
+                  <h3 className="text-caution-ink text-sm font-semibold">
+                    This search is incomplete
+                  </h3>
+                  <p className="text-ink mt-1 text-sm">
+                    One or more travel data sources did not answer, so there may be trips we did not
+                    see.
+                  </p>
+                </div>
+                <ul className="flex flex-col gap-1">
+                  {diagnostics.issues.map((issue) => (
+                    <li key={`${issue.scope}-${issue.code}`} className="text-ink text-sm">
+                      <span className="text-caution-ink font-medium capitalize">
+                        <span className="sr-only">Unavailable: </span>
+                        {issue.kind}
+                      </span>
+                      {' — '}
+                      {issue.message}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href={linkWith({})}
+                  className="text-tint-ink inline-flex min-h-11 w-fit items-center gap-1.5 text-sm font-medium underline underline-offset-4"
+                >
+                  Try the search again
+                  <Icon name="arrow-right" size={0.9} aria-hidden="true" />
+                </a>
+              </div>
+            ) : null}
 
-      {/* The flexible-dates strip comes before the list: the dates are the first thing to move. */}
-      {flexStrip}
+            {/* The flexible-dates strip comes before the list: the dates are the first thing to move. */}
+            {flexStrip}
 
-      {/*
+            {/*
         The dates, across the whole width.
 
         A calendar with a price in every day is two months side by side on a
         desktop, and it is the first thing to choose, so it comes before the trips.
       */}
-      {diagnostics.eligibleCount > 0 ? (
-        <DateOptions
-          breakdown={buildDateBreakdown(outcome)}
-          searchValues={searchValues}
-          selected={filters.dates}
-          basePath={basePath}
-          sources={diagnostics.sources}
-          {...(changeSearchHref ? { changeSearchHref } : {})}
-        />
-      ) : null}
+            {diagnostics.eligibleCount > 0 ? (
+              <DateOptions
+                breakdown={buildDateBreakdown(outcome)}
+                searchValues={searchValues}
+                selected={filters.dates}
+                basePath={basePath}
+                sources={diagnostics.sources}
+                {...(changeSearchHref ? { changeSearchHref } : {})}
+              />
+            ) : null}
 
-      <div className="flex min-w-0 flex-col gap-6">
-        {results.length === 0 && filtered ? (
-          // Different from "no trip matched": the search found trips and the
-          // filters removed them, so the thing to change is the filters.
-          <EmptyState
-            title="Your filters hid every trip"
-            description={`The search found ${diagnostics.eligibleCount}, and the filters above removed all of them. Loosen one to see them again.`}
-            action={
-              <Button asChild variant="secondary" size="md">
-                <a
-                  href={linkWith(
-                    Object.fromEntries(
-                      Object.keys(searchValues)
-                        .filter((key) => key.startsWith('f'))
-                        .map((key) => [key, null]),
-                    ),
-                  )}
-                >
-                  Clear the filters
-                </a>
-              </Button>
-            }
-          />
-        ) : null}
+            <div className="flex min-w-0 flex-col gap-6">
+              {results.length === 0 && filtered ? (
+                // Different from "no trip matched": the search found trips and the
+                // filters removed them, so the thing to change is the filters.
+                <EmptyState
+                  title="Your filters hid every trip"
+                  description={`The search found ${diagnostics.eligibleCount}, and the filters above removed all of them. Loosen one to see them again.`}
+                  action={
+                    <Button asChild variant="secondary" size="md">
+                      <a
+                        href={linkWith(
+                          Object.fromEntries(
+                            Object.keys(searchValues)
+                              .filter((key) => key.startsWith('f'))
+                              .map((key) => [key, null]),
+                          ),
+                        )}
+                      >
+                        Clear the filters
+                      </a>
+                    </Button>
+                  }
+                />
+              ) : null}
 
-        {built && focus ? (
-          /*
+              {built && focus ? (
+                /*
             Your trip: the one being built, on a band of its own so it reads
             as the answer, with the other ways to do it below. Each band runs
             the full width; the 64px between them (40px on a phone) is the
             separation, not a box.
           */
-          <div
-            id="your-trip"
-            className="before:bg-bg-alt relative scroll-mt-24 py-10 before:absolute before:inset-y-0 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 lg:py-16"
-          >
-            <YourTrip
-              built={built}
-              profile={profile}
-              reasons={explainTrip(built.trip, profile)}
-              deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
-              view={view}
-              nearMiss={!results.includes(focus)}
-              stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
-              transferOffer={offersFor('transfer')[0] ?? null}
-              planTrips={planTrips}
-              signedIn={planTrips !== null}
-              tripHref={linkWith({
-                tTrip: focus.candidate.id,
-                tFlight: searchValues.tFlight ?? null,
-                tHotel: searchValues.tHotel ?? null,
-              })}
-              extras={offersForTrip({ categories: ['esim', 'transfer', 'compensation'] })}
-              destinationHref={destinationHref(built.trip)}
-              calendarHref="#date-options-heading"
-              {...(whatToDo
-                ? {
-                    whatToDo: whatToDo(
-                      built.trip.candidate.destination,
-                      built.trip.candidate.destinationName,
-                      destinationHref(built.trip),
-                    ),
-                  }
-                : {})}
-              {...(saveSearch ? { watchHref: '#save-search-heading' } : {})}
-              flightHref={(offerId) =>
-                linkWith({
-                  tTrip: focus.candidate.id,
-                  tFlight: offerId,
-                  tHotel: searchValues.tHotel ?? null,
-                })
-              }
-              hotelHref={(offerId) =>
-                linkWith({
-                  tTrip: focus.candidate.id,
-                  tHotel: offerId,
-                  tFlight: searchValues.tFlight ?? null,
-                })
-              }
-              resetHref={linkWith({ ...noBuild, tTrip: focus.candidate.id })}
-            />
-          </div>
-        ) : null}
+                <div
+                  id="your-trip"
+                  className="before:bg-bg-alt relative scroll-mt-24 py-10 before:absolute before:inset-y-0 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 lg:py-16"
+                >
+                  <YourTrip
+                    built={built}
+                    profile={profile}
+                    reasons={explainTrip(built.trip, profile)}
+                    deal={dealAgainstTypical(built.trip, outcome.destinationSummaries)}
+                    view={view}
+                    nearMiss={!results.includes(focus)}
+                    stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
+                    transferOffer={offersFor('transfer')[0] ?? null}
+                    planTrips={planTrips}
+                    signedIn={planTrips !== null}
+                    tripHref={linkWith({
+                      tTrip: focus.candidate.id,
+                      tFlight: searchValues.tFlight ?? null,
+                      tHotel: searchValues.tHotel ?? null,
+                    })}
+                    extras={offersForTrip({ categories: ['esim', 'transfer', 'compensation'] })}
+                    destinationHref={destinationHref(built.trip)}
+                    calendarHref="#date-options-heading"
+                    {...(whatToDo
+                      ? {
+                          whatToDo: whatToDo(
+                            built.trip.candidate.destination,
+                            built.trip.candidate.destinationName,
+                            destinationHref(built.trip),
+                          ),
+                        }
+                      : {})}
+                    {...(saveSearch ? { watchHref: '#save-search-heading' } : {})}
+                    flightHref={(offerId) =>
+                      linkWith({
+                        tTrip: focus.candidate.id,
+                        tFlight: offerId,
+                        tHotel: searchValues.tHotel ?? null,
+                      })
+                    }
+                    hotelHref={(offerId) =>
+                      linkWith({
+                        tTrip: focus.candidate.id,
+                        tHotel: offerId,
+                        tFlight: searchValues.tFlight ?? null,
+                      })
+                    }
+                    resetHref={linkWith({ ...noBuild, tTrip: focus.candidate.id })}
+                  />
+                </div>
+              ) : null}
 
-        {others.length > 0 ? (
-          <div className="flex flex-col gap-1">
-            <p className="text-dim text-[11px] font-semibold tracking-[0.18em] uppercase">
-              Compare
-            </p>
-            <h2 id="other-ways-heading" className="font-display text-ink text-display-sm">
-              Other ways to do this trip
-            </h2>
-            <p className="text-ink-muted text-sm">
-              Other dates and places this search priced. Open one to build it instead.
-            </p>
-          </div>
-        ) : null}
+              {others.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-dim text-[11px] font-semibold tracking-[0.18em] uppercase">
+                    Compare
+                  </p>
+                  <h2 id="other-ways-heading" className="font-display text-ink text-display-sm">
+                    Other ways to do this trip
+                  </h2>
+                  <p className="text-ink-muted text-sm">
+                    Other dates and places this search priced. Open one to build it instead.
+                  </p>
+                </div>
+              ) : null}
 
-        {others.length > 0 ? (
-          /*
+              {others.length > 0 ? (
+                /*
             The rest of the results: where, when, how and how much, and anything
             worth worrying about. One column, two from 1280px. Each
             opens in the builder.
           */
-          <ol
-            aria-labelledby="other-ways-heading"
-            className="grid grid-cols-1 gap-4 xl:grid-cols-2"
-          >
-            {others.map((trip, index) => (
-              <li key={trip.candidate.id} className="voyagr-reveal min-w-0">
-                <TripRow
-                  trip={trip}
-                  rank={index + 1}
-                  deal={dealAgainstTypical(trip, outcome.destinationSummaries)}
-                  view={view}
-                  cheapestOrigin={trip.candidate.origin === cheapestOrigin}
-                  image={images?.get(trip.candidate.destination) ?? null}
-                  country={countryOf(trip)}
-                  buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}
-                />
-              </li>
-            ))}
-          </ol>
-        ) : focus || filtered ? null : (
-          /*
+                <ol
+                  aria-labelledby="other-ways-heading"
+                  className="grid grid-cols-1 gap-4 xl:grid-cols-2"
+                >
+                  {others.map((trip, index) => (
+                    <li key={trip.candidate.id} className="voyagr-reveal min-w-0">
+                      <TripRow
+                        trip={trip}
+                        rank={index + 1}
+                        deal={dealAgainstTypical(trip, outcome.destinationSummaries)}
+                        view={view}
+                        cheapestOrigin={trip.candidate.origin === cheapestOrigin}
+                        image={images?.get(trip.candidate.destination) ?? null}
+                        country={countryOf(trip)}
+                        buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              ) : focus || filtered ? null : (
+                /*
             An empty result set is a state, not a sentence in a box. It says
             what happened and offers the one thing worth doing next: widening
             the dates, because a budget is usually what somebody meant and the
             calendar is usually what they can move.
           */
-          <EmptySearch
-            outcome={outcome}
-            profile={profile}
-            linkWith={linkWith}
-            changeSearchHref={changeSearchHref}
-          />
-        )}
+                <EmptySearch
+                  outcome={outcome}
+                  profile={profile}
+                  linkWith={linkWith}
+                  changeSearchHref={changeSearchHref}
+                />
+              )}
 
-        {closeCalls.length > 0 ? (
-          <section aria-labelledby="near-misses-heading" className="mt-4 flex flex-col gap-4">
-            <h3 id="near-misses-heading" className="font-display text-ink text-2xl">
-              Close, but outside your limits
-            </h3>
-            <ol className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {closeCalls.map((trip) => (
-                <li key={trip.candidate.id} className="min-w-0">
-                  {/* Rank is deliberately out of range: a near miss is not ranked. */}
-                  <TripRow
-                    trip={trip}
-                    rank={-1}
-                    view={view}
-                    image={images?.get(trip.candidate.destination) ?? null}
-                    country={countryOf(trip)}
-                    buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}
-                  />
-                </li>
-              ))}
-            </ol>
-          </section>
-        ) : null}
-      </div>
+              {closeCalls.length > 0 ? (
+                <section aria-labelledby="near-misses-heading" className="mt-4 flex flex-col gap-4">
+                  <h3 id="near-misses-heading" className="font-display text-ink text-2xl">
+                    Close, but outside your limits
+                  </h3>
+                  <ol className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    {closeCalls.map((trip) => (
+                      <li key={trip.candidate.id} className="min-w-0">
+                        {/* Rank is deliberately out of range: a near miss is not ranked. */}
+                        <TripRow
+                          trip={trip}
+                          rank={-1}
+                          view={view}
+                          image={images?.get(trip.candidate.destination) ?? null}
+                          country={countryOf(trip)}
+                          buildHref={`${linkWith({ ...noBuild, tTrip: trip.candidate.id })}#your-trip`}
+                        />
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ) : null}
+            </div>
 
-      <Disclosure summary="How this search was run">
-        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Date windows priced</dt>
-            <dd className="text-ink tabular-nums">
-              {diagnostics.plan.dateWindows.length} of {diagnostics.plan.dateWindowsAvailable}{' '}
-              possible
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Provider calls</dt>
-            <dd className="text-ink tabular-nums">{diagnostics.providerCalls}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Combinations built</dt>
-            <dd className="text-ink tabular-nums">{diagnostics.candidatesAssembled}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Combinations scored</dt>
-            <dd className="text-ink tabular-nums">{diagnostics.candidatesEvaluated}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Outside your limits</dt>
-            <dd className="text-ink tabular-nums">{diagnostics.ineligibleCount}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Peak calls at once</dt>
-            <dd className="text-ink tabular-nums">{diagnostics.peakProviderConcurrency}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Quotes still current</dt>
-            <dd className="text-ink tabular-nums">
-              {diagnostics.quoteFreshness.fresh} current · {diagnostics.quoteFreshness.stale} stale
-              {diagnostics.quoteFreshness.unknown > 0
-                ? ` · ${diagnostics.quoteFreshness.unknown} undated`
-                : ''}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ink-muted">Prices observed</dt>
-            <dd className="text-ink">
-              {/*
+            <Disclosure summary="How this search was run">
+              <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Date windows priced</dt>
+                  <dd className="text-ink tabular-nums">
+                    {diagnostics.plan.dateWindows.length} of {diagnostics.plan.dateWindowsAvailable}{' '}
+                    possible
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Provider calls</dt>
+                  <dd className="text-ink tabular-nums">{diagnostics.providerCalls}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Combinations built</dt>
+                  <dd className="text-ink tabular-nums">{diagnostics.candidatesAssembled}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Combinations scored</dt>
+                  <dd className="text-ink tabular-nums">{diagnostics.candidatesEvaluated}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Outside your limits</dt>
+                  <dd className="text-ink tabular-nums">{diagnostics.ineligibleCount}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Peak calls at once</dt>
+                  <dd className="text-ink tabular-nums">{diagnostics.peakProviderConcurrency}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Quotes still current</dt>
+                  <dd className="text-ink tabular-nums">
+                    {diagnostics.quoteFreshness.fresh} current · {diagnostics.quoteFreshness.stale}{' '}
+                    stale
+                    {diagnostics.quoteFreshness.unknown > 0
+                      ? ` · ${diagnostics.quoteFreshness.unknown} undated`
+                      : ''}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-ink-muted">Prices observed</dt>
+                  <dd className="text-ink">
+                    {/*
                 A reused result is a price observed some time ago. Saying so is
                 cheaper than the alternative, which is a user acting on a fare
                 that moved while the page sat in a cache.
               */}
-              {ageMinutes < 1 ? 'Just now' : `${ageMinutes} minutes ago`}
-            </dd>
-          </div>
-        </dl>
-        {diagnostics.plan.dateWindows.length < diagnostics.plan.dateWindowsAvailable ? (
-          <p className="text-ink-muted mt-3 text-sm">
-            Your dates allow more combinations than one search prices. We sampled evenly across the
-            window rather than searching only its first days.
-          </p>
-        ) : null}
-      </Disclosure>
+                    {ageMinutes < 1 ? 'Just now' : `${ageMinutes} minutes ago`}
+                  </dd>
+                </div>
+              </dl>
+              {diagnostics.plan.dateWindows.length < diagnostics.plan.dateWindowsAvailable ? (
+                <p className="text-ink-muted mt-3 text-sm">
+                  Your dates allow more combinations than one search prices. We sampled evenly
+                  across the window rather than searching only its first days.
+                </p>
+              ) : null}
+            </Disclosure>
 
-      {/*
+            {/*
         A calm closing band: keep looking, then the rest of the trip. The
         affiliate disclosure travels with the partner links inside it.
       */}
-      {saveSearch || closing ? (
-        <aside
-          aria-label="About this search"
-          className="bg-surface-sunken border-border mt-4 flex flex-col gap-10 rounded-(--radius-surface) border p-6 sm:p-10"
-        >
-          {saveSearch}
-          {closing}
-        </aside>
-      ) : null}
+            {saveSearch || closing ? (
+              <aside
+                aria-label="About this search"
+                className="bg-surface-sunken border-border mt-4 flex flex-col gap-10 rounded-(--radius-surface) border p-6 sm:p-10"
+              >
+                {saveSearch}
+                {closing}
+              </aside>
+            ) : null}
+          </div>
+        </FiltersLayout>
+      </FiltersDisclosure>
     </section>
   );
 }

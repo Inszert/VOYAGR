@@ -36,6 +36,17 @@ test.describe('a destination page', () => {
     await expect(page.getByRole('region', { name: 'Getting in from the airport' })).toBeVisible();
   });
 
+  test('keeps the plan panel in the side column, not the main content', async ({ page }) => {
+    await page.goto(ANTALYA);
+
+    const side = page.getByRole('complementary', { name: /Plan a trip to Antalya/ });
+    await expect(side).toBeVisible();
+    await expect(side.getByRole('heading', { name: /Plan a trip to Antalya/ })).toBeVisible();
+    await expect(side.getByRole('link', { name: 'Search trips' })).toBeVisible();
+    // The place content is not inside it.
+    await expect(side.getByRole('region', { name: 'Eating' })).toHaveCount(0);
+  });
+
   test('shows no outlook without dates, and one with them', async ({ page }) => {
     await page.goto(ANTALYA);
     await expect(page.getByRole('region', { name: 'While you are there' })).toBeHidden();
