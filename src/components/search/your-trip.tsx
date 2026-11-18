@@ -9,6 +9,9 @@ import { Button, Disclosure, Icon, type IconName } from '@/components/ui';
 import { buildFlightHandoff, buildHotelHandoff, OUTBOUND_LINK_REL } from '@/booking/handoff';
 import type { PartnerOffer } from '@/booking/partners';
 import { PartnerOfferRow } from '@/components/partners/partner-offer-row';
+import { AffiliateDisclosure } from '@/components/partners/affiliate-disclosure';
+import { CATEGORY_LABEL } from '@/components/partners/partner-meta';
+import { tripStaysHref } from '@/search/stays/trip-stays';
 import { FindStayLink } from '@/components/stays/find-stay-link';
 import { ReservePlaceholder } from './reserve-placeholder';
 import { earthMonthOf } from '@/components/discovery/globe-style';
@@ -27,6 +30,7 @@ import { AddToPlan, type PlanTrip } from './add-to-plan';
 import { CostBreakdown } from './cost-breakdown';
 import { DealNote } from './deal-note';
 import { clock, duration } from './route-line';
+import { SaveTrip } from './save-trip';
 import { ScoreExplanation } from './score-explanation';
 import {
   HotelGallery,
@@ -71,6 +75,12 @@ export interface YourTripProps {
   readonly watchHref?: string;
   /** "What to do in <city>", resolved by the page (it reads the places loader). */
   readonly whatToDo?: React.ReactNode;
+  /** This trip's own explorer address: where "back to your flights" returns, and what a saved trip reopens. */
+  readonly tripHref?: string;
+  /** Signed in, a saved trip goes to the account; signed out, it stays in this browser. */
+  readonly signedIn?: boolean;
+  /** Partner extras for the trip (eSIM, transfer, compensation), from the registry. */
+  readonly extras?: readonly PartnerOffer[];
 }
 
 // --- Words ---------------------------------------------------------------------
@@ -370,6 +380,7 @@ function StayLegBody({
   checkIn,
   destinationName,
   stayLink,
+  staysHref,
 }: {
   hotel: HotelOffer | null;
   nights: number;
@@ -377,6 +388,7 @@ function StayLegBody({
   checkIn: string;
   destinationName: string;
   stayLink: StayLinkOffer | null;
+  staysHref: string | null;
 }) {
   const eyebrow = (
     <h3 id={headingId} className="text-dim text-[11px] font-semibold tracking-[0.16em] uppercase">
@@ -388,7 +400,15 @@ function StayLegBody({
     return (
       <div className="flex flex-col gap-3">
         {eyebrow}
-        <p className="font-display text-ink text-xl">No stay priced yet</p>
+        <p className="font-display text-ink text-xl">Stay not priced</p>
+        {staysHref ? (
+          <Button asChild variant="secondary" size="md" className="self-start">
+            <a href={staysHref}>
+              Choose a stay in {destinationName}
+              <Icon name="arrow-right" size={1} aria-hidden="true" />
+            </a>
+          </Button>
+        ) : null}
         {stayLink ? (
           <FindStayLink offer={stayLink} size="md" />
         ) : (
@@ -547,6 +567,9 @@ export function YourTrip({
   nearMiss = false,
   watchHref,
   whatToDo = null,
+  tripHref,
+  signedIn = false,
+  extras = [],
 }: YourTripProps) {
   const { trip } = built;
   const { candidate, cost, score, eligibility } = trip;
@@ -580,6 +603,20 @@ export function YourTrip({
     ? buildHotelHandoff(candidate.hotel, { candidateId: candidate.id })
     : null;
   const transferExcluded = cost.excluded.some((line) => line.category === 'transfer');
+
+  const staysHref = tripHref
+    ? tripStaysHref({
+        destinationName: candidate.destinationName,
+        destinationCode: candidate.destination,
+        checkIn: candidate.dates.departureDate,
+        checkOut: candidate.dates.returnDate,
+        adults: candidate.passengers,
+        currency,
+        flightOut: `Out ${legLine(candidate.flight.outbound)}`,
+        flightBack: `Back ${legLine(candidate.flight.inbound)}`,
+        tripHref,
+      })
+    : null;
 
   const flights = flightOptions(built.flights, currency, flightHref);
   const hotels = hotelOptions(built.hotels, currency, hotelHref);
@@ -621,6 +658,25 @@ export function YourTrip({
           </p>
           <p className="text-ink-muted text-sm tabular-nums">{format(each)} per person</p>
         </div>
+
+        {staysHref ? (
+          <a
+            href={staysHref}
+            className="border-border hover:bg-surface-sunken flex min-h-11 flex-col gap-0.5 rounded-(--radius-control) border p-3 text-sm"
+          >
+            <span className="text-dim text-[11px] font-semibold tracking-[0.16em] uppercase">
+              Your flight
+            </span>
+            <span className="text-ink tabular-nums">Out {legLine(candidate.flight.outbound)}</span>
+            <span className="text-ink-muted tabular-nums">
+              Back {legLine(candidate.flight.inbound)}
+            </span>
+            <span className="text-tint-ink inline-flex items-center gap-1 font-medium">
+              Choose a stay for this trip
+              <Icon name="arrow-right" size={0.9} aria-hidden="true" />
+            </span>
+          </a>
+        ) : null}
 
         <dl className="flex flex-col gap-1.5 text-sm">
           {cost.byCategory.map((entry) => {
@@ -751,6 +807,18 @@ export function YourTrip({
               ) : null}
             </li>
           ) : null}
+          {tripHref ? (
+            <li className="py-2">
+              <SaveTrip
+                signedIn={signedIn}
+                name={`Trip to ${candidate.destinationName}`}
+                destination={candidate.destinationName}
+                startDate={candidate.dates.departureDate}
+                endDate={candidate.dates.returnDate}
+                href={tripHref}
+              />
+            </li>
+          ) : null}
           {watchHref ? (
             <li className="py-2">
               <a
@@ -866,6 +934,7 @@ export function YourTrip({
                     checkIn={candidate.dates.departureDate}
                     destinationName={candidate.destinationName}
                     stayLink={stayLink}
+                    staysHref={staysHref}
                   />
                 </LegChanger>
               ) : (
@@ -876,6 +945,7 @@ export function YourTrip({
                   checkIn={candidate.dates.departureDate}
                   destinationName={candidate.destinationName}
                   stayLink={stayLink}
+                  staysHref={staysHref}
                 />
               )}
             </LegCard>
@@ -903,6 +973,24 @@ export function YourTrip({
           </ol>
 
           {whatToDo}
+
+          {extras.length > 0 ? (
+            <section aria-labelledby={`${id}-extras`} className="flex flex-col gap-3">
+              <SectionHeading id={`${id}-extras`} eyebrow="Partners" title="Add to this trip" />
+              <ul className="flex flex-col gap-3">
+                {extras.map((offer) => (
+                  <li key={offer.id} className="flex flex-col gap-1">
+                    <span className="text-dim text-[11px] font-semibold tracking-[0.16em] uppercase">
+                      {CATEGORY_LABEL[offer.category]}
+                    </span>
+                    <PartnerOfferRow offer={offer} />
+                    <span className="text-ink-muted text-sm">{offer.description}</span>
+                  </li>
+                ))}
+              </ul>
+              <AffiliateDisclosure />
+            </section>
+          ) : null}
 
           {/* Good to know: what to check, one line each. */}
           <section aria-labelledby={`${id}-know`} className="flex flex-col gap-3">

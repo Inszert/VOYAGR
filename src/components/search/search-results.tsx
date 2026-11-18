@@ -23,7 +23,7 @@ import type { RankedTrip, SearchOutcome } from '@/search/types';
 import type { SearchProfile } from '@/core/trip/types';
 import type { StayLinkOffer } from '@/core/stay/types';
 import type { DestinationImage } from '@/providers/imagery/types';
-import { offersFor } from '@/booking/partners';
+import { offersFor, offersForTrip } from '@/booking/partners';
 import { YourTrip } from './your-trip';
 import { TripRow } from './trip-row';
 import { buildTrip } from '@/search/trip-builder';
@@ -456,6 +456,13 @@ export function SearchResults({
               stayLink={stayLinks?.get(built.trip.candidate.id) ?? null}
               transferOffer={offersFor('transfer')[0] ?? null}
               planTrips={planTrips}
+              signedIn={planTrips !== null}
+              tripHref={linkWith({
+                tTrip: focus.candidate.id,
+                tFlight: searchValues.tFlight ?? null,
+                tHotel: searchValues.tHotel ?? null,
+              })}
+              extras={offersForTrip({ categories: ['esim', 'transfer', 'compensation'] })}
               destinationHref={destinationHref(built.trip)}
               calendarHref="#date-options-heading"
               {...(whatToDo

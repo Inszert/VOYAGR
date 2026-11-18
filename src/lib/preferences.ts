@@ -156,3 +156,57 @@ export function paramsFromPreferences(prefs: ExplorePreferences): URLSearchParam
   for (const [key, value] of Object.entries(prefs.filters)) params.set(key, value);
   return params;
 }
+
+// --- Trips kept in this browser ------------------------------------------------------
+
+export const SAVED_TRIPS_KEY = 'voyagr.saved-trips.v1';
+const MAX_SAVED_TRIPS = 20;
+
+/** A trip a signed-out visitor kept here until they sign in. Words and dates only: no price. */
+export const savedTripSchema = z.object({
+  name: z.string().min(1).max(80),
+  destination: z.string().min(1).max(80),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** The explorer address that reopens it. */
+  href: z
+    .string()
+    .max(2000)
+    .regex(/^\/explore(\?\S*)?$/),
+});
+
+export type BrowserSavedTrip = z.infer<typeof savedTripSchema>;
+
+export function readSavedTrips(
+  storage: PreferenceStorage | null | undefined,
+): readonly BrowserSavedTrip[] {
+  try {
+    if (!storage) return [];
+    const raw = storage.getItem(SAVED_TRIPS_KEY);
+    if (raw === null) return [];
+    const parsed = z.array(savedTripSchema).safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Keeps the trip (replacing one at the same address). Returns false when it could not be kept. */
+export function saveTripToBrowser(
+  storage: PreferenceStorage | null | undefined,
+  trip: BrowserSavedTrip,
+): boolean {
+  try {
+    if (!storage) return false;
+    const checked = savedTripSchema.safeParse(trip);
+    if (!checked.success) return false;
+    const rest = readSavedTrips(storage).filter((entry) => entry.href !== checked.data.href);
+    storage.setItem(
+      SAVED_TRIPS_KEY,
+      JSON.stringify([checked.data, ...rest].slice(0, MAX_SAVED_TRIPS)),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}

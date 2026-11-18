@@ -16,6 +16,8 @@ import { getStayProviders } from '@/providers/stays/registry';
 import { resolveStayPlace } from '@/providers/stays/stay-place';
 import { StaySearchForm } from '@/components/stays/stay-search-form';
 import { StayHeader } from '@/components/stays/stay-header';
+import { TripFlightCard } from '@/components/stays/trip-flight-card';
+import { parseTripCarry } from '@/search/stays/trip-stays';
 import { StayProperty } from '@/components/stays/stay-property';
 import { loadLocator } from '@/discovery/locator-data';
 import { tintFor } from '@/lib/tint';
@@ -79,6 +81,8 @@ export default async function StaysPage({
    * is a normal thing to want and has to stay expressible.
    */
   const withFlights = params.with === 'flights';
+  // A flight chosen on the trip, carried here as words; null unless the link came from a trip.
+  const tripCarry = parseTripCarry(params);
 
   /*
    * The place's photograph, for the header.
@@ -169,6 +173,8 @@ export default async function StaysPage({
             occupancy={view.query.occupancy}
           />
         </header>
+
+        {tripCarry ? <TripFlightCard carry={tripCarry} /> : null}
 
         {withFlights ? (
           <section

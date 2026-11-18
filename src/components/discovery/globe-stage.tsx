@@ -634,6 +634,8 @@ export function GlobeStage({
   const previousVariant = React.useRef(variant);
 
   const [status, setStatus] = React.useState<'loading' | 'ready' | 'failed'>('loading');
+  // The earth is on screen: the canvas is shown from the first earth frame, not from `load`.
+  const [shown, setShown] = React.useState(false);
   /** Which kind of place the middle of the view is over, for the weather. */
   const [biome, setBiome] = React.useState<SurfaceKind | null>(null);
   const [hosts, setHosts] = React.useState<Readonly<Record<string, HTMLElement>>>({});
@@ -1466,13 +1468,16 @@ export function GlobeStage({
         map.on('moveend', readBiome);
         layoutRef.current = scheduleLayout;
 
-        map.once('load', () => {
-          window.clearTimeout(blankGuard);
-          if (cancelled) return;
-
-          // The origins, routes and destinations are all filled by the effect
-          // below, which runs as soon as this sets `ready`. Only the opening
-          // view belongs here, because it needs the container's real size.
+        /*
+         * The opening view, applied once - by whichever comes first, the first
+         * earth frame or `load`. The monthly earth is a few small tiles, but
+         * `load` also waits for every outline and light file (about three
+         * megabytes), which left a bare sphere on screen for seconds.
+         */
+        let opened = false;
+        const openView = () => {
+          if (opened || cancelled) return;
+          opened = true;
           const opening = live.current;
           // The opening view is already the right composition for this page.
           previousVariant.current = opening.variant;
@@ -1491,6 +1496,23 @@ export function GlobeStage({
               opening.seasonDate,
             ),
           );
+          setShown(true);
+        };
+        const onEarth = (event: { sourceId?: string; isSourceLoaded?: boolean }) => {
+          if (event.sourceId !== 'earth' || !event.isSourceLoaded) return;
+          map.off('sourcedata', onEarth);
+          openView();
+        };
+        map.on('sourcedata', onEarth);
+
+        map.once('load', () => {
+          window.clearTimeout(blankGuard);
+          if (cancelled) return;
+
+          // The origins, routes and destinations are all filled by the effect
+          // below, which runs as soon as this sets `ready`. Only the opening
+          // view belongs here, because it needs the container's real size.
+          openView();
 
           /*
            * Follows the box.
@@ -1638,13 +1660,9 @@ export function GlobeStage({
      */
     let cancelBuild: () => void;
 
-    if (typeof window.requestIdleCallback === 'function') {
-      const handle = window.requestIdleCallback(() => void build(), { timeout: 1_000 });
-      cancelBuild = () => window.cancelIdleCallback(handle);
-    } else {
-      const handle = window.setTimeout(() => void build(), 200);
-      cancelBuild = () => window.clearTimeout(handle);
-    }
+    // At once: the planet is the first thing the page is for.
+    const handle = window.setTimeout(() => void build(), 0);
+    cancelBuild = () => window.clearTimeout(handle);
 
     return () => {
       cancelled = true;
@@ -3387,7 +3405,7 @@ export function GlobeStage({
         aria-hidden="true"
         className={cn(
           'pointer-events-none absolute inset-0 -z-10 flex items-center justify-center transition-opacity duration-500',
-          status === 'ready' ? 'opacity-0' : 'opacity-100',
+          shown || status === 'ready' ? 'opacity-0' : 'opacity-100',
         )}
       >
         <div className="bg-stage-sea shadow-lifted aspect-square w-[72%] max-w-[36rem] rounded-full bg-[radial-gradient(circle_at_35%_30%,var(--color-stage-land-lit)_0%,var(--color-stage-sea)_45%,var(--color-stage-deep)_100%)] opacity-90" />
@@ -3397,7 +3415,7 @@ export function GlobeStage({
         ref={container}
         className={cn(
           'voyagr-map h-full w-full transition-opacity duration-500',
-          status === 'ready' ? 'opacity-100' : 'opacity-0',
+          shown || status === 'ready' ? 'opacity-100' : 'opacity-0',
         )}
       />
 
