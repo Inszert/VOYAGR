@@ -34,8 +34,10 @@ export function searchFormDefaults(today: IsoDate): Readonly<Record<string, stri
     returnDate: addDays(departure, DEFAULT_TRIP_LENGTH_DAYS),
     earliestDeparture: departure,
     latestReturn: addDays(departure, DEFAULT_WINDOW_DAYS),
-    minNights: '2',
-    maxNights: '7',
+    // No trip length chosen means any length: the nights span the whole range the
+    // trip-length control can name (1 to 30), so no limit is applied by default.
+    minNights: '1',
+    maxNights: '30',
     passengers: '2',
     currency: 'EUR',
     targetBudget: '650',
