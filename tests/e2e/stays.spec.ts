@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { openMenuIfPhone } from './support/menu';
 import { openSearch } from './support/searches';
 
@@ -12,6 +12,18 @@ import { openSearch } from './support/searches';
  */
 
 const SEARCH = '/stays?destination=Barcelona';
+
+/** On a phone the search form folds away behind "Change search". */
+async function openChangeSearch(page: Page) {
+  const toggle = page.locator('summary', { hasText: 'Change search' });
+  if (!(await toggle.isVisible())) return;
+  await page.waitForLoadState('networkidle');
+  // The form folds shut once the page hydrates, so open it until it stays open.
+  await expect(async () => {
+    if (!(await page.getByLabel('Check-in').isVisible())) await toggle.click();
+    await expect(page.getByLabel('Check-in')).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
+}
 
 test.describe('stays', () => {
   test('is offered on the front page rather than hidden', async ({ page }) => {
@@ -31,12 +43,44 @@ test.describe('stays', () => {
     ).toBeVisible();
   });
 
+  test('nothing searched shows the form and one h1', async ({ page }) => {
+    await page.goto('/stays');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Find a place to stay' }),
+    ).toBeVisible();
+    await openChangeSearch(page);
+    await expect(page.getByLabel('Check-in')).toBeVisible();
+  });
+
+  test('a result with no stored price says so and shows no figure', async ({ page }) => {
+    await page.goto(`${SEARCH}&checkIn=2026-12-20&checkOut=2026-12-24&dates=confirmed`);
+
+    const unpriced = page.getByRole('article').filter({ hasText: 'No stored price' }).first();
+    await expect(unpriced).toBeVisible();
+    await expect(unpriced.getByText(/[€$£]s?[d.,]+/)).toHaveCount(0);
+  });
+
+  test('the hotel page has exactly one h1, the hotel name', async ({ page }) => {
+    await page.goto(SEARCH);
+    await page.locator('a[href*="dates=confirmed"]').first().click();
+    const row = page.getByRole('article').first();
+    const name = (await row.getByRole('heading').first().innerText()).trim();
+    await row.getByRole('link', { name: /^View / }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
+  });
+
   test('shows what the dates cost before showing any hotel', async ({ page }) => {
     await page.goto(SEARCH);
 
     // Dates first: choosing a hotel and then finding out the week was the
     // expensive one is the wrong order to learn things in.
-    await expect(page.getByRole('heading', { name: /Which dates are cheaper/ })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Which dates are cheaper in Barcelona?' }),
+    ).toBeVisible();
     await expect(page.getByText(/date ranges were priced/)).toBeVisible();
 
     // No hotel list yet.
@@ -70,7 +114,7 @@ test.describe('stays', () => {
     // Re-anchoring on another rate moves the reference rather than being
     // fixed to one provider.
     const before = await page.getByText('Your selected rate').locator('..').innerText();
-    await page.getByRole('link', { name: 'Compare from this rate' }).first().click();
+    await page.getByRole('link', { name: 'Choose this room' }).first().click();
     await expect(page.getByText('Your selected rate')).toBeVisible();
     expect(await page.getByText('Your selected rate').locator('..').innerText()).not.toBe(before);
   });
@@ -105,8 +149,11 @@ test.describe('stays', () => {
 
     const flightDate = await page.getByLabel('Leaving').inputValue();
 
-    await page.getByLabel('Check-in').fill('2026-11-02');
-    await page.getByLabel('Check-out').fill('2026-11-05');
+    await expect(async () => {
+      await openChangeSearch(page);
+      await page.getByLabel('Check-in').fill('2026-11-02', { timeout: 1000 });
+      await page.getByLabel('Check-out').fill('2026-11-05', { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await page.getByRole('button', { name: /Search stays|Update search/ }).click();
 
     // The hotel moved and the flight did not. Changing one set of dates must
@@ -120,11 +167,16 @@ test.describe('stays', () => {
   }) => {
     await page.goto(`${SEARCH}&checkIn=2026-12-20&checkOut=2026-12-24&dates=confirmed`);
 
-    await expect(page.getByRole('list', { name: 'Places to stay in Barcelona' })).toBeVisible();
+    await expect(
+      page.getByRole('list', { name: /places to stay in Barcelona/i }).first(),
+    ).toBeVisible();
     await expect(page.getByText('© OpenStreetMap contributors').first()).toBeVisible();
     // A listed hotel nobody priced never shows a figure.
     await expect(
-      page.getByText('No price available').or(page.getByText('Check price')).first(),
+      page
+        .getByText('No stored price')
+        .or(page.getByRole('link', { name: /^See price on / }))
+        .first(),
     ).toBeVisible();
 
     const wide = (page.viewportSize()?.width ?? 0) >= 1024;

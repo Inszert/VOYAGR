@@ -5,21 +5,15 @@ import { DatePriceGrid } from '@/components/stays/date-price-grid';
 import { RateComparison } from '@/components/stays/rate-comparison';
 import { FindStayLink } from '@/components/stays/find-stay-link';
 import { SnapshotStatusLine } from '@/components/stays/snapshot-status';
-import { StayCard } from '@/components/stays/stay-card';
-import { StayExplorer } from '@/components/stays/stay-explorer';
-import { buildStayRows } from '@/components/stays/stay-rows';
-import { areaAround } from '@/core/stay/listing';
-import { buildStayLinkHandoff } from '@/booking/handoff';
-import { isOk } from '@/lib/result';
-import { HOTELS_CREDIT, LISTING_RADIUS_KM, loadStayListings } from '@/providers/stays/listings';
-import { getStayProviders } from '@/providers/stays/registry';
-import { resolveStayPlace } from '@/providers/stays/stay-place';
+import { HOTELS_CREDIT } from '@/providers/stays/listings';
 import { StaySearchForm } from '@/components/stays/stay-search-form';
 import { StayHeader } from '@/components/stays/stay-header';
 import { TripFlightCard } from '@/components/stays/trip-flight-card';
 import { parseTripCarry } from '@/search/stays/trip-stays';
+import { StayResults } from '@/components/stays/stay-results';
+import { StaySideCard } from '@/components/stays/stay-side-card';
+import { loadStaysPage } from './load-page';
 import { StayProperty } from '@/components/stays/stay-property';
-import { loadLocator } from '@/discovery/locator-data';
 import { tintFor } from '@/lib/tint';
 import { imageryCodeForPlace, imageryRefFor, resolveImagery } from '@/providers/imagery';
 import { loadStaySearch, stayHref, type StayParams } from '@/search/stays/load-stays';
@@ -102,52 +96,12 @@ export default async function StaysPage({
    * searched on the explorer - where flights and hotels are priced together
    * - so those two tabs leave for it rather than bolting a flight form on.
    */
-  /*
-   * The hotels in the city, and the map they sit on.
-   *
-   * Only once the dates are chosen. The city is resolved to its own centre
-   * (not its airport), its places to stay are listed from OpenStreetMap -
-   * cached for a week, never fetched by the browser - and joined to whatever
-   * the priced providers quoted. A listed hotel nobody priced says "Check
-   * price" and links to the partner's search for that hotel; nothing here
-   * gives it a figure.
-   */
-  const place =
-    view.step === 'results'
-      ? resolveStayPlace({ code: view.query.destination.code, name: view.query.destination.name })
-      : null;
-  const listings = place ? loadStayListings({ code: place.code, centre: place.centre }) : null;
-  const linkProvider = getStayProviders(undefined, dataSource.effective).find(
-    (provider) => provider.searchStayLinks,
+  const { place, listings, rows, area, cheapestId, locator } = await loadStaysPage(
+    view,
+    params,
+    dataSource.effective,
   );
-  const partnerLinks = new Map<string, { href: string; host: string }>();
-  if (place && listings?.status === 'ok' && linkProvider?.searchStayLinks) {
-    for (const listing of listings.listings) {
-      const result = await linkProvider.searchStayLinks({
-        ...view.query,
-        destination: { ...view.query.destination, name: `${listing.name}, ${place.city}` },
-      });
-      const offer = isOk(result) ? result.value[0] : undefined;
-      const handoff = offer ? buildStayLinkHandoff(offer) : null;
-      if (handoff) {
-        partnerLinks.set(listing.name, {
-          href: handoff.url,
-          host: offer?.displayName ?? new URL(handoff.url).hostname,
-        });
-      }
-    }
-  }
-  const rows = place
-    ? buildStayRows({
-        centre: place.centre,
-        nights: view.nights,
-        stays: view.stays,
-        listings: listings?.status === 'ok' ? listings.listings : [],
-        compareHref: (key) => stayHref(params, { property: key, reference: undefined }),
-        partnerHref: (name) => partnerLinks.get(name) ?? null,
-      })
-    : [];
-  const area = place ? areaAround(place.centre, LISTING_RADIUS_KM) : null;
+  const nothingSearched = !params.destination && !params.checkIn && !params.property;
 
   const searchKindHref = (kind: 'flights' | 'stays' | 'both') =>
     kind === 'stays'
@@ -163,15 +117,19 @@ export default async function StaysPage({
         <header className="flex flex-col gap-4">
           <SearchKindTabs active={withFlights ? 'both' : 'stays'} hrefFor={searchKindHref} />
 
-          <StayHeader
-            name={view.query.destination.name ?? 'Stays'}
-            imageCode={imageCode}
-            image={image}
-            checkIn={view.query.checkIn}
-            checkOut={view.query.checkOut}
-            nights={view.nights}
-            occupancy={view.query.occupancy}
-          />
+          {nothingSearched ? (
+            <h1 className="text-ink font-display text-display-sm">Find a place to stay</h1>
+          ) : (
+            <StayHeader
+              name={view.query.destination.name ?? 'Stays'}
+              imageCode={imageCode}
+              image={image}
+              checkIn={view.query.checkIn}
+              checkOut={view.query.checkOut}
+              nights={view.nights}
+              occupancy={view.query.occupancy}
+            />
+          )}
         </header>
 
         {tripCarry ? <TripFlightCard carry={tripCarry} /> : null}
@@ -270,10 +228,13 @@ export default async function StaysPage({
           </p>
         ) : null}
 
-        {view.snapshot ? <SnapshotStatusLine status={view.snapshot} /> : null}
+        {view.snapshot && view.step !== 'results' ? (
+          <SnapshotStatusLine status={view.snapshot} />
+        ) : null}
 
-        {view.step === 'dates' ? (
+        {view.step === 'dates' && !nothingSearched ? (
           <DatePriceGrid
+            city={view.query.destination.name ?? null}
             prices={view.calendar}
             hrefFor={(price) =>
               stayHref(params, {
@@ -288,18 +249,18 @@ export default async function StaysPage({
         ) : null}
 
         {view.step === 'results' ? (
-          <section aria-labelledby="stays-heading" className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="stays-heading" className="text-ink font-display text-display-sm">
-                {rows.length > 0 ? rows.length : view.stays.length} places for {view.nights} nights
-              </h2>
-              <a
-                href={stayHref(params, { dates: undefined, property: undefined })}
-                className="text-accent-ink focus-visible:outline-accent-to inline-flex min-h-11 items-center rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Change dates
-              </a>
-            </div>
+          <section aria-label="Places to stay" className="flex flex-col gap-4">
+            {rows.length > 0 && place && area ? null : (
+              <h1 className="text-ink font-display text-display-sm">
+                Places to stay in {place?.city ?? view.query.destination.name ?? 'your city'}
+              </h1>
+            )}
+            <a
+              href={stayHref(params, { dates: undefined, property: undefined })}
+              className="text-accent-ink focus-visible:outline-accent-to inline-flex min-h-11 w-fit items-center rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Change dates
+            </a>
 
             {view.stays.length === 0 && view.links.length > 0
               ? /*
@@ -332,27 +293,17 @@ export default async function StaysPage({
               : view.links.map((link) => <FindStayLink key={link.id} offer={link} />)}
 
             {rows.length > 0 && place && area ? (
-              <StayExplorer
+              <StayResults
                 rows={rows}
+                nights={view.nights}
+                city={place.city}
                 centre={place.centre}
                 area={area}
-                city={place.city}
+                status={view.snapshot}
+                cheapestId={cheapestId}
                 credit={HOTELS_CREDIT}
                 listed={listings?.status === 'ok'}
               />
-            ) : view.stays.length > 0 ? (
-              <ul className="flex flex-col gap-4">
-                {view.stays.map((stay, index) => (
-                  <li key={stay.key} className="flex">
-                    <StayCard
-                      stay={stay}
-                      nights={view.nights}
-                      priority={index < 3}
-                      href={stayHref(params, { property: stay.key, reference: undefined })}
-                    />
-                  </li>
-                ))}
-              </ul>
             ) : view.links.length > 0 ? null : (
               <EmptyState
                 icon={<Icon name="bed" />}
@@ -383,20 +334,33 @@ export default async function StaysPage({
         ) : null}
 
         {view.step === 'property' && view.openStay ? (
-          <StayProperty
-            stay={view.openStay}
-            backHref={stayHref(params, { property: undefined, reference: undefined })}
-            locator={
-              view.openStay.property.position
-                ? await loadLocator(view.openStay.property.position, { width: 440, height: 330 })
-                : null
-            }
-          >
-            <RateComparison
-              comparison={view.comparison}
-              hrefFor={(entry) => stayHref(params, { reference: entry.rate.id })}
-            />
-          </StayProperty>
+          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col gap-8">
+              <StayProperty
+                stay={view.openStay}
+                backHref={stayHref(params, { property: undefined, reference: undefined })}
+                locator={null}
+              />
+              <RateComparison
+                comparison={view.comparison}
+                hrefFor={(entry) => stayHref(params, { reference: entry.rate.id })}
+              />
+            </div>
+            {view.reference ? (
+              <div className="lg:sticky lg:top-24 lg:order-last">
+                <StaySideCard
+                  rate={view.reference}
+                  hotelName={view.openStay.property.name}
+                  checkIn={view.query.checkIn}
+                  checkOut={view.query.checkOut}
+                  nights={view.nights}
+                  adults={view.query.occupancy.adults}
+                  rooms={view.query.occupancy.rooms}
+                  locator={locator ? { map: locator, label: view.openStay.property.name } : null}
+                />
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </Container>
     </div>

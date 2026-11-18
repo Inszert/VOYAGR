@@ -2,8 +2,7 @@ import { format } from '@/core/money';
 import { DIFFERENCE_LABEL, type PriceComparison } from '@/core/stay/comparison';
 import { Icon } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { CheckPrice } from './check-price';
-import { BOARD_LABEL, cancellationLabel, taxLines } from './stay-card';
+import { BOARD_LABEL, cancellationLabel, taxLines } from './rate-words';
 
 /**
  * Every rate for one property, measured against the one the user picked.
@@ -136,14 +135,12 @@ export function RateComparison({ comparison, hrefFor }: RateComparisonProps) {
                     {priceDifference(entry)}
                   </p>
 
-                  <CheckPrice rate={entry.rate} showSteps={entry.isReference} />
-
                   {entry.isReference ? null : (
                     <a
                       href={hrefFor(entry)}
                       className="text-accent-ink focus-visible:outline-accent-to mt-1 inline-block rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
-                      Compare from this rate
+                      Choose this room
                     </a>
                   )}
                 </div>

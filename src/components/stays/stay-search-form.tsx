@@ -1,4 +1,8 @@
-import { Button, DateRangeField, Field } from '@/components/ui';
+'use client';
+
+import * as React from 'react';
+import { Button, DateRangeField, Disclosure, Field, NumberStepperField } from '@/components/ui';
+import { shortDateRange } from '@/lib/display-date';
 import type { StayQuery } from '@/core/stay/types';
 import type { IsoDate } from '@/core/trip/types';
 
@@ -30,24 +34,57 @@ export function StaySearchForm({
   action = '/stays',
   submitLabel = 'Search stays',
 }: StaySearchFormProps) {
+  const wrapperRef = React.useRef<HTMLDivElement | null>(null);
+  const hasErrors = Object.keys(errors).length > 0;
+
+  /*
+   * Open until proven narrow. The server (and anybody without JavaScript)
+   * gets the whole form; on a phone it folds away behind "Change search" once
+   * the page is live, unless something needs fixing in it.
+   */
+  React.useEffect(() => {
+    if (hasErrors || typeof window.matchMedia !== 'function') return;
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const details = wrapperRef.current?.querySelector('details');
+    if (details) details.open = false;
+  }, [hasErrors]);
+
+  const guests = query.occupancy.adults;
+  const summary = [
+    query.destination.name ?? 'Anywhere',
+    shortDateRange(query.checkIn, query.checkOut),
+    `${guests} ${guests === 1 ? 'guest' : 'guests'}`,
+  ].join(' · ');
+
   return (
-    <form method="get" action={action} className="flex flex-col gap-4">
-      {Object.entries(hidden).map(([name, value]) => (
-        <input key={name} type="hidden" name={name} value={value} />
-      ))}
+    <div ref={wrapperRef} className="flex flex-col gap-2">
+      <p className="text-ink text-sm md:hidden" data-testid="stay-search-summary">
+        {summary}
+      </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field
-          label="Destination"
-          name="destination"
-          defaultValue={query.destination.name ?? ''}
-          placeholder="Barcelona"
-          hint="A city or an area."
-          error={errors.destination}
-          required
-        />
+      <Disclosure
+        summary="Change search"
+        defaultOpen
+        className="md:border-0 md:[&>div]:border-0 md:[&>div]:p-0 md:[&>summary]:hidden"
+      >
+        <form
+          method="get"
+          action={action}
+          className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_minmax(0,7.5rem)_minmax(0,7.5rem)_auto] lg:items-start"
+        >
+          {Object.entries(hidden).map(([name, value]) => (
+            <input key={name} type="hidden" name={name} value={value} />
+          ))}
 
-        <div className="sm:col-span-2">
+          <Field
+            label="Destination"
+            name="destination"
+            defaultValue={query.destination.name ?? ''}
+            placeholder="Barcelona"
+            error={errors.destination}
+            required
+          />
+
           <DateRangeField
             startLabel="Check-in"
             startName="checkIn"
@@ -60,35 +97,31 @@ export function StaySearchForm({
             min={today}
             required
           />
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field
+          <NumberStepperField
             label="Guests"
             name="adults"
-            type="number"
             min={1}
             max={16}
             defaultValue={String(query.occupancy.adults)}
             error={errors.adults}
             required
           />
-          <Field
+          <NumberStepperField
             label="Rooms"
             name="rooms"
-            type="number"
             min={1}
             max={8}
             defaultValue={String(query.occupancy.rooms)}
             error={errors.rooms}
             required
           />
-        </div>
-      </div>
 
-      <div>
-        <Button type="submit">{submitLabel}</Button>
-      </div>
-    </form>
+          <Button type="submit" className="md:col-span-2 lg:col-span-1 lg:mt-7">
+            {submitLabel}
+          </Button>
+        </form>
+      </Disclosure>
+    </div>
   );
 }

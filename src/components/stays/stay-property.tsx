@@ -1,4 +1,3 @@
-import type * as React from 'react';
 import { Icon, Media, type IconName } from '@/components/ui';
 import type { CanonicalStay } from '@/core/stay/identity';
 import type { LocatorMap as LocatorMapData } from '@/discovery/locator';
@@ -11,7 +10,7 @@ import { cn } from '@/lib/cn';
  *
  * What a person deciding on a hotel looks for, in the order they look: what
  * it looks like, what it is and how good, what is there, where it is, and
- * then what it costs from whom - the comparison, passed in as `children`.
+ * and where it is. The page composes the rate comparison beside it.
  *
  * **Pictures are only ever of what they say they are.** The provider's own
  * photographs lead when it sent any. When it sent none, the page says so; the
@@ -24,8 +23,17 @@ export interface StayPropertyProps {
   /** Where "Back to all places" goes. */
   readonly backHref: string;
   readonly locator: LocatorMapData | null;
-  /** The rate comparison. */
-  readonly children: React.ReactNode;
+  /** "1.2 km from the centre", already worded; null when it is not known. */
+  readonly distanceLabel?: string | null;
+}
+
+const STAR_WORDS = ['One', 'Two', 'Three', 'Four', 'Five'] as const;
+
+/** A star rating in words: 4 is "Four-star". Null when none is stated. */
+export function starWords(stars: number | null): string | null {
+  if (stars === null || !Number.isFinite(stars)) return null;
+  const word = STAR_WORDS[Math.round(stars) - 1];
+  return word ? `${word}-star` : null;
 }
 
 /** An icon for an amenity, by what it names. Anything unrecognised gets none. */
@@ -49,68 +57,61 @@ function sentenceCase(text: string): string {
   return text.length === 0 ? text : `${text[0]!.toUpperCase()}${text.slice(1)}`;
 }
 
-export function StayProperty({ stay, backHref, locator, children }: StayPropertyProps) {
+export function StayProperty({ stay, backHref, locator, distanceLabel = null }: StayPropertyProps) {
   const { property } = stay;
   const photos = showablePhotos(property.photos);
   const address = [property.address.line, property.address.city, property.address.countryCode]
     .filter(Boolean)
     .join(', ');
 
-  const kind = [
-    property.starRating ? `${property.starRating}-star` : null,
-    property.propertyType ?? null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const rating = property.guestRating;
+  const facts: { label: string; value: string }[] = [
+    { label: 'Stars', value: starWords(property.starRating) ?? 'Not rated' },
+    {
+      label: 'Guest rating',
+      value: rating
+        ? `${rating.outOfTen.toFixed(1)} out of 10${
+            rating.reviewCount ? ` (${rating.reviewCount} reviews)` : ''
+          }`
+        : 'No guest rating',
+    },
+    {
+      label: 'Type',
+      value: property.propertyType ? sentenceCase(property.propertyType) : 'Not stated',
+    },
+    { label: 'Distance', value: distanceLabel ?? 'Not stated' },
+  ];
 
   // A function rather than a component: it closes over this property, and
   // is drawn on the colour band or on the page depending on the photos.
   const header = (onImage: boolean) => {
     return (
       <header className="flex flex-col gap-3">
-        {kind ? (
-          <p
-            className={
-              onImage ? 'text-sm font-medium text-white/85' : 'text-tint-ink text-sm font-medium'
-            }
-          >
-            {sentenceCase(kind)}
-          </p>
-        ) : null}
-        <h2
+        <h1
           id="property-heading"
           // Not `cn`: its merge reads `text-display-md` and `text-white` as the
           // same kind of class and keeps only one.
           className={`font-display text-display-md text-balance ${onImage ? 'text-white' : 'text-ink'}`}
         >
           {property.name}
-        </h2>
-        <div
+        </h1>
+        <dl
           className={cn(
-            'flex flex-wrap items-center gap-x-4 gap-y-2 text-sm',
+            'grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4',
             onImage ? 'text-white/85' : 'text-ink-muted',
           )}
         >
-          {property.guestRating ? (
-            <span className="flex items-center gap-2">
-              <span className="bg-positive-500/20 text-positive-ink border-positive-500/50 rounded-(--radius-control) border px-2 py-0.5 text-sm font-semibold tabular-nums backdrop-blur-sm">
-                {property.guestRating.outOfTen.toFixed(1)}
-                <span className="sr-only"> out of 10</span>
-              </span>
-              {property.guestRating.reviewCount
-                ? `${property.guestRating.reviewCount} guest reviews`
-                : 'Guest rating'}
-            </span>
-          ) : (
-            <span>No guest rating</span>
-          )}
-          {address ? (
-            <span className="flex items-center gap-1.5">
-              <Icon name="pin" size={0.95} />
-              {address}
-            </span>
-          ) : null}
-        </div>
+          {facts.map((fact) => (
+            <div key={fact.label} className="flex flex-col gap-0.5">
+              <dt className={onImage ? 'text-xs text-white/70' : 'text-dim text-xs'}>
+                {fact.label}
+              </dt>
+              <dd className={cn('font-medium', onImage ? 'text-white' : 'text-ink')}>
+                {fact.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </header>
     );
   };
@@ -204,8 +205,6 @@ export function StayProperty({ stay, backHref, locator, children }: StayProperty
               </ul>
             </section>
           ) : null}
-
-          {children}
         </div>
 
         <aside aria-labelledby="where-heading" className="flex flex-col gap-3 lg:sticky lg:top-24">

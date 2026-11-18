@@ -8,10 +8,11 @@ import type { StayRate } from '@/core/stay/types';
 import { Button } from '@/components/ui';
 
 /**
- * "Check this price" for one LiteAPI rate, with the reservation steps beside it.
+ * "Check this price" for one LiteAPI rate: the control in the hotel page's side card.
  *
  * The check asks the vendor for the current price and shows it with the time it was asked.
- * Nothing is paid and nothing is saved. "Guest details" and "Pay" are visible and switched off.
+ * Nothing is paid and nothing is saved. The result lands in one polite live region that stays in
+ * place; the button shows busy rather than going away.
  * The dates and party come from the page's own query string, so the button needs nothing the
  * page does not already hold; with no usable dates it renders nothing.
  */
@@ -20,8 +21,6 @@ export interface CheckPriceProps {
   readonly rate: Pick<StayRate, 'id' | 'providerRateId' | 'roomName' | 'board' | 'cancellation'> & {
     readonly source: Pick<StayRate['source'], 'providerId'>;
   };
-  /** Show the Check price / Guest details / Pay steps. Once per page is enough. */
-  readonly showSteps?: boolean;
 }
 
 /** `liteapi:<hotelId>:<offerId>` back to the hotel id. */
@@ -48,7 +47,17 @@ function checkedAtLabel(iso: string): string {
 }
 
 function Result({ result }: { result: CheckPriceResult }) {
-  if (result.status !== 'ok') return <p className="text-caution-ink text-sm">{result.message}</p>;
+  if (result.status === 'limited') {
+    return <p className="text-caution-ink text-sm">{result.message}</p>;
+  }
+  if (result.status === 'failed') {
+    return (
+      <div className="text-caution-ink flex flex-col gap-0.5 text-sm">
+        <p>{result.message}</p>
+        <p>The stored price above is unchanged.</p>
+      </div>
+    );
+  }
 
   const { check } = result;
   return (
@@ -78,7 +87,7 @@ function Result({ result }: { result: CheckPriceResult }) {
   );
 }
 
-export function CheckPrice({ rate, showSteps = false }: CheckPriceProps) {
+export function CheckPrice({ rate }: CheckPriceProps) {
   const params = useSearchParams();
   const [result, setResult] = useState<CheckPriceResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -106,30 +115,13 @@ export function CheckPrice({ rate, showSteps = false }: CheckPriceProps) {
     });
 
   return (
-    <div className="mt-2 flex flex-col items-end gap-2 text-right">
-      <Button type="button" variant="secondary" size="sm" loading={pending} onClick={check}>
+    <div className="flex flex-col gap-2">
+      <Button type="button" variant="secondary" loading={pending} onClick={check}>
         Check this price
       </Button>
-      <div aria-live="polite" className="min-h-0">
+      <div role="status" aria-live="polite" className="min-h-0">
         {result ? <Result result={result} /> : null}
       </div>
-
-      {showSteps ? (
-        <ol aria-label="Reservation steps" className="flex flex-col items-end gap-1.5">
-          <li className="text-ink text-sm">1. Check price</li>
-          <li>
-            <Button type="button" variant="secondary" size="sm" disabled>
-              2. Guest details
-            </Button>
-          </li>
-          <li className="flex flex-col items-end gap-1">
-            <Button type="button" variant="secondary" size="sm" disabled>
-              3. Pay
-            </Button>
-            <span className="text-ink-muted text-xs">Payments are not switched on yet</span>
-          </li>
-        </ol>
-      ) : null}
     </div>
   );
 }

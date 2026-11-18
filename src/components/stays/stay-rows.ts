@@ -1,9 +1,11 @@
 import { format, type Money } from '@/core/money';
 import { formatKilometres } from '@/core/distance';
 import { bestRateFor } from '@/core/stay/comparison';
+import type { BoardType } from '@/core/stay/types';
 import type { CanonicalStay } from '@/core/stay/identity';
 import { distanceFromCentre, matchListing } from '@/core/stay/listing';
 import type { ValidatedStayListing } from '@/providers/schema';
+import { BOARD_LABEL, cancellationLabel, taxLines } from './rate-words';
 
 /**
  * One row of the stays list and one pin on its map, as the page hands them
@@ -31,6 +33,14 @@ export interface StayRow {
   readonly price: Money | null;
   readonly priceLabel: string | null;
   readonly photo: string | null;
+  /** The chosen rate's facts, as words; null for a listing nobody priced. */
+  readonly rate: {
+    readonly room: string | null;
+    readonly board: string;
+    readonly cancellation: string;
+    readonly perNight: Money;
+    readonly taxLines: string[];
+  } | null;
   /** Where the row leads: our rate comparison for a priced stay, else out to look. */
   readonly link: {
     readonly kind: 'compare' | 'partner' | 'website';
@@ -109,6 +119,15 @@ export function buildStayRows(input: BuildRowsInput): StayRow[] {
       price: rate?.total ?? null,
       priceLabel: rate ? `${format(rate.total)} total · ${input.nights} nights` : null,
       photo: stay.property.photos[0]?.url ?? null,
+      rate: rate
+        ? {
+            room: rate.roomName,
+            board: rate.board ? BOARD_LABEL[rate.board satisfies BoardType] : 'Board not stated',
+            cancellation: cancellationLabel(rate),
+            perNight: rate.perNight,
+            taxLines: taxLines(rate),
+          }
+        : null,
       link: { kind: 'compare', href: input.compareHref(stay.key), host: null },
     });
   }
@@ -139,6 +158,7 @@ export function buildStayRows(input: BuildRowsInput): StayRow[] {
         price: null,
         priceLabel: null,
         photo: null,
+        rate: null,
         link,
       } satisfies StayRow;
     })

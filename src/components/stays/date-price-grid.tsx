@@ -2,7 +2,7 @@ import { format } from '@/core/money';
 import type { StayDatePrice } from '@/search/stays/calendar';
 import { cn } from '@/lib/cn';
 import { shortDateRange } from '@/lib/display-date';
-import { Price } from '@/components/ui';
+import { Button, Price } from '@/components/ui';
 
 /**
  * What the same stay costs on neighbouring dates.
@@ -26,6 +26,8 @@ export interface DatePriceGridProps {
   readonly prices: readonly StayDatePrice[];
   /** Builds the link that selects a window. */
   readonly hrefFor: (price: StayDatePrice) => string;
+  /** The city, for the step's heading. */
+  readonly city?: string | null;
 }
 
 /**
@@ -57,15 +59,16 @@ function differenceLabel(price: StayDatePrice): string | null {
   return `${magnitude}${percent} ${cheaper ? 'cheaper' : 'more'}`;
 }
 
-export function DatePriceGrid({ prices, hrefFor }: DatePriceGridProps) {
+export function DatePriceGrid({ prices, hrefFor, city = null }: DatePriceGridProps) {
   const priced = prices.filter((price) => price.total !== null);
+  const selected = prices.find((price) => price.selected) ?? null;
 
   return (
     <section aria-labelledby="dates-heading" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="dates-heading" className="text-ink font-display text-2xl">
-          Which dates are cheaper?
-        </h2>
+        <h1 id="dates-heading" className="text-ink font-display text-2xl">
+          {city ? `Which dates are cheaper in ${city}?` : 'Which dates are cheaper?'}
+        </h1>
         <p className="text-ink-muted text-sm">
           {priced.length} of {prices.length} date ranges were priced.
         </p>
@@ -160,6 +163,14 @@ export function DatePriceGrid({ prices, hrefFor }: DatePriceGridProps) {
           );
         })}
       </ul>
+
+      {selected ? (
+        <div>
+          <Button asChild>
+            <a href={hrefFor(selected)}>See places for {windowLabel(selected)}</a>
+          </Button>
+        </div>
+      ) : null}
 
       <p className="text-ink-muted text-sm">
         Prices are for the dates actually searched. Nothing here is estimated between them.

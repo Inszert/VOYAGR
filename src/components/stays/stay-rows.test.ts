@@ -115,6 +115,33 @@ describe('buildStayRows', () => {
   });
 });
 
+describe('buildStayRows rate facts and order', () => {
+  it('carries the chosen rate facts on a priced row and none on a listed one', () => {
+    const rows = buildStayRows({
+      ...base,
+      stays: [priced('arts', 'Hotel Arts', 41.3869, 2.1962)],
+      listings: [listing(2, 'Hostal Nou', 41.39, 2.171)],
+    });
+    expect(rows[0]!.rate).toEqual({
+      room: null,
+      board: 'Board not stated',
+      cancellation: 'Cancellation terms not stated',
+      perNight: money(12_000, 'EUR'),
+      taxLines: ['Taxes not stated'],
+    });
+    expect(rows[1]!.rate).toBeNull();
+  });
+
+  it('puts priced rows before listed ones even when the listed one is nearer', () => {
+    const rows = buildStayRows({
+      ...base,
+      stays: [priced('far', 'Far Priced', 41.5, 2.3)],
+      listings: [listing(2, 'Near Listed', 41.39, 2.17)],
+    });
+    expect(rows.map((r) => r.name)).toEqual(['Far Priced', 'Near Listed']);
+  });
+});
+
 describe('clusterPins', () => {
   it('joins pins within the radius and keeps distant ones apart, in list order', () => {
     const clusters = clusterPins(

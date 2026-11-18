@@ -53,28 +53,63 @@ describe('CheckPrice', () => {
     );
   });
 
-  it('shows the limit message in a live region', async () => {
+  it('says Test prices. in the sandbox', async () => {
+    mocks.action.mockResolvedValue({
+      status: 'ok',
+      check: {
+        total: { amount: 31250, currency: 'EUR' },
+        taxesIncluded: null,
+        payableAtHotel: null,
+        checkedAt: '2027-01-10T09:30:00.000Z',
+        changed: false,
+        testPrices: true,
+      },
+    });
+    render(<CheckPrice rate={rate} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Check this price' }));
+    expect(await screen.findByText('Test prices.')).toBeTruthy();
+    expect(screen.getByText('Taxes not stated')).toBeTruthy();
+  });
+
+  it('shows the limit message and leaves the button usable', async () => {
     mocks.action.mockResolvedValue({
       status: 'limited',
       message: 'You have used your 5 price checks.',
     });
-    const { container } = render(<CheckPrice rate={rate} />);
+    render(<CheckPrice rate={rate} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Check this price' }));
 
     const message = await screen.findByText('You have used your 5 price checks.');
-    expect(message.closest('[aria-live="polite"]')).toBe(container.querySelector('[aria-live]'));
+    expect(message.closest('[role="status"]')).toBe(screen.getByRole('status'));
+    expect(
+      (screen.getByRole('button', { name: 'Check this price' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 
-  it('shows Guest details and Pay as disabled, with the payments wording', () => {
-    render(<CheckPrice rate={rate} showSteps />);
+  it('says the stored price is unchanged when the check fails', async () => {
+    mocks.action.mockResolvedValue({
+      status: 'failed',
+      message: 'Price checks are not available.',
+    });
+    render(<CheckPrice rate={rate} />);
 
-    expect(
-      (screen.getByRole('button', { name: /Guest details/ }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect((screen.getByRole('button', { name: /Pay/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText('Payments are not switched on yet')).toBeTruthy();
-    expect(mocks.action).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Check this price' }));
+
+    expect(await screen.findByText('Price checks are not available.')).toBeTruthy();
+    expect(screen.getByText('The stored price above is unchanged.')).toBeTruthy();
+  });
+
+  it('keeps the live region in place before and after the check', async () => {
+    mocks.action.mockResolvedValue({ status: 'limited', message: 'Try later.' });
+    render(<CheckPrice rate={rate} />);
+    const region = screen.getByRole('status');
+    expect(region.textContent).toBe('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check this price' }));
+    await screen.findByText('Try later.');
+    expect(screen.getByRole('status')).toBe(region);
+    expect(screen.getAllByRole('button', { name: 'Check this price' })).toHaveLength(1);
   });
 
   it('renders nothing for another provider or without dates', () => {

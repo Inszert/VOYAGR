@@ -74,7 +74,7 @@ export function StayHeader({
         <p className="text-[0.6875rem] font-medium tracking-[0.18em] text-white/70 uppercase">
           Stays
         </p>
-        <h1 className="font-display text-display-sm text-balance text-white">{name}</h1>
+        <p className="font-display text-display-sm text-balance text-white">{name}</p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/85">
           <Icon name="calendar" size={0.95} />
           <span className="tabular-nums">{shortDateRange(checkIn, checkOut)}</span>
