@@ -322,7 +322,7 @@ export function SearchResults({
               comes first, as the panel always did; from 1024px it moves to the
               right and stays in view while the list scrolls.
             */
-            <FiltersPanel className="bg-surface-sunken border-border flex min-w-0 flex-col gap-8 rounded-(--radius-card) border p-4 sm:p-5 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+5.5rem)] lg:order-2 lg:max-h-[calc(100vh-var(--voyagr-header-h,4.5rem)-7rem)] lg:overflow-y-auto">
+            <FiltersPanel className="bg-surface-sunken border-border flex min-w-0 flex-col gap-8 rounded-(--radius-card) border p-4 sm:p-5 lg:sticky lg:top-[calc(var(--voyagr-header-h,4.5rem)+5.5rem)] lg:max-h-[calc(100vh-var(--voyagr-header-h,4.5rem)-7rem)] lg:overflow-y-auto">
               <ResultFiltersPanel
                 filters={filters}
                 searchValues={searchValues}

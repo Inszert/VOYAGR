@@ -3,6 +3,7 @@ import { AppError } from '@/lib/errors';
 import { query, withTransaction } from './client';
 import type { RepositoryOptions } from './memory';
 import type {
+  LiteApiEnvironment,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
   LiteApiHotelRow,
@@ -1921,6 +1922,34 @@ class PostgresLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
       expiresAt: toIso(row.expires_at),
       runId: row.run_id,
     };
+  }
+
+  async recentRates(input: {
+    readonly environment: LiteApiEnvironment;
+    readonly limit: number;
+  }): Promise<LiteApiRatesRow[]> {
+    const limit = Math.min(12, Math.max(1, Math.trunc(input.limit) || 1));
+    const rows = await query<LiteApiRatesDbRow>(
+      `SELECT ${LITEAPI_RATES_COLUMNS} FROM liteapi_rates_snapshot
+        WHERE environment = $1 AND expires_at > $2
+        ORDER BY observed_at DESC
+        LIMIT $3`,
+      [input.environment, this.nowIso(), limit],
+    );
+    return rows.map((row) => ({
+      destinationCode: row.destination_code,
+      checkIn: row.check_in,
+      checkOut: row.check_out,
+      occupancySig: row.occupancy_sig,
+      currency: row.currency,
+      guestNationality: row.guest_nationality,
+      environment: row.environment,
+      schemaVersion: row.schema_version,
+      rates: row.rates,
+      observedAt: toIso(row.observed_at),
+      expiresAt: toIso(row.expires_at),
+      runId: row.run_id,
+    }));
   }
 
   async getFlights(key: LiteApiFlightsKey): Promise<LiteApiFlightsRow | null> {

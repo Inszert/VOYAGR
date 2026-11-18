@@ -446,9 +446,12 @@ export function FiltersToggle({ className }: { className?: string }) {
 }
 
 /**
- * The results and the side column that holds the filters. The side column
- * takes its share of the row only while the filters are open, so closing them
- * gives the whole width back to the trips.
+ * The results, and the rail that holds the filters. From 1024px the rail sits
+ * at the far right edge of the page, outside the centred results column, the
+ * way a sidebar does; the results give up only as much width as the rail needs
+ * beyond the free margin. The layout measures how far its own right edge is
+ * from the page edge (`--rail-gap`) so the rail can land exactly on it,
+ * scrollbar included. Closing the filters gives the whole width back.
  */
 export function FiltersLayout({
   className,
@@ -460,11 +463,30 @@ export function FiltersLayout({
   children: React.ReactNode;
 }) {
   const { open } = useFilters();
+  const ref = React.useRef<HTMLDivElement>(null);
+  const railed = open && hasPanel;
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || !railed) return;
+    const measure = () => {
+      const gap = document.documentElement.clientWidth - el.getBoundingClientRect().right;
+      el.style.setProperty('--rail-gap', `${Math.max(0, Math.floor(gap))}px`);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.documentElement);
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer.disconnect();
+    };
+  }, [railed]);
   return (
     <div
+      ref={ref}
       className={cn(
         className,
-        open && hasPanel && 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)] lg:items-start',
+        railed && 'lg:relative lg:pr-[max(0px,calc(21rem-var(--rail-gap,0px)))]',
       )}
     >
       {children}
@@ -482,8 +504,13 @@ export function FiltersPanel({
 }) {
   const { open, panelId } = useFilters();
   return (
-    <aside id={panelId} aria-label="Filters" hidden={!open} className={className}>
-      {children}
+    <aside
+      id={panelId}
+      aria-label="Filters"
+      hidden={!open}
+      className="lg:absolute lg:top-0 lg:bottom-0 lg:left-[calc(100%+var(--rail-gap,0px)-20rem)] lg:w-80"
+    >
+      <div className={className}>{children}</div>
     </aside>
   );
 }

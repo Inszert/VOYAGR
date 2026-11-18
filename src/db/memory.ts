@@ -10,6 +10,7 @@ import type {
   EmergencyContactRecord,
   EmergencyContactRepository,
   ErasureSummary,
+  LiteApiEnvironment,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
   LiteApiHotelRow,
@@ -1136,6 +1137,18 @@ class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
   async getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null> {
     const row = this.rates.get(ratesKeyOf(key));
     return row && this.live(row.expiresAt) ? structuredClone(row) : null;
+  }
+
+  async recentRates(input: {
+    readonly environment: LiteApiEnvironment;
+    readonly limit: number;
+  }): Promise<LiteApiRatesRow[]> {
+    const limit = Math.min(12, Math.max(1, Math.trunc(input.limit) || 1));
+    return [...this.rates.values()]
+      .filter((row) => row.environment === input.environment && this.live(row.expiresAt))
+      .sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt))
+      .slice(0, limit)
+      .map((row) => structuredClone(row));
   }
 
   async getFlights(key: LiteApiFlightsKey): Promise<LiteApiFlightsRow | null> {

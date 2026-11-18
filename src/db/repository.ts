@@ -756,6 +756,14 @@ export interface LiteApiFlightsRow extends LiteApiFlightsKey {
 export interface LiteApiSnapshotRepository {
   /** The row for this key, or null when there is none or it has expired. */
   getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null>;
+  /**
+   * Unexpired rates rows of one environment, newest `observedAt` first, at most `limit` (clamped
+   * to 1..12).
+   */
+  recentRates(input: {
+    readonly environment: LiteApiEnvironment;
+    readonly limit: number;
+  }): Promise<LiteApiRatesRow[]>;
   /** Unexpired hotel content for one destination. */
   getHotels(destinationCode: string): Promise<LiteApiHotelRow[]>;
   /** Replace the row for its key, then delete every expired row. */

@@ -81,6 +81,20 @@ describe('Postgres LiteAPI snapshot SQL', () => {
     expect(queries.some((q) => q.params.includes(hostile))).toBe(true);
   });
 
+  it('binds every value of recentRates, and clamps the limit to 12', async () => {
+    const repo = createPostgresRepositories({ now: () => NOW }).liteapiSnapshot;
+
+    await repo.recentRates({ environment: 'sandbox', limit: 99 });
+
+    expect(queries).toHaveLength(1);
+    const { text, params } = queries[0]!;
+    expect(text).toMatch(/environment = \$1/);
+    expect(text).toMatch(/expires_at > \$2/);
+    expect(text).toMatch(/LIMIT \$3/);
+    expect(text).not.toMatch(/\$\{|undefined/);
+    expect(params).toEqual(['sandbox', '2027-01-10T12:00:00.000Z', 12]);
+  });
+
   it('binds every value of the flights statements too', async () => {
     const repo = createPostgresRepositories({ now: () => NOW }).liteapiSnapshot;
     const key = {

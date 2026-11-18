@@ -191,6 +191,46 @@ describe.each(backends)('$name LiteAPI snapshot repository', (backend) => {
     expect(await repo.getRates(KEY)).toBeNull();
   });
 
+  it('recentRates returns only unexpired rows of the environment, newest first, capped', async () => {
+    const put = (code: string, observedMin: number, extra: Partial<LiteApiRatesRow> = {}) =>
+      repo.putRates(
+        ratesRow({
+          destinationCode: code,
+          observedAt: iso(clockMs - observedMin * 60_000),
+          ...extra,
+        }),
+      );
+    await put('AAA', 30);
+    await put('BBB', 10);
+    await put('CCC', 20);
+    await put('DDD', 5, { environment: 'production' });
+    await put('EEE', 1, { expiresAt: iso(clockMs + HOUR) });
+    clockMs += 2 * HOUR;
+    await put('FFF', 40, { observedAt: iso(clockMs - 40 * 60_000) });
+
+    const all = await repo.recentRates({ environment: 'sandbox', limit: 12 });
+    expect(all.map((row) => row.destinationCode)).toEqual(['FFF', 'BBB', 'CCC', 'AAA']);
+    expect(all.every((row) => row.environment === 'sandbox')).toBe(true);
+
+    const two = await repo.recentRates({ environment: 'sandbox', limit: 2 });
+    expect(two).toHaveLength(2);
+    expect(two.map((row) => row.destinationCode)).toEqual(
+      all.slice(0, 2).map((row) => row.destinationCode),
+    );
+    expect(await repo.recentRates({ environment: 'production', limit: 5 })).toHaveLength(1);
+  });
+
+  it('recentRates never returns more than 12 rows', async () => {
+    for (let i = 0; i < 15; i += 1) {
+      await repo.putRates(
+        ratesRow({ destinationCode: `D${i}`, observedAt: iso(clockMs - i * 60_000) }),
+      );
+    }
+    const rows = await repo.recentRates({ environment: 'sandbox', limit: 50 });
+    expect(rows).toHaveLength(12);
+    expect(rows[0]?.destinationCode).toBe('D0');
+  });
+
   it('deletes expired rows when another row is written', async () => {
     await repo.putRates(ratesRow({ expiresAt: iso(clockMs + HOUR) }));
     clockMs += 2 * HOUR;
