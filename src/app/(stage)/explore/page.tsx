@@ -142,7 +142,13 @@ export default async function ExplorePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const values = firstValues(await searchParams);
+  const submitted = firstValues(await searchParams);
+  // An empty "To" is a search anywhere: "Anywhere" is only the field's
+  // placeholder, so the word is never a value and is filled in here instead.
+  const values =
+    wasSubmitted(submitted) && !submitted.destinations?.trim()
+      ? { ...submitted, destinations: ANYWHERE }
+      : submitted;
   const page = await loadStagePage(values, '/explore');
   // What the live search may take for a finished place without a pick.
   const airportCodes = page.airports.map((airport) => airport.code);
@@ -309,9 +315,9 @@ export default async function ExplorePage({
                   <AirportInput
                     label="To"
                     name="destinations"
-                    defaultValue={values.destinations?.trim() ? values.destinations : ANYWHERE}
+                    defaultValue={submitted.destinations ?? ''}
+                    placeholder="Anywhere"
                     airports={page.airports}
-                    required
                   />
                   <div className="sm:col-span-2">
                     <DateRangeField
@@ -381,9 +387,9 @@ export default async function ExplorePage({
                   <AirportInput
                     label="To"
                     name="destinations"
-                    defaultValue={values.destinations?.trim() ? values.destinations : ANYWHERE}
+                    defaultValue={submitted.destinations ?? ''}
+                    placeholder="Anywhere"
                     airports={page.airports}
-                    required
                   />
                   <div className="sm:col-span-2">
                     <DateRangeField

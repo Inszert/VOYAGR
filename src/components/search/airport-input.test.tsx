@@ -9,6 +9,27 @@ const airports = [
   { code: 'BRU', name: 'Brussels', country: 'Belgium', priceable: true },
 ] as never;
 
+describe('the destination placeholder', () => {
+  it('shows "Anywhere" as a placeholder, never as the value, while the field is empty', () => {
+    render(
+      <AirportInput label="To" name="destinations" placeholder="Anywhere" airports={airports} />,
+    );
+    const field = screen.getByRole('combobox', { name: 'To' }) as HTMLInputElement;
+    expect(field).toHaveAttribute('placeholder', 'Anywhere');
+    expect(field.value).toBe('');
+    expect(field).not.toBeRequired();
+  });
+
+  it('takes a typed destination as its value', () => {
+    render(
+      <AirportInput label="To" name="destinations" placeholder="Anywhere" airports={airports} />,
+    );
+    const field = screen.getByRole('combobox', { name: 'To' }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: 'BUD' } });
+    expect(field.value).toBe('BUD');
+  });
+});
+
 describe('the stand-in "anywhere"', () => {
   it('is selected on focus, so typing a code replaces it', () => {
     render(

@@ -36,6 +36,7 @@ export function FlexibleDateRange({
   const [choice, setChoice] = React.useState<FlexibilityChoice>(() =>
     flexibilityChoiceOf(flexibility, today, monthStart),
   );
+  const inMonth = flexibilityValueOf(choice) === 'month';
   const mirror = React.useRef<HTMLInputElement>(null);
 
   const choose = (next: FlexibilityChoice) => {
@@ -56,17 +57,34 @@ export function FlexibleDateRange({
         readOnly
         hidden
       />
-      <DateRangeField
-        {...range}
-        footer={
-          <FlexibilityChips
-            name="flexibility-choice"
-            label="How flexible are the dates"
-            choice={choice}
-            onChoiceChange={choose}
-          />
-        }
-      />
+      {/*
+        In month mode the two dates give way to the Month and Trip length
+        fields, and the calendar with its chips goes with them. This control
+        is the way back: it stays in view and chooses the same `exact` value
+        the "Exact dates" chip does.
+      */}
+      <div hidden={inMonth}>
+        <DateRangeField
+          {...range}
+          footer={
+            <FlexibilityChips
+              name="flexibility-choice"
+              label="How flexible are the dates"
+              choice={choice}
+              onChoiceChange={choose}
+            />
+          }
+        />
+      </div>
+      {inMonth ? (
+        <button
+          type="button"
+          onClick={() => choose('exact')}
+          className="text-ink hover:text-ink focus-visible:outline-accent-ink min-h-11 text-left text-[13px] font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          Choose exact dates
+        </button>
+      ) : null}
     </>
   );
 }

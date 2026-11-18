@@ -427,10 +427,7 @@ export function CompactSearch({
                   client-side constraint is a convenience and never a
                   guarantee.
                 */}
-                <Cell
-                  rule={false}
-                  className="group-has-[input[name=flexibility][value=month]:checked]:hidden sm:col-span-3"
-                >
+                <Cell rule={false} className="sm:col-span-3">
                   <FlexibleDateRange
                     startLabel="Leaving"
                     startName="departureDate"
@@ -713,7 +710,7 @@ function BarSearch({
               </div>
 
               <div className={cell}>
-                <div className="group-has-[input[name=flexibility][value=month]:checked]/form:hidden">
+                <div>
                   <FlexibleDateRange
                     startLabel="Leaving"
                     startName="departureDate"

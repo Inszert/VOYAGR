@@ -93,6 +93,31 @@ describe('CompactSearch date options', () => {
   }
 });
 
+describe('CompactSearch month mode', () => {
+  for (const variant of ['panel', 'bar'] as const) {
+    it(`${variant}: keeps "Choose exact dates" visible and it returns to the calendar`, async () => {
+      const { container } = renderForm({
+        variant,
+        defaults: { ...TODAY_DEFAULTS, flexibility: 'month' },
+      });
+      const form = container.querySelector('form')!;
+      expect(submission(form).flexibility).toBe('month');
+      expect(screen.queryByRole('button', { name: /Choose leaving and back/ })).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Choose exact dates' }));
+
+      // Same value the "Exact dates" chip submits.
+      expect(submission(form).flexibility).toBe('exact');
+      expect(screen.queryByRole('button', { name: 'Choose exact dates' })).toBeNull();
+      await userEvent.click(
+        screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
+      );
+      const group = screen.getByRole('radiogroup', { name: 'How flexible are the dates' });
+      expect(within(group).getByRole('radio', { name: 'Exact dates' })).toBeChecked();
+    }, 20_000);
+  }
+});
+
 describe('CompactSearch', () => {
   it('puts the month and trip length where the dates are, not in the folded options', () => {
     const { container } = renderForm({ variant: 'bar' });

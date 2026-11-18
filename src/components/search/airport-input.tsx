@@ -34,6 +34,11 @@ export interface AirportInputProps {
   label: string;
   name: string;
   defaultValue?: string;
+  /**
+   * Shown only while the field is empty. A placeholder is never submitted, so
+   * an empty field with a placeholder is an empty value, not that word.
+   */
+  placeholder?: string;
   hint?: string;
   error?: string;
   required?: boolean;
@@ -109,6 +114,7 @@ export function AirportInput({
   label,
   name,
   defaultValue = '',
+  placeholder,
   hint,
   error,
   required,
@@ -238,6 +244,7 @@ export function AirportInput({
           id={id}
           name={name}
           value={value}
+          placeholder={placeholder}
           required={required}
           autoComplete="off"
           spellCheck={false}
