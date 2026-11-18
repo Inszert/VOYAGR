@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { greatCirclePath } from '@/discovery/geo';
-import { fitSphere, limbFade, toArcRuns } from './globe-arcs';
+import {
+  facing,
+  fitSphere,
+  limbFade,
+  routeVisibility,
+  toArcRuns,
+  type SphereFrame,
+} from './globe-arcs';
 
 type LngLat = readonly [number, number];
 
@@ -149,5 +156,39 @@ describe('toArcRuns without bundling', () => {
     // One run from the airport to the destination, with no corner in it.
     expect(own!.points[0]).toEqual(VIE);
     expect(own!.points[own!.points.length - 1]).toEqual(BOS);
+  });
+});
+
+describe('routeVisibility', () => {
+  const view = (lng: number, lat: number): SphereFrame => ({
+    x: 0,
+    y: 0,
+    diameter: 100,
+    lng,
+    lat,
+    shown: 1,
+  });
+  const SYD: LngLat = [151.18, -33.95];
+  const visibleFrom = (ends: LngLat[], frame: SphereFrame) =>
+    routeVisibility(ends.map(([lng, lat]) => facing(lng, lat, frame)));
+
+  it('shows a route when either end is in view', () => {
+    expect(visibleFrom([VIE, SYD], view(16, 48))).toBe(1);
+    expect(visibleFrom([VIE, SYD], view(151, -34))).toBe(1);
+  });
+
+  it('shows a route when both ends are in view', () => {
+    expect(visibleFrom([VIE, LIS], view(0, 45))).toBe(1);
+  });
+
+  it('hides a route when neither end is on the visible side', () => {
+    expect(visibleFrom([VIE, LIS], view(-150, -20))).toBe(0);
+    expect(routeVisibility([])).toBe(0);
+  });
+
+  it('is recomputed for a new view', () => {
+    const ends = [VIE, SYD];
+    expect(visibleFrom(ends, view(-120, 0))).toBe(0);
+    expect(visibleFrom(ends, view(20, 40))).toBe(1);
   });
 });

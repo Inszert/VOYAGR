@@ -1,3 +1,4 @@
+import { AirportSizeLegend } from '@/components/map/airport-size-legend';
 import { Container } from '@/components/ui';
 import type { Country } from '@/discovery/countries';
 import type { DestinationGeo } from '@/discovery/map-model';
@@ -130,55 +131,58 @@ export function DestinationHeader({
             ) : null}
           </div>
 
-          <div className="h-[18rem] sm:h-[22rem]">
-            <GlobeStage
-              chips={[
-                {
-                  destination,
-                  name: place.name,
-                  country: place.country,
-                  adm0: place.adm0,
-                  position: place.position,
-                  label: '',
-                  reason: '',
-                  href: `/destinations/${destination.toLowerCase()}`,
-                  actionLabel: 'This page is about',
-                  rank: 0,
-                  highlighted: true,
-                },
-              ]}
-              origins={[]}
-              routes={empty}
-              points={{
-                type: 'FeatureCollection',
-                features: [
+          <div>
+            <div className="h-[18rem] sm:h-[22rem]">
+              <GlobeStage
+                chips={[
                   {
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [...place.position] },
-                    properties: { destination, name: place.name },
+                    destination,
+                    name: place.name,
+                    country: place.country,
+                    adm0: place.adm0,
+                    position: place.position,
+                    label: '',
+                    reason: '',
+                    href: `/destinations/${destination.toLowerCase()}`,
+                    actionLabel: 'This page is about',
+                    rank: 0,
+                    highlighted: true,
                   },
-                ],
-              }}
-              landUrl={LAND_URL}
-              iceUrl={ICE_URL}
-              placesUrl={PLACES_URL}
-              countriesUrl={COUNTRIES_URL}
-              countriesDetailUrl={COUNTRIES_DETAIL_URL}
-              physicalUrl={PHYSICAL_URL}
-              cityLightsUrl={CITY_LIGHTS_URL}
-              coastlineUrl={COASTLINE_URL}
-              seasonDate={dates?.startDate ?? today}
-              regionsUrl={country && hasRegions(country.adm0) ? regionsUrl(country.adm0) : null}
-              provenance="unavailable"
-              countryCounts={country ? { [country.adm0]: 1 } : {}}
-              selectedCountry={
-                country ? { adm0: country.adm0, name: country.name, bbox: country.bbox } : null
-              }
-              // A country selected here goes to the explorer, because this
-              // page is about one place and the explorer is about all of them.
-              navigation={{ path: '/explore', query: '' }}
-              variant="explorer"
-            />
+                ]}
+                origins={[]}
+                routes={empty}
+                points={{
+                  type: 'FeatureCollection',
+                  features: [
+                    {
+                      type: 'Feature',
+                      geometry: { type: 'Point', coordinates: [...place.position] },
+                      properties: { destination, name: place.name },
+                    },
+                  ],
+                }}
+                landUrl={LAND_URL}
+                iceUrl={ICE_URL}
+                placesUrl={PLACES_URL}
+                countriesUrl={COUNTRIES_URL}
+                countriesDetailUrl={COUNTRIES_DETAIL_URL}
+                physicalUrl={PHYSICAL_URL}
+                cityLightsUrl={CITY_LIGHTS_URL}
+                coastlineUrl={COASTLINE_URL}
+                seasonDate={dates?.startDate ?? today}
+                regionsUrl={country && hasRegions(country.adm0) ? regionsUrl(country.adm0) : null}
+                provenance="unavailable"
+                countryCounts={country ? { [country.adm0]: 1 } : {}}
+                selectedCountry={
+                  country ? { adm0: country.adm0, name: country.name, bbox: country.bbox } : null
+                }
+                // A country selected here goes to the explorer, because this
+                // page is about one place and the explorer is about all of them.
+                navigation={{ path: '/explore', query: '' }}
+                variant="explorer"
+              />
+            </div>
+            <AirportSizeLegend className="mt-2" />
           </div>
         </div>
       </Container>

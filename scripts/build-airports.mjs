@@ -1,33 +1,40 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Build the airport reference data flights, weather and nearby-airport logic
- * resolve a code against.
+ * Build the airport catalogue: every airport with an IATA code and scheduled
+ * passenger service, with its size.
  *
- * Source: OurAirports (https://ourairports.com/data/), public domain
- * (ODC-PDDL) - no attribution required, regenerated nightly upstream. This is
- * reference data only: who exists, where it is, whether it has scheduled
- * service. It carries no price and no schedule, and nothing here may be used
- * as one.
+ * Source: OurAirports airports.csv (https://ourairports.com/data/), public
+ * domain (ODC-PDDL, no attribution required). Reference data only: who
+ * exists, where, and how big. It carries no price and no schedule.
  *
- * Kept to airports with `scheduled_service: yes` **and** an IATA code - the
- * set an airline search or a weather lookup could plausibly be asked about.
- * That drops heliports, seaplane bases and the ~90% of the raw file that is
- * small private strips with no commercial relevance; it is a documented
- * narrowing, not a silent one, and the script prints how many rows survived.
+ * Kept: a 3-letter IATA code, type large_airport / medium_airport /
+ * small_airport (heliports, seaplane bases and closed fields are dropped) and
+ * scheduled_service = yes. The last condition is deliberate: it is what makes
+ * a country "have an airport" we can price, and it keeps the bundle small. It
+ * still covers every country OurAirports lists with scheduled service.
  *
- * The download is cached in `.airports-cache/`, which is not committed; the
- * filtered output is `src/providers/reference/airports.generated.json`, which
- * is.
+ * Output: src/providers/fixtures/airports.generated.json, an array sorted by
+ * iata so the file is byte-stable. Never hand-edit it; rerun this script.
+ * The download is cached in .airports-cache/ (not committed). If the network
+ * blocks the download the script fails and writes nothing.
  */
 
 const SOURCE_URL = 'https://davidmegginson.github.io/ourairports-data/airports.csv';
 const CACHE_DIR = '.airports-cache';
 const CACHE_FILE = join(CACHE_DIR, 'airports.csv');
-const OUTPUT_FILE = join('src', 'providers', 'reference', 'airports.generated.json');
+const SIZES = { large_airport: 'large', medium_airport: 'medium', small_airport: 'small' };
+const COUNTRY_NAMES = new Map(
+  JSON.parse(readFileSync(join('src', 'discovery', 'countries.generated.json'), 'utf8')).map(
+    (c) => [c.iso2, c.name],
+  ),
+);
+const FALLBACK_NAMES = new Intl.DisplayNames(['en'], { type: 'region' });
+
+const OUTPUT_FILE = join('src', 'providers', 'fixtures', 'airports.generated.json');
 
 /**
  * Minimal RFC4180 CSV line splitter.
@@ -95,6 +102,7 @@ function buildIndex(csvText) {
   const col = Object.fromEntries(header.map((name, index) => [name, index]));
   for (const required of [
     'iata_code',
+    'ident',
     'scheduled_service',
     'name',
     'latitude_deg',
@@ -116,7 +124,8 @@ function buildIndex(csvText) {
     const fields = parseCsvLine(lines[i]);
     const iata = fields[col.iata_code];
     const scheduled = fields[col.scheduled_service];
-    if (!iata || !/^[A-Z]{3}$/.test(iata) || scheduled !== 'yes') continue;
+    const size = SIZES[fields[col.type]];
+    if (!iata || !/^[A-Z]{3}$/.test(iata) || scheduled !== 'yes' || !size) continue;
 
     scanned += 1;
 
@@ -133,13 +142,18 @@ function buildIndex(csvText) {
       continue;
     }
 
+    const ident = fields[col.ident];
+    const country = fields[col.iso_country];
     byIata[iata] = {
+      iata,
+      icao: /^[A-Z0-9]{4}$/.test(ident) ? ident : null,
       name: fields[col.name],
-      municipality: fields[col.municipality] || null,
-      country: fields[col.iso_country] || null,
-      type: fields[col.type],
-      // GeoJSON order, matching the fixture files this complements.
-      position: [Math.round(lon * 1e5) / 1e5, Math.round(lat * 1e5) / 1e5],
+      city: fields[col.municipality] || null,
+      country,
+      countryName: COUNTRY_NAMES.get(country) ?? (country ? FALLBACK_NAMES.of(country) : null),
+      latitude: Math.round(lat * 1e5) / 1e5,
+      longitude: Math.round(lon * 1e5) / 1e5,
+      type: size,
     };
   }
 
@@ -153,18 +167,13 @@ async function main() {
   const csvText = await downloadCsv();
   const index = buildIndex(csvText);
 
-  // A replacer *array* filters keys at every nesting level it is given, not
-  // just the top one - passing the sorted IATA codes that way silently strips
-  // every inner field too, since none of them happen to match a 3-letter
-  // code. Sorting by rebuilding the object in order keeps the nested data
-  // intact and still gets a deterministic, diffable key order.
-  const sorted = Object.fromEntries(
-    Object.keys(index)
-      .sort()
-      .map((code) => [code, index[code]]),
-  );
+  const sorted = Object.keys(index)
+    .sort()
+    .map((code) => index[code]);
+  const countries = new Set(sorted.map((a) => a.country)).size;
+  console.log(`${sorted.length} airports in ${countries} countries.`);
 
-  await mkdir(join('src', 'providers', 'reference'), { recursive: true });
+  await mkdir(join('src', 'providers', 'fixtures'), { recursive: true });
   await writeFile(OUTPUT_FILE, `${JSON.stringify(sorted)}\n`, 'utf8');
   console.log(`Wrote ${OUTPUT_FILE}`);
 }

@@ -537,6 +537,21 @@ export function limbFade(cosine: number): number {
   return Math.max(0, Math.min(1, (cosine - hidden) / (shown - hidden)));
 }
 
+/**
+ * How visible a whole route is, from how squarely the best-placed part of it
+ * faces the viewer.
+ *
+ * A route is in view when any of it is: either end, or a stretch between them.
+ * Reading only the far end hid a route whose origin was on the visible side
+ * and whose destination had turned away, and a long route has to come into
+ * view as it rounds the limb, not only once its destination does.
+ */
+export function routeVisibility(facings: readonly number[]): number {
+  let best = -1;
+  for (const value of facings) if (value > best) best = value;
+  return facings.length === 0 ? 0 : limbFade(best);
+}
+
 /** A projected arc: its path, and the screen points behind it. */
 export interface ProjectedArc {
   readonly key: string;
@@ -564,12 +579,15 @@ export function projectArc(map: MapLibreMap, run: ArcRun, frame: SphereFrame): P
 
   const parts: string[] = [];
   const points: { x: number; y: number }[] = [];
+  const facings: number[] = [];
   let open = false;
 
   for (const [index, position] of run.points.entries()) {
     const [lng, lat] = position;
+    const toward = facing(lng, lat, frame);
+    facings.push(toward);
 
-    if (facing(lng, lat, frame) < COS_HORIZON) {
+    if (toward < COS_HORIZON) {
       // Over the horizon. End the run rather than joining across the planet,
       // which would draw a chord through it.
       open = false;
@@ -599,7 +617,7 @@ export function projectArc(map: MapLibreMap, run: ArcRun, frame: SphereFrame): P
   return {
     key: run.key,
     d: parts.join(' '),
-    fade: limbFade(endFacing),
+    fade: routeVisibility(facings),
     startVisible: startFacing >= COS_HORIZON * 2,
     endVisible: endFacing >= COS_HORIZON * 2,
     rank: run.rank,

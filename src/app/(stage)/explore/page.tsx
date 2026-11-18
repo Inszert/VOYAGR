@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Container, DateRangeField, Icon, NumberStepperField, UpdatedAgo } from '@/components/ui';
-import { AirportInput } from '@/components/search/airport-input';
-import { LiveResults, LiveSearchForm } from '@/components/search/live-search';
-import { LIVE_FIELDS } from '@/components/search/live-fields';
+import { Container, Icon, UpdatedAgo } from '@/components/ui';
+import { ExploreSearchForm } from '@/components/search/explore-search-form';
+import { LiveResults } from '@/components/search/live-search';
 import { ANYWHERE, parsePartWeights } from '@/search/schema';
 import { DEFAULT_PART_WEIGHTS } from '@/core/trip/scoring';
 import { PartWeightsControl } from '@/components/search/part-weights';
@@ -292,54 +291,21 @@ export default async function ExplorePage({
                   else about the search rides along as it was, and "Change
                   search" below still opens every option.
                 */}
-                <LiveSearchForm
-                  action="/explore"
+                <ExploreSearchForm
                   label="Change this search"
+                  values={values}
+                  submitted={submitted}
+                  airports={page.airports}
+                  today={page.today}
+                  errors={page.errors}
                   airportCodes={airportCodes}
-                  className="grid gap-4 sm:grid-cols-2"
-                >
-                  {Object.entries(values).map(([name, value]) =>
-                    typeof value === 'string' &&
-                    name !== 'edit' &&
-                    !(LIVE_FIELDS as readonly string[]).includes(name) ? (
-                      <input key={name} type="hidden" name={name} value={value} />
-                    ) : null,
-                  )}
-                  <AirportInput
-                    label="From"
-                    name="origins"
-                    defaultValue={values.origins ?? page.profile.origins.join(', ')}
-                    airports={page.airports}
-                    required
-                  />
-                  <AirportInput
-                    label="To"
-                    name="destinations"
-                    defaultValue={submitted.destinations ?? ''}
-                    placeholder="Anywhere"
-                    airports={page.airports}
-                  />
-                  <div className="sm:col-span-2">
-                    <DateRangeField
-                      startLabel="Leaving"
-                      startName="departureDate"
-                      startValue={values.departureDate ?? page.profile.earliestDeparture}
-                      endLabel="Back"
-                      endName="returnDate"
-                      endValue={values.returnDate ?? page.profile.latestReturn}
-                      min={page.today}
-                      required
-                    />
-                  </div>
-                  <NumberStepperField
-                    label="Travellers"
-                    name="passengers"
-                    min={1}
-                    max={9}
-                    defaultValue={values.passengers ?? String(page.profile.passengers)}
-                    required
-                  />
-                </LiveSearchForm>
+                  defaults={{
+                    origins: page.profile.origins.join(', '),
+                    departureDate: page.profile.earliestDeparture,
+                    returnDate: page.profile.latestReturn,
+                    passengers: String(page.profile.passengers),
+                  }}
+                />
                 <PartWeightsControl values={parsePartWeights(values) ?? DEFAULT_PART_WEIGHTS} />
                 <Suspense fallback={null}>
                   <SearchPreferences />
@@ -371,47 +337,16 @@ export default async function ExplorePage({
                 <p className="text-ink-muted text-sm">
                   No search yet. Choose where from and when, and the trips will be priced here.
                 </p>
-                <LiveSearchForm
-                  action="/explore"
+                <ExploreSearchForm
                   label="Start a search"
+                  values={values}
+                  submitted={submitted}
+                  airports={page.airports}
+                  today={page.today}
+                  errors={page.errors}
                   airportCodes={airportCodes}
-                  className="grid gap-4 sm:grid-cols-2"
-                >
-                  <AirportInput
-                    label="From"
-                    name="origins"
-                    defaultValue={values.origins ?? ''}
-                    airports={page.airports}
-                    required
-                  />
-                  <AirportInput
-                    label="To"
-                    name="destinations"
-                    defaultValue={submitted.destinations ?? ''}
-                    placeholder="Anywhere"
-                    airports={page.airports}
-                  />
-                  <div className="sm:col-span-2">
-                    <DateRangeField
-                      startLabel="Leaving"
-                      startName="departureDate"
-                      startValue={values.departureDate ?? ''}
-                      endLabel="Back"
-                      endName="returnDate"
-                      endValue={values.returnDate ?? ''}
-                      min={page.today}
-                      required
-                    />
-                  </div>
-                  <NumberStepperField
-                    label="Travellers"
-                    name="passengers"
-                    min={1}
-                    max={9}
-                    defaultValue="2"
-                    required
-                  />
-                </LiveSearchForm>
+                  defaults={{ origins: '', departureDate: '', returnDate: '', passengers: '2' }}
+                />
                 <Link
                   href="/"
                   className="text-tint-ink inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"

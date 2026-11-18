@@ -66,6 +66,7 @@ export function FlexibleDateRange({
       <div hidden={inMonth}>
         <DateRangeField
           {...range}
+          required={inMonth ? false : range.required}
           footer={
             <FlexibilityChips
               name="flexibility-choice"

@@ -95,7 +95,7 @@ const TRIP_LENGTHS: readonly { value: string; label: string }[] = [
  * `tripLength` and `tripDays`; the server turns them into `maxNights` or
  * `minNights` (see `withTripLength`).
  */
-function TripLengthFields({ form, errors }: FieldsetProps) {
+export function TripLengthFields({ form, errors }: FieldsetProps) {
   const days = Number(form.value('tripDays'));
   const shown = Number.isInteger(days) && days >= 1 && days <= 30 ? String(days) : '7';
 

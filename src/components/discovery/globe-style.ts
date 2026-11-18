@@ -2,6 +2,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 
 import { addDays, daysBetween, isIsoDate } from '@/core/dates';
 import type { IsoDate } from '@/core/trip/types';
+import { bySize } from '@/components/discovery/airport-size-style';
 import { DUSK_STEPS, DUSK_STEP_ALPHA } from '@/discovery/terminator';
 
 /**
@@ -982,10 +983,25 @@ export function buildGlobeStyle(options: GlobeStyleOptions): StyleSpecification 
           // Real places, preloaded: small dim dots from the first frame, so the
           // globe shows somewhere to go on every side before any price arrives.
           // A priced place wears a pin instead (the stage filters those out).
-          'circle-color': colors.chip,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1.1, 3.4, 1.6, 6, 2.6, 9, 3.6],
+          // By airport size (see `airport-size-style.ts`): large amber and biggest with a ring,
+          // medium the accent, small the chip colour and smallest. A size not stated is medium.
+          'circle-color': bySize((style) => colors[style.colorToken]) as never,
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0,
+            ['*', 1.1, bySize((style) => style.radiusScale)],
+            3.4,
+            ['*', 1.6, bySize((style) => style.radiusScale)],
+            6,
+            ['*', 2.6, bySize((style) => style.radiusScale)],
+            9,
+            ['*', 3.6, bySize((style) => style.radiusScale)],
+          ] as never,
           'circle-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 3.4, 0.6, 4.4, 0.85],
-          'circle-stroke-width': 0,
+          'circle-stroke-color': colors.chip,
+          'circle-stroke-width': bySize((style) => style.ring) as never,
         },
       },
       {

@@ -29,7 +29,7 @@ import { cn } from '@/lib/cn';
  * marked as being replaced (`LiveResults`) rather than scaled on the client.
  */
 
-import { LIVE_FIELDS, type LiveField } from './live-fields';
+import { FORM_FIELDS, LIVE_FIELDS, type FormField, type LiveField } from './live-fields';
 import { AIRPORT_PICKED_EVENT } from './airport-input';
 
 export { LIVE_FIELDS };
@@ -78,7 +78,7 @@ export function placesComplete(
  */
 export function liveSearchQuery(
   entries: Iterable<readonly [string, string]>,
-  changed: ReadonlySet<LiveField>,
+  changed: ReadonlySet<LiveField | FormField>,
 ): string {
   const params = new URLSearchParams();
   for (const [key, value] of entries) params.append(key, value);
@@ -86,7 +86,10 @@ export function liveSearchQuery(
 
   const dates = changed.has('departureDate') || changed.has('returnDate');
   const places = changed.has('origins') || changed.has('destinations');
+  // A different spread of dates or length of trip is a different search too.
+  const spread = FORM_FIELDS.some((name) => changed.has(name));
 
+  if (spread) params.delete('fDates');
   if (dates) {
     params.delete('fDates');
     const flexibility = params.get('flexibility');
@@ -108,6 +111,19 @@ function read(form: HTMLFormElement): Record<LiveField, string> {
   for (const name of LIVE_FIELDS) {
     const field = form.elements.namedItem(name);
     values[name] = field instanceof HTMLInputElement ? field.value : '';
+  }
+  return values;
+}
+
+/** The shared form's other fields, as they would submit. */
+function readExtras(form: HTMLFormElement): Record<FormField, string> {
+  const data = new FormData(form);
+  const values = {} as Record<FormField, string>;
+  for (const name of FORM_FIELDS) {
+    values[name] = data
+      .getAll(name)
+      .map((value) => (typeof value === 'string' ? value : ''))
+      .join('|');
   }
   return values;
 }
@@ -139,6 +155,8 @@ function settled(form: HTMLFormElement, typingAllowed: boolean, placesDone = fal
 
   if (!form.checkValidity()) return false;
 
+  // A month search has no dates to order.
+  if (readExtras(form).flexibility === 'month') return true;
   const { departureDate, returnDate } = read(form);
   // ISO dates order as strings; no `Date` is needed to say which is later.
   return !(departureDate && returnDate && returnDate <= departureDate);
@@ -165,7 +183,12 @@ export function missingFromForm(form: HTMLFormElement): string | null {
     if (field instanceof HTMLInputElement && !field.checkValidity()) return MISSING_WORDS[name];
   }
   const { departureDate, returnDate } = read(form);
-  if (departureDate && returnDate && returnDate <= departureDate) {
+  if (
+    readExtras(form).flexibility !== 'month' &&
+    departureDate &&
+    returnDate &&
+    returnDate <= departureDate
+  ) {
     return 'Choose a return date after the departure date';
   }
   return form.checkValidity() ? null : 'Complete the form to search';
@@ -200,6 +223,7 @@ export function LiveSearchForm({
   const search = useSearchParams().toString();
   const formRef = React.useRef<HTMLFormElement>(null);
   const baseline = React.useRef<Record<LiveField, string> | null>(null);
+  const baselineExtras = React.useRef<Record<FormField, string> | null>(null);
   const timer = React.useRef<number | undefined>(undefined);
   const missingId = React.useId();
   // Unknown until the form has mounted: before that the button is enabled, and
@@ -233,7 +257,10 @@ export function LiveSearchForm({
   const carried = React.useRef<[string, string][] | null>(null);
 
   React.useEffect(() => {
-    if (formRef.current) baseline.current = read(formRef.current);
+    if (formRef.current) {
+      baseline.current = read(formRef.current);
+      baselineExtras.current = readExtras(formRef.current);
+    }
     carried.current = null;
     refreshMissing();
   }, [shown.generation, refreshMissing]);
@@ -247,20 +274,31 @@ export function LiveSearchForm({
 
       const now = read(form);
       const before = baseline.current;
-      const changed = new Set(LIVE_FIELDS.filter((name) => now[name] !== before[name]));
+      const extras = readExtras(form);
+      const extrasBefore = baselineExtras.current ?? extras;
+      const changed = new Set<LiveField | FormField>([
+        ...LIVE_FIELDS.filter((name) => now[name] !== before[name]),
+        ...FORM_FIELDS.filter((name) => extras[name] !== extrasBefore[name]),
+      ]);
       if (changed.size === 0) return;
 
-      const live = new Set<string>(LIVE_FIELDS);
+      // What this change takes from the form; the rest rides along as it was sent.
+      const live = new Set<string>([...LIVE_FIELDS, ...FORM_FIELDS.filter((n) => changed.has(n))]);
       const entries: [string, string][] = [];
       for (const [key, value] of new FormData(form)) {
         if (typeof value !== 'string') continue;
         if (live.has(key) || carried.current === null) entries.push([key, value]);
       }
-      if (carried.current) entries.push(...carried.current);
+      if (carried.current) {
+        entries.push(...carried.current.filter(([key]) => !live.has(key)));
+      }
       const query = liveSearchQuery(entries, changed);
 
-      carried.current = [...new URLSearchParams(query)].filter(([key]) => !live.has(key));
+      carried.current = [...new URLSearchParams(query)].filter(
+        ([key]) => !(LIVE_FIELDS as readonly string[]).includes(key),
+      );
       baseline.current = now;
+      baselineExtras.current = extras;
       setPushed(query);
       setStagePending(true);
       router.push(`${action}?${query}` as never, { scroll: false });

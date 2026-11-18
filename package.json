@@ -12,6 +12,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/copy-map-worker.mjs",
     "build": "next build",
+    "build:airports": "node scripts/build-airports.mjs",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
