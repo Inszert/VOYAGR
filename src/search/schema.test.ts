@@ -5,6 +5,7 @@ import {
   searchProfileToQuery,
   toSearchProfile,
   withMonthSelection,
+  tripLengthSummary,
 } from './schema';
 
 /**
@@ -375,11 +376,25 @@ describe('withMonthSelection', () => {
     ).toMatchObject({ departureDate: '2026-12-01', returnDate: '2026-12-06' });
   });
 
-  it('defaults the trip to a week when the length is missing or unreadable', () => {
-    expect(
-      withMonthSelection({ flexibility: 'month', monthStart: '2026-12-01', tripNights: 'lots' })
-        .returnDate,
-    ).toBe('2026-12-08');
+  it('sets no trip length when none is chosen: the whole month, no nights limit', () => {
+    const out = withMonthSelection({
+      flexibility: 'month',
+      monthStart: '2026-12-01',
+      tripNights: '',
+    });
+    expect(out).toMatchObject({
+      flexibility: 'custom',
+      earliestDeparture: '2026-12-01',
+      latestReturn: '2026-12-31',
+      minNights: '1',
+      maxNights: '30',
+    });
+    const unreadable = withMonthSelection({
+      flexibility: 'month',
+      monthStart: '2026-12-01',
+      tripNights: 'lots',
+    });
+    expect(unreadable.maxNights).toBe('30');
   });
 
   it('leaves the typed dates alone for any other preset or a bad month', () => {
@@ -425,5 +440,13 @@ describe('part weights in the address', () => {
     const result = parse({ wFlights: '2', wActivities: '0' });
     expect(result.ok).toBe(true);
     expect(result.ok && result.value.request.partWeights).toBeUndefined();
+  });
+});
+
+describe('tripLengthSummary', () => {
+  it('shows no nights until a length is chosen', () => {
+    expect(tripLengthSummary(1, 30)).toBe('Any length');
+    expect(tripLengthSummary(7, 7)).toBe('7 nights');
+    expect(tripLengthSummary(3, 5)).toBe('3-5 nights');
   });
 });

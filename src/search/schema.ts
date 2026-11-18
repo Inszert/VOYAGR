@@ -14,6 +14,7 @@ import { PART_WEIGHT_PARAMS } from './part-weight-params';
 import type { SearchRequest } from './types';
 import {
   applyFlexibility,
+  endOfMonth,
   FLEXIBILITY_PRESETS,
   type DateFlexibility,
   type FlexibilityPreset,
@@ -376,13 +377,37 @@ export function withMonthSelection(
   if (typeof start !== 'string' || !isIsoDate(start)) return input;
 
   const parsed = Number(input.tripNights);
-  const nights = Number.isInteger(parsed) && parsed >= 1 && parsed <= 30 ? parsed : 7;
+  if (!input.tripNights || !Number.isInteger(parsed) || parsed < 1 || parsed > 30) {
+    // No length chosen: the whole month, with no limit on the nights, rather
+    // than a week nobody asked for.
+    return {
+      ...input,
+      flexibility: 'custom',
+      departureDate: start,
+      returnDate: endOfMonth(start),
+      earliestDeparture: start,
+      latestReturn: endOfMonth(start),
+      minNights: '1',
+      maxNights: String(TRIP_LENGTH_MAX_DAYS),
+    };
+  }
 
-  return { ...input, departureDate: start, returnDate: addDays(start, nights) };
+  return { ...input, departureDate: start, returnDate: addDays(start, parsed) };
 }
 
 /** The longest trip the trip-length control can name, in days (nights). */
 export const TRIP_LENGTH_MAX_DAYS = 30;
+
+/**
+ * The nights a search allows, in words. A window that spans the whole range the
+ * length control can name (1 to 30) means no length was chosen, and says so
+ * rather than showing a number nobody asked for.
+ */
+export function tripLengthSummary(minNights: number, maxNights: number): string {
+  if (minNights <= 1 && maxNights >= TRIP_LENGTH_MAX_DAYS) return 'Any length';
+  if (minNights === maxNights) return `${minNights} nights`;
+  return `${minNights}-${maxNights} nights`;
+}
 
 /**
  * The trip length the traveller chose, as the nights it allows.

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Container, Icon, UpdatedAgo } from '@/components/ui';
 import { ExploreSearchForm } from '@/components/search/explore-search-form';
 import { LiveResults } from '@/components/search/live-search';
-import { ANYWHERE, parsePartWeights } from '@/search/schema';
+import { ANYWHERE, parsePartWeights, tripLengthSummary } from '@/search/schema';
 import { DEFAULT_PART_WEIGHTS } from '@/core/trip/scoring';
 import { PartWeightsControl } from '@/components/search/part-weights';
 import { SearchPreferences } from '@/components/search/search-preferences';
@@ -316,9 +316,7 @@ export default async function ExplorePage({
                     {shortDate(page.profile.latestReturn)}
                   </span>
                   <span className="text-ink-muted">
-                    {page.profile.minNights === page.profile.maxNights
-                      ? `${page.profile.minNights} nights`
-                      : `${page.profile.minNights}-${page.profile.maxNights} nights`}
+                    {tripLengthSummary(page.profile.minNights, page.profile.maxNights)}
                   </span>
                   <span className="text-ink-muted tabular-nums">
                     up to {format(page.profile.maxBudget)}

@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { DateRangeField, type DateRangeFieldProps } from '@/components/ui';
+import { DateRangeField, Select, type DateRangeFieldProps } from '@/components/ui';
+import { monthOptions } from './search-fields';
 import {
   FlexibilityChips,
   flexibilityChoiceOf,
@@ -53,20 +54,26 @@ export function FlexibleDateRange({
     tripLengthModeOf(tripLength),
   );
   const [lengthDays, setLengthDays] = React.useState(() => tripDaysOf(tripDays));
+  // The month is chosen in the calendar, beside the days, and mirrored by a hidden
+  // `monthStart` in the form: the calendar is a popover outside it.
+  const [month, setMonth] = React.useState(monthStart ?? '');
   const inMonth = flexibilityValueOf(choice) === 'month';
-  const mirror = React.useRef<HTMLInputElement>(null);
 
   const choose = (next: FlexibilityChoice) => {
     setChoice(next);
-    if (next !== 'this-month') return;
-    const field = mirror.current?.form?.elements.namedItem('monthStart');
-    if (field instanceof HTMLSelectElement) field.value = today;
+    if (next === 'this-month') setMonth(today);
+  };
+  const chooseMonth = (value: string) => {
+    setMonth(value);
+    if (value !== '' && flexibilityValueOf(choice) !== 'month') {
+      setChoice(value === today ? 'this-month' : 'month');
+    }
   };
 
   return (
     <>
+      <input type="hidden" name="monthStart" value={month} />
       <input
-        ref={mirror}
         type="radio"
         name="flexibility"
         value={flexibilityValueOf(choice)}
@@ -100,6 +107,12 @@ export function FlexibleDateRange({
                 choice={choice}
                 onChoiceChange={choose}
               />
+              <Select
+                label="Month"
+                value={month}
+                onChange={(event) => chooseMonth(event.target.value)}
+                options={[{ value: '', label: 'Not set' }, ...monthOptions(today)]}
+              />
               <TripLengthChoice
                 mode={lengthMode}
                 days={lengthDays}
@@ -112,13 +125,18 @@ export function FlexibleDateRange({
         />
       </div>
       {inMonth ? (
-        <button
-          type="button"
-          onClick={() => choose('exact')}
-          className="text-ink hover:text-ink focus-visible:outline-accent-ink min-h-11 text-left text-[13px] font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          Choose exact dates
-        </button>
+        <>
+          <span className="text-ink text-[13px] font-medium" data-testid="month-pill">
+            {monthOptions(today).find((o) => o.value === month)?.label ?? 'Pick a month'}
+          </span>
+          <button
+            type="button"
+            onClick={() => choose('exact')}
+            className="text-ink hover:text-ink focus-visible:outline-accent-ink min-h-11 text-left text-[13px] font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Choose exact dates
+          </button>
+        </>
       ) : null}
     </>
   );

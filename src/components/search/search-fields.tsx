@@ -17,73 +17,22 @@ import { WORLD_REGIONS } from '@/search/world-region-list';
  * button; what it submits is the same set of names either way.
  */
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-] as const;
-
-/**
- * The next twelve months, for choosing "anytime that month".
- *
- * Counted as whole months from today's, so no date is ever built from a `Date`.
- * The current month starts today rather than on the 1st: a month that began
- * last week is not one a person can still leave in.
- */
-export function monthOptions(today: string): { value: string; label: string }[] {
-  const year = Number(today.slice(0, 4));
-  const month = Number(today.slice(5, 7)) - 1;
-
-  return Array.from({ length: 12 }, (_, offset) => {
-    const index = month + offset;
-    const y = year + Math.floor(index / 12);
-    const m = index % 12;
-
-    return {
-      value: offset === 0 ? today : `${y}-${String(m + 1).padStart(2, '0')}-01`,
-      label: `${MONTH_NAMES[m]} ${y}`,
-    };
-  });
-}
+export { monthOptions } from './month-options';
 
 export const TRIP_NIGHTS = Array.from({ length: 20 }, (_, index) => ({
   value: String(index + 2),
   label: `${index + 2} nights`,
 }));
 
-/** The Month and Trip length selects that "Anytime that month" asks for. */
-export function MonthFields({
-  today,
-  monthStart,
-  tripNights,
-}: {
-  today: string;
-  monthStart?: string | undefined;
-  tripNights?: string | undefined;
-}) {
+/** The Trip length select that "Anytime that month" asks for; the month is chosen in the calendar. */
+export function MonthFields({ tripNights }: { tripNights?: string | undefined }) {
   return (
     <>
       <Select
-        label="Month"
-        name="monthStart"
-        defaultValue={monthStart ?? ''}
-        options={monthOptions(today)}
-        bare
-      />
-      <Select
         label="Trip length"
         name="tripNights"
-        defaultValue={tripNights ?? '7'}
-        options={TRIP_NIGHTS}
+        defaultValue={tripNights ?? ''}
+        options={[{ value: '', label: 'Not set' }, ...TRIP_NIGHTS]}
         bare
       />
     </>
@@ -286,11 +235,7 @@ export function SearchFieldGroup({
           stacked={stacked}
           className="hidden grid-cols-2 gap-2 group-has-[input[name=flexibility][value=month]:checked]:grid"
         >
-          <MonthFields
-            today={today}
-            monthStart={values.monthStart}
-            tripNights={values.tripNights}
-          />
+          <MonthFields tripNights={values.tripNights} />
         </Cell>
       </div>
     </div>

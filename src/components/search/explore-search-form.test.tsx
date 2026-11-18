@@ -105,7 +105,13 @@ describe('the explorer form', () => {
       }
 
       // Month and trip length for a month search, and the trip length limit.
-      expect(screen.getByLabelText('Month')).toBeInTheDocument();
+      // The month is chosen in the calendar, in the same group as the days and the trip length.
+      const monthSelect = screen.getByLabelText('Month');
+      const flexGroup = screen.getByRole('radiogroup', { name: 'How flexible are the dates' });
+      const calendarGroup = screen.getByRole('group', { name: 'Trip length' }).parentElement!;
+      expect(calendarGroup).toContainElement(flexGroup);
+      expect(calendarGroup).toContainElement(monthSelect);
+      expect(calendarGroup).toContainElement(screen.getByRole('group', { name: 'Trip length' }));
       expect(screen.getAllByLabelText('Trip length').length).toBeGreaterThan(0);
       // The trip length is chosen in the calendar, beside the days, and nothing is chosen by default.
       const length = screen.getByRole('group', { name: 'Trip length' });

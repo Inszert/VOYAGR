@@ -111,7 +111,7 @@ const FRIDAY = 5;
 const SATURDAY = 6;
 
 /** Last day of the month containing `date`. */
-function endOfMonth(date: IsoDate): IsoDate {
+export function endOfMonth(date: IsoDate): IsoDate {
   const year = Number(date.slice(0, 4));
   const month = Number(date.slice(5, 7));
   // Day 0 of the next month is the last day of this one, and rolls the year

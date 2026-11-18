@@ -495,11 +495,7 @@ function BarSearch({
                   fields it asks for have to appear where the dates were.
                 */}
                 <div className="hidden grid-cols-2 gap-2 group-has-[input[name=flexibility][value=month]:checked]/form:grid">
-                  <MonthFields
-                    today={today}
-                    monthStart={values.monthStart}
-                    tripNights={values.tripNights}
-                  />
+                  <MonthFields tripNights={values.tripNights} />
                 </div>
               </div>
 

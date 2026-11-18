@@ -121,11 +121,13 @@ describe('CompactSearch month mode', () => {
 describe('CompactSearch', () => {
   it('puts the month and trip length where the dates are, not in the folded options', () => {
     const { container } = renderForm({ variant: 'bar' });
-    const month = container.querySelector<HTMLSelectElement>('select[name="monthStart"]')!;
+    const month = container.querySelector<HTMLInputElement>('input[name="monthStart"]')!;
     const nights = container.querySelector<HTMLSelectElement>('select[name="tripNights"]')!;
     const leaving = container.querySelector<HTMLInputElement>('input[name="departureDate"]')!;
     // One field each, so the form submits one month and one length.
-    expect(container.querySelectorAll('select[name="monthStart"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[name="monthStart"]')).toHaveLength(1);
+    // The month is chosen in the calendar, so there is no month select in the bar.
+    expect(container.querySelector('select[name="monthStart"]')).toBeNull();
     // Not in the options panel that stays shut until it is opened.
     expect(month.closest('.border-b')).toBeNull();
     expect(nights.closest('.border-b')).toBeNull();
