@@ -36,7 +36,7 @@
     "devmap:update": "node scripts/update-devmap.mjs"
   },
   "dependencies": {
-    "bullmq": "^6.3.7",
+    "bullmq": "^6.3.8",
     "ioredis": "^6.0.0",
     "maplibre-gl": "^6.10.0",
     "next": "16.4.5",
