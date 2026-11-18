@@ -327,3 +327,29 @@ describe('LiveSearchForm', () => {
     });
   });
 });
+
+describe('LiveSearchForm, the shared form fields', () => {
+  it('sends a changed month or trip length with the Search button, and keeps the rest', () => {
+    push.mockClear();
+    render(
+      <LiveSearchForm action="/explore" label="Change this search">
+        <input type="hidden" name="origins" value="VIE" />
+        <input type="hidden" name="fDates" value="x" />
+        <select aria-label="Trip length" name="tripNights" defaultValue="7">
+          <option value="7">7 nights</option>
+          <option value="5">5 nights</option>
+        </select>
+      </LiveSearchForm>,
+    );
+
+    fireEvent.change(screen.getByLabelText('Trip length'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(push).toHaveBeenCalledTimes(1);
+    const query = new URLSearchParams(String(push.mock.calls[0]![0]).split('?')[1]);
+    expect(query.get('tripNights')).toBe('5');
+    expect(query.get('origins')).toBe('VIE');
+    // A different length of trip is not the window that was picked on the old one.
+    expect(query.has('fDates')).toBe(false);
+  });
+});
