@@ -102,6 +102,12 @@ export interface PriceCalendarLoad {
   readonly passengers: number;
   readonly minNights: number;
   readonly maxNights: number;
+  /**
+   * The trip length the traveller chose ("under X" / "over X" nights): only
+   * returns between these, inclusive, are offered. Absent means any length.
+   */
+  readonly lengthMin?: number;
+  readonly lengthMax?: number;
   /** `YYYY-MM-DD`. Days before it cannot be flown, so they are not waited for. */
   readonly today: IsoDate;
   /** A search link with `__DEPARTURE__` and `__RETURN__` where the dates go. */
@@ -335,6 +341,9 @@ export function PriceCalendar({
         // Every return the month holds for this departure, not only the cheapest.
         for (const ret of price.returns ?? [price]) {
           if (searchPriced && searchPairs.has(`${day}..${ret.returnDate}`)) continue;
+          const stay = daysBetween(day, ret.returnDate);
+          if (load.lengthMin !== undefined && stay < load.lengthMin) continue;
+          if (load.lengthMax !== undefined && stay > load.lengthMax) continue;
           const option: PriceCalendarOption = {
             kind: 'flight',
             key: `flight:${day}..${ret.returnDate}`,
@@ -359,7 +368,11 @@ export function PriceCalendar({
       if (low) cheapest.add(low.key);
     }
 
-    return { options: [...searchOptions, ...extra], monthCheapest: cheapest };
+    const fits = (option: PriceCalendarOption) =>
+      (load.lengthMin === undefined || option.nights >= load.lengthMin) &&
+      (load.lengthMax === undefined || option.nights <= load.lengthMax);
+
+    return { options: [...searchOptions.filter(fits), ...extra], monthCheapest: cheapest };
   }, [searchOptions, loaded, load]);
 
   /*

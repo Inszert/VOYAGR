@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { PriceCalendar, type PriceCalendarLoad } from './price-calendar';
 
 /**
@@ -260,6 +260,47 @@ describe('PriceCalendar loading', () => {
       expect(links[1]!.textContent).toContain('flights only');
       expect(links[1]!.textContent).toContain('€120.00');
       expect(links[2]!.textContent).toContain('€150.00');
+    });
+
+    it('offers no return longer than "under 5" nights, or shorter than "over 3"', async () => {
+      const withNights = (name: string) => {
+        const base = month(name);
+        const days = base.days as Record<string, Record<string, unknown>>;
+        // 2, 4 and 7 nights from the 12th.
+        const returns = [ret(`${name}-14`, 90), ret(`${name}-16`, 100), ret(`${name}-19`, 110)];
+        days[`${name}-12`] = { ...returns[0]!, returns };
+        return base;
+      };
+      const open = async (load: PriceCalendarLoad) => {
+        stubFetch((name) => json(withNights(name)));
+        render(
+          <PriceCalendar
+            options={[]}
+            load={load}
+            selected={null}
+            cheapestKey={null}
+            bestValueKey={null}
+            clearHref={null}
+            chips={[]}
+          />,
+        );
+        fireEvent.click(
+          await screen.findByRole('gridcell', { name: /12 December 2026, flights only/ }),
+        );
+        const list = await screen.findByRole('list', { name: /Return options for leaving/ });
+        return within(list)
+          .getAllByRole('link')
+          .map((link) => link.getAttribute('href'));
+      };
+
+      const under = await open({ ...LOAD, lengthMin: 1, lengthMax: 5 });
+      expect(under).toHaveLength(2);
+      expect(under.join()).not.toContain('returnDate=2026-12-19');
+      cleanup();
+
+      const over = await open({ ...LOAD, lengthMin: 3, lengthMax: 30 });
+      expect(over).toHaveLength(2);
+      expect(over.join()).not.toContain('returnDate=2026-12-14');
     });
 
     it('lists a departure with one return as a list of one, with no error', async () => {

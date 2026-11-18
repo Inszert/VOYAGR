@@ -381,6 +381,61 @@ export function withMonthSelection(
   return { ...input, departureDate: start, returnDate: addDays(start, nights) };
 }
 
+/** The longest trip the trip-length control can name, in days (nights). */
+export const TRIP_LENGTH_MAX_DAYS = 30;
+
+/**
+ * The trip length the traveller chose, as the nights it allows.
+ *
+ * The form sends `tripLength` (`any`, `under` or `over`) and `tripDays` (1 to
+ * 30). `under` is a maximum of that many nights, `over` a minimum. `any` and
+ * anything unreadable return null: no limit, and the nights fields stand as
+ * they were. Expressed with the existing `minNights` / `maxNights`.
+ */
+export function tripLengthBounds(
+  input: Readonly<Record<string, string | undefined>>,
+): { min: number; max: number } | null {
+  if (input.tripLength !== 'under' && input.tripLength !== 'over') return null;
+
+  const days = Number(input.tripDays);
+  if (!Number.isInteger(days) || days < 1 || days > TRIP_LENGTH_MAX_DAYS) return null;
+
+  return input.tripLength === 'under'
+    ? { min: 1, max: days }
+    : { min: days, max: TRIP_LENGTH_MAX_DAYS };
+}
+
+/** Writes the chosen trip length into `minNights` and `maxNights`. */
+export function withTripLength(
+  input: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string | undefined>> {
+  const bounds = tripLengthBounds(input);
+  if (!bounds) return input;
+
+  return { ...input, minNights: String(bounds.min), maxNights: String(bounds.max) };
+}
+
+/**
+ * Holds a profile's nights inside the chosen trip length.
+ *
+ * A date preset ("a weekend", plus or minus three days) works out its own
+ * nights; the trip length the traveller chose still has the last word. Where
+ * the two share no night, the nearest night the length allows is used.
+ */
+export function clampToTripLength(
+  profile: SearchProfile,
+  bounds: { min: number; max: number } | null,
+): SearchProfile {
+  if (!bounds) return profile;
+
+  const min = Math.max(profile.minNights, bounds.min);
+  const max = Math.min(profile.maxNights, bounds.max);
+  if (min <= max) return { ...profile, minNights: min, maxNights: max };
+
+  const night = profile.maxNights < bounds.min ? bounds.min : bounds.max;
+  return { ...profile, minNights: night, maxNights: night };
+}
+
 /**
  * How much each part of the trip matters, from `?wStay=&wTransfers=&wCost=&wNature=&wWeather=&wFood=`
  * (the retired `wFlights` and `wActivities` are ignored, not an error).
@@ -430,7 +485,7 @@ export function parseSearchForm(
    * the fan-out bounds, the diagnostics - deals in codes and has no idea the
    * word was ever typed. The alternative is a special case in each of them.
    */
-  const base = withMonthSelection(input);
+  const base = withTripLength(withMonthSelection(input));
   const region = resolveRegion?.(base.destinations) ?? null;
   const expanded =
     isAnywhere(base.destinations) && anywhere.length > 0
@@ -461,10 +516,11 @@ export function parseSearchForm(
   if (Object.keys(crossFieldErrors).length > 0) return err(crossFieldErrors);
 
   const partWeights = parsePartWeights(input);
+  const profile = clampToTripLength(toSearchProfile(parsed.data), tripLengthBounds(input));
 
   return ok({
     request: {
-      profile: toSearchProfile(parsed.data),
+      profile,
       destinations: parsed.data.destinations,
       ...(partWeights ? { partWeights } : {}),
     },

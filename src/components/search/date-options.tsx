@@ -4,6 +4,7 @@ import { perTraveller, travellersLabel } from '@/core/party';
 import type { SourceAttribution } from '@/core/trip/provenance';
 import { cn } from '@/lib/cn';
 import { weekdayDate } from '@/lib/display-date';
+import { TRIP_LENGTH_MAX_DAYS, tripLengthBounds } from '@/search/schema';
 import { FLEXIBILITY_LABELS, FLEXIBILITY_PRESETS } from '@/search/flexibility';
 import {
   dateWindowKey,
@@ -148,6 +149,7 @@ function calendarLoad(
 
   const origin = codes(searchValues.origins)[0];
   if (!origin) return null;
+  const tripLength = tripLengthBounds(searchValues);
 
   const named = codes(searchValues.destinations);
   const found = [
@@ -167,7 +169,12 @@ function calendarLoad(
     currency: breakdown.currency,
     passengers: travellersOf(searchValues),
     minNights: CALENDAR_MIN_NIGHTS,
-    maxNights: Math.max(Number(searchValues.maxNights) || 0, CALENDAR_MAX_NIGHTS),
+    maxNights: Math.max(
+      Number(searchValues.maxNights) || 0,
+      CALENDAR_MAX_NIGHTS,
+      tripLength ? Math.min(tripLength.min + 7, TRIP_LENGTH_MAX_DAYS) : 0,
+    ),
+    ...(tripLength ? { lengthMin: tripLength.min, lengthMax: tripLength.max } : {}),
     today: new Date().toISOString().slice(0, 10),
     hrefTemplate: linkWith(basePath, searchValues, {
       flexibility: 'exact',

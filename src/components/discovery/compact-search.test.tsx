@@ -226,6 +226,57 @@ describe('CompactSearch', () => {
     });
   });
 
+  describe('trip length', () => {
+    const request = (form: HTMLFormElement) => {
+      const parsed = parseSearchForm(submission(form));
+      if (!parsed.ok) throw new Error('the search did not parse');
+      return parsed.value.request.profile;
+    };
+
+    it('offers Any length, Under X days and Over X days, with a labelled number field', () => {
+      renderForm();
+      const group = screen.getByRole('group', { name: 'Trip length' });
+      for (const name of ['Any length', 'Under X days', 'Over X days']) {
+        expect(within(group).getByRole('radio', { name: new RegExp(name) })).toBeInTheDocument();
+      }
+      expect(within(group).getByRole('radio', { name: /Any length/ })).toBeChecked();
+      const days = screen.getByLabelText(/Number of days/);
+      expect(days).toHaveAttribute('min', '1');
+      expect(days).toHaveAttribute('max', '30');
+    });
+
+    it('Under 5 submits a maximum of 5 nights', async () => {
+      const { container } = renderForm();
+      await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
+      const days = screen.getByLabelText(/Number of days/);
+      await userEvent.clear(days);
+      await userEvent.type(days, '5');
+      expect(request(container.querySelector('form')!).maxNights).toBe(5);
+    });
+
+    it('Over 3 submits a minimum of 3 nights', async () => {
+      const { container } = renderForm();
+      await userEvent.click(screen.getByRole('radio', { name: /Over X days/ }));
+      const days = screen.getByLabelText(/Number of days/);
+      await userEvent.clear(days);
+      await userEvent.type(days, '3');
+      expect(request(container.querySelector('form')!).minNights).toBe(3);
+    });
+
+    it('Any length leaves the nights at their defaults, with no limit chosen', () => {
+      const { container } = renderForm();
+      const sent = submission(container.querySelector('form')!);
+      expect(sent.tripLength).toBe('any');
+      const form = container.querySelector('form')!;
+      const { tripLength: _chosen, tripDays: _days, ...rest } = sent;
+      const without = parseSearchForm(rest);
+      if (!without.ok) throw new Error('the search did not parse');
+      // Choosing Any adds no limit: the nights are exactly what they were without the control.
+      expect(request(form).minNights).toBe(without.value.request.profile.minNights);
+      expect(request(form).maxNights).toBe(without.value.request.profile.maxNights);
+    });
+  });
+
   it('carries the globe selection through as hidden inputs', () => {
     const { container } = renderForm({ carry: { country: 'ESP', mapMode: 'cheapest' } });
     const form = container.querySelector('form')!;
