@@ -8,6 +8,12 @@ import {
   flexibilityValueOf,
   type FlexibilityChoice,
 } from './flexibility-chips';
+import {
+  TripLengthChoice,
+  tripDaysOf,
+  tripLengthModeOf,
+  type TripLengthMode,
+} from './trip-length-choice';
 
 /**
  * The dates and how flexible they are: one control.
@@ -25,17 +31,28 @@ export interface FlexibleDateRangeProps extends DateRangeFieldProps {
   flexibility?: string;
   today: string;
   monthStart?: string;
+  /** The form's `tripLength` and `tripDays`, as submitted. Empty means not set. */
+  tripLength?: string;
+  tripDays?: string;
+  tripLengthError?: string | undefined;
 }
 
 export function FlexibleDateRange({
   flexibility,
   today,
   monthStart,
+  tripLength,
+  tripDays,
+  tripLengthError,
   ...range
 }: FlexibleDateRangeProps) {
   const [choice, setChoice] = React.useState<FlexibilityChoice>(() =>
     flexibilityChoiceOf(flexibility, today, monthStart),
   );
+  const [lengthMode, setLengthMode] = React.useState<TripLengthMode>(() =>
+    tripLengthModeOf(tripLength),
+  );
+  const [lengthDays, setLengthDays] = React.useState(() => tripDaysOf(tripDays));
   const inMonth = flexibilityValueOf(choice) === 'month';
   const mirror = React.useRef<HTMLInputElement>(null);
 
@@ -58,6 +75,14 @@ export function FlexibleDateRange({
         hidden
       />
       {/*
+        The trip length is chosen in the calendar, which is a popover outside
+        the form, so the choice is mirrored here. Not set submits nothing.
+      */}
+      {lengthMode !== '' ? <input type="hidden" name="tripLength" value={lengthMode} /> : null}
+      {lengthMode === 'under' || lengthMode === 'over' ? (
+        <input type="hidden" name="tripDays" value={lengthDays} />
+      ) : null}
+      {/*
         In month mode the two dates give way to the Month and Trip length
         fields, and the calendar with its chips goes with them. This control
         is the way back: it stays in view and chooses the same `exact` value
@@ -68,12 +93,21 @@ export function FlexibleDateRange({
           {...range}
           required={inMonth ? false : range.required}
           footer={
-            <FlexibilityChips
-              name="flexibility-choice"
-              label="How flexible are the dates"
-              choice={choice}
-              onChoiceChange={choose}
-            />
+            <div className="flex flex-col gap-4">
+              <FlexibilityChips
+                name="flexibility-choice"
+                label="How flexible are the dates"
+                choice={choice}
+                onChoiceChange={choose}
+              />
+              <TripLengthChoice
+                mode={lengthMode}
+                days={lengthDays}
+                onModeChange={setLengthMode}
+                onDaysChange={setLengthDays}
+                error={tripLengthError}
+              />
+            </div>
           }
         />
       </div>

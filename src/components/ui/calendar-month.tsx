@@ -107,10 +107,26 @@ export function CalendarMonth({
   const within = (day: IsoDate) =>
     start !== null && end !== null && isAfter(day, start) && isBefore(day, end);
 
+  const month = startOfMonth(anchor);
+  const marked =
+    (start !== null && startOfMonth(start) === month) ||
+    (end !== null && startOfMonth(end) === month);
+
   return (
     <div>
       {heading ? (
-        <p className="text-text mb-1 text-center text-sm font-medium">{monthName(anchor)}</p>
+        marked ? (
+          // The month holding a chosen day says so, in a mark and in words.
+          <p className="mb-1 flex justify-center">
+            <span className="bg-accent-to inline-flex items-center gap-1.5 rounded-(--radius-pill) px-3 py-1 text-sm font-semibold text-white">
+              <span aria-hidden="true">✓</span>
+              {monthName(anchor)}
+              <span className="text-xs font-medium">Selected</span>
+            </span>
+          </p>
+        ) : (
+          <p className="text-text mb-1 text-center text-sm font-medium">{monthName(anchor)}</p>
+        )
       ) : null}
 
       <div aria-hidden="true" className="grid grid-cols-7 gap-0.5">

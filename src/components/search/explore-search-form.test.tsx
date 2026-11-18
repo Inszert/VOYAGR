@@ -107,9 +107,12 @@ describe('the explorer form', () => {
       // Month and trip length for a month search, and the trip length limit.
       expect(screen.getByLabelText('Month')).toBeInTheDocument();
       expect(screen.getAllByLabelText('Trip length').length).toBeGreaterThan(0);
+      // The trip length is chosen in the calendar, beside the days, and nothing is chosen by default.
       const length = screen.getByRole('group', { name: 'Trip length' });
-      for (const name of ['Any length', 'Under X days', 'Over X days']) {
-        expect(within(length).getByRole('radio', { name: new RegExp(name) })).toBeInTheDocument();
+      for (const name of ['Not set', 'Under X days', 'Over X days']) {
+        const choice = within(length).getByRole('radio', { name: new RegExp(name) });
+        expect(choice).toBeInTheDocument();
+        expect(choice).not.toBeChecked();
       }
       expect(screen.getByLabelText(/Number of days/)).toBeInTheDocument();
       unmount();
@@ -158,12 +161,12 @@ describe('the explorer form', () => {
     await userEvent.click(
       screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
     );
+    await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
     await userEvent.click(screen.getByRole('radio', { name: 'Anytime that month' }));
     await userEvent.selectOptions(
       screen.getByLabelText('Trip length', { selector: 'select' }),
       '5',
     );
-    await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
     const sentByDiscover = submission(discoverForm);
     discover.unmount();
 
@@ -172,12 +175,12 @@ describe('the explorer form', () => {
     await userEvent.click(
       screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
     );
+    await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
     await userEvent.click(screen.getByRole('radio', { name: 'Anytime that month' }));
     await userEvent.selectOptions(
       screen.getByLabelText('Trip length', { selector: 'select' }),
       '5',
     );
-    await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
     const sentByExplore = submission(exploreForm);
 
     // Every parameter the explorer sends is one Discover sends, with the same value.

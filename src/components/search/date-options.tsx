@@ -392,6 +392,19 @@ export function DateOptions({
         chips={chips}
         shortcuts={shortcuts}
         travellers={travellers}
+        lengthForm={{
+          action: basePath,
+          fields: Object.fromEntries(
+            Object.entries(searchValues).filter(
+              (entry): entry is [string, string] =>
+                typeof entry[1] === 'string' &&
+                entry[1] !== '' &&
+                !['tripLength', 'tripDays', 'fDates'].includes(entry[0]),
+            ),
+          ),
+          tripLength: searchValues.tripLength ?? '',
+          tripDays: searchValues.tripDays ?? '',
+        }}
       />
 
       {/*

@@ -233,29 +233,40 @@ describe('CompactSearch', () => {
       return parsed.value.request.profile;
     };
 
-    it('offers Any length, Under X days and Over X days, with a labelled number field', () => {
+    const openCalendar = () =>
+      userEvent.click(
+        screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
+      );
+
+    it('offers Not set, Under X days and Over X days in the calendar, none chosen, with a labelled number field', async () => {
       renderForm();
+      await openCalendar();
       const group = screen.getByRole('group', { name: 'Trip length' });
-      for (const name of ['Any length', 'Under X days', 'Over X days']) {
-        expect(within(group).getByRole('radio', { name: new RegExp(name) })).toBeInTheDocument();
+      for (const name of ['Not set', 'Under X days', 'Over X days']) {
+        const choice = within(group).getByRole('radio', { name: new RegExp(name) });
+        expect(choice).toBeInTheDocument();
+        expect(choice).not.toBeChecked();
       }
-      expect(within(group).getByRole('radio', { name: /Any length/ })).toBeChecked();
       const days = screen.getByLabelText(/Number of days/);
       expect(days).toHaveAttribute('min', '1');
       expect(days).toHaveAttribute('max', '30');
     });
 
-    it('Under 5 submits a maximum of 5 nights', async () => {
+    it('Under 5 chosen in the calendar submits a maximum of 5 nights', async () => {
       const { container } = renderForm();
+      await openCalendar();
       await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
       const days = screen.getByLabelText(/Number of days/);
       await userEvent.clear(days);
       await userEvent.type(days, '5');
-      expect(request(container.querySelector('form')!).maxNights).toBe(5);
+      const form = container.querySelector('form')!;
+      expect(submission(form)).toMatchObject({ tripLength: 'under', tripDays: '5' });
+      expect(request(form).maxNights).toBe(5);
     });
 
-    it('Over 3 submits a minimum of 3 nights', async () => {
+    it('Over 3 chosen in the calendar submits a minimum of 3 nights', async () => {
       const { container } = renderForm();
+      await openCalendar();
       await userEvent.click(screen.getByRole('radio', { name: /Over X days/ }));
       const days = screen.getByLabelText(/Number of days/);
       await userEvent.clear(days);
@@ -263,17 +274,31 @@ describe('CompactSearch', () => {
       expect(request(container.querySelector('form')!).minNights).toBe(3);
     });
 
-    it('Any length leaves the nights at their defaults, with no limit chosen', () => {
+    it('with no length set, no nights limit is submitted', () => {
       const { container } = renderForm();
-      const sent = submission(container.querySelector('form')!);
-      expect(sent.tripLength).toBe('any');
       const form = container.querySelector('form')!;
-      const { tripLength: _chosen, tripDays: _days, ...rest } = sent;
-      const without = parseSearchForm(rest);
-      if (!without.ok) throw new Error('the search did not parse');
-      // Choosing Any adds no limit: the nights are exactly what they were without the control.
-      expect(request(form).minNights).toBe(without.value.request.profile.minNights);
-      expect(request(form).maxNights).toBe(without.value.request.profile.maxNights);
+      const sent = submission(form);
+      expect(sent).not.toHaveProperty('tripLength');
+      expect(sent).not.toHaveProperty('tripDays');
+      // Nothing from the length control reaches the search: the nights are the form's own.
+      const { minNights, maxNights } = sent;
+      expect(Number(minNights)).toBeLessThanOrEqual(Number(maxNights));
+    });
+
+    it('an explicit tripLength in the address is still honoured', async () => {
+      const { container } = renderForm({ values: { tripLength: 'over', tripDays: '4' } });
+      const form = container.querySelector('form')!;
+      expect(submission(form)).toMatchObject({ tripLength: 'over', tripDays: '4' });
+      expect(request(form).minNights).toBe(4);
+      await openCalendar();
+      expect(screen.getByRole('radio', { name: /Over X days/ })).toBeChecked();
+    });
+
+    it('says in words which month holds the selected day', async () => {
+      renderForm({ values: { departureDate: '2030-06-10', returnDate: '2030-06-15' } });
+      await openCalendar();
+      expect(screen.getAllByText('Selected').length).toBeGreaterThan(0);
+      expect(screen.getByText('June 2030').parentElement).toHaveTextContent(/June 2030\s*Selected/);
     });
   });
 

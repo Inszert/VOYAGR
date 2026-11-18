@@ -16,6 +16,12 @@ import {
 } from '@/core/dates';
 import type { IsoDate } from '@/core/trip/types';
 import { cn } from '@/lib/cn';
+import {
+  TripLengthChoice,
+  tripDaysOf,
+  tripLengthModeOf,
+  type TripLengthMode,
+} from './trip-length-choice';
 import { weekdayDate } from '@/lib/display-date';
 import {
   MAX_RETURN_OPTIONS,
@@ -114,7 +120,21 @@ export interface PriceCalendarLoad {
   readonly hrefTemplate: string;
 }
 
+/**
+ * The trip length, set where the days are written. A plain form that searches
+ * again: the rest of the search rides along as hidden fields, and the length
+ * goes as `tripLength` and `tripDays`, exactly as the search form sent it.
+ */
+export interface PriceCalendarLengthForm {
+  readonly action: string;
+  /** Every other parameter of the search, carried through unchanged. */
+  readonly fields: Readonly<Record<string, string>>;
+  readonly tripLength: string;
+  readonly tripDays: string;
+}
+
 export interface PriceCalendarProps {
+  lengthForm?: PriceCalendarLengthForm;
   options: readonly PriceCalendarOption[];
   load?: PriceCalendarLoad;
   /** The chosen pair, as `2026-06-10..2026-06-15`, or null. */
@@ -200,6 +220,7 @@ export function PriceCalendar({
   shortcuts = [],
   travellers,
   datesFromSearch,
+  lengthForm,
 }: PriceCalendarProps) {
   const partySize = travellers ?? load?.passengers ?? 1;
   const party = `${partySize} ${partySize === 1 ? 'traveller' : 'travellers'}`;
@@ -589,6 +610,8 @@ export function PriceCalendar({
         </div>
       ) : null}
 
+      {lengthForm ? <CalendarLengthForm form={lengthForm} /> : null}
+
       {/*
         The dates, said once and always on screen: what leaving and coming back
         are right now. On a phone the calendar folds away behind the button and
@@ -765,7 +788,19 @@ export function PriceCalendar({
                     <span aria-hidden="true" className="size-11" />
                   )}
 
-                  <h3 className="font-display text-ink text-lg">{monthName(month)}</h3>
+                  {/*
+                    The month the chosen day is in says so: a filled pill with
+                    a tick and the word "Selected", so it is never only colour.
+                  */}
+                  {start !== null && startOfMonth(start) === startOfMonth(month) ? (
+                    <h3 className="bg-accent-to inline-flex items-center gap-2 rounded-(--radius-pill) px-4 py-1.5 text-base font-semibold text-white">
+                      <span aria-hidden="true">✓</span>
+                      <span className="font-display">{monthName(month)}</span>
+                      <span className="text-xs font-medium">Selected</span>
+                    </h3>
+                  ) : (
+                    <h3 className="font-display text-ink text-lg">{monthName(month)}</h3>
+                  )}
 
                   {/* Forward from the last month on show: the second on a desktop, the only one on a phone. */}
                   <button
@@ -885,7 +920,11 @@ export function PriceCalendar({
                               role="gridcell"
                               aria-disabled="true"
                               aria-label={`${spoken(day)}, ${
-                                isStart ? 'your departure, ' : isEnd ? 'your return, ' : ''
+                                isStart
+                                  ? 'your departure, selected, '
+                                  : isEnd
+                                    ? 'your return, '
+                                    : ''
                               }no price yet`}
                               {...cellKeys(day)}
                               className={cn(
@@ -936,7 +975,7 @@ export function PriceCalendar({
                               <span className="text-sm font-medium">{number}</span>
                               <span className="text-[10px] leading-none">
                                 {isDeparture
-                                  ? 'Out'
+                                  ? 'Out ✓'
                                   : isReturn || isLeaveEnd
                                     ? 'Back'
                                     : isBest
@@ -993,7 +1032,7 @@ export function PriceCalendar({
                                   : isCheapest
                                     ? ', cheapest'
                                     : ''}
-                              {isDeparture ? ', your departure' : ''}
+                              {isDeparture ? ', your departure, selected' : ''}
                               {isReturn || isLeaveEnd ? ', your return' : ''}
                             </span>
                           </>
@@ -1082,5 +1121,33 @@ export function PriceCalendar({
         </ul>
       </div>
     </div>
+  );
+}
+
+function CalendarLengthForm({ form }: { form: PriceCalendarLengthForm }) {
+  const [mode, setMode] = React.useState<TripLengthMode>(() => tripLengthModeOf(form.tripLength));
+  const [days, setDays] = React.useState(() => tripDaysOf(form.tripDays));
+  const set = mode === 'under' || mode === 'over';
+
+  return (
+    <form
+      method="get"
+      action={form.action}
+      aria-label="Trip length"
+      className="flex flex-col gap-2"
+    >
+      {Object.entries(form.fields).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
+      {mode !== '' ? <input type="hidden" name="tripLength" value={mode} /> : null}
+      {set ? <input type="hidden" name="tripDays" value={days} /> : null}
+      <TripLengthChoice mode={mode} days={days} onModeChange={setMode} onDaysChange={setDays} />
+      <button
+        type="submit"
+        className="border-hairline text-ink hover:border-border-strong focus-visible:outline-accent-to inline-flex min-h-11 items-center self-start rounded-(--radius-control) border px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        Apply trip length
+      </button>
+    </form>
   );
 }

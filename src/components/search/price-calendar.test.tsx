@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { PriceCalendar, type PriceCalendarOption } from './price-calendar';
 import { FlexibilityChips } from './flexibility-chips';
 import { TimeRangeField } from '@/components/ui/time-range-field';
@@ -482,5 +483,54 @@ describe('PriceCalendar date shortcuts', () => {
     expect(active.getAttribute('aria-current')).toBe('true');
     expect(active.textContent).toContain('✓');
     expect(screen.getByText(/showing ± 3 days/)).toBeTruthy();
+  });
+});
+
+describe('PriceCalendar selection and trip length', () => {
+  it('marks the month of the chosen day as selected, in words and a mark', async () => {
+    renderCalendar();
+    expect(screen.queryByText('Selected')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('gridcell', { name: /12 December 2026, whole trip/ })[0]!);
+
+    const heading = screen.getByRole('heading', { name: /December 2026\s*Selected/ });
+    expect(heading).toHaveTextContent('✓');
+    expect(
+      screen.getAllByRole('gridcell', { name: /12 December 2026, your departure, selected/ })[0],
+    ).toBeInTheDocument();
+  });
+
+  it('sets the trip length in the calendar and searches again with the same parameters', async () => {
+    const { container } = render(
+      <PriceCalendar
+        options={OPTIONS}
+        selected={null}
+        cheapestKey={null}
+        bestValueKey={null}
+        clearHref={null}
+        chips={[]}
+        travellers={2}
+        lengthForm={{
+          action: '/explore',
+          fields: { origins: 'VIE', minNights: '1', maxNights: '30' },
+          tripLength: '',
+          tripDays: '',
+        }}
+      />,
+    );
+    const form = container.querySelector('form')!;
+    const sent = () => Object.fromEntries(new FormData(form).entries());
+
+    // Nothing is chosen, and no limit is sent.
+    expect(screen.getByRole('radio', { name: /Under X days/ })).not.toBeChecked();
+    expect(sent()).not.toHaveProperty('tripLength');
+
+    await userEvent.click(screen.getByRole('radio', { name: /Under X days/ }));
+    const days = screen.getByLabelText(/Number of days/);
+    await userEvent.clear(days);
+    await userEvent.type(days, '5');
+
+    expect(sent()).toMatchObject({ origins: 'VIE', tripLength: 'under', tripDays: '5' });
+    expect(screen.getByRole('button', { name: 'Apply trip length' })).toBeInTheDocument();
   });
 });

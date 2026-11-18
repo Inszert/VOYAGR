@@ -34,8 +34,9 @@ export function searchFormDefaults(today: IsoDate): Readonly<Record<string, stri
     returnDate: addDays(departure, DEFAULT_TRIP_LENGTH_DAYS),
     earliestDeparture: departure,
     latestReturn: addDays(departure, DEFAULT_WINDOW_DAYS),
-    // No trip length chosen means any length: the nights span the whole range the
-    // trip-length control can name (1 to 30), so no limit is applied by default.
+    // The trip length is not set: there is no `tripLength` default, so the control has
+    // nothing chosen and applies no limit. The nights are the whole range the control
+    // can name (1 to 30), so they limit nothing until the visitor sets a length.
     minNights: '1',
     maxNights: '30',
     passengers: '2',

@@ -83,45 +83,6 @@ function RadioGroup({
   );
 }
 
-const TRIP_LENGTHS: readonly { value: string; label: string }[] = [
-  { value: 'any', label: 'Any length' },
-  { value: 'under', label: 'Under X days' },
-  { value: 'over', label: 'Over X days' },
-];
-
-/**
- * How long the trip may be: any length, under X days (a maximum of X nights)
- * or over X days (a minimum of X nights), X from 1 to 30. Submitted as
- * `tripLength` and `tripDays`; the server turns them into `maxNights` or
- * `minNights` (see `withTripLength`).
- */
-export function TripLengthFields({ form, errors }: FieldsetProps) {
-  const days = Number(form.value('tripDays'));
-  const shown = Number.isInteger(days) && days >= 1 && days <= 30 ? String(days) : '7';
-
-  return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <RadioGroup
-        legend="Trip length"
-        name="tripLength"
-        value={form.value('tripLength') || 'any'}
-        options={TRIP_LENGTHS}
-      />
-      <Field
-        label="Number of days (X), 1 to 30"
-        name="tripDays"
-        type="number"
-        min={1}
-        max={30}
-        step={1}
-        defaultValue={shown}
-        error={errors?.minNights ?? errors?.maxNights}
-        hint="Used by Under and Over. Under X is at most X nights; Over X is at least X nights."
-      />
-    </div>
-  );
-}
-
 function CheckRow({
   name,
   label,
@@ -207,7 +168,6 @@ export function MoreOptionsPanel({
               label: OPTIMISATION_MODE_LABELS[mode],
             }))}
           />
-          <TripLengthFields form={form} errors={errors} />
           <RadioGroup
             legend="Most stops on a flight"
             name="maxStops"

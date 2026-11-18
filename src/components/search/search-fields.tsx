@@ -275,6 +275,9 @@ export function SearchFieldGroup({
             flexibility={form.value('flexibility')}
             today={today}
             monthStart={values.monthStart}
+            tripLength={form.value('tripLength')}
+            tripDays={form.value('tripDays')}
+            tripLengthError={errors.minNights ?? errors.maxNights}
           />
         </Cell>
 

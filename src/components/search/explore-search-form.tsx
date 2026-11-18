@@ -1,10 +1,8 @@
-import { Icon } from '@/components/ui';
 import { SearchFieldGroup } from '@/components/search/search-fields';
 import { readForm } from '@/components/search/search-form';
 import type { SearchFormErrors } from '@/search/schema';
 import { LiveSearchForm } from '@/components/search/live-search';
 import { OWNED_FIELDS } from '@/components/search/live-fields';
-import { TripLengthFields } from '@/components/discovery/more-options-panel';
 import type { AirportSuggestion } from '@/search/destination-names';
 
 /**
@@ -63,19 +61,6 @@ export function ExploreSearchForm({
         values={values}
         stacked
       />
-      <details className="group/more self-start">
-        <summary className="border-hairline text-muted hover:text-text hover:border-border-strong ease-standard duration-quick focus-visible:outline-accent-ink inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-(--radius-pill) border px-3.5 py-1.5 text-[13px] transition-colors select-none [&::-webkit-details-marker]:hidden">
-          <Icon
-            name="plus"
-            size={1}
-            className="ease-standard duration-settled size-[14px] transition-transform group-open/more:rotate-45"
-          />
-          Trip length
-        </summary>
-        <div className="pt-3">
-          <TripLengthFields form={form} errors={errors} />
-        </div>
-      </details>
     </LiveSearchForm>
   );
 }
