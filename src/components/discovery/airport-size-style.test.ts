@@ -33,3 +33,35 @@ describe('airport size style', () => {
     expect(expr[expr.length - 1]).toBe(AIRPORT_SIZE_STYLES.medium.radiusScale);
   });
 });
+
+describe('airport size on the globe features', () => {
+  it('maps traffic tiers to all three sizes', async () => {
+    const { airportSizeOfRank } = await import('./airport-size-style');
+    expect(airportSizeOfRank(8)).toBe('large');
+    expect(airportSizeOfRank(7)).toBe('large');
+    expect(airportSizeOfRank(5)).toBe('medium');
+    expect(airportSizeOfRank(3)).toBe('small');
+    expect(airportSizeOfRank(1)).toBe('small');
+    expect(airportSizeOfRank(null)).toBe('medium');
+  });
+
+  it('evaluates the style expression per feature: rank first, IATA without one', async () => {
+    const spec = await import('@maplibre/maplibre-gl-style-spec');
+    const parsed = spec.createExpression(
+      bySize((s) => s.radiusScale) as never,
+      {
+        type: 'number',
+        'property-type': 'data-driven',
+        expression: { interpolated: false, parameters: ['feature'] },
+      } as never,
+    );
+    if (parsed.result !== 'success') throw new Error('expression did not parse');
+    const at = (properties: Record<string, unknown>) =>
+      parsed.value.evaluate({ zoom: 0 } as never, { properties, type: 1 } as never);
+    expect(at({ iata: 'LPL', rank: 2 })).toBe(AIRPORT_SIZE_STYLES.small.radiusScale);
+    expect(at({ iata: 'LHR', rank: 8 })).toBe(AIRPORT_SIZE_STYLES.large.radiusScale);
+    expect(at({ iata: 'BRU', rank: 5 })).toBe(AIRPORT_SIZE_STYLES.medium.radiusScale);
+    expect(at({ iata: 'MXP' })).toBe(AIRPORT_SIZE_STYLES.large.radiusScale);
+    expect(at({})).toBe(AIRPORT_SIZE_STYLES.medium.radiusScale);
+  });
+});

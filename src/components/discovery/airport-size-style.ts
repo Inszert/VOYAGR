@@ -68,18 +68,38 @@ export function airportSizeOf(iata: string | null | undefined): AirportSizeClass
 type Expr = unknown[];
 
 /**
+ * The globe's airport dots are already the busiest few hundred, so the reference list calls
+ * nearly all of them large and none small. Each dot carries a `rank` (1 to 8, the traffic tier
+ * the place file was built with): the top tiers are large, the bottom ones small, so all three
+ * styles show on the dots that are there.
+ */
+export const RANK_LARGE = 7;
+export const RANK_SMALL = 3;
+
+/** An airport dot's size from its traffic tier. */
+export function airportSizeOfRank(rank: number | null | undefined): AirportSizeClass {
+  if (rank == null) return 'medium';
+  if (rank >= RANK_LARGE) return 'large';
+  if (rank <= RANK_SMALL) return 'small';
+  return 'medium';
+}
+
+/**
  * A MapLibre expression choosing a value by airport size. Reads a `size` property when a
- * feature carries one, else the IATA code against the generated lists, else medium.
+ * feature carries one, else its `rank` tier, else the IATA code against the generated lists, else medium.
  */
 export function bySize<T extends string | number>(pick: (style: AirportSizeStyle) => T): Expr {
   const large = pick(AIRPORT_SIZE_STYLES.large);
   const small = pick(AIRPORT_SIZE_STYLES.small);
   const medium = pick(AIRPORT_SIZE_STYLES.medium);
+  const rank: Expr = ['number', ['get', 'rank'], 0];
   const size: Expr = [
     'coalesce',
     ['get', 'size'],
     [
       'case',
+      ['has', 'rank'],
+      ['case', ['>=', rank, RANK_LARGE], 'large', ['<=', rank, RANK_SMALL], 'small', 'medium'],
       ['in', ['get', 'iata'], ['literal', LARGE]],
       'large',
       ['in', ['get', 'iata'], ['literal', SMALL]],

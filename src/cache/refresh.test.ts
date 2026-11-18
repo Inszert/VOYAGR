@@ -78,6 +78,36 @@ describe('enqueueCacheRefresh', () => {
   });
 });
 
+describe('round dedupe keys', () => {
+  const keysOf = (enqueue: ReturnType<typeof vi.fn>) =>
+    enqueue.mock.calls.map((call) => ((call as unknown[])[2] as { dedupeKey: string }).dedupeKey);
+
+  it('gives the next round new job ids, so a retained completed job cannot swallow it', async () => {
+    const enqueue = vi.fn(async () => 'id');
+    const interval = 30;
+
+    await enqueueCacheRefresh({ enqueue }, interval, undefined, () => 0);
+    await enqueueCacheRefresh({ enqueue }, interval, undefined, () => interval * 60_000);
+
+    const all = keysOf(enqueue);
+    const half = all.length / 2;
+    const first = all.slice(0, half);
+    const second = all.slice(half);
+    expect(first.filter((key) => second.includes(key))).toEqual([]);
+  });
+
+  it('still collapses a repeat inside the same interval', async () => {
+    const enqueue = vi.fn(async () => 'id');
+
+    await enqueueCacheRefresh({ enqueue }, 30, undefined, () => 60_000);
+    await enqueueCacheRefresh({ enqueue }, 30, undefined, () => 120_000);
+
+    const all = keysOf(enqueue);
+    const half = all.length / 2;
+    expect(all.slice(0, half)).toEqual(all.slice(half));
+  });
+});
+
 describe('places pre-warming', () => {
   const [first, second] = placesTargetDestinations() as [string, string];
 

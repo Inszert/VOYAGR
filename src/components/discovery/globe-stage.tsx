@@ -50,6 +50,7 @@ import {
   facing,
   pointAt,
   projectArc,
+  viewSignature,
   readSphere,
   sunOnSphere,
   toArcRuns,
@@ -2174,7 +2175,6 @@ export function GlobeStage({
       // Every call is a full pass: the projection runs inside MapLibre's own
       // `render` event, in the frame the map moved in, so the strings cannot
       // lag the planet. The signature below is what keeps a still globe free.
-      const heavy = true;
 
       const globe = projection === 'globe';
       const sphere = readSphere(map, globe);
@@ -2241,9 +2241,9 @@ export function GlobeStage({
        * frame and they always are; while it sits still the lights keep
        * travelling for nothing.
        */
-      const next = `${sphere.x.toFixed(1)},${sphere.y.toFixed(1)},${sphere.lng.toFixed(3)},${sphere.lat.toFixed(3)},${sphere.diameter.toFixed(1)}`;
+      const next = viewSignature(sphere, { bearing: map.getBearing(), pitch: map.getPitch() });
 
-      if (heavy && next !== signature) {
+      if (next !== signature) {
         signature = next;
 
         const sun = sunRef.current;

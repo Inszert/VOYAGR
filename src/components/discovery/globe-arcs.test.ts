@@ -6,6 +6,7 @@ import {
   limbFade,
   routeVisibility,
   toArcRuns,
+  viewSignature,
   type SphereFrame,
 } from './globe-arcs';
 
@@ -190,5 +191,28 @@ describe('routeVisibility', () => {
     const ends = [VIE, SYD];
     expect(visibleFrom(ends, view(-120, 0))).toBe(0);
     expect(visibleFrom(ends, view(20, 40))).toBe(1);
+  });
+});
+
+describe('viewSignature', () => {
+  const base: SphereFrame = { x: 500, y: 400, diameter: 600, lng: 10, lat: 20, shown: 1 };
+
+  it('is stable for an unmoved view', () => {
+    expect(viewSignature(base, { bearing: 0, pitch: 0 })).toBe(
+      viewSignature({ ...base }, { bearing: 0, pitch: 0 }),
+    );
+  });
+
+  it('changes after a drag (centre) and after a zoom (diameter)', () => {
+    const still = viewSignature(base);
+    expect(viewSignature({ ...base, lng: 25 })).not.toBe(still);
+    expect(viewSignature({ ...base, x: 540, y: 410 })).not.toBe(still);
+    expect(viewSignature({ ...base, diameter: 720 })).not.toBe(still);
+  });
+
+  it('changes when only the bearing or pitch moves', () => {
+    const still = viewSignature(base, { bearing: 0, pitch: 0 });
+    expect(viewSignature(base, { bearing: 15, pitch: 0 })).not.toBe(still);
+    expect(viewSignature(base, { bearing: 0, pitch: 20 })).not.toBe(still);
   });
 });

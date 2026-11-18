@@ -506,6 +506,29 @@ export function readSphere(map: MapLibreMap, globe: boolean): SphereFrame {
 }
 
 /**
+ * Whether the view has moved, as a string that changes exactly when it has.
+ *
+ * Where a point lands depends on the centre, the zoom, the bearing and the
+ * pitch together. A signature of the sphere alone misses a bearing or pitch
+ * change (the disc stays where it is while the planet turns inside it), which
+ * left the arcs standing still over a moving world. Compare, do not parse.
+ */
+export function viewSignature(
+  frame: SphereFrame,
+  view: { readonly bearing: number; readonly pitch: number } = { bearing: 0, pitch: 0 },
+): string {
+  return [
+    frame.x.toFixed(1),
+    frame.y.toFixed(1),
+    frame.lng.toFixed(3),
+    frame.lat.toFixed(3),
+    frame.diameter.toFixed(1),
+    view.bearing.toFixed(2),
+    view.pitch.toFixed(2),
+  ].join(',');
+}
+
+/**
  * The cosine of the angle between a position and the direction being faced.
  *
  * Positive is the near side of the planet, negative the far side. Cheaper and

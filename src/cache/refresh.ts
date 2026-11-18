@@ -36,6 +36,18 @@ export interface CacheRefreshDependencies {
   readonly now?: () => number;
 }
 
+/**
+ * The dedupe key for one refresh job in one window of time.
+ *
+ * The queue uses the key as the job id, and a completed job is kept (the driver retains the last
+ * 500), so a key that is the same every round makes every round after the first a silent no-op: the
+ * id already exists. The window is part of the key, so a round (or a page's request) in a later
+ * window is a new job, while two in the same window still collapse into one.
+ */
+export function refreshDedupeKey(targetId: string, now: number, windowMs: number): string {
+  return `cache.refresh:${targetId}:${Math.floor(now / Math.max(1, windowMs))}`;
+}
+
 /** Today as `YYYY-MM-DD` from an instant. The one place the worker turns a clock into a date. */
 function todayOf(now: number): IsoDate {
   return new Date(now).toISOString().slice(0, 10);
@@ -55,6 +67,9 @@ function todayOf(now: number): IsoDate {
  * missed round costs a visitor a wait, never a blank page.
  */
 const PLACES_SPACING_MS = MINUTE;
+
+/** One places job per destination per six hours: duplicates in a round collapse, a later round is new. */
+const PLACES_DEDUPE_WINDOW_MS = 6 * 60 * MINUTE;
 
 /**
  * Refresh one target. A failed refresh throws, so the queue retries with
@@ -112,7 +127,10 @@ export async function enqueueCacheRefresh(
   queue: Pick<QueueDriver, 'enqueue'>,
   intervalMinutes: number,
   targets: readonly CacheTarget[] = buildCacheTargets(),
+  now: () => number = Date.now,
 ): Promise<number> {
+  const windowMs = intervalMinutes * MINUTE;
+  const at = now();
   const spacingMs = Math.floor((intervalMinutes * MINUTE) / Math.max(1, targets.length));
 
   await Promise.all(
@@ -120,7 +138,7 @@ export async function enqueueCacheRefresh(
       queue.enqueue(
         'cache.refresh',
         { targetId: target.id },
-        { delayMs: index * spacingMs, dedupeKey: `cache.refresh:${target.id}` },
+        { delayMs: index * spacingMs, dedupeKey: refreshDedupeKey(target.id, at, windowMs) },
       ),
     ),
   );
@@ -142,8 +160,10 @@ export async function enqueuePlacesRefresh(
     readonly isFresh?: (destination: string) => Promise<boolean>;
     readonly destinations?: readonly string[];
     readonly limit?: number;
+    readonly now?: () => number;
   } = {},
 ): Promise<number> {
+  const at = (dependencies.now ?? Date.now)();
   const limit = dependencies.limit ?? PLACES_DESTINATIONS_PER_ROUND;
   const destinations = dependencies.destinations ?? placesTargetDestinations();
   const isFresh =
@@ -174,7 +194,7 @@ export async function enqueuePlacesRefresh(
         { targetId: placesTargetId(destination) },
         {
           delayMs: index * PLACES_SPACING_MS,
-          dedupeKey: `cache.refresh:${placesTargetId(destination)}`,
+          dedupeKey: refreshDedupeKey(placesTargetId(destination), at, PLACES_DEDUPE_WINDOW_MS),
         },
       ),
     ),
@@ -219,14 +239,16 @@ export function startCacheRefresh(
   const now = options.now ?? Date.now;
 
   const round = () =>
-    enqueueCacheRefresh(queue, intervalMinutes).catch((error: unknown) => {
+    enqueueCacheRefresh(queue, intervalMinutes, undefined, now).catch((error: unknown) => {
       log.error({ err: error }, 'could not enqueue the cache refresh round');
     });
 
   const placesRound = () =>
-    (options.enqueuePlaces ?? ((q) => enqueuePlacesRefresh(q)))(queue).catch((error: unknown) => {
-      log.error({ err: error }, 'could not enqueue the places refresh round');
-    });
+    (options.enqueuePlaces ?? ((q) => enqueuePlacesRefresh(q, { now })))(queue).catch(
+      (error: unknown) => {
+        log.error({ err: error }, 'could not enqueue the places refresh round');
+      },
+    );
 
   const discoveryEnabled = options.discoveryEnabled !== false;
   if (!discoveryEnabled) log.info('discovery refresh disabled by configuration');
