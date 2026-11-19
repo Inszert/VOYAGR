@@ -104,13 +104,11 @@ describe('the explorer form', () => {
         expect(within(group).getByRole('radio', { name })).toBeInTheDocument();
       }
 
-      // Month and trip length for a month search, and the trip length limit.
-      // The month is chosen in the calendar, in the same group as the days and the trip length.
-      const monthSelect = screen.getByLabelText('Month');
+      // The month is chosen in the calendar itself, so there is no separate Month select.
       const flexGroup = screen.getByRole('radiogroup', { name: 'How flexible are the dates' });
       const calendarGroup = screen.getByRole('group', { name: 'Trip length' }).parentElement!;
+      expect(screen.queryByLabelText('Month', { selector: 'select' })).toBeNull();
       expect(calendarGroup).toContainElement(flexGroup);
-      expect(calendarGroup).toContainElement(monthSelect);
       expect(calendarGroup).toContainElement(screen.getByRole('group', { name: 'Trip length' }));
       expect(screen.getAllByLabelText('Trip length').length).toBeGreaterThan(0);
       // The trip length is chosen in the calendar, beside the days, and Not set is checked by default.
@@ -212,5 +210,39 @@ describe('the explorer form', () => {
     expect(sentByExplore.flexibility).toBe('month');
     expect(sentByExplore.tripNights).toBe('5');
     expect(sentByExplore.tripLength).toBe('under');
+  }, 30_000);
+
+  it('turns the calendar into month tiles for Anytime that month, and a tile sets monthStart', async () => {
+    const { container } = renderExplore();
+    const form = container.querySelector('form')!;
+    await userEvent.click(
+      screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
+    );
+    expect(screen.queryByRole('group', { name: 'Month' })).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Anytime that month' }));
+
+    const tiles = screen.getByRole('group', { name: 'Month' });
+    expect(within(tiles).getAllByRole('button')).toHaveLength(12);
+    // The days are gone while the calendar is a month picker.
+    expect(screen.queryByRole('grid')).toBeNull();
+
+    const tile = within(tiles).getByRole('button', { name: /^December 2026/ });
+    await userEvent.click(tile);
+    expect(submission(form).flexibility).toBe('month');
+    expect(submission(form).monthStart).toBe('2026-12-01');
+  }, 30_000);
+
+  it('announces the picked day in words, as the departure and then the return', async () => {
+    renderExplore();
+    await userEvent.click(
+      screen.getByRole('button', { name: /Choose leaving and back from a calendar/ }),
+    );
+    const days = screen.getAllByRole('gridcell').filter((cell) => !cell.hasAttribute('disabled'));
+    await userEvent.click(days[5]!);
+    expect(
+      screen.getByRole('gridcell', { name: /, your departure, selected$/ }),
+    ).toBeInTheDocument();
+    await userEvent.click(days[8]!);
+    expect(screen.queryByRole('gridcell', { name: /, your departure, selected$/ })).toBeNull();
   }, 30_000);
 });

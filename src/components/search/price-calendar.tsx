@@ -201,6 +201,17 @@ function shortDay(day: IsoDate): string {
 }
 
 const MONTHS_AHEAD_WHEN_LOADING = 12;
+const SCROLL_FLAG = 'voyagr:scroll-to-your-trip';
+
+/** Smooth to the "Your trip" panel, or straight there for somebody who asked for less motion. */
+function scrollToYourTrip(): void {
+  const panel = document.getElementById('your-trip');
+  if (!panel) return;
+  const reduce =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+}
 
 /** A month's cells in rows of seven: a `grid` needs `row`s between it and its cells. */
 function weeksOf<T>(cells: readonly T[]): T[][] {
@@ -253,6 +264,31 @@ export function PriceCalendar({
     update();
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
+  }, []);
+
+  /*
+   * After a day is picked, bring "Your trip" into view. Never on the first
+   * render, and instant rather than smooth when the visitor asks for less motion.
+   */
+  const pickedOnce = React.useRef(false);
+  React.useEffect(() => {
+    if (!pickedOnce.current) {
+      pickedOnce.current = true;
+      return;
+    }
+    if (departure === null) return;
+    scrollToYourTrip();
+  }, [departure]);
+
+  // A return day is a link: the page reloads, so the scroll is carried over it.
+  React.useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem(SCROLL_FLAG) !== '1') return;
+      window.sessionStorage.removeItem(SCROLL_FLAG);
+    } catch {
+      return;
+    }
+    scrollToYourTrip();
   }, []);
 
   // Focus follows a key press once the month it landed in has rendered.
@@ -963,7 +999,10 @@ export function PriceCalendar({
                                   aria-hidden="true"
                                   className="mt-auto text-[10px] leading-none font-medium"
                                 >
-                                  Leaving
+                                  <span className="md:hidden">Leave</span>
+                                  <span className="whitespace-nowrap max-md:hidden">
+                                    Your departure
+                                  </span>
                                 </span>
                               ) : null}
                               {edge ? null : (
@@ -997,9 +1036,9 @@ export function PriceCalendar({
                             >
                               <span className="text-sm font-medium">{number}</span>
                               <span className="text-[10px] leading-none">
-                                {isDeparture
+                                {isDeparture || isReturn
                                   ? '✓'
-                                  : isReturn || isLeaveEnd
+                                  : isLeaveEnd
                                     ? 'Back'
                                     : isBest
                                       ? '★'
@@ -1019,6 +1058,17 @@ export function PriceCalendar({
                               {flightOnly ? <span className="mr-0.5">✈</span> : null}
                               {option.perPerson}
                             </span>
+                            {isDeparture || isReturn ? (
+                              <span
+                                aria-hidden="true"
+                                className="text-[10px] leading-tight font-semibold"
+                              >
+                                <span className="md:hidden">{isDeparture ? 'Leave' : 'Back'}</span>
+                                <span className="whitespace-nowrap max-md:hidden">
+                                  {isDeparture ? 'Your departure' : 'Your return'}
+                                </span>
+                              </span>
+                            ) : null}
                             {phase === 'return' ? (
                               <span
                                 aria-hidden="true"
@@ -1070,7 +1120,11 @@ export function PriceCalendar({
                                     ? ', cheapest'
                                     : ''}
                               {isDeparture ? ', your departure, selected' : ''}
-                              {isReturn || isLeaveEnd ? ', your return' : ''}
+                              {isReturn
+                                ? ', your return, selected'
+                                : isLeaveEnd
+                                  ? ', your return'
+                                  : ''}
                             </span>
                           </>
                         );
@@ -1109,6 +1163,13 @@ export function PriceCalendar({
                             key={day}
                             role="gridcell"
                             href={option.href}
+                            onClick={() => {
+                              try {
+                                window.sessionStorage.setItem(SCROLL_FLAG, '1');
+                              } catch {
+                                /* no storage: the page simply opens at the top */
+                              }
+                            }}
                             {...cellKeys(day)}
                             className={cellClass}
                           >

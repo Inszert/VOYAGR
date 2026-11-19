@@ -60,6 +60,8 @@ export interface DestinationRailProps {
   pricesLoading?: boolean;
   /** The ranking and country controls, rendered beside the heading. */
   controls?: React.ReactNode;
+  /** Anywhere was searched and no country is chosen yet: say what to do next. */
+  awaitingCountry?: boolean;
   /** Where "see them all" goes, when this is a trimmed view. */
   viewAllHref?: string;
 }
@@ -193,6 +195,7 @@ export function DestinationRail({
   pricesLoading = false,
   controls,
   viewAllHref,
+  awaitingCountry = false,
 }: DestinationRailProps) {
   const credited = cards.filter(
     (card): card is RailCard & { image: DestinationImage } => card.image != null,
@@ -324,7 +327,14 @@ export function DestinationRail({
           </div>
         </div>
 
-        {unpriced ? (
+        {awaitingCountry ? (
+          <p role="status" className="text-ink text-[14px]">
+            Anywhere is a lot of places. Choose a country above and we will price its airports, then
+            you pick one.
+          </p>
+        ) : null}
+
+        {unpriced && !awaitingCountry ? (
           <p role="status" className="text-muted text-[13px]">
             {pricesLoading
               ? 'Prices are not loaded yet. The globe shows these places without them.'

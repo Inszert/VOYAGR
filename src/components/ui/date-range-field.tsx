@@ -47,6 +47,14 @@ export interface DateRangeFieldProps {
   footer?: React.ReactNode;
   /** Show the nights between the dates in the header. Off when the length is not the visitor's choice. */
   showNights?: boolean;
+  /** Drive the calendar's open state from outside; it is still opened by its own button. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Replaces the days (and their header) inside the calendar: used when the dates
+   * are "anytime that month" and the calendar becomes a month picker.
+   */
+  monthPicker?: React.ReactNode;
 }
 
 const iso = (value: string | undefined): IsoDate | null =>
@@ -68,6 +76,9 @@ export function DateRangeField({
   className,
   footer,
   showNights = true,
+  open: openProp,
+  onOpenChange,
+  monthPicker,
 }: DateRangeFieldProps) {
   const startId = React.useId();
   const endId = React.useId();
@@ -75,7 +86,12 @@ export function DateRangeField({
   const startRef = React.useRef<HTMLInputElement | null>(null);
   const endRef = React.useRef<HTMLInputElement | null>(null);
 
-  const [open, setOpen] = React.useState(false);
+  const [innerOpen, setInnerOpen] = React.useState(false);
+  const open = openProp ?? innerOpen;
+  const setOpen = (next: boolean) => {
+    setInnerOpen(next);
+    onOpenChange?.(next);
+  };
 
   /**
    * Which end the next click sets.
@@ -132,7 +148,7 @@ export function DateRangeField({
     start === null
       ? `Choose ${startLabel.toLowerCase()} and ${endLabel.toLowerCase()}`
       : end === null
-        ? `${startLabel} set. Choose ${endLabel.toLowerCase()}.`
+        ? `Your departure is set. Choose ${endLabel.toLowerCase()}.`
         : !showNights
           ? 'Dates chosen'
           : `${nights} ${nights === 1 ? 'night' : 'nights'}`;
@@ -268,62 +284,73 @@ export function DateRangeField({
         </div>
       </PopoverAnchor>
 
-      <PopoverPanel align="start" className="w-[20rem] sm:w-[40rem]">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setMonth(addMonths(anchor, -1))}
-            className="voyagr-popover-nav"
-          >
-            <Icon name="chevron-left" className="size-4" />
-            <span className="sr-only">Previous month</span>
-          </button>
+      <PopoverPanel
+        align="start"
+        className="max-h-(--radix-popover-content-available-height) w-[20rem] overflow-y-auto sm:w-[40rem]"
+      >
+        {monthPicker ?? (
+          <>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setMonth(addMonths(anchor, -1))}
+                className="voyagr-popover-nav"
+              >
+                <Icon name="chevron-left" className="size-4" />
+                <span className="sr-only">Previous month</span>
+              </button>
 
-          {/*
+              {/*
             What the calendar is waiting for, and what has been chosen so far.
             Announced, because on a two-click control the state between the
             clicks is the thing a reader most needs told.
           */}
-          <p aria-live="polite" className="text-muted text-sm">
-            {summary}
-          </p>
+              <p aria-live="polite" className="text-muted text-sm">
+                {summary}
+              </p>
 
-          <button
-            type="button"
-            onClick={() => setMonth(addMonths(anchor, 1))}
-            className="voyagr-popover-nav"
-          >
-            <Icon name="chevron-right" className="size-4" />
-            <span className="sr-only">Next month</span>
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={() => setMonth(addMonths(anchor, 1))}
+                className="voyagr-popover-nav"
+              >
+                <Icon name="chevron-right" className="size-4" />
+                <span className="sr-only">Next month</span>
+              </button>
+            </div>
 
-        {/*
+            {/*
           Two months at once on anything wider than a phone, because a trip
           that crosses the end of a month is the normal case and paging back
           and forth to see both ends of it is the thing that makes a date
           picker tiring.
         */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <CalendarMonth
-            anchor={anchor}
-            start={start}
-            end={end}
-            disabled={disabled}
-            onChoose={choose}
-            label={`${startLabel} and ${endLabel}`}
-          />
-          <div className="hidden sm:block">
-            <CalendarMonth
-              anchor={addMonths(anchor, 1)}
-              start={start}
-              end={end}
-              disabled={disabled}
-              onChoose={choose}
-              label={`${startLabel} and ${endLabel}, following month`}
-            />
-          </div>
-        </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <CalendarMonth
+                anchor={anchor}
+                start={start}
+                end={end}
+                disabled={disabled}
+                onChoose={choose}
+                label={`${startLabel} and ${endLabel}`}
+                startWord="departure"
+                endWord="return"
+              />
+              <div className="hidden sm:block">
+                <CalendarMonth
+                  anchor={addMonths(anchor, 1)}
+                  start={start}
+                  end={end}
+                  disabled={disabled}
+                  onChoose={choose}
+                  label={`${startLabel} and ${endLabel}, following month`}
+                  startWord="departure"
+                  endWord="return"
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         {footer ? <div className="border-hairline mt-3 border-t pt-3">{footer}</div> : null}
       </PopoverPanel>

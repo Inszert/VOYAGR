@@ -149,6 +149,21 @@ describe('DestinationRail', () => {
     );
   });
 
+  it('asks for a country when Anywhere was searched and none is chosen', () => {
+    render(
+      <DestinationRail
+        cards={[]}
+        totalCount={0}
+        mode="cheapest"
+        provenance="mock"
+        awaitingCountry
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Choose a country');
+    expect(screen.queryByText(/Prices are not loaded yet/)).toBeNull();
+  });
+
   it('says what it cannot yet compare', () => {
     render(<DestinationRail cards={[card()]} totalCount={1} mode="fastest" provenance="mock" />);
 

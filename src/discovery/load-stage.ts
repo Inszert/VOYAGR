@@ -31,7 +31,13 @@ import {
 import { recordSearch } from './record-search';
 import { MAX_ROUTE_LINES, defaultRoutePlaces } from './search-routes';
 import { buildStageData, withQuery, type StageData } from './stage-data';
-import { airportCodesIn, liveSearch, LIVE_SEARCH_FRESH_MS, withRouteDefaults } from './live-search';
+import {
+  airportCodesIn,
+  liveSearch,
+  LIVE_SEARCH_FRESH_MS,
+  resolveAnywhere,
+  withRouteDefaults,
+} from './live-search';
 import { getActiveDataSource, type ActiveDataSource } from '@/providers/request-source';
 
 /**
@@ -108,6 +114,11 @@ export interface StagePage {
    * failed: the worker has been asked and the page says so.
    */
   readonly pricesLoading: boolean;
+  /**
+   * The search says Anywhere and no country with airports has been chosen: nothing is
+   * searched yet. The visitor chooses a country, then one of its airports.
+   */
+  readonly awaitingCountry: boolean;
   readonly stage: StageData;
   readonly carry: Readonly<Record<string, string>>;
   readonly destinationsDefault: string;
@@ -191,6 +202,7 @@ export async function loadStagePage(
   let resultAgeMs = 0;
   let observedAt: IsoDateTime | null = null;
   let errors: SearchFormErrors = {};
+  let awaitingCountry = false;
 
   if (wasSubmitted(values)) {
     // `anywhere` in the destination expands to everything we can price.
@@ -215,9 +227,21 @@ export async function loadStagePage(
         currency: profile.maxBudget.currency,
       });
 
+      /*
+       * Anywhere is not searched as a whole world. The visitor chooses a country, the search is
+       * then those airports, and choosing one of them narrows the trips (`fDest`). Links keep
+       * `anywhere` and `country`, so the path survives each step.
+       */
+      const anywhere = resolveAnywhere(values);
+      const countryAirports = anywhere.countryAirports;
+      awaitingCountry = anywhere.awaitingCountry;
+
       const request = {
         ...parsed.value.request,
-        destinationNames: resolveDestinationNames(parsed.value.request.destinations),
+        ...(countryAirports.length > 0 ? { destinations: countryAirports } : {}),
+        destinationNames: resolveDestinationNames(
+          countryAirports.length > 0 ? countryAirports : parsed.value.request.destinations,
+        ),
         limits: {
           // How many results a page shows is a presentation decision, so it
           // is made here rather than in the engine's defaults.
@@ -233,9 +257,11 @@ export async function loadStagePage(
        * hour; see `live-search.ts`. A failure comes back as a plain message,
        * never as an empty page with no reason.
        */
-      const live = await liveSearch(request, dataSource.effective);
+      const live = awaitingCountry ? null : await liveSearch(request, dataSource.effective);
 
-      if (live.ok) {
+      if (live === null) {
+        // Nothing asked of any provider: the visitor has not said which country yet.
+      } else if (live.ok) {
         outcome = live.outcome;
         resultAgeMs = live.ageMs;
         observedAt = live.observedAt;
@@ -456,6 +482,7 @@ export async function loadStagePage(
     dataSource,
     unpriced: !outcome && snapshot === null,
     pricesLoading: discovery?.pending ?? false,
+    awaitingCountry,
     stage,
     carry,
     destinationsDefault,

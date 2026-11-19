@@ -93,6 +93,13 @@ export interface CalendarMonthProps {
   label: string;
   /** Show the month's name above the grid. The range field prints its own. */
   heading?: boolean;
+  /**
+   * What the chosen ends are, in words ("departure", "return"). When given, the
+   * chosen day carries a check mark and a short word, and is announced as
+   * "your departure, selected": a filled cell is never the only signal.
+   */
+  startWord?: string;
+  endWord?: string;
 }
 
 export function CalendarMonth({
@@ -103,6 +110,8 @@ export function CalendarMonth({
   onChoose,
   label,
   heading = true,
+  startWord,
+  endWord,
 }: CalendarMonthProps) {
   const within = (day: IsoDate) =>
     start !== null && end !== null && isAfter(day, start) && isBefore(day, end);
@@ -155,11 +164,27 @@ export function CalendarMonth({
                 (day === start || day === end) && 'voyagr-day-on',
               )}
             >
-              <span aria-hidden="true">{Number(day.slice(8, 10))}</span>
+              <span aria-hidden="true" className="flex flex-col items-center leading-none">
+                <span>{Number(day.slice(8, 10))}</span>
+                {(day === start && startWord) || (day === end && endWord) ? (
+                  <span className="mt-0.5 text-[9px] font-medium">
+                    {'✓ '}
+                    {day === start ? 'Leave' : 'Back'}
+                  </span>
+                ) : null}
+              </span>
               <span className="sr-only">
                 {spoken(day)}
-                {day === start && end !== null ? ', first night' : ''}
-                {day === end ? ', last day' : ''}
+                {day === start && startWord
+                  ? `, your ${startWord}, selected`
+                  : day === start && end !== null
+                    ? ', first night'
+                    : ''}
+                {day === end && endWord
+                  ? `, your ${endWord}, selected`
+                  : day === end
+                    ? ', last day'
+                    : ''}
               </span>
             </button>
           ),

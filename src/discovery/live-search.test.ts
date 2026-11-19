@@ -7,6 +7,7 @@ import {
   LIVE_SEARCH_FAILED_MESSAGE,
   LIVE_SEARCH_FRESH_MS,
   liveSearch,
+  resolveAnywhere,
   withRouteDefaults,
 } from './live-search';
 import { SearchDiscoverySource, buildDiscoveryRequest } from './snapshot';
@@ -105,8 +106,43 @@ describe('withRouteDefaults', () => {
     expect(parseSearchForm(values).ok).toBe(true);
   });
 
-  it('leaves a form with no destination code exactly as it came', () => {
-    const values = { origins: 'LHR', destinations: 'anywhere' };
+  it('leaves a form with no destination at all exactly as it came', () => {
+    const values = { origins: 'LHR', destinations: '' };
     expect(withRouteDefaults(values, TODAY, {})).toBe(values);
+  });
+
+  it('fills the budget for Anywhere, so the compact bar can run it', () => {
+    const values = withRouteDefaults(
+      { origins: 'VIE', destinations: 'anywhere', passengers: '2' },
+      TODAY,
+      {},
+    );
+
+    expect(values.destinations).toBe('anywhere');
+    expect(parseSearchForm(values, ['AYT', 'MAD']).ok).toBe(true);
+  });
+});
+
+describe('resolveAnywhere', () => {
+  it('turns Anywhere with a country into the airports of that country', () => {
+    const resolved = resolveAnywhere({ destinations: 'anywhere', country: 'ESP' });
+
+    expect(resolved.awaitingCountry).toBe(false);
+    expect(resolved.countryAirports.length).toBeGreaterThan(0);
+    expect(resolved.countryAirports).toContain('MAD');
+  });
+
+  it('searches nothing for Anywhere until a country is chosen', () => {
+    expect(resolveAnywhere({ destinations: 'anywhere' })).toEqual({
+      awaitingCountry: true,
+      countryAirports: [],
+    });
+  });
+
+  it('leaves named airports alone, whatever country is set', () => {
+    expect(resolveAnywhere({ destinations: 'MAD', country: 'ESP' })).toEqual({
+      awaitingCountry: false,
+      countryAirports: [],
+    });
   });
 });

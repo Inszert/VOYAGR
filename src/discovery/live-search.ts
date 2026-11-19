@@ -6,6 +6,10 @@ import type { DataSource } from '@/providers/data-source';
 import { dependenciesFor } from '@/search/dependencies';
 import { searchFormDefaults } from '@/search/form-defaults';
 import { runSearch } from '@/search/orchestrator';
+import { isAnywhere } from '@/search/schema';
+import { listPlaceableInCountry } from '@/search/destination-names';
+import { parseCountry } from './countries';
+import { parseWorldRegion } from '@/search/world-region-list';
 import type { SearchOutcome, SearchRequest } from '@/search/types';
 
 /**
@@ -55,7 +59,13 @@ export function withRouteDefaults(
   saved: Readonly<Record<string, string>>,
 ): Readonly<Record<string, string | undefined>> {
   if (airportCodesIn(values.origins).length === 0) return values;
-  if (airportCodesIn(values.destinations).length === 0) return values;
+  // "Anywhere" and a region are answers to "where to?" too: left out, the missing budget made
+  // the compact bar's Anywhere fail validation with no message at all.
+  const namesAPlace =
+    airportCodesIn(values.destinations).length > 0 ||
+    isAnywhere(values.destinations) ||
+    parseWorldRegion(values.destinations) !== null;
+  if (!namesAPlace) return values;
 
   const typed = Object.fromEntries(
     Object.entries(values).filter(([, value]) => value !== undefined && value !== ''),
@@ -71,6 +81,25 @@ export function withRouteDefaults(
     ...typed,
     ...(flexibility ? { flexibility } : {}),
   };
+}
+
+/**
+ * What "Anywhere" means once a country may have been chosen.
+ *
+ * Anywhere is a path, not a world search: with a country that has airports in the catalogue, the
+ * search is those airports; with none, nothing is searched yet and the visitor is asked for a
+ * country. Any other destination is left to the search as typed.
+ */
+export function resolveAnywhere(values: Readonly<Record<string, string | undefined>>): {
+  readonly awaitingCountry: boolean;
+  readonly countryAirports: readonly string[];
+} {
+  if (!isAnywhere(values.destinations)) return { awaitingCountry: false, countryAirports: [] };
+
+  const country = parseCountry(values.country);
+  const countryAirports = country ? listPlaceableInCountry(country.adm0) : [];
+
+  return { awaitingCountry: countryAirports.length === 0, countryAirports };
 }
 
 export interface LiveSearchDeps {

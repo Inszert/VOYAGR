@@ -135,6 +135,13 @@ describe('PopularSection', () => {
     expect(screen.queryByRole('list', { name: 'Destinations' })).toBeNull();
   });
 
+  it('never says nothing is priced from a departure that has priced trips', () => {
+    renderSection(0, { hasPricedTrips: true });
+
+    expect(screen.queryByText(/Nothing priced/)).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('Trips from Vienna are priced');
+  });
+
   it('keeps the note about what it cannot yet compare', () => {
     renderSection(3);
 

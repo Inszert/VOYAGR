@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { DateRangeField, Select, type DateRangeFieldProps } from '@/components/ui';
+import { DateRangeField, type DateRangeFieldProps } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { monthOptions } from './search-fields';
 import {
   FlexibilityChips,
@@ -59,16 +60,19 @@ export function FlexibleDateRange({
   const [month, setMonth] = React.useState(monthStart ?? '');
   const inMonth = flexibilityValueOf(choice) === 'month';
 
+  // The calendar is open: in month mode the dates stay mounted while it is, so it has somewhere to sit.
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+
   const choose = (next: FlexibilityChoice) => {
     setChoice(next);
     if (next === 'this-month') setMonth(today);
   };
   const chooseMonth = (value: string) => {
     setMonth(value);
-    if (value !== '' && flexibilityValueOf(choice) !== 'month') {
-      setChoice(value === today ? 'this-month' : 'month');
-    }
+    setChoice(value === today ? 'this-month' : 'month');
+    setCalendarOpen(false);
   };
+  const months = monthOptions(today);
 
   return (
     <>
@@ -95,9 +99,16 @@ export function FlexibleDateRange({
         is the way back: it stays in view and chooses the same `exact` value
         the "Exact dates" chip does.
       */}
-      <div hidden={inMonth}>
+      <div hidden={inMonth && !calendarOpen}>
         <DateRangeField
           {...range}
+          open={calendarOpen}
+          onOpenChange={setCalendarOpen}
+          monthPicker={
+            inMonth ? (
+              <MonthTiles months={months} selected={month} onSelect={chooseMonth} />
+            ) : undefined
+          }
           showNights={lengthMode === 'under' || lengthMode === 'over'}
           required={inMonth ? false : range.required}
           footer={
@@ -107,12 +118,6 @@ export function FlexibleDateRange({
                 label="How flexible are the dates"
                 choice={choice}
                 onChoiceChange={choose}
-              />
-              <Select
-                label="Month"
-                value={month}
-                onChange={(event) => chooseMonth(event.target.value)}
-                options={[{ value: '', label: 'Not set' }, ...monthOptions(today)]}
               />
               <TripLengthChoice
                 mode={lengthMode}
@@ -127,9 +132,15 @@ export function FlexibleDateRange({
       </div>
       {inMonth ? (
         <>
-          <span className="text-ink text-[13px] font-medium" data-testid="month-pill">
-            {monthOptions(today).find((o) => o.value === month)?.label ?? 'Pick a month'}
-          </span>
+          <button
+            type="button"
+            onClick={() => setCalendarOpen(true)}
+            data-testid="month-pill"
+            className="text-ink focus-visible:outline-accent-ink block min-h-11 text-left text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {months.find((o) => o.value === month)?.label ?? 'Pick a month'}
+            <span className="sr-only"> - change the month</span>
+          </button>
           <button
             type="button"
             onClick={() => choose('exact')}
@@ -140,5 +151,59 @@ export function FlexibleDateRange({
         </>
       ) : null}
     </>
+  );
+}
+
+/**
+ * "Anytime that month" turns the calendar into a month picker: the next twelve
+ * months as tiles. Choosing one sets `monthStart`. A price is shown only when
+ * the caller knows one - it arrives formatted, and is never worked out here.
+ */
+function MonthTiles({
+  months,
+  selected,
+  onSelect,
+  prices,
+}: {
+  months: { value: string; label: string }[];
+  selected: string;
+  onSelect: (value: string) => void;
+  prices?: Readonly<Record<string, string>>;
+}) {
+  return (
+    <div role="group" aria-label="Month" className="flex flex-col gap-2">
+      <p aria-live="polite" className="text-muted text-sm">
+        {selected === '' ? 'Choose the month you want to travel in.' : 'Month chosen.'}
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+        {months.map((month) => {
+          const on = month.value === selected;
+          const price = prices?.[month.value];
+          return (
+            <button
+              key={month.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onSelect(month.value)}
+              className={cn(
+                'flex min-h-14 flex-col items-start justify-center rounded-(--radius-control) border px-3 py-2 text-left text-sm',
+                'ease-standard duration-quick transition-colors',
+                'focus-visible:outline-accent-to focus-visible:outline-2 focus-visible:outline-offset-2',
+                on
+                  ? 'border-accent-to bg-accent-to font-semibold text-white'
+                  : 'border-hairline text-ink hover:border-border-strong',
+              )}
+            >
+              <span>
+                {on ? <span aria-hidden="true">{'✓ '}</span> : null}
+                {month.label}
+                {on ? <span className="sr-only"> (selected)</span> : null}
+              </span>
+              {price ? <span className="text-xs tabular-nums">from {price}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

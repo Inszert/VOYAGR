@@ -40,6 +40,11 @@ export interface PopularSectionProps {
   clearHref?: string;
   /** Prices could not be produced at all; the section says so rather than pretending. */
   unpriced?: boolean;
+  /**
+   * The departure has priced trips, whether or not any of them could be placed as a card. The
+   * "nothing priced" message is only true when this is false.
+   */
+  hasPricedTrips?: boolean;
   /** With `unpriced`: nothing is cached yet and the worker is filling it, not a failure. */
   pricesLoading?: boolean;
   viewAllHref?: string;
@@ -91,6 +96,7 @@ export function PopularSection({
   regionSummary = null,
   clearHref,
   unpriced = false,
+  hasPricedTrips = false,
   pricesLoading = false,
   viewAllHref,
   originName,
@@ -178,7 +184,7 @@ export function PopularSection({
           </p>
         ) : null}
 
-        {!country && cards.length === 0 && !unpriced ? (
+        {!country && cards.length === 0 && !unpriced && !hasPricedTrips ? (
           <EmptyState
             title={originName ? `Nothing priced from ${originName} yet` : 'Nothing priced yet'}
             description="Try another airport or different dates, and the places we can price will appear here."
@@ -191,6 +197,13 @@ export function PopularSection({
               </Button>
             }
           />
+        ) : null}
+
+        {!country && cards.length === 0 && !unpriced && hasPricedTrips ? (
+          <p role="status" className="text-ink-muted text-[13px]">
+            {originName ? `Trips from ${originName} are priced` : 'Trips are priced'}, but none of
+            their places could be shown here yet. Open the explorer to see them.
+          </p>
         ) : null}
 
         {cards.length > 0 ? (

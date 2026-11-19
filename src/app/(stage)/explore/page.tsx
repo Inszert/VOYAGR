@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Container, Icon, UpdatedAgo } from '@/components/ui';
 import { ExploreSearchForm } from '@/components/search/explore-search-form';
 import { LiveResults } from '@/components/search/live-search';
-import { ANYWHERE, parsePartWeights, chosenTripLengthSummary } from '@/search/schema';
+import { ANYWHERE, isAnywhere, parsePartWeights, chosenTripLengthSummary } from '@/search/schema';
 import { DEFAULT_PART_WEIGHTS } from '@/core/trip/scoring';
 import { PartWeightsControl } from '@/components/search/part-weights';
 import { SearchPreferences } from '@/components/search/search-preferences';
@@ -28,6 +28,7 @@ import { FlexDatesSection } from '@/components/search/flex-dates-section';
 import { SaveSearchForm } from '@/components/watches/save-search-form';
 import { saveSearchAction } from '@/app/actions/watches';
 import { firstValues, loadStagePage } from '@/discovery/load-stage';
+import { withQuery } from '@/discovery/stage-data';
 import { resolveImagery } from '@/providers/imagery';
 import { getActiveDataSource } from '@/providers/request-source';
 import { loadStayLinksForTrips } from '@/search/stays/stay-links';
@@ -211,6 +212,29 @@ export default async function ExplorePage({
   const otherCards = railCards
     .filter((card) => !searchedCodes.has(card.point.destination))
     .map((card) => toHomeCard(card, destinationImages as Record<string, { blur: string }>));
+
+  /*
+   * Anywhere is a path, not a search: a country, then one of its airports, then its trips.
+   * `picking` is the middle step: the country's airports are searched and priced, and the trips
+   * wait for the visitor to choose one.
+   */
+  const anywhereSearch = isAnywhere(values.destinations);
+  const picking =
+    page.outcome !== null && stage.country !== null && anywhereSearch && !page.filters?.destination;
+  const chosenInCountry =
+    page.outcome !== null &&
+    stage.country !== null &&
+    anywhereSearch &&
+    Boolean(page.filters?.destination);
+  // Choosing a country keeps the search it came from.
+  const countryCarry = page.awaitingCountry
+    ? Object.fromEntries(
+        Object.entries(values).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[1] === 'string' && entry[1] !== '' && entry[0] !== 'country',
+        ),
+      )
+    : page.carry;
 
   return (
     <div className="flex flex-col">
@@ -399,7 +423,7 @@ export default async function ExplorePage({
         </Container>
       </section>
 
-      {page.outcome && page.profile && page.filters ? (
+      {page.outcome && page.profile && page.filters && !picking ? (
         /*
          * The results, in the stage's palette.
          *
@@ -409,6 +433,14 @@ export default async function ExplorePage({
         <section className="stage-scope bg-stage text-stage-ink">
           <Container size="wide" className="flex flex-col gap-6 pt-6 pb-16">
             {/* Dimmed and busy while a changed search is on its way; see `LiveResults`. */}
+            {chosenInCountry && stage.country ? (
+              <a
+                href={`/explore?${withQuery(values, { fDest: null })}`}
+                className="text-tint-ink inline-flex w-fit items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
+              >
+                Back to the airports in {stage.country.name}
+              </a>
+            ) : null}
             <LiveResults>
               <SearchResults
                 outcome={page.outcome}
@@ -466,7 +498,42 @@ export default async function ExplorePage({
         </section>
       ) : null}
 
-      {page.outcome ? (
+      {picking && stage.country ? (
+        <section aria-labelledby="airports-heading" className="stage-scope text-stage-ink bg-stage">
+          <Container size="wide" className="flex flex-col gap-5 pt-2 pb-16">
+            <h2 id="airports-heading" className="font-display text-display-sm">
+              Airports in {stage.country.name}
+            </h2>
+            <p className="text-ink-muted max-w-xl text-sm">
+              Choose an airport to see its trips. Each price is the cheapest whole trip we found to
+              that airport.
+            </p>
+            {railCards.length > 0 ? (
+              <ol aria-label="Airports" className="home-rail">
+                {railCards
+                  .map((card) =>
+                    toHomeCard(card, destinationImages as Record<string, { blur: string }>),
+                  )
+                  .map((card, index) => (
+                    <DestinationCard
+                      key={card.code}
+                      card={card}
+                      variant="tall"
+                      index={index}
+                      sizes="320px"
+                      headingLevel={3}
+                    />
+                  ))}
+              </ol>
+            ) : (
+              <p role="status" className="text-ink-muted text-sm">
+                No airport in {stage.country.name} could be priced for these dates. Try another
+                country or other dates.
+              </p>
+            )}
+          </Container>
+        </section>
+      ) : page.outcome ? (
         /*
          * After a search, the places the search was not about: the same card the
          * home page uses. One card that only repeats the place already searched
@@ -498,6 +565,7 @@ export default async function ExplorePage({
         ) : null
       ) : (
         <DestinationRail
+          awaitingCountry={page.awaitingCountry}
           cards={railCards}
           totalCount={stage.points.length}
           mode={page.mode}
@@ -514,7 +582,7 @@ export default async function ExplorePage({
               mode={page.mode}
               modeHref={page.modeHref}
               action="/explore"
-              carry={page.carry}
+              carry={countryCarry}
               counts={stage.countryCounts}
               selected={stage.country}
             />

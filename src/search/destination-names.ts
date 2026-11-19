@@ -463,6 +463,15 @@ export function listDestinationsInCountry(adm0: string): AirportCode[] {
   );
 }
 
+/**
+ * Every airport in a country that a trip can be priced to: the catalogue's fixtures, the curated
+ * popular airports and the country's hub, not only the fixtures. For "Anywhere, then a country".
+ */
+export function listPlaceableInCountry(adm0: string): AirportCode[] {
+  const key = adm0.toUpperCase();
+  return listPlaceableDestinations().filter((code) => resolveDestinationGeo(code)?.adm0 === key);
+}
+
 /** One departure airport near the ones searched. */
 export interface NearbyOrigin {
   readonly code: AirportCode;
