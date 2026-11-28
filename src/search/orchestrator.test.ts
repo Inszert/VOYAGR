@@ -5,6 +5,7 @@ import type { FlightOffer } from '@/core/trip/types';
 import { AppError } from '@/lib/errors';
 import { err, ok } from '@/lib/result';
 import { fixedRates } from '@/core/fx';
+import { DEFAULT_FRESHNESS, FLIGHT_MAX_AGE_MS, freshnessOf } from '@/core/freshness';
 import { costCoverage, describeExclusions } from '@/core/trip/coverage';
 import { createAbsentHotelProvider } from '@/providers/absent';
 import { MOCK_OBSERVED_AT } from '@/providers/fixtures/deterministic';
@@ -841,7 +842,24 @@ describe('quote freshness', () => {
   it('calls the same quote stale once it has aged past the limit', async () => {
     // Reported, not acted on: what to do about a stale quote needs a
     // vendor's own validity window, which is what 1.11 goes and finds out.
-    const outcome = await search({}, at(observed + 8 * 60 * 60_000));
+    // The flight limit is read from core so this test follows the 12-hour
+    // policy; a quote just inside the limit is still fresh.
+    expect(
+      freshnessOf(
+        MOCK_OBSERVED_AT,
+        observed + FLIGHT_MAX_AGE_MS - 60_000,
+        DEFAULT_FRESHNESS.flights,
+      ),
+    ).toBe('fresh');
+    expect(
+      freshnessOf(
+        MOCK_OBSERVED_AT,
+        observed + FLIGHT_MAX_AGE_MS + 60_000,
+        DEFAULT_FRESHNESS.flights,
+      ),
+    ).toBe('stale');
+
+    const outcome = await search({}, at(observed + FLIGHT_MAX_AGE_MS + 60_000));
 
     expect(outcome.diagnostics.quoteFreshness.stale).toBeGreaterThan(0);
     expect(outcome.diagnostics.quoteFreshness.fresh).toBe(0);
