@@ -8,6 +8,8 @@
  * else is `null` and the caller falls back to its default.
  */
 
+import type { redirect } from 'next/navigation';
+
 const MAX_LENGTH = 512;
 
 export function safeNextPath(value: unknown): string | null {
@@ -21,4 +23,20 @@ export function safeNextPath(value: unknown): string | null {
   const firstSegment = value.slice(1).split(/[/?#]/, 1)[0] ?? '';
   if (firstSegment.includes(':')) return null;
   return value;
+}
+
+/**
+ * The argument `redirect` accepts. With typed routes on, Next types it as a
+ * known route, which a runtime path can never be - so the type is taken from
+ * `redirect` itself rather than hand-written.
+ */
+type RedirectTarget = Parameters<typeof redirect>[0];
+
+/**
+ * Where a redirect should go: the caller's `next` if it passes `safeNextPath`,
+ * otherwise `fallback`. The check above is what makes the cast below safe; the
+ * type system cannot see that a query-string path was checked.
+ */
+export function redirectTarget(value: unknown, fallback: string): RedirectTarget {
+  return (safeNextPath(value) ?? fallback) as RedirectTarget;
 }

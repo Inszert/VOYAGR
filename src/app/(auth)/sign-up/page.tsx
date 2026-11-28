@@ -5,7 +5,7 @@ import { AuthShell } from '@/components/auth/auth-shell';
 import { CredentialsForm } from '@/components/auth/credentials-form';
 import { signUpAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
-import { safeNextPath } from '@/auth/return-to';
+import { redirectTarget, safeNextPath } from '@/auth/return-to';
 import { MIN_PASSWORD_LENGTH } from '@/auth/password-policy';
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default async function SignUpPage({
   const params = await searchParams;
   const next = safeNextPath(typeof params.next === 'string' ? params.next : undefined);
 
-  if (await getCurrentUser()) redirect(next ?? '/account');
+  if (await getCurrentUser()) redirect(redirectTarget(next, '/account'));
 
   return (
     <AuthShell

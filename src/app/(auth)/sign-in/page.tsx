@@ -5,7 +5,7 @@ import { AuthShell } from '@/components/auth/auth-shell';
 import { CredentialsForm } from '@/components/auth/credentials-form';
 import { signInAction } from '@/app/actions/auth';
 import { getCurrentUser } from '@/auth/current-user';
-import { safeNextPath } from '@/auth/return-to';
+import { redirectTarget, safeNextPath } from '@/auth/return-to';
 
 export const metadata: Metadata = {
   title: 'Sign in',
@@ -33,7 +33,7 @@ export default async function SignInPage({
   const next = safeNextPath(typeof params.next === 'string' ? params.next : undefined);
 
   // Nobody needs to sign in twice.
-  if (await getCurrentUser()) redirect(next ?? '/account');
+  if (await getCurrentUser()) redirect(redirectTarget(next, '/account'));
 
   const flag = Object.keys(SIGN_IN_NOTICES).find((key) => params[key] !== undefined);
   const notice = flag ? SIGN_IN_NOTICES[flag] : null;

@@ -8,7 +8,7 @@ import {
   getSessionToken,
   setSessionCookie,
 } from '@/auth/current-user';
-import { safeNextPath } from '@/auth/return-to';
+import { redirectTarget, safeNextPath } from '@/auth/return-to';
 import type { Registered } from '@/auth/service';
 import {
   describeSignUpFailure,
@@ -92,7 +92,7 @@ export async function signUpAction(
   // re-render after this action would do exactly that. The account page says it.
   // A person who arrived from an invite link goes back to it; `safeNextPath`
   // admits only same-origin relative paths.
-  if (next) redirect(next);
+  if (next) redirect(redirectTarget(next, '/account'));
   redirect(registered.verificationEmailSent ? '/account' : '/account?verification=unsent');
 }
 
