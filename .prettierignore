@@ -36,3 +36,5 @@ tests/fixtures/providers/overpass-barcelona-stays.json
 # A tool cache, not source.
 .impeccable/hook.cache.json
 src/providers/fixtures/airports.generated.json
+docs/imagery-options.md
+docs/autonomous-run/OWNER-NOTES.md

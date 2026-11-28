@@ -5,6 +5,7 @@ VOYAGR-AUTONOMOUS-PROMPT.md. This file says what is done, what is verified, and 
 Nothing is pushed. `main` is untouched.
 
 ## How to review
+
 - `git log --oneline main..feat/mcp-only-flights` (the run's commits)
 - `npm run typecheck && npm run lint && npx vitest run --testTimeout=60000` (all pass at the last check:
   3175 tests passed, 3 skipped, which are the Postgres contract cases with no database)
@@ -12,6 +13,7 @@ Nothing is pushed. `main` is untouched.
 - Decisions and assumptions: `docs/autonomous-run/DECISIONS.md`. Progress: `PROGRESS.md`.
 
 ## Built (committed)
+
 1. Kiwi MCP client (`src/providers/mcp/client.ts`): 5 s timeout, bounded retries with jitter,
    a circuit breaker, a fixed host. Tests use a fake transport.
 2. Kiwi flight adapter (`src/providers/flights/kiwi-mcp.ts`), mapped with Zod, dropping and
@@ -39,12 +41,14 @@ Nothing is pushed. `main` is untouched.
    were requested). Clicking a route opens the offers panel and runs the read path once.
 
 ## Verified
+
 - Typecheck, lint, all unit tests: pass at the last run.
 - Production build with `FLIGHT_PROVIDER=kiwi-mcp`: compiles.
 - Browser, once: dragging the globe made no request to mcp.kiwi.com or a flight endpoint; one
   click on the VIE to LIS route made one `/api/route-offers` request.
 
 ## Not done or not verified (the stop condition is not met)
+
 - **End-to-end suite (`npm run test:e2e`) has not been run on this branch.**
 - **`npm run verify` does not pass as a whole.** The format step fails on `docs/imagery-options.md`,
   which is an open editor file that this run does not own, so it was left alone.
@@ -61,11 +65,13 @@ Nothing is pushed. `main` is untouched.
 - **Optimisation:** none measured yet.
 
 ## Note on the local `.env`
+
 The local `.env` sets a legacy flight provider. Production refuses legacy providers, so a
 production build with the local `.env` fails unless `FLIGHT_PROVIDER=kiwi-mcp` is set on the command
 line. Set it in the real environment before deploying.
 
 ## Suggested next steps (for the owner)
+
 1. Decide whether the Kiwi terms allow this use. If not, stop before any launch.
 2. Run `npm run test:e2e` and fix what fails on this branch.
 3. Run the migrations against a real Postgres and run the Postgres contract tests.

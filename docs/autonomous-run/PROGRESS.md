@@ -31,3 +31,10 @@ Not pushed. `main` is untouched.
 - Slice 5b: price-drop detection wired into the 12 h read path (fresh MCP answer only, no timer); observer in src/watches/price-drop-observer.ts, in-memory baseline store, listActive on watches.
 - Slice 10: hub saving and lazy recommendations wired into pages. Explore shows "Cheaper from X: save ... including a ... transfer (estimate)" from stored prices only (`src/search/hub-saving.ts`, EUR only, material thresholds from `src/core/hub`); home shows `RecommendationsList` fed by `peek` on render and a server action that builds through the service only when stale. Test: fresh list makes zero MCP calls; no page or loader imports the MCP client. Not verified in a browser.
 - E2E triage: 29 failures from the first full run classified (1 real layout-shift bug in the filter rail, 9 tests updated to the explore/stays redesign, the rest load-induced at 8 workers). Fixed and re-run at `--workers=2 --repeat-each=2`: all pass. See DECISIONS.md "E2E triage".
+
+## Verification log (N2; counts copied from real output)
+- 2026-11-28 `npm run typecheck`: exit 0.
+- 2026-11-28 `npm run lint`: exit 0.
+- 2026-11-28 `npx vitest run --testTimeout=60000`: 271 files passed; 3192 tests passed, 3 skipped.
+- 2026-11-28 `npx prettier --check .`: exit 0 after excluding docs/imagery-options.md and docs/autonomous-run/OWNER-NOTES.md (owner-owned files, see .prettierignore).
+- 2026-11-28 `npx playwright test --workers=4` (production build, chrome): 298 passed, 1 failed (mobile-chrome 'narrows results without searching again'), 1 skipped. Failing test not yet fixed; see E2E-TRIAGE.md.
