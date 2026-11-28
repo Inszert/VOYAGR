@@ -153,7 +153,19 @@ test.describe('the front page', () => {
         return top;
       });
 
-    const before = await layoutTop();
+    // Under load the hero can measure itself before the test gets a baseline,
+    // so a read of the page as it is cannot be the fallback. Instead, clear the
+    // measurement and read the layout in the same script step: that is the
+    // fallback position, with no gap for the page to measure in.
+    const before = await bar.evaluate((element) => {
+      document.documentElement.style.removeProperty('--hero-top');
+      let top = 0;
+      for (let node: HTMLElement | null = element as HTMLElement; node;) {
+        top += node.offsetTop;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      return top;
+    });
     await page.waitForFunction(
       () => document.documentElement.style.getPropertyValue('--hero-top') !== '',
     );
