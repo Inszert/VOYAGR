@@ -179,8 +179,17 @@ class KiwiMcpClient implements McpClient {
         lastError = error;
         await this.dropConnection();
         const transient = isTransientMcpError(error);
+        // Why, without secrets: the HTTP status where there is one, and the start of the
+        // message. Headers and the request body are never logged.
         log.warn(
-          { tool: name, attempt: attempt + 1, transient, kind: describeError(error) },
+          {
+            tool: name,
+            attempt: attempt + 1,
+            transient,
+            kind: describeError(error),
+            httpStatus: httpStatusOf(error),
+            message: messageOf(error).slice(0, 200),
+          },
           'mcp call failed',
         );
         if (!transient) break;
@@ -306,6 +315,14 @@ class KiwiMcpClient implements McpClient {
       log.warn({ openMs: this.circuitOpenMs }, 'mcp circuit opened');
     }
   }
+}
+
+function httpStatusOf(error: unknown): number | null {
+  return error instanceof StreamableHTTPError && typeof error.code === 'number' ? error.code : null;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function describeError(error: unknown): string {

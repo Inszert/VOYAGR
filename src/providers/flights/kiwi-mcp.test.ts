@@ -305,3 +305,74 @@ describe('kiwi-mcp: when the server misbehaves', () => {
     expect(transport.calls()).toBe(0);
   });
 });
+
+/**
+ * A real answer, recorded on the day of the Railway report: VIE to AYT, 12 to 19 Dec, 2 adults,
+ * 15 itineraries. The shape is the one in production; no network is used here.
+ */
+const RETURN_FIXTURE = readFileSync(
+  fileURLToPath(
+    new URL('../mcp/fixtures/kiwi-search-flight-vie-ayt-return.raw.txt', import.meta.url),
+  ),
+  'utf8',
+);
+const RETURN_QUERY = {
+  origins: ['VIE'],
+  destinations: ['AYT'],
+  departureDate: '2026-12-12',
+  returnDate: '2026-12-19',
+  passengers: 2,
+  currency: 'EUR',
+};
+
+describe('kiwi-mcp: the recorded return answer VIE to AYT, 12 to 19 Dec', () => {
+  it('maps every itinerary with both legs, and drops none', async () => {
+    const { provider } = providerFor([{ text: RETURN_FIXTURE }]);
+    const result = await provider.searchFlights(RETURN_QUERY);
+    if (!result.ok) throw result.error;
+
+    expect(result.value.items).toHaveLength(15);
+    for (const offer of result.value.items) {
+      expect(offer.outbound.segments.length).toBeGreaterThan(0);
+      expect(offer.inbound.segments.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('asks again when Kiwi says "something went wrong" with nothing in it, and then succeeds', async () => {
+    const failing = payload([], { error: 'Something went wrong.', resultsCount: 0 });
+    const { provider, transport } = providerFor([{ text: failing }, { text: RETURN_FIXTURE }]);
+    const result = await provider.searchFlights(RETURN_QUERY);
+    if (!result.ok) throw result.error;
+
+    expect(result.value.items).toHaveLength(15);
+    expect(transport.calls()).toBe(2);
+  });
+
+  it('gives up after two asks when the server keeps saying so, as a provider error', async () => {
+    const failing = payload([], { error: 'Something went wrong.', resultsCount: 0 });
+    const { provider, transport } = providerFor([{ text: failing }, { text: failing }]);
+    const result = await provider.searchFlights(RETURN_QUERY);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('PROVIDER_ERROR');
+    expect(transport.calls()).toBe(2);
+  });
+});
+
+describe('kiwi-mcp: an unusable answer says which field failed', () => {
+  it('names the schema field and the rule, never the value', () => {
+    const parsed = parseSearchFlight('{"currency":"EUR","secret":"do-not-log"}', OBSERVED, () => {
+      throw new Error('not reached');
+    });
+    expect(parsed).toEqual({ failed: 'unrecognised', detail: 'itineraries: invalid_type' });
+    expect(JSON.stringify(parsed)).not.toContain('do-not-log');
+  });
+
+  it('carries the server error text, cut to 200 characters', () => {
+    const long = 'x'.repeat(500);
+    const parsed = parseSearchFlight(payload([], { error: long }), OBSERVED, () => {
+      throw new Error('not reached');
+    });
+    expect(parsed).toEqual({ failed: 'server_error', detail: 'x'.repeat(200) });
+  });
+});

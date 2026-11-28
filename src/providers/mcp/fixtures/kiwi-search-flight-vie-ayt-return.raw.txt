@@ -1,0 +1,1418 @@
+{
+  "query": "VIE → AYT on 12/12/2026, returning 19/12/2026, 2 adults",
+  "currency": "EUR",
+  "passengers": {
+    "adults": 2,
+    "children": 0,
+    "infants": 0
+  },
+  "resultsCount": 15,
+  "itineraries": [
+    {
+      "id": "19ef192e513f0000207e036a_0|19ef192e513f0000207e036a_1|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 367.0,
+      "priceFormatted": "367 EUR",
+      "totalDurationSeconds": 28800,
+      "bookingUrl": "https://kiwi.com/u/tjmpjmyjcj",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T10:05:00",
+        "arrivalTime": "2026-12-12T17:10:00",
+        "durationSeconds": 18300,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T10:05:00",
+            "arrivalTime": "2026-12-12T14:20:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC902",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T16:00:00",
+            "arrivalTime": "2026-12-12T17:10:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2006",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000608f9c05_0|1db8192e513f0000eaacaccf_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 368.0,
+      "priceFormatted": "368 EUR",
+      "totalDurationSeconds": 38100,
+      "bookingUrl": "https://kiwi.com/u/jzsjnqvb8h",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T14:50:00",
+        "arrivalTime": "2026-12-13T00:30:00",
+        "durationSeconds": 27600,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T14:50:00",
+            "arrivalTime": "2026-12-12T19:05:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC904",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T23:20:00",
+            "arrivalTime": "2026-12-13T00:30:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2024",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f000089ec3930_0|1db8192e513f0000c181ff0c_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 369.0,
+      "priceFormatted": "369 EUR",
+      "totalDurationSeconds": 34500,
+      "bookingUrl": "https://kiwi.com/u/8qfj235s58",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T10:05:00",
+        "arrivalTime": "2026-12-12T18:45:00",
+        "durationSeconds": 24000,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T10:05:00",
+            "arrivalTime": "2026-12-12T14:20:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC902",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T17:35:00",
+            "arrivalTime": "2026-12-12T18:45:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2014",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef192e513f00009c1af57f_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 370.0,
+      "priceFormatted": "370 EUR",
+      "totalDurationSeconds": 20400,
+      "bookingUrl": "https://kiwi.com/u/sgyfn9xt44",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T13:55:00",
+        "arrivalTime": "2026-12-12T18:40:00",
+        "durationSeconds": 9900,
+        "stops": 0,
+        "route": [
+          "VIE",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "AYT",
+            "fromCity": "Vienna",
+            "toCity": "Antalya",
+            "fromName": "Vienna International Airport",
+            "toName": "Antalya",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T13:55:00",
+            "arrivalTime": "2026-12-12T18:40:00",
+            "durationSeconds": 9900,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ191",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000608f9c05_0|1db8192e513f0000c837b327_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 370.0,
+      "priceFormatted": "370 EUR",
+      "totalDurationSeconds": 28500,
+      "bookingUrl": "https://kiwi.com/u/btf2uxn57t",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T14:50:00",
+        "arrivalTime": "2026-12-12T21:50:00",
+        "durationSeconds": 18000,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T14:50:00",
+            "arrivalTime": "2026-12-12T19:05:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC904",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T20:40:00",
+            "arrivalTime": "2026-12-12T21:50:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2018",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000608f9c05_0|1db8192e513f0000edc168d6_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 372.0,
+      "priceFormatted": "372 EUR",
+      "totalDurationSeconds": 32100,
+      "bookingUrl": "https://kiwi.com/u/wqdw5q5sqw",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T14:50:00",
+        "arrivalTime": "2026-12-12T22:50:00",
+        "durationSeconds": 21600,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T14:50:00",
+            "arrivalTime": "2026-12-12T19:05:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC904",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T21:40:00",
+            "arrivalTime": "2026-12-12T22:50:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2020",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f00008e81fd29_0|1db8192e513f000004a2cde3_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 383.0,
+      "priceFormatted": "383 EUR",
+      "totalDurationSeconds": 27600,
+      "bookingUrl": "https://kiwi.com/u/bryzhx9b4b",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T18:15:00",
+        "arrivalTime": "2026-12-13T01:00:00",
+        "durationSeconds": 17100,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T18:15:00",
+            "arrivalTime": "2026-12-12T22:30:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC906",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T23:50:00",
+            "arrivalTime": "2026-12-13T01:00:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2026",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000fcb5e89a_0|1db8192e513f0000eaacaccf_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 389.0,
+      "priceFormatted": "389 EUR",
+      "totalDurationSeconds": 31200,
+      "bookingUrl": "https://kiwi.com/u/nqjdhxkfwz",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T16:45:00",
+        "arrivalTime": "2026-12-13T00:30:00",
+        "durationSeconds": 20700,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T16:45:00",
+            "arrivalTime": "2026-12-12T21:10:00",
+            "durationSeconds": 8700,
+            "carrier": "VF",
+            "carrierName": "AJet",
+            "flightNumber": "VF20",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T23:20:00",
+            "arrivalTime": "2026-12-13T00:30:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2024",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000fcb5e89a_0|1db8192e513f000004a2cde3_0|192e19ef514600001a2cac00_0",
+      "tripType": "return",
+      "price": 389.0,
+      "priceFormatted": "389 EUR",
+      "totalDurationSeconds": 33000,
+      "bookingUrl": "https://kiwi.com/u/cbumdq7mcj",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 0,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T16:45:00",
+        "arrivalTime": "2026-12-13T01:00:00",
+        "durationSeconds": 22500,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T16:45:00",
+            "arrivalTime": "2026-12-12T21:10:00",
+            "durationSeconds": 8700,
+            "carrier": "VF",
+            "carrierName": "AJet",
+            "flightNumber": "VF20",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T23:50:00",
+            "arrivalTime": "2026-12-13T01:00:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2026",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T06:15:00",
+        "arrivalTime": "2026-12-19T07:10:00",
+        "durationSeconds": 10500,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T06:15:00",
+            "arrivalTime": "2026-12-19T07:10:00",
+            "durationSeconds": 10500,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC5047",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef192e513f00009c1af57f_0|192e19ef5146000052e635ff_0",
+      "tripType": "return",
+      "price": 402.0,
+      "priceFormatted": "402 EUR",
+      "totalDurationSeconds": 20700,
+      "bookingUrl": "https://kiwi.com/u/b2gpys4crn",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T13:55:00",
+        "arrivalTime": "2026-12-12T18:40:00",
+        "durationSeconds": 9900,
+        "stops": 0,
+        "route": [
+          "VIE",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "AYT",
+            "fromCity": "Vienna",
+            "toCity": "Antalya",
+            "fromName": "Vienna International Airport",
+            "toName": "Antalya",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T13:55:00",
+            "arrivalTime": "2026-12-12T18:40:00",
+            "durationSeconds": 9900,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ191",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T12:05:00",
+        "arrivalTime": "2026-12-19T13:05:00",
+        "durationSeconds": 10800,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T12:05:00",
+            "arrivalTime": "2026-12-19T13:05:00",
+            "durationSeconds": 10800,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ190",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f000089ec3930_0|1db8192e513f00003694af61_0|192e19ef5146000052e635ff_0",
+      "tripType": "return",
+      "price": 404.0,
+      "priceFormatted": "404 EUR",
+      "totalDurationSeconds": 29100,
+      "bookingUrl": "https://kiwi.com/u/9kp845wuxv",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T10:05:00",
+        "arrivalTime": "2026-12-12T17:10:00",
+        "durationSeconds": 18300,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T10:05:00",
+            "arrivalTime": "2026-12-12T14:20:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC902",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T16:00:00",
+            "arrivalTime": "2026-12-12T17:10:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2006",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T12:05:00",
+        "arrivalTime": "2026-12-19T13:05:00",
+        "durationSeconds": 10800,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T12:05:00",
+            "arrivalTime": "2026-12-19T13:05:00",
+            "durationSeconds": 10800,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ190",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f000089ec3930_0|1db8192e513f0000c181ff0c_0|192e19ef5146000052e635ff_0",
+      "tripType": "return",
+      "price": 404.0,
+      "priceFormatted": "404 EUR",
+      "totalDurationSeconds": 34800,
+      "bookingUrl": "https://kiwi.com/u/u2r67w6wq6",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T10:05:00",
+        "arrivalTime": "2026-12-12T18:45:00",
+        "durationSeconds": 24000,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T10:05:00",
+            "arrivalTime": "2026-12-12T14:20:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC902",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T17:35:00",
+            "arrivalTime": "2026-12-12T18:45:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2014",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T12:05:00",
+        "arrivalTime": "2026-12-19T13:05:00",
+        "durationSeconds": 10800,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T12:05:00",
+            "arrivalTime": "2026-12-19T13:05:00",
+            "durationSeconds": 10800,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ190",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000608f9c05_0|1db8192e513f0000c837b327_0|192e19ef5146000052e635ff_0",
+      "tripType": "return",
+      "price": 405.0,
+      "priceFormatted": "405 EUR",
+      "totalDurationSeconds": 28800,
+      "bookingUrl": "https://kiwi.com/u/s3tbnxsjnz",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T14:50:00",
+        "arrivalTime": "2026-12-12T21:50:00",
+        "durationSeconds": 18000,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T14:50:00",
+            "arrivalTime": "2026-12-12T19:05:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC904",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T20:40:00",
+            "arrivalTime": "2026-12-12T21:50:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2018",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T12:05:00",
+        "arrivalTime": "2026-12-19T13:05:00",
+        "durationSeconds": 10800,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T12:05:00",
+            "arrivalTime": "2026-12-19T13:05:00",
+            "durationSeconds": 10800,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ190",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f0000608f9c05_0|1db8192e513f0000edc168d6_0|192e19ef5146000052e635ff_0",
+      "tripType": "return",
+      "price": 407.0,
+      "priceFormatted": "407 EUR",
+      "totalDurationSeconds": 32400,
+      "bookingUrl": "https://kiwi.com/u/yk9kjpj3wp",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T14:50:00",
+        "arrivalTime": "2026-12-12T22:50:00",
+        "durationSeconds": 21600,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T14:50:00",
+            "arrivalTime": "2026-12-12T19:05:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC904",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T21:40:00",
+            "arrivalTime": "2026-12-12T22:50:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2020",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T12:05:00",
+        "arrivalTime": "2026-12-19T13:05:00",
+        "durationSeconds": 10800,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T12:05:00",
+            "arrivalTime": "2026-12-19T13:05:00",
+            "durationSeconds": 10800,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ190",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19ef1db8513f00008e81fd29_0|1db8192e513f000004a2cde3_0|192e19ef5146000052e635ff_0",
+      "tripType": "return",
+      "price": 417.0,
+      "priceFormatted": "417 EUR",
+      "totalDurationSeconds": 27900,
+      "bookingUrl": "https://kiwi.com/u/7h29486gq2",
+      "imageId": "antalya_tr",
+      "baggage": {
+        "personalItem": 2,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "AYT",
+        "departureTime": "2026-12-12T18:15:00",
+        "arrivalTime": "2026-12-13T01:00:00",
+        "durationSeconds": 17100,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "SAW",
+          "AYT"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "SAW",
+            "fromCity": "Vienna",
+            "toCity": "Istanbul",
+            "fromName": "Vienna International Airport",
+            "toName": "Sabiha Gökçen International",
+            "fromCountry": "Austria",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T18:15:00",
+            "arrivalTime": "2026-12-12T22:30:00",
+            "durationSeconds": 8100,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC906",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "SAW",
+            "to": "AYT",
+            "fromCity": "Istanbul",
+            "toCity": "Antalya",
+            "fromName": "Sabiha Gökçen International",
+            "toName": "Antalya",
+            "fromCountry": "Turkey",
+            "toCountry": "Turkey",
+            "departureTime": "2026-12-12T23:50:00",
+            "arrivalTime": "2026-12-13T01:00:00",
+            "durationSeconds": 4200,
+            "carrier": "PC",
+            "carrierName": "Pegasus",
+            "flightNumber": "PC2026",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": {
+        "from": "AYT",
+        "to": "VIE",
+        "departureTime": "2026-12-19T12:05:00",
+        "arrivalTime": "2026-12-19T13:05:00",
+        "durationSeconds": 10800,
+        "stops": 0,
+        "route": [
+          "AYT",
+          "VIE"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "AYT",
+            "to": "VIE",
+            "fromCity": "Antalya",
+            "toCity": "Vienna",
+            "fromName": "Antalya",
+            "toName": "Vienna International Airport",
+            "fromCountry": "Turkey",
+            "toCountry": "Austria",
+            "departureTime": "2026-12-19T12:05:00",
+            "arrivalTime": "2026-12-19T13:05:00",
+            "durationSeconds": 10800,
+            "carrier": "XQ",
+            "carrierName": "SunExpress",
+            "flightNumber": "XQ190",
+            "cabinClass": "Economy"
+          }
+        ]
+      }
+    }
+  ],
+  "searchTimeMs": 277,
+  "error": null
+}

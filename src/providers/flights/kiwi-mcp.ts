@@ -56,6 +56,9 @@ const log = getLogger('providers.kiwi-mcp');
 
 export const KIWI_MCP_PROVIDER_ID = 'kiwi-mcp';
 
+/** One ask, and one more when Kiwi answers "something went wrong" with nothing in it. */
+export const KIWI_ANSWER_ATTEMPTS = 2;
+
 const LOCAL_TIME = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?$/;
 
 const localTime = z.string().regex(LOCAL_TIME);
@@ -237,11 +240,20 @@ export interface ParsedSearch<T> {
  * The text of a `search-flight` answer, as items and a count of what was dropped.
  * Pure: the same text gives the same answer. `{ failed }` when the text is not an answer at all.
  */
+/**
+ * Why an answer could not be used. `detail` names the schema fields that failed (paths and
+ * rule names, never values) or carries the server's own error text, cut to 200 characters.
+ */
+export interface UnusableAnswer {
+  readonly failed: 'not_json' | 'unrecognised' | 'server_error';
+  readonly detail?: string;
+}
+
 export function parseSearchFlight<T>(
   text: string,
   observedAt: string,
   map: (raw: unknown, currency: string, observedAt: string) => Mapped<T>,
-): ParsedSearch<T> | { readonly failed: string } {
+): ParsedSearch<T> | UnusableAnswer {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -249,11 +261,17 @@ export function parseSearchFlight<T>(
     return { failed: 'not_json' };
   }
   const envelope = envelopeSchema.safeParse(json);
-  if (!envelope.success) return { failed: 'unrecognised' };
+  if (!envelope.success) {
+    const detail = envelope.error.issues
+      .slice(0, 5)
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.code}`)
+      .join('; ');
+    return { failed: 'unrecognised', detail };
+  }
 
   const { currency, itineraries, error } = envelope.data;
   if (itineraries.length === 0 && typeof error === 'string' && error.length > 0) {
-    return { failed: 'server_error' };
+    return { failed: 'server_error', detail: error.slice(0, 200) };
   }
 
   const items: T[] = [];
@@ -376,20 +394,37 @@ export class KiwiMcpFlightProvider implements FlightProvider {
       return err(new AppError('PROVIDER_TIMEOUT', 'The flight search was cancelled.'));
     }
 
-    const called = await this.client.callTool('search-flight', args);
-    if (!called.ok) return err(called.error);
+    // Kiwi sometimes answers "Something went wrong." with no itineraries, over a healthy
+    // connection (seen in production: about three answers in four). That is not a verdict on
+    // the query, so it is asked once more. Each ask goes through the client's pacing and budget.
+    for (let attempt = 1; ; attempt += 1) {
+      const called = await this.client.callTool('search-flight', args);
+      if (!called.ok) return err(called.error);
 
-    const parsed = parseSearchFlight(called.value.text, this.now().toISOString(), map);
-    if ('failed' in parsed) {
-      log.warn({ reason: parsed.failed }, 'kiwi answer not usable');
+      const { text } = called.value;
+      const parsed = parseSearchFlight(text, this.now().toISOString(), map);
+      if (!('failed' in parsed)) {
+        const droppedTotal = Object.values(parsed.dropped).reduce((a, b) => a + b, 0);
+        if (droppedTotal > 0) {
+          log.info({ ...parsed.dropped, kept: parsed.items.length }, 'kiwi itineraries not mapped');
+        }
+        return ok(parsed.items);
+      }
+
+      const fields = {
+        reason: parsed.failed,
+        detail: parsed.detail,
+        attempt,
+        bytes: text.length,
+        snippet: text.slice(0, 200),
+      };
+      if (parsed.failed === 'server_error' && attempt < KIWI_ANSWER_ATTEMPTS) {
+        log.warn(fields, 'kiwi answer not usable; asking again');
+        continue;
+      }
+      log.warn(fields, 'kiwi answer not usable');
       return err(new AppError('PROVIDER_ERROR', 'Kiwi returned an unrecognised response.'));
     }
-
-    const droppedTotal = Object.values(parsed.dropped).reduce((a, b) => a + b, 0);
-    if (droppedTotal > 0) {
-      log.info({ ...parsed.dropped, kept: parsed.items.length }, 'kiwi itineraries not mapped');
-    }
-    return ok(parsed.items);
   }
 
   async close(): Promise<void> {
