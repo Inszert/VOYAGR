@@ -867,6 +867,17 @@ class PostgresTravelWatchRepository implements TravelWatchRepository {
     return rows.map(toTravelWatch);
   }
 
+  async listActive(): Promise<TravelWatchRecord[]> {
+    const rows = await query<TravelWatchRow>(
+      `SELECT ${WATCH_COLUMNS}
+         FROM travel_watches
+        WHERE status = 'active'
+        ORDER BY created_at ASC`,
+      [],
+    );
+    return rows.map(toTravelWatch);
+  }
+
   async create(input: Omit<TravelWatchRecord, 'createdAt'>): Promise<TravelWatchRecord> {
     const rows = await query<TravelWatchRow>(
       `INSERT INTO travel_watches

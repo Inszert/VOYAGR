@@ -96,7 +96,19 @@ export function createRedisLookupLock(client: RedisLockClient): LookupLock {
   };
 }
 
+/** What a real MCP answer produced. Fired only for a fresh call, never for a cache or row hit. */
+export interface KiwiFreshObservation {
+  readonly key: KiwiOffersKey;
+  readonly offers: readonly FlightOffer[];
+  readonly observedAt: IsoDateTime;
+}
+
 export interface KiwiReadPathOptions {
+  /**
+   * Called once after a fresh MCP answer is stored (the only moment a price is really observed).
+   * Its failure never changes the lookup's answer.
+   */
+  readonly onFreshObservation?: (observation: KiwiFreshObservation) => Promise<void>;
   readonly provider: FlightProvider;
   readonly cache: CacheStore;
   readonly repository: KiwiOffersRepository;
@@ -289,6 +301,17 @@ export class KiwiReadPath {
       });
     } catch (error) {
       log.warn({ err: error }, 'offers write failed; the value is still returned');
+    }
+    if (this.options.onFreshObservation) {
+      try {
+        await this.options.onFreshObservation({
+          key,
+          offers: stored.offers,
+          observedAt: stored.observedAt,
+        });
+      } catch (error) {
+        log.warn({ err: error }, 'price observation failed; the lookup is unaffected');
+      }
     }
     return this.answer(stored, 'mcp', null);
   }

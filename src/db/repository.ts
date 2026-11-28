@@ -462,6 +462,8 @@ export interface TravelWatchRepository {
   listByUser(userId: string): Promise<TravelWatchRecord[]>;
   /** Watches due to run, oldest deadline first. Drives the scheduler. */
   listDue(now: IsoDateTime, limit: number): Promise<TravelWatchRecord[]>;
+  /** Every active watch, whatever its schedule. For matching a fresh lookup to its watches. */
+  listActive(): Promise<TravelWatchRecord[]>;
   create(input: Omit<TravelWatchRecord, 'createdAt'>): Promise<TravelWatchRecord>;
   update(
     id: string,

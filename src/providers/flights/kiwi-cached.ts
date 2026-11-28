@@ -13,7 +13,7 @@ import type {
   ProviderResult,
 } from '../types';
 import { KiwiMcpFlightProvider, type KiwiMcpOptions } from './kiwi-mcp';
-import { KiwiReadPath, type KiwiLookupResult } from './kiwi-read-path';
+import { KiwiReadPath, type KiwiFreshObservation, type KiwiLookupResult } from './kiwi-read-path';
 
 /**
  * The flight provider the app actually uses: the Kiwi adapter behind the 12-hour read path.
@@ -34,6 +34,8 @@ export interface KiwiCachedDeps {
   readonly cache?: CacheStore;
   readonly repository?: KiwiOffersRepository;
   readonly now?: () => number;
+  /** Fired after each real MCP answer; the price-drop observer plugs in here. */
+  readonly onFreshObservation?: (observation: KiwiFreshObservation) => Promise<void>;
 }
 
 export class KiwiCachedFlightProvider implements FlightProvider {
@@ -54,6 +56,7 @@ export class KiwiCachedFlightProvider implements FlightProvider {
       cache: this.deps.cache ?? getCacheStore(),
       repository: this.deps.repository ?? getRepositories().kiwiOffers,
       ...(this.deps.now ? { now: this.deps.now } : {}),
+      ...(this.deps.onFreshObservation ? { onFreshObservation: this.deps.onFreshObservation } : {}),
     });
     return this.path;
   }

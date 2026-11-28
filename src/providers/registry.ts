@@ -10,6 +10,9 @@ import {
 import type { ProviderMode } from '@/core/trip/provenance';
 import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
+import { getRepositories } from '@/db';
+import { getEmailProvider } from '@/email/registry';
+import { createPriceDropObserver } from '@/watches/price-drop-observer';
 import { createKiwiCachedFlightProvider } from './flights/kiwi-cached';
 import { createSnapshotFlightProvider } from './flights/liteapi-snapshot';
 import { createMockFlightProvider } from './flights/mock';
@@ -238,7 +241,16 @@ function resolveFlightProvider(env: Env): FlightProvider {
   if (env.FLIGHT_PROVIDER === 'kiwi-mcp') {
     // No key exists for Kiwi. The client connects on its first call, not here. The provider is
     // the 12-hour read path in front of the adapter, never the raw adapter.
-    return createKiwiCachedFlightProvider({ dailyBudget: env.KIWI_MCP_DAILY_BUDGET });
+    return createKiwiCachedFlightProvider(
+      { dailyBudget: env.KIWI_MCP_DAILY_BUDGET },
+      {
+        // A price is observed only when this read path really called the MCP.
+        onFreshObservation: createPriceDropObserver({
+          repositories: getRepositories,
+          emailProvider: getEmailProvider,
+        }),
+      },
+    );
   }
 
   /*

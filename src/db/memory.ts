@@ -559,6 +559,10 @@ class MemoryTravelWatchRepository implements TravelWatchRepository {
       .slice(0, limit);
   }
 
+  async listActive(): Promise<TravelWatchRecord[]> {
+    return [...this.byId.values()].filter((record) => record.status === 'active');
+  }
+
   async create(input: Omit<TravelWatchRecord, 'createdAt'>): Promise<TravelWatchRecord> {
     const record: TravelWatchRecord = { ...input, createdAt: now() };
     this.byId.set(record.id, record);
