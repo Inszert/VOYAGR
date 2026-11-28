@@ -32,6 +32,8 @@ import { budgetWhatIf } from '@/search/what-if';
 import { WhatIfPanel } from './what-if-panel';
 import { FiltersDisclosure, FiltersLayout, FiltersPanel, FiltersToggle } from './live-search';
 import { NearbyAirportsPanel } from './nearby-airports-panel';
+import { HubSavingLine } from './hub-saving-line';
+import type { HubSaving } from '@/search/hub-saving';
 import { RouteLines } from './route-lines';
 import { MAX_ROUTE_LINES } from '@/discovery/search-routes';
 import { nearbyOrigins } from '@/search/destination-names';
@@ -97,6 +99,8 @@ export interface SearchResultsProps {
    * "What to do in <city>" for the trip being built. Resolved by the page, which
    * owns the places loader; this component only places it.
    */
+  /** A material cheaper-from-a-nearby-airport finding, from stored prices; null when there is none. */
+  hubSaving?: HubSaving | null;
   whatToDo?: (destination: string, city: string, destinationHref?: string) => ReactNode;
 }
 
@@ -125,6 +129,7 @@ export function SearchResults({
   planTrips = null,
   changeSearchHref,
   whatToDo,
+  hubSaving = null,
 }: SearchResultsProps) {
   const { nearMisses, diagnostics } = outcome;
   const ageMinutes = minutesAgo(resultAgeMs);
@@ -307,6 +312,7 @@ export function SearchResults({
         Nearby airports, above the results and always in view: adding one is a
         decision about the search, not a detail to be found in a closed panel.
       */}
+        <HubSavingLine saving={hubSaving} />
         <NearbyAirportsPanel
           airports={nearbyOrigins(profile.origins).slice(0, 5)}
           hrefFor={(code) =>

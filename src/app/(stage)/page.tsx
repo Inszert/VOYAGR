@@ -5,6 +5,13 @@ import { DestinationMoment } from '@/components/home/destination-moment';
 import { ImageCredits } from '@/components/home/image-credits';
 import { NextTripPanel } from '@/components/home/next-trip-panel';
 import { PopularSection } from '@/components/home/popular-section';
+import { RecommendationsList } from '@/components/home/recommendations-list';
+import { refreshRecommendations } from '@/app/actions/recommendations';
+import {
+  homeRecommendationRequest,
+  peekHomeRecommendations,
+} from '@/search/recommendation-runtime';
+import { resolveDestinationNames } from '@/search/destination-names';
 import { TrustBand } from '@/components/home/trust-band';
 import { Container, UpdatedAgo } from '@/components/ui';
 import { redirect } from 'next/navigation';
@@ -128,6 +135,15 @@ export default async function DiscoverPage({
   const recommended = page.recommended;
   const moment = pickMoment(homeCards, recommended?.candidate.destination ?? null);
 
+  /*
+   * The lazily built list: served from storage here, so a render makes no MCP call. If the stored
+   * list is older than 12 h the client asks the server action, which builds through the service.
+   */
+  const recoOrigin = (page.formDefaults.origins ?? 'VIE').split(',')[0]!.trim().toUpperCase();
+  const recoView = await peekHomeRecommendations(
+    homeRecommendationRequest(page.today, recoOrigin, page.formDefaults.currency || 'EUR'),
+  ).catch(() => null);
+
   const query = new URLSearchParams(
     Object.entries(values).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -234,6 +250,16 @@ export default async function DiscoverPage({
       <Container size="wide" className="py-3">
         <UpdatedAgo ageMs={page.updatedAgeMs} />
       </Container>
+
+      {recoView ? (
+        <Container size="wide" className="py-6">
+          <RecommendationsList
+            initial={recoView}
+            refresh={refreshRecommendations.bind(null, recoOrigin)}
+            names={resolveDestinationNames(recoView.items.map((item) => item.destination))}
+          />
+        </Container>
+      ) : null}
 
       <TrustBand />
 

@@ -22,6 +22,7 @@ import { EXPLORE_SLOT_CLASS, StageSlot } from '@/components/discovery/stage-slot
 import { StageSync } from '@/components/discovery/stage-sync';
 import { StageControls } from '@/components/discovery/stage-controls';
 import { Suspense } from 'react';
+import { findHubSaving } from '@/search/hub-saving';
 import { SearchResults } from '@/components/search/search-results';
 import { WhatToDo } from '@/components/search/what-to-do';
 import { FlexDatesSection } from '@/components/search/flex-dates-section';
@@ -195,6 +196,21 @@ export default async function ExplorePage({
       if (name) countries.set(code, name);
     }
   }
+
+  // A cheaper nearby airport, from stored prices only: this render never asks the MCP.
+  const topTrip = page.outcome?.results[0]?.candidate;
+  const hubSaving = topTrip
+    ? await findHubSaving({
+        origin: topTrip.origin,
+        destination: topTrip.destination,
+        departureDate: topTrip.dates.departureDate,
+        returnDate: topTrip.dates.returnDate,
+        adults: topTrip.passengers,
+        currency: topTrip.flight.price.currency,
+        requestedFlightMinor: topTrip.flight.price.amount,
+        offers: getRepositories().kiwiOffers,
+      }).catch(() => null)
+    : null;
 
   const railCards = stage.cards.map((card) => ({
     ...card,
@@ -448,6 +464,7 @@ export default async function ExplorePage({
                 filters={page.filters}
                 searchValues={values}
                 resultAgeMs={page.resultAgeMs}
+                hubSaving={hubSaving}
                 updatedAgeMs={page.updatedAgeMs}
                 images={images}
                 stayLinks={stayLinks}
