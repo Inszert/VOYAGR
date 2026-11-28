@@ -1,9 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import { isIsoDate } from '@/core/dates';
 import { useRouter } from 'next/navigation';
 import { WORLD, withStoredRoutes, type StoredRoute } from '@/discovery/stored-routes';
 import { GlobeStage } from './globe-stage';
+import { RouteOffersPanel } from './route-offers-panel';
 import { createStoredRoutesLoader } from './stored-routes-client';
 import { STAGE_FRAME_EVENT } from './globe-motion';
 import { formSeasonDate } from './globe-style';
@@ -89,6 +91,21 @@ function isStageUrl(url: URL): boolean {
 
 const NO_ROUTES: readonly StoredRoute[] = [];
 
+/** The trip dates of the current search, read from the address at click time. */
+function currentTripDates(): { departureDate: string; returnDate: string } | null {
+  const params = new URLSearchParams(window.location.search);
+  const departureDate = params.get('departureDate');
+  const returnDate = params.get('returnDate');
+  const valid = (v: string | null): v is string => v !== null && isIsoDate(v);
+  return valid(departureDate) && valid(returnDate) ? { departureDate, returnDate } : null;
+}
+
+interface OpenRoute {
+  origin: string;
+  destination: string;
+  dates: { departureDate: string; returnDate: string } | null;
+}
+
 export function StageHost() {
   const snapshot = React.useSyncExternalStore(
     subscribeStage,
@@ -103,6 +120,12 @@ export function StageHost() {
   const flipping = React.useRef<Animation | null>(null);
 
   const { slot, variant, data, pending } = snapshot;
+
+  /* A click on a route arc opens its prices. Nothing here runs on rotation. */
+  const [openRoute, setOpenRoute] = React.useState<OpenRoute | null>(null);
+  const selectRoute = React.useCallback((route: { origin: string; destination: string }) => {
+    setOpenRoute({ ...route, dates: currentTripDates() });
+  }, []);
 
   /*
    * Stored routes from the home airport, drawn with the arc layer the page's own routes use.
@@ -388,7 +411,40 @@ export function StageHost() {
           seasonPreviewDate={seasonPreviewDate}
           variant={variant}
           className={ROOT_CLASS[variant]}
+          onRouteSelect={selectRoute}
         />
+      ) : null}
+
+      {openRoute ? (
+        <div
+          role="dialog"
+          aria-label={`Prices ${openRoute.origin} to ${openRoute.destination}`}
+          className="border-border bg-surface text-ink fixed right-4 bottom-4 z-50 max-h-[70svh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border p-4 shadow-xl"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">
+              {openRoute.origin} to {openRoute.destination}
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpenRoute(null)}
+              className="focus-visible:ring-ring rounded px-2 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
+              Close
+            </button>
+          </div>
+          {openRoute.dates ? (
+            <RouteOffersPanel
+              key={`${openRoute.origin}-${openRoute.destination}-${openRoute.dates.departureDate}`}
+              origin={openRoute.origin}
+              destination={openRoute.destination}
+              departureDate={openRoute.dates.departureDate}
+              returnDate={openRoute.dates.returnDate}
+            />
+          ) : (
+            <p className="text-sm">Choose trip dates in the search to see prices for this route.</p>
+          )}
+        </div>
       ) : null}
     </div>
   );

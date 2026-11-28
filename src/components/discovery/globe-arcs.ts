@@ -183,6 +183,9 @@ export interface ArcRun {
   readonly stops: number | null;
   /** Stable across renders, so a pulse keeps its phase. */
   readonly key: string;
+  /** The airports this arc joins, when the feature names them. */
+  readonly origin?: string;
+  readonly destination?: string;
 }
 
 /** Loosely typed: this is the GeoJSON the server built, and only read here. */
@@ -457,6 +460,8 @@ export function toArcRuns(
           lift,
           stops,
           key: `${destination}-${index}`,
+          origin: feature.properties?.origin,
+          destination: feature.properties?.destination,
         });
       }
     }

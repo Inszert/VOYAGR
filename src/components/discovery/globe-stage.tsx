@@ -226,6 +226,11 @@ export interface GlobeStageProps {
    */
   variant?: 'hero' | 'explorer' | 'stage';
   className?: string;
+  /**
+   * A click on a route's arc. Only ever a click: the globe makes no call of its own, and a
+   * rotation or a drag never reaches this.
+   */
+  onRouteSelect?: (route: { origin: string; destination: string }) => void;
 }
 
 /**
@@ -560,6 +565,7 @@ export function GlobeStage({
   navigation,
   variant = 'hero',
   className,
+  onRouteSelect,
 }: GlobeStageProps) {
   const router = useRouter();
   const container = React.useRef<HTMLDivElement>(null);
@@ -606,6 +612,10 @@ export function GlobeStage({
   // The latest props, readable from handlers registered once at creation.
   // Written in an effect rather than during render, so a render that is
   // thrown away by React never leaks its props into a live handler.
+  const onRouteSelectRef = React.useRef(onRouteSelect);
+  React.useEffect(() => {
+    onRouteSelectRef.current = onRouteSelect;
+  });
   const latest = React.useRef({ chips, countryCounts, navigation, selectedCountry });
   React.useEffect(() => {
     latest.current = { chips, countryCounts, navigation, selectedCountry };
@@ -2044,6 +2054,22 @@ export function GlobeStage({
 
       group.append(glow, line);
       group.append(dest.halo, dest.core);
+
+      /*
+       * The arc is clickable along its glow (5px). The SVG is pointer-events: none so that
+       * the globe drags everywhere else; only this stroke takes the pointer. An arc that has
+       * faded out (far side of the planet) is not a target.
+       */
+      const { origin: routeOrigin, destination: routeDestination } = run;
+      if (routeOrigin && routeDestination) {
+        glow.style.pointerEvents = 'stroke';
+        glow.style.cursor = 'pointer';
+        glow.addEventListener('click', (event) => {
+          if (Number(group.getAttribute('opacity') ?? 0) < 0.3) return;
+          event.stopPropagation();
+          onRouteSelectRef.current?.({ origin: routeOrigin, destination: routeDestination });
+        });
+      }
 
       if (light) {
         light.setAttribute('r', '3');
