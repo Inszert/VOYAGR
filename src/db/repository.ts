@@ -829,6 +829,38 @@ export interface RouteGraphRepository {
   destinationsFor(origin: string): Promise<RouteGraphEdge[]>;
 }
 
+/** One line of a stored recommendation list. Price is integer minor units. */
+export interface RecommendationItem {
+  readonly destination: string;
+  readonly priceMinor: number;
+  readonly currency: string;
+  readonly departureDate: IsoDate;
+  readonly returnDate: IsoDate;
+  readonly carrier: string | null;
+  readonly deepLink: string | null;
+}
+
+export interface RecommendationListKey {
+  readonly origin: string;
+  /** The date window, `YYYY-MM-DD..YYYY-MM-DD`. */
+  readonly window: string;
+  readonly adults: number;
+  readonly currency: string;
+}
+
+export interface RecommendationListRow extends RecommendationListKey {
+  readonly items: readonly RecommendationItem[];
+  /** When the MCP answered; the age that is judged and shown. */
+  readonly generatedAt: IsoDateTime;
+}
+
+export interface RecommendationListRepository {
+  /** The stored list whatever its age, or null when none exists. */
+  get(key: RecommendationListKey): Promise<RecommendationListRow | null>;
+  /** Replace the list for its key. */
+  put(row: RecommendationListRow): Promise<void>;
+}
+
 /** What survives the nightly cleanup; see `src/core/cleanup/prune.ts`. */
 export interface RouteAggregatesRepository {
   /**
@@ -939,6 +971,7 @@ export interface Repositories {
   readonly liteapiSnapshot: LiteApiSnapshotRepository;
   readonly kiwiOffers: KiwiOffersRepository;
   readonly routeGraph: RouteGraphRepository;
+  readonly recommendationLists: RecommendationListRepository;
   readonly routeAggregates: RouteAggregatesRepository;
   readonly visitorSearches: VisitorSearchRepository;
   /** Identifies the active backend, for diagnostics. */

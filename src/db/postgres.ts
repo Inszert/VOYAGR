@@ -13,6 +13,9 @@ import type {
   PriceAlertRepository,
   RouteGraphEdge,
   RouteGraphRepository,
+  RecommendationListKey,
+  RecommendationListRepository,
+  RecommendationListRow,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
   LiteApiHotelRow,
@@ -1959,6 +1962,40 @@ class PostgresRouteGraphRepository implements RouteGraphRepository {
   }
 }
 
+class PostgresRecommendationListRepository implements RecommendationListRepository {
+  async get(key: RecommendationListKey): Promise<RecommendationListRow | null> {
+    const rows = await query<{ items: unknown; generated_at: Date | string }>(
+      `SELECT items, generated_at FROM recommendation_lists
+        WHERE origin = $1 AND date_window = $2 AND adults = $3 AND currency = $4`,
+      [key.origin, key.window, key.adults, key.currency],
+    );
+    const row = rows[0];
+    if (!row || !Array.isArray(row.items)) return null;
+    return {
+      ...key,
+      items: row.items as RecommendationListRow['items'],
+      generatedAt: toIso(row.generated_at),
+    };
+  }
+
+  async put(row: RecommendationListRow): Promise<void> {
+    await query(
+      `INSERT INTO recommendation_lists (origin, date_window, adults, currency, items, generated_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+       ON CONFLICT (origin, date_window, adults, currency)
+       DO UPDATE SET items = EXCLUDED.items, generated_at = EXCLUDED.generated_at`,
+      [
+        row.origin,
+        row.window,
+        row.adults,
+        row.currency,
+        JSON.stringify(row.items),
+        row.generatedAt,
+      ],
+    );
+  }
+}
+
 interface RouteAggregateDbRow {
   origin: string;
   destination: string;
@@ -2493,6 +2530,7 @@ export function createPostgresRepositories(options: RepositoryOptions = {}): Rep
     liteapiSnapshot: new PostgresLiteApiSnapshotRepository(options.now ?? Date.now),
     kiwiOffers: new PostgresKiwiOffersRepository(),
     routeGraph: new PostgresRouteGraphRepository(),
+    recommendationLists: new PostgresRecommendationListRepository(),
     routeAggregates: new PostgresRouteAggregatesRepository(),
     priceAlerts: new PostgresPriceAlertRepository(),
     visitorSearches: new PostgresVisitorSearchRepository(options.now ?? Date.now),

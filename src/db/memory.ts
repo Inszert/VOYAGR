@@ -20,6 +20,9 @@ import type {
   PriceAlertRepository,
   RouteGraphEdge,
   RouteGraphRepository,
+  RecommendationListKey,
+  RecommendationListRepository,
+  RecommendationListRow,
   LiteApiEnvironment,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
@@ -1193,6 +1196,23 @@ class MemoryRouteGraphRepository implements RouteGraphRepository {
   }
 }
 
+class MemoryRecommendationListRepository implements RecommendationListRepository {
+  private readonly rows = new Map<string, RecommendationListRow>();
+
+  private keyOf(key: RecommendationListKey): string {
+    return [key.origin, key.window, key.adults, key.currency].join('|');
+  }
+
+  async get(key: RecommendationListKey): Promise<RecommendationListRow | null> {
+    const row = this.rows.get(this.keyOf(key));
+    return row ? { ...row, items: row.items.map((item) => ({ ...item })) } : null;
+  }
+
+  async put(row: RecommendationListRow): Promise<void> {
+    this.rows.set(this.keyOf(row), { ...row, items: row.items.map((item) => ({ ...item })) });
+  }
+}
+
 class MemoryPriceAlertRepository implements PriceAlertRepository {
   private readonly rows: PriceAlertRecord[] = [];
 
@@ -1479,6 +1499,7 @@ export function createMemoryRepositories(options: RepositoryOptions = {}): Repos
     liteapiSnapshot,
     kiwiOffers,
     routeGraph: new MemoryRouteGraphRepository(),
+    recommendationLists: new MemoryRecommendationListRepository(),
     routeAggregates: new MemoryRouteAggregatesRepository(),
     priceAlerts: new MemoryPriceAlertRepository(),
     visitorSearches,
