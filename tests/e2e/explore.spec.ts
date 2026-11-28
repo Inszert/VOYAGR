@@ -31,14 +31,18 @@ test.describe('the explorer', () => {
     // The globe is mounted once, above the page, and the page's slot for it is
     // laid out after it, so left opaque to the pointer the slot would take
     // every press meant for the planet: the drag, the wheel, a country, a price
-    // chip. Hit-testing the middle of the canvas is the direct question.
+    // chip. Hit-testing the middle of the page's slot - the box the planet is
+    // drawn in - is the direct question. (On a phone the search form is stacked
+    // over the top of the full-page canvas, so the canvas's own middle is the
+    // form's; the slot is where the planet is on every width.)
     await page.goto('/explore');
     await expect(page.locator('.maplibregl-canvas')).toBeVisible({ timeout: 15_000 });
+    await page.locator('[data-stage-slot]').scrollIntoViewIfNeeded();
 
     const hit = await page.evaluate(() => {
-      const canvas = document.querySelector('.maplibregl-canvas');
-      if (!canvas) return 'no canvas';
-      const box = canvas.getBoundingClientRect();
+      const slot = document.querySelector('[data-stage-slot]');
+      if (!slot) return 'no slot';
+      const box = slot.getBoundingClientRect();
       const x = box.x + box.width / 2;
       const y = Math.min(box.y + box.height / 2, window.innerHeight - 1);
       const element = document.elementFromPoint(x, y);

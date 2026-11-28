@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { chooseAPlace } from './support/searches';
 
 /**
  * One globe for the life of the visit.
@@ -66,6 +67,7 @@ test.describe('the persistent globe', () => {
     await hold(page);
 
     // 1. A search from the front page lands on the explorer.
+    await chooseAPlace(page);
     await page.getByRole('button', { name: 'Search trips' }).click();
     await expect(page).toHaveURL(/\/explore\?/);
     await expect(page.getByRole('heading', { name: /trips? match/ })).toBeVisible();

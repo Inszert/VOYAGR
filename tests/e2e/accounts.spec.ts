@@ -185,7 +185,10 @@ test.describe('preferences and the search form', () => {
     // person does to check them, and hidden controls are not in the tree.
     await page.locator('summary', { hasText: 'More options' }).click();
     await expect(page.getByRole('textbox', { name: /^Currency/ })).toHaveValue('GBP');
-    await expect(page.getByRole('combobox', { name: 'Travel style' })).toHaveValue('beach');
+    // "More options" asks the style as a group of radios, not a dropdown.
+    await expect(
+      page.getByRole('group', { name: 'Travel style' }).getByRole('radio', { checked: true }),
+    ).toHaveValue('beach');
   });
 
   test('what the user types still beats what they saved', async ({ page }) => {

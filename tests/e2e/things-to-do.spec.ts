@@ -85,6 +85,19 @@ test.describe('things to do', () => {
     page,
   }) => {
     const requests = watchRequests(page);
+    // The street map's tiles come from OpenStreetMap, the one third-party host
+    // a map is allowed to talk to (src/components/map/osm.tsx, src/consent/csp.ts).
+    // The suite makes no real network call, so the tiles are answered here with
+    // an empty picture; the request is still seen, and still checked below.
+    await page.context().route('https://tile.openstreetmap.org/**', (route) =>
+      route.fulfill({
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      }),
+    );
 
     for (const path of [ANTALYA, `${ANTALYA}?kind=museums`]) {
       await page.goto(path);
@@ -94,6 +107,9 @@ test.describe('things to do', () => {
       expect(await axeFindings(page), path).toEqual([]);
     }
 
-    expect(requests.external).toEqual([]);
+    // Nobody else: the map's tile host is the only third party these pages reach.
+    expect(
+      requests.external.filter((url) => new URL(url).host !== 'tile.openstreetmap.org'),
+    ).toEqual([]);
   });
 });

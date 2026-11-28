@@ -112,3 +112,17 @@ export async function hydrated(target: Locator): Promise<void> {
     )
     .toBe(true);
 }
+
+/**
+ * Name the places a search from the front page is for.
+ *
+ * The front page's "To" opens on "anywhere", and an anywhere search is a path
+ * (a country, then one of its airports, then its trips) that lists priced
+ * destinations rather than ranked trips. A test that wants ranked trips from
+ * the form names its places first, as a person who knows where they are going
+ * does.
+ */
+export async function chooseAPlace(page: Page, places = 'AYT, CHQ, SPU'): Promise<void> {
+  await openSearch(page);
+  await page.getByRole('combobox', { name: /^To/ }).fill(places);
+}

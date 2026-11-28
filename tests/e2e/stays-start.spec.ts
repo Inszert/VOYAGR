@@ -15,6 +15,25 @@ test.describe('stays start screen', () => {
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
 
+    // On a phone the form folds shut behind "Change search" once the page
+    // hydrates, so it is opened first, as a person would: the claim is about
+    // the form's own order, not about whether it is folded.
+    const toggle = page.locator('summary', { hasText: 'Change search' });
+    if (await toggle.isVisible()) {
+      await page.waitForLoadState('networkidle');
+      await expect(async () => {
+        if (
+          !(await page
+            .getByLabel(/destination|where/i)
+            .first()
+            .isVisible())
+        ) {
+          await toggle.click();
+        }
+        await expect(page.getByLabel(/destination|where/i).first()).toBeVisible({ timeout: 1000 });
+      }).toPass({ timeout: 10_000 });
+    }
+
     const order = await page.evaluate(() => {
       const tabs = document.querySelector('nav[aria-label="What are you looking for?"]');
       const controls = [

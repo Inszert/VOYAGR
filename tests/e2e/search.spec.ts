@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { axeFindings, waitForEntranceMotion } from './support/axe';
 import { watchRequests } from './support/requests';
-import { aSearch, closeSearch, hydrated, openSearch } from './support/searches';
+import { aSearch, chooseAPlace, closeSearch, hydrated, openSearch } from './support/searches';
 
 /**
  * Search end to end.
@@ -125,7 +125,11 @@ async function tripWithChoices(
     if ((await trip.count()) === 0) continue;
 
     const region = trip.getByRole('region', { name: leg }).first();
-    await region.getByRole('button', { name: change }).click();
+    const changer = region.getByRole('button', { name: change });
+    // The leg's panel is a client component: a press before React has taken
+    // over the button is lost, and the panel never opens.
+    await hydrated(changer);
+    await changer.click();
     const options = region.getByRole('radio');
     // Open once its button says so; a place with nothing to swap to says that instead.
     await expect(region.getByRole('button', { name: /^Done changing/ })).toBeVisible();
@@ -199,7 +203,10 @@ test.describe('discovery', () => {
     await page.getByRole('link', { name: 'Change search' }).click();
     await openSearch(page);
     await page.locator('summary', { hasText: 'More options' }).click();
-    await expect(page.getByRole('combobox', { name: 'Optimise for' })).toHaveValue('cheapest');
+    // "More options" asks this as a group of radios, not a dropdown.
+    await expect(
+      page.getByRole('group', { name: 'Optimise for' }).getByRole('radio', { checked: true }),
+    ).toHaveValue('cheapest');
   });
 
   test('keeps the globe on the page once there are results', async ({ page }) => {
@@ -234,7 +241,9 @@ test.describe('discovery', () => {
     await page.getByRole('link', { name: 'Change search' }).click();
     await openSearch(page);
     await page.locator('summary', { hasText: 'More options' }).click();
-    await expect(page.getByRole('combobox', { name: 'Travel style' })).toHaveValue('explore');
+    await expect(
+      page.getByRole('group', { name: 'Travel style' }).getByRole('radio', { checked: true }),
+    ).toHaveValue('explore');
   });
 });
 
@@ -242,6 +251,7 @@ test.describe('running a search', () => {
   test('submits the form and returns ranked trips', async ({ page }) => {
     await page.goto('/');
     await waitForEntranceMotion(page);
+    await chooseAPlace(page);
 
     await page.getByRole('button', { name: 'Search trips' }).click();
 
@@ -377,7 +387,7 @@ test.describe('running a search', () => {
     await options.nth(index).check();
 
     await expect(page).toHaveURL(/tFlight=/);
-    await expect(page.getByRole('radio', { checked: true }).first()).toHaveValue(chosen ?? '');
+    await expect(region.getByRole('radio', { checked: true })).toHaveValue(chosen ?? '');
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /Trip total is now/ }),
     ).toContainText(trip);
@@ -393,7 +403,7 @@ test.describe('running a search', () => {
     await options.nth(index).check();
 
     await expect(page).toHaveURL(/tHotel=/);
-    await expect(page.getByRole('radio', { checked: true }).first()).toHaveValue(chosen ?? '');
+    await expect(region.getByRole('radio', { checked: true })).toHaveValue(chosen ?? '');
     await expect(
       page.locator('[aria-live="polite"]').filter({ hasText: /Trip total is now/ }),
     ).toContainText(trip);
@@ -597,10 +607,11 @@ test.describe('flexible dates', () => {
   test('offers the flexibility presets without opening anything', async ({ page }) => {
     await page.goto('/');
 
-    // The presets are a radio group on the search itself, one tap each, a
-    // fold away from the bar.
+    // The presets are a radio group, one tap each, inside the date calendar:
+    // a fold away from the bar, then the calendar itself.
     await openSearch(page);
-    const flexibility = page.getByRole('radiogroup', { name: 'Dates' }).first();
+    await page.getByRole('button', { name: /^Choose leaving and back/ }).click();
+    const flexibility = page.getByRole('radiogroup', { name: 'How flexible are the dates' });
     await expect(flexibility).toBeVisible();
     await expect(flexibility.getByRole('radio', { name: /A long weekend/ })).toHaveCount(1);
   });

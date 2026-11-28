@@ -149,6 +149,10 @@ test.describe('the trip hub', () => {
     await expect(payments).toContainText('€30.00');
 
     await waitForEntranceMotion(page);
+    // A tab is a client navigation, and Next swaps the document's <title> in
+    // as the new page arrives; axe run in that gap reads a document with no
+    // title. The title must be there - this waits for it, it does not excuse it.
+    await expect(page).toHaveTitle(/\S/);
     expect(await axeFindings(page), 'the trip, on Money').toEqual([]);
 
     // --- Emergency numbers for the country that was chosen, with where they
