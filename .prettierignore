@@ -35,3 +35,4 @@ devmap-live.js
 tests/fixtures/providers/overpass-barcelona-stays.json
 # A tool cache, not source.
 .impeccable/hook.cache.json
+src/providers/fixtures/airports.generated.json
