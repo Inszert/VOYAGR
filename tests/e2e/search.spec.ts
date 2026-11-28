@@ -430,11 +430,17 @@ test.describe('running a search', () => {
 
     // On a phone the filter panel starts closed behind its "Filters" toggle; on
     // desktop it starts open. Wait for hydration first, because the server HTML
-    // shows the panel open and only the client closes it on a phone.
+    // shows the panel open and only the client closes it on a phone. A hydrated
+    // button is not yet a settled one: the closing is a second render, so read the
+    // state the viewport promises (closed below 1024px, open from it) rather than
+    // whichever state the button happens to show in between.
     const filtersToggle = page.getByRole('button', { name: 'Filters', exact: true });
     await hydrated(filtersToggle);
-    if ((await filtersToggle.getAttribute('aria-expanded')) === 'false') {
+    const onDesktop = (page.viewportSize()?.width ?? 0) >= 1024;
+    await expect(filtersToggle).toHaveAttribute('aria-expanded', onDesktop ? 'true' : 'false');
+    if (!onDesktop) {
       await filtersToggle.click();
+      await expect(filtersToggle).toHaveAttribute('aria-expanded', 'true');
     }
 
     // Clicked by its label, which is what a user does: the input itself is
