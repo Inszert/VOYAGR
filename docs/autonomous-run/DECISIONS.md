@@ -130,3 +130,25 @@ Each entry: the decision, why, and what would change it.
 - **EUR only.** The transfer estimate is EUR and there is no fx rate to convert it, so a search in another currency gets no line (a missing rate fails, per the fx rule).
 - **Home list**: the page renders `peek` (storage only); the client calls the `refreshRecommendations` server action, which runs `ensure`. The MCP client is created lazily on the first call (`lazyMcpClient`), so a render never constructs one. Origin is the first of the form defaults (VIE), window today+14 for 30 days, 3 to 7 nights, 1 adult.
 - A source-scan test asserts no `page.tsx`, `load-stage.ts` or `hub-saving.ts` imports the MCP client or Kiwi provider.
+
+## E2E triage after the first full run (29 failures)
+
+The first `npm run test:e2e` run on this branch (8 workers) failed 29 tests. Re-run at `--workers=2` against a production build with the suite's own environment, each was one of:
+
+**(a) A real bug in this branch.** The desktop filter rail started its `--rail-gap` at 0 and replaced it with a measured value after hydration, so the server-rendered results column was about 70px narrower than the hydrated one and everything reflowed by up to 600px a moment after first paint (a layout shift, and the cause of clicks on a result's "How the score adds up" and "Full cost breakdown" landing on the wrong element under load). Fixed in `src/components/search/live-search.tsx`: the variable now starts at what the wide container's geometry gives and is then replaced by the measurement. Covers "explains why the top result ranks where it does", "shows every cost line with its confidence", "explains a trip in words", and "narrows to one set of dates" on desktop.
+
+**(b) Tests out of date with a deliberate change, updated to the current behaviour (assertions keep their meaning):**
+- `search.spec.ts` "picking a lens...", "works with the keyboard...", `accounts.spec.ts` "a saved preference becomes a search default...": "Travel style" and "Optimise for" in More options are radio groups now (`more-options-panel.tsx`), not dropdowns. The tests read the checked radio of the named group.
+- `search.spec.ts` "submits the form and returns ranked trips", `shared-globe.spec.ts` "is the same map and canvas...": the front page's "To" opens on "anywhere", and an anywhere search is a country, then airport, then trips path (explore page), so it does not list "N trips match". The tests now name the places first (`chooseAPlace` in `support/searches.ts`).
+- `search.spec.ts` "offers alternative flights/hotels ... swaps one in": the first checked radio on the page is now one of More options' ("Any number of stops"), so the check is scoped to the leg's own region. They also wait for the leg changer to hydrate before pressing it (a press before React takes over is lost).
+- `search.spec.ts` "offers the flexibility presets without opening anything": the presets moved inside the date calendar (radio group "How flexible are the dates"). The test opens the calendar.
+- `things-to-do.spec.ts` "has no accessibility violations ... reaches no third party": the street map's tiles come from OpenStreetMap, the one third-party host a map may talk to (`src/components/map/osm.tsx`, `src/consent/csp.ts`). The test answers that host with a stub (no real network) and asserts no other external host.
+- `explore.spec.ts` "puts the pointer on the planet": on a phone the explore form is stacked over the full-page canvas, so the canvas centre is the form's. The test hit-tests the centre of the page's stage slot, which is where the planet is at every width.
+- `stays-start.spec.ts` "the destination field is the first control after the tabs": on a phone the stays form folds behind "Change search" once the page hydrates (`stay-search-form.tsx`). The test opens it first, as `stays.spec.ts` does.
+- `trips.spec.ts` "keeps a plan, splits what a group spent...": waits for a non-empty document title before running axe. A tab is a client navigation and axe, run in the gap, sometimes read no title. Observed on this branch only (about one run in four at 2 workers); main passed 6 of 6, so a leftover cause on this branch is not excluded. The title is still required.
+
+**(c) Failing on main too.** None found. Every test that failed here passed when re-run alone at low concurrency; the contention-only failures (`accounts.spec.ts` "signs out and back in" and "refuses a duplicate email", the cost-line and swap tests in the 8-worker run) passed at `--workers=2`. The suite needs `--workers=4` or fewer (see the e2e contention note).
+
+### Pre-existing e2e failures on main
+
+None identified. Only `trips.spec.ts` "keeps a plan, splits what a group spent exactly, and knows the emergency numbers" was checked on a main build (webpack build, because the junctioned `node_modules` breaks Turbopack's root): 6 of 6 passed.
