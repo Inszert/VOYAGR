@@ -41,7 +41,20 @@ export function RouteOffersPanel({
   currency = 'EUR',
   fetcher,
 }: RouteOffersPanelProps) {
-  const [state, setState] = React.useState<State>({ phase: 'loading' });
+  // The answer is tagged with the request it belongs to. Any other request (or fetcher) is
+  // still loading, so a change of inputs shows the skeleton without a synchronous setState.
+  const [answer, setAnswer] = React.useState<{
+    params: string;
+    fetcher: typeof fetch | undefined;
+    state: State;
+  } | null>(null);
+  const params = [origin, destination, departureDate, returnDate, String(adults), currency].join(
+    '\u0000',
+  );
+  const state: State =
+    answer && answer.params === params && answer.fetcher === fetcher
+      ? answer.state
+      : { phase: 'loading' };
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -54,19 +67,24 @@ export function RouteOffersPanel({
       currency,
     });
     const run = fetcher ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
-    setState({ phase: 'loading' });
     run(`/api/route-offers?${query}`, { signal: controller.signal })
       .then((response) => (response.ok ? (response.json() as Promise<RouteOffersDto>) : null))
       .then((data) => {
         if (controller.signal.aborted) return;
-        setState(data ? { phase: 'done', data } : { phase: 'failed' });
+        setAnswer({
+          params,
+          fetcher,
+          state: data ? { phase: 'done', data } : { phase: 'failed' },
+        });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setState({ phase: 'failed' });
+        if (!controller.signal.aborted) {
+          setAnswer({ params, fetcher, state: { phase: 'failed' } });
+        }
       });
     // Clicking away cancels the call in flight.
     return () => controller.abort();
-  }, [origin, destination, departureDate, returnDate, adults, currency, fetcher]);
+  }, [origin, destination, departureDate, returnDate, adults, currency, fetcher, params]);
 
   const title = `${origin} to ${destination}`;
 

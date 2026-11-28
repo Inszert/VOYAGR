@@ -1669,11 +1669,9 @@ export function GlobeStage({
      * The timeout is the contract: idle or not, the globe is building within
      * a second, so a busy page never simply fails to draw it.
      */
-    let cancelBuild: () => void;
-
     // At once: the planet is the first thing the page is for.
     const handle = window.setTimeout(() => void build(), 0);
-    cancelBuild = () => window.clearTimeout(handle);
+    const cancelBuild = (): void => window.clearTimeout(handle);
 
     return () => {
       cancelled = true;
