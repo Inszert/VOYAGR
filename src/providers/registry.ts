@@ -10,6 +10,7 @@ import {
 import type { ProviderMode } from '@/core/trip/provenance';
 import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
+import { createKiwiMcpFlightProvider } from './flights/kiwi-mcp';
 import { createSnapshotFlightProvider } from './flights/liteapi-snapshot';
 import { createMockFlightProvider } from './flights/mock';
 import { createSnapshotHotelProvider } from './hotels/liteapi';
@@ -234,6 +235,11 @@ function resolveFlightProvider(env: Env): FlightProvider {
    * among several, it is the only path: the value cannot exist by the
    * time it would reach here. See `docs/provider-policy.md`.
    */
+  if (env.FLIGHT_PROVIDER === 'kiwi-mcp') {
+    // No key exists for Kiwi. The client connects on its first call, not here.
+    return createKiwiMcpFlightProvider({ dailyBudget: env.KIWI_MCP_DAILY_BUDGET });
+  }
+
   if (env.FLIGHT_PROVIDER === 'aviasales') {
     /*
      * Refused at startup rather than at the first search.

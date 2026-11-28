@@ -25,3 +25,26 @@ Each entry: the decision, why, and what would change it.
 ## Facts still to verify (recorded fixture, then owner check)
 - The Kiwi response shape (recorded in `src/providers/mcp/fixtures/`, see the next entry).
 - Whether the documented date flexibility and the hidden rate limit hold in practice.
+
+## Slice 1: the Kiwi MCP adapter
+- **One-way fixture, round-trip domain type.** The recorded answer is a one-way search
+  (`inbound: null`) but `FlightOffer` requires both legs. So the 15 recorded itineraries map to
+  `OneWayFare` through `searchOneWay` (month window, `departureDate..departureDateTo`), and
+  `searchFlights` (return) maps only itineraries that have an inbound, counting the rest as
+  `no_inbound`. The prompt did not say which; nothing is invented to fill an inbound. The return path
+  is covered by a hand-made itinerary, not by a recording: a recorded return answer is still needed.
+- **Price is the party's total.** The server does not document whether `price` is per adult or for
+  all passengers. It is taken as the total for the `adults` asked for. Verify with a recorded 2-adult call.
+- **Self transfer is `true` or unknown, never `false`.** The answer has no such field. It is `true`
+  only when the next segment leaves from another airport than the last one reached (the recorded
+  VIE-MXP / BGY-LIS). A `|` in the itinerary id looks like separate tickets but is undocumented, so it is not used.
+- **Baggage** counts are stated: `cabinBag > 0` and `checkedBag > 0`; absent block means `null`.
+- `bookingUrl` is accepted only as https on a kiwi.com host and is otherwise dropped as malformed.
+- Times with a zone suffix are dropped (`unparsable_time`), not converted.
+- **Budget, concurrency (2) and pacing (about 1 a second, jittered)** live in the MCP client, per
+  process, in memory. Redis-backed counters and single-flight come with the cache slice. A retry counts as a call.
+- **Env.** `FLIGHT_PROVIDER` default is now `kiwi-mcp`; `ALLOW_LEGACY_FLIGHT_PROVIDERS` (default
+  false) is the production switch for `aviasales`, `liteapi`, `live`. `mock` is still governed by
+  `ALLOW_MOCK_IN_PRODUCTION`. `.env.example` was appended with placeholders only (could not read it
+  first in this run, so check it for a duplicate `FLIGHT_PROVIDER` line).
+- `docs/provider-policy.md`, `README.md` and `data-source.ts` are not updated yet (not in this slice).

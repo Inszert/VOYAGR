@@ -98,7 +98,20 @@ const envSchema = z.object({
    * there is no code path left that could read a Duffel credential or
    * reach `api.duffel.com`. See `docs/provider-policy.md`.
    */
-  FLIGHT_PROVIDER: z.enum(['mock', 'live', 'aviasales', 'liteapi']).default('mock'),
+  FLIGHT_PROVIDER: z.enum(['kiwi-mcp', 'mock', 'live', 'aviasales', 'liteapi']).default('kiwi-mcp'),
+  /**
+   * `kiwi-mcp` is the only flight source production accepts by default: the Kiwi.com MCP server
+   * at https://mcp.kiwi.com, which needs no key. The older sources (`aviasales`, `liteapi`,
+   * `live`) stay in the tree and keep working, but a production build refuses them unless this
+   * is set - see `assertLegacyFlightProviderAllowed`. `mock` is governed by
+   * `ALLOW_MOCK_IN_PRODUCTION`, as before.
+   */
+  ALLOW_LEGACY_FLIGHT_PROVIDERS: booleanish.default(false),
+  /**
+   * The most Kiwi MCP calls (attempts included) one process makes per UTC day, so a bug cannot
+   * hammer a server that has no published rate limit. Conservative on purpose.
+   */
+  KIWI_MCP_DAILY_BUDGET: z.coerce.number().int().min(1).max(100000).default(200),
   /**
    * Offer the runtime API/MOCK switch.
    *
@@ -479,10 +492,32 @@ export function demoLiveAllowed(
   return { ok: true };
 }
 
+/**
+ * A production build serves flights from the Kiwi MCP server only. The older sources stay
+ * buildable, but choosing one there is a decision, not a leftover: refused unless
+ * `ALLOW_LEGACY_FLIGHT_PROVIDERS=true`. `mock` is not handled here; the registry refuses it.
+ */
+function assertLegacyFlightProviderAllowed(source: Record<string, unknown>): void {
+  if (source.NODE_ENV !== 'production') return;
+  const chosen = source.FLIGHT_PROVIDER;
+  if (chosen !== 'live' && chosen !== 'aviasales' && chosen !== 'liteapi') return;
+
+  const flag = source.ALLOW_LEGACY_FLIGHT_PROVIDERS;
+  if (flag === true || flag === 'true' || flag === '1') return;
+
+  throw new AppError(
+    'CONFIGURATION_ERROR',
+    `FLIGHT_PROVIDER is "${chosen}", and production serves flights from kiwi-mcp only. ` +
+      'Set FLIGHT_PROVIDER=kiwi-mcp, or ALLOW_LEGACY_FLIGHT_PROVIDERS=true to choose this one on purpose.',
+    { context: { variable: 'FLIGHT_PROVIDER', problem: 'legacy_in_production' } },
+  );
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const present = stripEmptyStrings(source);
   assertProductionAppUrl(present);
   assertLiteApiKeyAllowed(present);
+  assertLegacyFlightProviderAllowed(present);
 
   const result = envSchema.safeParse(productionAwareDefaults(present));
 

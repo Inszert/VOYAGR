@@ -1,0 +1,971 @@
+{
+  "query": "VIE → LIS on 15/12/2026, 1 adult",
+  "currency": "EUR",
+  "passengers": {
+    "adults": 1,
+    "children": 0,
+    "infants": 0
+  },
+  "resultsCount": 15,
+  "itineraries": [
+    {
+      "id": "19ef07f051420000ea7e3f08_0|2558035851420000cd728158_0",
+      "tripType": "oneway",
+      "price": 106.0,
+      "priceFormatted": "106 EUR",
+      "totalDurationSeconds": 45300,
+      "bookingUrl": "https://kiwi.com/u/pfxtgw5fpn",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T06:00:00",
+        "arrivalTime": "2026-12-15T17:35:00",
+        "durationSeconds": 45300,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "MXP",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "MXP",
+            "fromCity": "Vienna",
+            "toCity": "Milan",
+            "fromName": "Vienna International Airport",
+            "toName": "Milan–Malpensa",
+            "fromCountry": "Austria",
+            "toCountry": "Italy",
+            "departureTime": "2026-12-15T06:00:00",
+            "arrivalTime": "2026-12-15T07:30:00",
+            "durationSeconds": 5400,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR214",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "BGY",
+            "to": "LIS",
+            "fromCity": "Milan",
+            "toCity": "Lisbon",
+            "fromName": "Milan Bergamo International Airport",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Italy",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T15:35:00",
+            "arrivalTime": "2026-12-15T17:35:00",
+            "durationSeconds": 10800,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR820",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef035851420000fe16b93a_0",
+      "tripType": "oneway",
+      "price": 107.0,
+      "priceFormatted": "107 EUR",
+      "totalDurationSeconds": 13500,
+      "bookingUrl": "https://kiwi.com/u/suff9pf6bd",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T13:50:00",
+        "arrivalTime": "2026-12-15T16:35:00",
+        "durationSeconds": 13500,
+        "stops": 0,
+        "route": [
+          "VIE",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "LIS",
+            "fromCity": "Vienna",
+            "toCity": "Lisbon",
+            "fromName": "Vienna International Airport",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Austria",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T13:50:00",
+            "arrivalTime": "2026-12-15T16:35:00",
+            "durationSeconds": 13500,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR4167",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef01af514200002cedc310_0|01af035851420000962cef83_0",
+      "tripType": "oneway",
+      "price": 116.0,
+      "priceFormatted": "116 EUR",
+      "totalDurationSeconds": 34800,
+      "bookingUrl": "https://kiwi.com/u/7f7ctqvsw4",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T08:15:00",
+        "arrivalTime": "2026-12-15T16:55:00",
+        "durationSeconds": 34800,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "BCN",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "BCN",
+            "fromCity": "Vienna",
+            "toCity": "Barcelona",
+            "fromName": "Vienna International Airport",
+            "toName": "Barcelona–El Prat",
+            "fromCountry": "Austria",
+            "toCountry": "Spain",
+            "departureTime": "2026-12-15T08:15:00",
+            "arrivalTime": "2026-12-15T10:40:00",
+            "durationSeconds": 8700,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR13",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "BCN",
+            "to": "LIS",
+            "fromCity": "Barcelona",
+            "toCity": "Lisbon",
+            "fromName": "Barcelona–El Prat",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Spain",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T15:50:00",
+            "arrivalTime": "2026-12-15T16:55:00",
+            "durationSeconds": 7500,
+            "carrier": "VY",
+            "carrierName": "Vueling",
+            "flightNumber": "VY1148",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef07f051420000ea7e3f08_0|07f0035851420000ad7191c2_0",
+      "tripType": "oneway",
+      "price": 128.0,
+      "priceFormatted": "128 EUR",
+      "totalDurationSeconds": 29400,
+      "bookingUrl": "https://kiwi.com/u/mymg8ky65p",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T06:00:00",
+        "arrivalTime": "2026-12-15T13:10:00",
+        "durationSeconds": 29400,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "MXP",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "MXP",
+            "fromCity": "Vienna",
+            "toCity": "Milan",
+            "fromName": "Vienna International Airport",
+            "toName": "Milan–Malpensa",
+            "fromCountry": "Austria",
+            "toCountry": "Italy",
+            "departureTime": "2026-12-15T06:00:00",
+            "arrivalTime": "2026-12-15T07:30:00",
+            "durationSeconds": 5400,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR214",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "MXP",
+            "to": "LIS",
+            "fromCity": "Milan",
+            "toCity": "Lisbon",
+            "fromName": "Milan–Malpensa",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Italy",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T11:10:00",
+            "arrivalTime": "2026-12-15T13:10:00",
+            "durationSeconds": 10800,
+            "carrier": "U2",
+            "carrierName": "easyJet",
+            "flightNumber": "U27662",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef01af514200002cedc310_0|01af03585142000080b6e61a_0",
+      "tripType": "oneway",
+      "price": 139.0,
+      "priceFormatted": "139 EUR",
+      "totalDurationSeconds": 22800,
+      "bookingUrl": "https://kiwi.com/u/8zvnk6x4ur",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T08:15:00",
+        "arrivalTime": "2026-12-15T13:35:00",
+        "durationSeconds": 22800,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "BCN",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "BCN",
+            "fromCity": "Vienna",
+            "toCity": "Barcelona",
+            "fromName": "Vienna International Airport",
+            "toName": "Barcelona–El Prat",
+            "fromCountry": "Austria",
+            "toCountry": "Spain",
+            "departureTime": "2026-12-15T08:15:00",
+            "arrivalTime": "2026-12-15T10:40:00",
+            "durationSeconds": 8700,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR13",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "BCN",
+            "to": "LIS",
+            "fromCity": "Barcelona",
+            "toCity": "Lisbon",
+            "fromName": "Barcelona–El Prat",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Spain",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T12:35:00",
+            "arrivalTime": "2026-12-15T13:35:00",
+            "durationSeconds": 7200,
+            "carrier": "TP",
+            "carrierName": "TAP Portugal",
+            "flightNumber": "TP1033",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef0f0c51420000ac70d66c_0|0f0c035851420000c0ad53e2_0",
+      "tripType": "oneway",
+      "price": 144.0,
+      "priceFormatted": "144 EUR",
+      "totalDurationSeconds": 21600,
+      "bookingUrl": "https://kiwi.com/u/bugyyjmtwd",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T08:00:00",
+        "arrivalTime": "2026-12-15T13:00:00",
+        "durationSeconds": 21600,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "FCO",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "FCO",
+            "fromCity": "Vienna",
+            "toCity": "Rome",
+            "fromName": "Vienna International Airport",
+            "toName": "Leonardo da Vinci–Fiumicino Airport",
+            "fromCountry": "Austria",
+            "toCountry": "Italy",
+            "departureTime": "2026-12-15T08:00:00",
+            "arrivalTime": "2026-12-15T09:45:00",
+            "durationSeconds": 6300,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR7177",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "FCO",
+            "to": "LIS",
+            "fromCity": "Rome",
+            "toCity": "Lisbon",
+            "fromName": "Leonardo da Vinci–Fiumicino Airport",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Italy",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T10:50:00",
+            "arrivalTime": "2026-12-15T13:00:00",
+            "durationSeconds": 11400,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR8196",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef01af514200002cedc310_0|01af03585142000069d5432f_0",
+      "tripType": "oneway",
+      "price": 156.0,
+      "priceFormatted": "156 EUR",
+      "totalDurationSeconds": 30000,
+      "bookingUrl": "https://kiwi.com/u/mu7zygtbj4",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T08:15:00",
+        "arrivalTime": "2026-12-15T15:35:00",
+        "durationSeconds": 30000,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "BCN",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "BCN",
+            "fromCity": "Vienna",
+            "toCity": "Barcelona",
+            "fromName": "Vienna International Airport",
+            "toName": "Barcelona–El Prat",
+            "fromCountry": "Austria",
+            "toCountry": "Spain",
+            "departureTime": "2026-12-15T08:15:00",
+            "arrivalTime": "2026-12-15T10:40:00",
+            "durationSeconds": 8700,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR13",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "BCN",
+            "to": "LIS",
+            "fromCity": "Barcelona",
+            "toCity": "Lisbon",
+            "fromName": "Barcelona–El Prat",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Spain",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T14:35:00",
+            "arrivalTime": "2026-12-15T15:35:00",
+            "durationSeconds": 7200,
+            "carrier": "TP",
+            "carrierName": "TAP Portugal",
+            "flightNumber": "TP1035",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef2558514200003421a587_0|07f0035851420000ca3c6413_0",
+      "tripType": "oneway",
+      "price": 158.0,
+      "priceFormatted": "158 EUR",
+      "totalDurationSeconds": 34200,
+      "bookingUrl": "https://kiwi.com/u/hzt4k2xwqd",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T14:55:00",
+        "arrivalTime": "2026-12-15T23:25:00",
+        "durationSeconds": 34200,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "BGY",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "BGY",
+            "fromCity": "Vienna",
+            "toCity": "Milan",
+            "fromName": "Vienna International Airport",
+            "toName": "Milan Bergamo International Airport",
+            "fromCountry": "Austria",
+            "toCountry": "Italy",
+            "departureTime": "2026-12-15T14:55:00",
+            "arrivalTime": "2026-12-15T16:20:00",
+            "durationSeconds": 5100,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR1532",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "MXP",
+            "to": "LIS",
+            "fromCity": "Milan",
+            "toCity": "Lisbon",
+            "fromName": "Milan–Malpensa",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Italy",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T21:30:00",
+            "arrivalTime": "2026-12-15T23:25:00",
+            "durationSeconds": 10500,
+            "carrier": "U2",
+            "carrierName": "easyJet",
+            "flightNumber": "U27698",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef18c5514200004a8d73a7_0|18c5035851420000e1648aac_0",
+      "tripType": "oneway",
+      "price": 163.0,
+      "priceFormatted": "163 EUR",
+      "totalDurationSeconds": 26400,
+      "bookingUrl": "https://kiwi.com/u/bc7xuz3yrg",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T08:40:00",
+        "arrivalTime": "2026-12-15T15:00:00",
+        "durationSeconds": 26400,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "BLQ",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "BLQ",
+            "fromCity": "Vienna",
+            "toCity": "Bologna",
+            "fromName": "Vienna International Airport",
+            "toName": "Bologna Guglielmo Marconi",
+            "fromCountry": "Austria",
+            "toCountry": "Italy",
+            "departureTime": "2026-12-15T08:40:00",
+            "arrivalTime": "2026-12-15T09:55:00",
+            "durationSeconds": 4500,
+            "carrier": "OS",
+            "carrierName": "Austrian Airlines",
+            "flightNumber": "OS513",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "BLQ",
+            "to": "LIS",
+            "fromCity": "Bologna",
+            "toCity": "Lisbon",
+            "fromName": "Bologna Guglielmo Marconi",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Italy",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T12:55:00",
+            "arrivalTime": "2026-12-15T15:00:00",
+            "durationSeconds": 11100,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR789",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef035851420000e1b01a6b_0|19ef035851420000e1b01a6b_1",
+      "tripType": "oneway",
+      "price": 166.0,
+      "priceFormatted": "166 EUR",
+      "totalDurationSeconds": 44100,
+      "bookingUrl": "https://kiwi.com/u/yj45w96cqj",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 1,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T06:15:00",
+        "arrivalTime": "2026-12-15T17:30:00",
+        "durationSeconds": 44100,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "CDG",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "CDG",
+            "fromCity": "Vienna",
+            "toCity": "Paris",
+            "fromName": "Vienna International Airport",
+            "toName": "Charles de Gaulle Airport",
+            "fromCountry": "Austria",
+            "toCountry": "France",
+            "departureTime": "2026-12-15T06:15:00",
+            "arrivalTime": "2026-12-15T08:35:00",
+            "durationSeconds": 8400,
+            "carrier": "AF",
+            "carrierName": "Air France",
+            "flightNumber": "AF1239",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "CDG",
+            "to": "LIS",
+            "fromCity": "Paris",
+            "toCity": "Lisbon",
+            "fromName": "Charles de Gaulle Airport",
+            "toName": "Lisbon Portela",
+            "fromCountry": "France",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T15:50:00",
+            "arrivalTime": "2026-12-15T17:30:00",
+            "durationSeconds": 9600,
+            "carrier": "AF",
+            "carrierName": "Air France",
+            "flightNumber": "AF1194",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef152751420000b949ff01_0|19ef152751420000b949ff01_1|1527035851420000a74efaad_0",
+      "tripType": "oneway",
+      "price": 175.0,
+      "priceFormatted": "175 EUR",
+      "totalDurationSeconds": 30000,
+      "bookingUrl": "https://kiwi.com/u/yqwcxw6hqd",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T07:00:00",
+        "arrivalTime": "2026-12-15T14:20:00",
+        "durationSeconds": 30000,
+        "stops": 2,
+        "route": [
+          "VIE",
+          "ZRH",
+          "VLC",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "ZRH",
+            "fromCity": "Vienna",
+            "toCity": "Zürich",
+            "fromName": "Vienna International Airport",
+            "toName": "Zürich Airport",
+            "fromCountry": "Austria",
+            "toCountry": "Switzerland",
+            "departureTime": "2026-12-15T07:00:00",
+            "arrivalTime": "2026-12-15T08:25:00",
+            "durationSeconds": 5100,
+            "carrier": "LX",
+            "carrierName": "Swiss International Air Lines",
+            "flightNumber": "LX3551",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "ZRH",
+            "to": "VLC",
+            "fromCity": "Zürich",
+            "toCity": "Valencia",
+            "fromName": "Zürich Airport",
+            "toName": "Valencia",
+            "fromCountry": "Switzerland",
+            "toCountry": "Spain",
+            "departureTime": "2026-12-15T09:50:00",
+            "arrivalTime": "2026-12-15T11:50:00",
+            "durationSeconds": 7200,
+            "carrier": "LX",
+            "carrierName": "Swiss International Air Lines",
+            "flightNumber": "LX2140",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "VLC",
+            "to": "LIS",
+            "fromCity": "Valencia",
+            "toCity": "Lisbon",
+            "fromName": "Valencia",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Spain",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T13:40:00",
+            "arrivalTime": "2026-12-15T14:20:00",
+            "durationSeconds": 6000,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR1769",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef0a225142000005ee7c28_0|0a2203585142000098d6efc3_0",
+      "tripType": "oneway",
+      "price": 187.0,
+      "priceFormatted": "187 EUR",
+      "totalDurationSeconds": 20400,
+      "bookingUrl": "https://kiwi.com/u/csfv2kyj33",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T06:00:00",
+        "arrivalTime": "2026-12-15T10:40:00",
+        "durationSeconds": 20400,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "MAD",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "MAD",
+            "fromCity": "Vienna",
+            "toCity": "Madrid",
+            "fromName": "Vienna International Airport",
+            "toName": "Adolfo Suárez Madrid–Barajas",
+            "fromCountry": "Austria",
+            "toCountry": "Spain",
+            "departureTime": "2026-12-15T06:00:00",
+            "arrivalTime": "2026-12-15T09:10:00",
+            "durationSeconds": 11400,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR689",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "MAD",
+            "to": "LIS",
+            "fromCity": "Madrid",
+            "toCity": "Lisbon",
+            "fromName": "Adolfo Suárez Madrid–Barajas",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Spain",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T10:20:00",
+            "arrivalTime": "2026-12-15T10:40:00",
+            "durationSeconds": 4800,
+            "carrier": "TP",
+            "carrierName": "TAP Portugal",
+            "flightNumber": "TP1011",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef093e51420000414f9376_0|093e0358514200001a926e96_0",
+      "tripType": "oneway",
+      "price": 199.0,
+      "priceFormatted": "199 EUR",
+      "totalDurationSeconds": 18300,
+      "bookingUrl": "https://kiwi.com/u/vhmfmsqw92",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T07:40:00",
+        "arrivalTime": "2026-12-15T11:45:00",
+        "durationSeconds": 18300,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "OPO",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "OPO",
+            "fromCity": "Vienna",
+            "toCity": "Porto",
+            "fromName": "Vienna International Airport",
+            "toName": "Porto",
+            "fromCountry": "Austria",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T07:40:00",
+            "arrivalTime": "2026-12-15T10:05:00",
+            "durationSeconds": 12300,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR751",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "OPO",
+            "to": "LIS",
+            "fromCity": "Porto",
+            "toCity": "Lisbon",
+            "fromName": "Porto",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Portugal",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T11:00:00",
+            "arrivalTime": "2026-12-15T11:45:00",
+            "durationSeconds": 2700,
+            "carrier": "TP",
+            "carrierName": "TAP Portugal",
+            "flightNumber": "TP1925",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef1527514200004785713f_0|1527035851420000a74efaad_0",
+      "tripType": "oneway",
+      "price": 206.0,
+      "priceFormatted": "206 EUR",
+      "totalDurationSeconds": 19200,
+      "bookingUrl": "https://kiwi.com/u/59px65ux2t",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 0,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T10:00:00",
+        "arrivalTime": "2026-12-15T14:20:00",
+        "durationSeconds": 19200,
+        "stops": 1,
+        "route": [
+          "VIE",
+          "VLC",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "VLC",
+            "fromCity": "Vienna",
+            "toCity": "Valencia",
+            "fromName": "Vienna International Airport",
+            "toName": "Valencia",
+            "fromCountry": "Austria",
+            "toCountry": "Spain",
+            "departureTime": "2026-12-15T10:00:00",
+            "arrivalTime": "2026-12-15T12:40:00",
+            "durationSeconds": 9600,
+            "carrier": "OS",
+            "carrierName": "Austrian Airlines",
+            "flightNumber": "OS431",
+            "cabinClass": "Economy"
+          },
+          {
+            "from": "VLC",
+            "to": "LIS",
+            "fromCity": "Valencia",
+            "toCity": "Lisbon",
+            "fromName": "Valencia",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Spain",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T13:40:00",
+            "arrivalTime": "2026-12-15T14:20:00",
+            "durationSeconds": 6000,
+            "carrier": "FR",
+            "carrierName": "Ryanair",
+            "flightNumber": "FR1769",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    },
+    {
+      "id": "19ef0358514200004a156a0d_0",
+      "tripType": "oneway",
+      "price": 223.0,
+      "priceFormatted": "223 EUR",
+      "totalDurationSeconds": 13200,
+      "bookingUrl": "https://kiwi.com/u/89dr35prj6",
+      "imageId": "lisbon_pt",
+      "baggage": {
+        "personalItem": 1,
+        "cabinBag": 1,
+        "checkedBag": 0
+      },
+      "outbound": {
+        "from": "VIE",
+        "to": "LIS",
+        "departureTime": "2026-12-15T12:25:00",
+        "arrivalTime": "2026-12-15T15:05:00",
+        "durationSeconds": 13200,
+        "stops": 0,
+        "route": [
+          "VIE",
+          "LIS"
+        ],
+        "cabinClass": "Economy",
+        "segments": [
+          {
+            "from": "VIE",
+            "to": "LIS",
+            "fromCity": "Vienna",
+            "toCity": "Lisbon",
+            "fromName": "Vienna International Airport",
+            "toName": "Lisbon Portela",
+            "fromCountry": "Austria",
+            "toCountry": "Portugal",
+            "departureTime": "2026-12-15T12:25:00",
+            "arrivalTime": "2026-12-15T15:05:00",
+            "durationSeconds": 13200,
+            "carrier": "TP",
+            "carrierName": "TAP Portugal",
+            "flightNumber": "TP1271",
+            "cabinClass": "Economy"
+          }
+        ]
+      },
+      "inbound": null
+    }
+  ],
+  "searchTimeMs": 2711,
+  "error": null
+}

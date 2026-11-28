@@ -23,7 +23,21 @@ describe('parseEnv', () => {
     expect(env.NODE_ENV).toBe('development');
     expect(env.QUEUE_DRIVER).toBe('memory');
     expect(env.AI_PROVIDER).toBe('mock');
-    expect(env.FLIGHT_PROVIDER).toBe('mock');
+    expect(env.FLIGHT_PROVIDER).toBe('kiwi-mcp');
+    expect(env.KIWI_MCP_DAILY_BUDGET).toBe(200);
+  });
+
+  it('refuses the older flight sources in production unless they are enabled on purpose', () => {
+    for (const legacy of ['aviasales', 'liteapi', 'live']) {
+      expect(() => parseEnv({ ...PRODUCTION, FLIGHT_PROVIDER: legacy })).toThrow(AppError);
+      expect(
+        parseEnv({ ...PRODUCTION, FLIGHT_PROVIDER: legacy, ALLOW_LEGACY_FLIGHT_PROVIDERS: 'true' })
+          .FLIGHT_PROVIDER,
+      ).toBe(legacy);
+    }
+    expect(parseEnv(PRODUCTION).FLIGHT_PROVIDER).toBe('kiwi-mcp');
+    // Outside production they keep working with no flag.
+    expect(parseEnv({ FLIGHT_PROVIDER: 'aviasales' }).FLIGHT_PROVIDER).toBe('aviasales');
   });
 
   it('reads the LiteAPI snapshot flag (off by default) and its rounds a day (1 to 24, 3 by default)', () => {

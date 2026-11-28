@@ -17,3 +17,4 @@ Not pushed. `main` is untouched.
 
 ## Iteration log
 - Iteration 0: branch created, DECISIONS.md and PROGRESS.md written.
+- Slice 1: Kiwi MCP client (timeout, retry, circuit breaker, budget) and kiwi-mcp flight adapter with fixture contract tests; env default kiwi-mcp. Docs and cache not yet.
