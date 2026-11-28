@@ -422,3 +422,41 @@ discovery refresh are off; photographs use Wikimedia, as the app does.
 - Open-Meteo's free tier is non-commercial; the boundary is unresolved.
 - Real email delivery, live Aviasales calendar calls from a host, and migrations 0008 and 0009 on
   Postgres are unverified.
+
+## 11. Kiwi MCP flights (branch `feat/mcp-only-flights`)
+
+Flights come from Kiwi.com's MCP server (`https://mcp.kiwi.com`, no key) through the 12-hour read
+path in `docs/architecture.md` section 18. Kiwi's terms are not verified; see
+`docs/provider-policy.md`. Sections 5 and 5a describe the legacy Aviasales and Google Flights
+sources, which a production build refuses unless `ALLOW_LEGACY_FLIGHT_PROVIDERS=true`.
+
+| Variable                        | Default    | What it does                                                                                                                                        |
+| ------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FLIGHT_PROVIDER`               | `kiwi-mcp` | `kiwi-mcp`, `mock`, `live`, `aviasales` or `liteapi`. Production accepts `kiwi-mcp`; a local `.env` naming a legacy value fails a production build. |
+| `ALLOW_LEGACY_FLIGHT_PROVIDERS` | `false`    | `true` lets production choose `aviasales`, `liteapi` or `live` on purpose.                                                                          |
+| `KIWI_MCP_DAILY_BUDGET`         | `200`      | Most Kiwi MCP calls (retries included) one process makes per UTC day, 1 to 100000. Web and worker count separately, in memory.                      |
+| `CLEANUP_UTC_HOUR`              | `3`        | UTC hour the worker enqueues the nightly cleanup, 0 to 23. Read at worker start.                                                                    |
+
+**Nightly cleanup.** Once per UTC day from `CLEANUP_UTC_HOUR`, the worker enqueues `cleanup.nightly`
+(logger `jobs.nightly-cleanup`). It writes route and month aggregates (median, minimum, count) for
+stored Kiwi offers that depart before today, then deletes those rows. It makes no provider call. A
+worker restarted later the same day enqueues it once more; the delete is idempotent, but a run that
+failed between the two steps could count one month twice in an aggregate.
+
+**Pausing the worker's flight work.** Setting the budget to 0 does not work: `KIWI_MCP_DAILY_BUDGET`
+is validated as 1 to 100000, so 0 stops the process at startup. What does exist:
+
+- `DISCOVERY_REFRESH_ENABLED=false` on the worker stops the background discovery refresh (section
+  1a), which is the worker's price search. Restart the worker.
+- `KIWI_MCP_DAILY_BUDGET=1` allows at most one call per process per UTC day. Once spent, lookups
+  serve stored data labelled with its age, or "no data".
+
+It is not confirmed in code that the discovery refresh is the only worker path that reaches the Kiwi
+provider.
+
+**When Kiwi fails.** The circuit opens after 3 failures in a row and stays open for 60 seconds.
+Pages then show the newest stored offers with their age, or an honest "no data". There is nothing to
+re-run; the next lookup after the window tries again.
+
+**Not verified.** Migrations 0016 to 0019 against a real Postgres (only their in-memory contract
+tests ran), the end-to-end suite on this branch, and Kiwi's terms.

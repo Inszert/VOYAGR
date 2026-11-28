@@ -5,16 +5,16 @@ priced, weather, extras) instead of isolated flights, keeps checking prices in t
 tells you when a materially better combination appears. Every number a person sees is computed by
 deterministic code in `src/core/`; a language model, where one is used, only handles words.
 
-State of the repository: branch `feat/voyagr-autonomous-product-completion`, last commit reviewed
-for this file `ff14d21`. It has never been deployed. The decision of record (2026-11-14) is that
+State of the repository: branch `feat/mcp-only-flights` (not pushed; `main` is untouched). It has
+never been deployed. The decision of record (2026-11-14) is that
 production never serves mock data; see [`docs/finish-plan.md`](docs/finish-plan.md).
 
 ## What works today, and what needs a key
 
 | Area                         | With no keys (local dev)               | With a key or account                                                |
 | ---------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| Search, trip cost, ranking   | Works on deterministic fixtures        | Real flight prices need `FLIGHT_PROVIDER=aviasales` and a token      |
-| Flight prices                | Fixture prices                         | Aviasales (Travelpayouts) cached price points, not bookable quotes   |
+| Search, trip cost, ranking   | Works on deterministic fixtures        | Real flight prices come from Kiwi.com's MCP server (no key needed)   |
+| Flight prices                | Kiwi MCP by default (no key)           | Kiwi.com offers, cached 12 hours; the legacy sources are off         |
 | Stays                        | Fixture stays                          | Affiliate links only (no price); a priced hotel feed does not exist  |
 | Weather                      | Open-Meteo (keyless, live)             | Same; the free tier is non-commercial, see `docs/provider-policy.md` |
 | Currency conversion          | ECB daily rates (keyless, live)        | Same                                                                 |
@@ -34,8 +34,35 @@ In production (`NODE_ENV=production`) mock providers are refused at startup unle
 adapter (priced hotels, transfers) resolve to `absent`; places resolve to Wikidata, and the cost line is `excluded`,
 not zero.
 
-Not verified: real email delivery, live Aviasales calendar calls from a deployed host, and
-migrations 0008 and 0009 against a real Postgres. See `STATUS.md`, "Not verified yet".
+Not verified: real email delivery, and migrations 0008, 0009 and 0016 to 0019 against a real
+Postgres. See `STATUS.md`, "Not verified yet".
+
+## Flight source: Kiwi.com's MCP server
+
+`FLIGHT_PROVIDER` defaults to `kiwi-mcp`. Flights come from the Kiwi.com MCP server at
+`https://mcp.kiwi.com`, which needs no key. The host is fixed in code
+(`src/providers/mcp/constants.ts`); nothing a user sends can change it.
+
+- **12-hour read path** (`src/providers/flights/kiwi-read-path.ts`). A lookup reads the cache, then
+  the Postgres table `kiwi_offers`, and only when both are older than 12 hours (or empty) makes one
+  MCP call. If that call fails, the newest stored offers are shown labelled with their age ("checked
+  14 h ago"); with nothing stored the answer is an honest "no data". A price is refreshed only when
+  it is older than 12 hours and someone asked for it.
+- **Guarded client.** 5 second timeout per call, bounded retries, a circuit breaker, at most 2
+  calls in flight, about one call a second, and a daily call budget (`KIWI_MCP_DAILY_BUDGET`,
+  default 200, counted per process).
+- **The legacy flight sources** (`aviasales`, `liteapi`, `live`) are still in the tree, but a
+  production build refuses them unless `ALLOW_LEGACY_FLIGHT_PROVIDERS=true`. `mock` is still
+  governed by `ALLOW_MOCK_IN_PRODUCTION`. A local `.env` that names a legacy provider makes a
+  production build fail; set `FLIGHT_PROVIDER=kiwi-mcp` in the environment.
+- **Kiwi's terms are not verified.** Nobody has checked whether they allow this commercial,
+  automated use. The owner must check them before any public launch (`docs/provider-policy.md`).
+- **Booking links** are Kiwi's own `bookingUrl`. They are not Voyagr affiliate links.
+
+Running it: `npm run dev` (or `npm run build` then `npm start`) for the web process, and
+`npm run worker` for the worker. The worker runs the watch refresh, the cache refresh and the
+nightly cleanup of past-departure offers (03:00 UTC by default, `CLEANUP_UTC_HOUR`). Details are in
+`docs/runbook.md`.
 
 ## Screenshots
 
@@ -104,8 +131,11 @@ off; they do not crash the app. The "Production" column says what a real deploym
 | `AI_PROVIDER`                     | `mock`; `anthropic` is rejected until an adapter exists         | `mock`                            | Leave unset                                         |
 | `AI_MODEL`                        | Model name for a future adapter                                 | `claude-sonnet-5`                 | Not used                                            |
 | `ANTHROPIC_API_KEY`               | Key for a future adapter                                        | unset                             | Not used                                            |
-| `FLIGHT_PROVIDER`                 | `mock`, `live`, `aviasales` (`live` has no adapter)             | `mock`                            | `aviasales`; `mock` is refused                      |
-| `AVIASALES_API_TOKEN`             | Travelpayouts Data API token (secret)                           | unset                             | Required with `aviasales`                           |
+| `FLIGHT_PROVIDER`                 | `kiwi-mcp`, `mock`, `live`, `aviasales`, `liteapi`              | `kiwi-mcp`                        | `kiwi-mcp`; legacy values and `mock` are refused    |
+| `ALLOW_LEGACY_FLIGHT_PROVIDERS`   | Lets production use `aviasales`, `liteapi` or `live`            | `false`                           | Leave unset                                         |
+| `KIWI_MCP_DAILY_BUDGET`           | Kiwi MCP calls per process per UTC day, 1 to 100000             | `200`                             | Optional                                            |
+| `CLEANUP_UTC_HOUR`                | UTC hour of the worker's nightly cleanup, 0 to 23               | `3`                               | Optional                                            |
+| `AVIASALES_API_TOKEN`             | Travelpayouts token (secret), legacy flight source              | unset                             | Only with `aviasales` and the legacy flag           |
 | `AVIASALES_PARTNER_ID`            | Affiliate marker in outbound links (public)                     | unset                             | Required for affiliate links                        |
 | `GOOGLE_FLIGHTS_SIDECAR_URL`      | Google Flights scraper sidecar (unofficial); off unless set     | unset                             | Off by default                                      |
 | `GOOGLE_FLIGHTS_SIDECAR_KEY`      | Shared secret the sidecar expects (secret)                      | unset                             | Only with the sidecar                               |

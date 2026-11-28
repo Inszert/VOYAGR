@@ -1,7 +1,34 @@
 # Voyagr — how things stand
 
 Short on purpose. Details live in `docs/finish-plan.md` and `progress.md`.
-Last updated: 2026-11-17.
+Last updated: 2026-11-28 (flights section only; the rest below is as of 2026-11-17).
+
+## Flights: Kiwi MCP run (branch `feat/mcp-only-flights`, not pushed, `main` untouched)
+
+Facts from the run's handoff (`docs/autonomous-run/HANDOFF.md`), not re-run when this was written.
+
+Built and committed:
+
+- Flights come from Kiwi.com's MCP server by default (`FLIGHT_PROVIDER=kiwi-mcp`); legacy sources
+  are refused in production unless `ALLOW_LEGACY_FLIGHT_PROVIDERS=true`.
+- 12-hour read path: cache, Postgres, MCP, stale labelled with age, honest "no data".
+- Nightly cleanup of past-departure offers with aggregates kept; route graph tables.
+- Price-drop detection and delivery code; hub comparison maths; lazy recommendations service.
+- Lazy globe: drag makes no flight call (checked once in a browser); a click on a route runs the
+  read path once.
+
+Verified at the last check (per the handoff): typecheck, lint, unit tests (3175 passed, 3 skipped),
+production build with `FLIGHT_PROVIDER=kiwi-mcp`.
+
+Not done or not verified:
+
+- Kiwi's terms of use: not checked. Owner must check before any public launch.
+- `npm run test:e2e` has not been run on this branch.
+- `npm run verify` does not pass as a whole: the format step fails on `docs/imagery-options.md`.
+- Migrations 0016 to 0019 have not run against a real Postgres.
+- Not wired: hub comparison UI, price-drop alerts from a lookup path (so no alert is raised),
+  recommendations on a page, the Redis lock, the budget in Redis.
+- No optimisation has been measured.
 
 ## Your wishes (Dani writes here, plain English)
 

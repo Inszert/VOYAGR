@@ -3,7 +3,7 @@
 How Voyagr is put together, and why. The product itself is defined in
 `PRODUCT-SPECIFICATION.md`; this document covers engineering decisions. Brought up to date with the
 code as of 2026-11-15 (after commit `ff14d21`). Where something is not built or not verified, it says so.
- 
+
 ---
 
 ## 1. The organising principle
@@ -699,3 +699,76 @@ Multi-country trips: `TripCandidate` models one origin, one destination, one fli
 hotel. Ground transport such as car rental, rail and ferry would be a new provider kind. Also not
 built: booking, payments, a priced hotel feed, an AI adapter, rate limiting on the search page,
 audit logging. See `docs/security.md` and `SETUP-CHECKLIST.md`.
+
+---
+
+## 18. Flights from Kiwi's MCP server (branch `feat/mcp-only-flights`)
+
+Sections 4 and 15 describe the Aviasales-era design. Since this branch, `FLIGHT_PROVIDER=kiwi-mcp`
+is the default and the only flight source a production build accepts unless
+`ALLOW_LEGACY_FLIGHT_PROVIDERS=true` (`src/lib/env.ts`, `src/providers/registry.ts`). The legacy
+sources (`aviasales`, `liteapi`, `live`) remain in the tree and in those sections' text. Decisions
+and their reasons: `docs/autonomous-run/DECISIONS.md`. Kiwi's terms of use are **not verified**
+(`docs/provider-policy.md`).
+
+### 18.1 The read path
+
+`KiwiCachedFlightProvider` (`src/providers/flights/kiwi-cached.ts`) runs each origin and destination
+pair through `KiwiReadPath` (`kiwi-read-path.ts`). Flight freshness is 12 hours
+(`FLIGHT_MAX_AGE_MS` in `src/core/freshness.ts`). In order:
+
+1. **Cache** (Redis when configured, else memory): an entry under 12 hours old is returned.
+2. **Postgres** (`kiwi_offers`, migration 0016): a row under 12 hours old is returned and the cache
+   is warmed.
+3. **MCP**: one call through the guarded client (`src/providers/mcp/client.ts`: 5 s timeout, retries
+   with jitter, circuit breaker, concurrency 2, about one call a second, a daily budget). On success
+   both stores are written. An empty successful answer is stored too: it is a fact.
+4. **Stale**: if the call fails, the newest stored offers however old, labelled with their age
+   ("Kiwi.com, checked 14 h ago"). They keep their original `observedAt`.
+5. **No data**: nothing stored and the call failed. The caller gets the error, not an empty page.
+
+The observation time travels inside the cached value, so warming the cache from an old Postgres row
+does not make it look new. Simultaneous identical lookups share one call through an in-process map.
+A cross-process Redis lock exists in the code, but nothing wires it to a Redis client yet, and the
+daily budget is held in process memory (web and worker each have their own). Under `kiwi-mcp` the
+provider offers no one-way or month search, since those would be calls outside the 12-hour rule.
+
+### 18.2 Route graph and aggregates
+
+Migration 0017 adds `route_graph` (a route seen in a stored lookup, with carriers and last-seen) and
+`route_aggregates` (per route, departure month and currency: median, minimum and sample count, in
+integer minor units). Nonstop routes from a recommendation generation are written to the graph.
+
+### 18.3 Nightly cleanup
+
+The worker checks every minute and enqueues `cleanup.nightly` once per UTC day from
+`CLEANUP_UTC_HOUR` (default 3). The job (`src/jobs/nightly-cleanup.ts`, pure part in
+`src/core/cleanup/prune.ts`) writes the aggregates for `kiwi_offers` rows departing before today,
+then deletes those rows. Aggregates are written first on purpose. Merging into an existing month
+bucket keeps the minimum and count exact and makes the median an approximation (the count-weighted
+mean of two medians). The job never calls a provider. `price_observations` and `route_graph` are not
+pruned by it.
+
+### 18.4 Alerts
+
+`src/core/alerts/` computes a baseline (median of the last 30 days of cheapest-price observations
+for a route, month and currency; fewer than 5 samples means no baseline) and flags a material drop:
+price at most 85 percent of the baseline and at least 15 EUR below it, and not twice for the same
+watch and route within 24 hours. Persistence: migration 0018 (`price_alerts`). Delivery
+(`src/notifications/price-drop.ts`) uses the in-app notification, Web Push and email. **Nothing
+calls this from a lookup path yet**, and there is no background polling that records observations,
+so today no alert is raised by this path.
+
+### 18.5 The lazy globe and recommendations
+
+- **Globe.** While it is dragged it makes no flight call. `/api/globe-routes` reads the stored
+  route graph only and imports no provider; the arcs go through the existing `routes` layer. Clicking
+  a route opens `RouteOffersPanel`, which calls `/api/route-offers`, which runs one read-path lookup
+  with the dates in the address (no dates: no call). Stored arcs carry no price; prices appear after
+  a click.
+- **Recommendations.** `RecommendationService` (`src/search/recommendations.ts`) serves a stored list
+  (migration 0019) under 12 hours old with no MCP call; otherwise it makes one `anywhere` call under
+  its own daily allowance (20 per UTC day, in memory). Ranking is by price only. **It is not mounted
+  on any page yet.**
+- **Hub and nearby-airport comparison** (`src/core/hub/`): pure code, with estimated transfer costs
+  labelled as estimates. **Not shown in the UI yet.**
