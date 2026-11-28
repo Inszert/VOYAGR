@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { asRedirect } from '@/lib/route';
 import {
   REMEMBERED_PARAMS,
   clearPreferences,
@@ -41,7 +42,7 @@ export function SearchPreferences({ storage }: { storage?: PreferenceStorage | n
       if (query === '') {
         const saved = readPreferences(store);
         if (saved) {
-          router.replace(`${pathname}?${paramsFromPreferences(saved).toString()}`, {
+          router.replace(asRedirect(`${pathname}?${paramsFromPreferences(saved).toString()}`), {
             scroll: false,
           });
           return;
@@ -58,7 +59,7 @@ export function SearchPreferences({ storage }: { storage?: PreferenceStorage | n
     const next = new URLSearchParams(query);
     for (const key of REMEMBERED_PARAMS) next.delete(key);
     const rest = next.toString();
-    router.replace(rest ? `${pathname}?${rest}` : pathname, { scroll: false });
+    router.replace(asRedirect(rest ? `${pathname}?${rest}` : pathname), { scroll: false });
   }
 
   return (

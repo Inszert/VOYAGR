@@ -583,6 +583,9 @@ export default async function ExplorePage({
       ) : (
         <DestinationRail
           awaitingCountry={page.awaitingCountry}
+          needsDestination={
+            wasSubmitted(values) && !page.outcome && !(values.destinations ?? '').trim()
+          }
           cards={railCards}
           totalCount={stage.points.length}
           mode={page.mode}

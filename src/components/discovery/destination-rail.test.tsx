@@ -164,6 +164,23 @@ describe('DestinationRail', () => {
     expect(screen.queryByText(/Prices are not loaded yet/)).toBeNull();
   });
 
+  it('says what to fill in when a search was submitted with no destination', () => {
+    render(
+      <DestinationRail
+        cards={[]}
+        totalCount={0}
+        mode="cheapest"
+        provenance="mock"
+        unpriced
+        needsDestination
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Choose where to go first');
+    expect(screen.queryByText(/Prices are not loaded yet/)).toBeNull();
+    expect(screen.queryByText(/could not be produced/)).toBeNull();
+  });
+
   it('says what it cannot yet compare', () => {
     render(<DestinationRail cards={[card()]} totalCount={1} mode="fastest" provenance="mock" />);
 

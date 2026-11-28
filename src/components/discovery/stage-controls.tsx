@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/ui';
 import { COUNTRIES, type Country } from '@/discovery/countries';
 import { MAP_MODES, MAP_MODE_LABELS, type MapMode } from '@/discovery/map-model';
+import { asHref } from '@/lib/route';
 
 /**
  * The two controls that steer the globe and the rail together.
@@ -63,7 +64,7 @@ export function StageControls({
           {MAP_MODES.map((option) => (
             <li key={option} className="shrink-0">
               <Link
-                href={modeHref(option)}
+                href={asHref(modeHref(option))}
                 scroll={false}
                 aria-current={option === mode ? 'true' : undefined}
                 className={[

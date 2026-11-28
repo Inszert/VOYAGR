@@ -62,6 +62,8 @@ export interface DestinationRailProps {
   controls?: React.ReactNode;
   /** Anywhere was searched and no country is chosen yet: say what to do next. */
   awaitingCountry?: boolean;
+  /** A search was submitted with no destination: say what to fill in, rather than nothing. */
+  needsDestination?: boolean;
   /** Where "see them all" goes, when this is a trimmed view. */
   viewAllHref?: string;
 }
@@ -196,6 +198,7 @@ export function DestinationRail({
   controls,
   viewAllHref,
   awaitingCountry = false,
+  needsDestination = false,
 }: DestinationRailProps) {
   const credited = cards.filter(
     (card): card is RailCard & { image: DestinationImage } => card.image != null,
@@ -334,7 +337,14 @@ export function DestinationRail({
           </p>
         ) : null}
 
-        {unpriced && !awaitingCountry ? (
+        {needsDestination ? (
+          <p role="status" className="text-ink text-[14px]">
+            Choose where to go first: type airport codes, pick a region, or choose Anywhere and then
+            a country. Then search.
+          </p>
+        ) : null}
+
+        {unpriced && !awaitingCountry && !needsDestination ? (
           <p role="status" className="text-muted text-[13px]">
             {pricesLoading
               ? 'Prices are not loaded yet. The globe shows these places without them.'

@@ -20,6 +20,7 @@ import { PlacesMap } from './places-map';
 import { usePlaces } from './places-context';
 import { useReducedMotion as useReducedMotionOrNull } from './use-media';
 import './destination.css';
+import { asHref } from '@/lib/route';
 
 /**
  * The places of "Things to do": a plan of where they are, the filter, the
@@ -281,7 +282,7 @@ export function ThingsExplorer({
             return (
               <li key={group ?? 'all'}>
                 <Link
-                  href={hrefFor(group ?? 'all')}
+                  href={asHref(hrefFor(group ?? 'all'))}
                   scroll={false}
                   aria-current={current ? 'true' : undefined}
                   onClick={(event) => {
@@ -319,7 +320,9 @@ export function ThingsExplorer({
             return (
               <li key={option}>
                 <Link
-                  href={withStyleParam(hrefs[kind ?? 'all'] ?? '?', current ? null : option)}
+                  href={asHref(
+                    withStyleParam(hrefs[kind ?? 'all'] ?? '?', current ? null : option),
+                  )}
                   scroll={false}
                   aria-current={current ? 'true' : undefined}
                   onClick={(event) => {

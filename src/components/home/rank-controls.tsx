@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { COUNTRIES, type Country } from '@/discovery/countries';
 import { MAP_MODES, MAP_MODE_LABELS, type MapMode } from '@/discovery/map-model';
+import { asHref } from '@/lib/route';
 
 /**
  * What to rank by and where to look, as one quiet row.
@@ -45,7 +46,7 @@ export function RankControls({
             return (
               <li key={option} className="shrink-0">
                 <Link
-                  href={modeHref(option)}
+                  href={asHref(modeHref(option))}
                   scroll={false}
                   aria-current={current ? 'true' : undefined}
                   className={cn(

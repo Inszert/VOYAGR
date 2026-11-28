@@ -6,6 +6,7 @@ import { Collapsible as RadixCollapsible } from 'radix-ui';
 import { Icon, Sheet, SheetClose, SheetContent, SheetTrigger } from '@/components/ui';
 import { format, money } from '@/core/money';
 import { cn } from '@/lib/cn';
+import { asRedirect } from '@/lib/route';
 
 /**
  * The parts of "Your trip" that move: changing a leg, the total that follows
@@ -133,7 +134,7 @@ export function LegChanger({
     if (option.isCurrent) return;
     refocus.current = document.activeElement instanceof HTMLInputElement ? option.id : null;
     setPicked({ id: option.id, over: current });
-    startTransition(() => router.push(option.href, { scroll: false }));
+    startTransition(() => router.push(asRedirect(option.href), { scroll: false }));
   };
 
   return (

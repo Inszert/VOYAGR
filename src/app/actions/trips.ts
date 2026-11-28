@@ -21,6 +21,7 @@ import {
 } from '@/trip-hub/day-plan';
 import { TripHubService } from '@/trip-hub/service';
 import { PLAN_ITEM_STATUSES, type PlanItemStatus } from '@/trip-hub/types';
+import { asRedirect } from '@/lib/route';
 
 /**
  * The trip hub's Server Actions.
@@ -454,13 +455,14 @@ export async function acceptInviteAction(formData: FormData): Promise<void> {
   const token = field(formData, 'token');
   const here = `/invite/${encodeURIComponent(token)}`;
   const user = await getCurrentUser();
-  if (!user) redirect(here);
+  if (!user) redirect(asRedirect(here)); // fixed base, token URL-encoded
 
   let tripId: string;
   try {
     ({ tripId } = await service().acceptInvite(user.id, token));
   } catch (error) {
-    if (error instanceof AppError && error.code === 'NOT_FOUND') redirect(`${here}?failed=1`);
+    if (error instanceof AppError && error.code === 'NOT_FOUND')
+      redirect(asRedirect(`${here}?failed=1`));
     throw error;
   }
   log.info({ userId: user.id, tripId }, 'trip invite accepted');

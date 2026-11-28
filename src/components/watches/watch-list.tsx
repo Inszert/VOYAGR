@@ -11,6 +11,7 @@ import type { TravelWatchRecord, TripSearchRecord } from '@/db/repository';
 import type { PriceTrend } from '@/watches/trend';
 import { buySignal, type BuySignalKind } from '@/watches/signal';
 import { shortDate } from '@/lib/display-date';
+import { asHref } from '@/lib/route';
 
 /**
  * The watches list.
@@ -381,7 +382,7 @@ export function WatchList({
                   ) : null}
 
                   <Link
-                    href={searchHref(search)}
+                    href={asHref(searchHref(search))}
                     className="text-brand-ink inline-flex min-h-11 items-center gap-1.5 px-1 text-sm underline underline-offset-4"
                   >
                     Run this search now

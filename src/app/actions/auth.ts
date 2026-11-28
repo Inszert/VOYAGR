@@ -111,7 +111,7 @@ export async function signInAction(
     return { error: publicMessage(error, 'Could not sign you in.'), email };
   }
 
-  redirect(next ?? '/account');
+  redirect(redirectTarget(next, '/account')); // `next` already passed safeNextPath
 }
 
 export async function signOutAction(): Promise<void> {

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui';
 import { travellersLabel } from '@/core/party';
+import { asRedirect } from '@/lib/route';
 
 /**
  * How many are going: a stepper that changes the address.
@@ -39,7 +40,9 @@ export function TravellerStepper({ value }: { value: number }) {
     params.set('passengers', String(next));
     // The sheet's own parameter does not belong to a different party size.
     params.delete('place');
-    startTransition(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
+    startTransition(() =>
+      router.replace(asRedirect(`${pathname}?${params.toString()}`), { scroll: false }),
+    );
   };
 
   const button =
