@@ -111,6 +111,20 @@ export function weakestFreshness(values: readonly Freshness[]): Freshness {
   return 'fresh';
 }
 
+/** The 12-hour rule for flight data. */
+export const FLIGHT_MAX_AGE_MS = 12 * 60 * 60_000;
+
+/**
+ * The honest age label: "checked 14 h ago". Whole hours, rounded down; under
+ * an hour it says so rather than claiming a minute count the data does not
+ * deserve. A missing age is its own wording, never "just now".
+ */
+export function checkedAgoLabel(ageMs: number | null): string {
+  if (ageMs === null || !Number.isFinite(ageMs)) return 'check time unknown';
+  const hours = Math.floor(Math.max(0, ageMs) / 3_600_000);
+  return hours < 1 ? 'checked less than 1 h ago' : `checked ${hours} h ago`;
+}
+
 /**
  * How long a quote of each kind may be trusted.
  *
@@ -121,9 +135,10 @@ export function weakestFreshness(values: readonly Freshness[]): Freshness {
  */
 export const DEFAULT_FRESHNESS: Record<'flights' | 'hotels' | 'transfers' | 'fx', FreshnessLimits> =
   {
-    // Airline inventory moves within the hour, and a fare can vanish between
-    // a search and a click.
-    flights: { maxAgeMs: 30 * 60_000 },
+    // A flight price is refreshed only when it is older than 12 hours AND
+    // someone asked for it. It is shown as "checked N h ago" (see
+    // `checkedAgoLabel`), never as a live price.
+    flights: { maxAgeMs: FLIGHT_MAX_AGE_MS },
     // Nightly rates move more slowly, and availability is the volatile part.
     hotels: { maxAgeMs: 60 * 60_000 },
     // A transfer is a rate card more than a quote.

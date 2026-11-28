@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ageOf, freshnessOf, instantOf, weakestFreshness } from './freshness';
+import {
+  ageOf,
+  checkedAgoLabel,
+  DEFAULT_FRESHNESS,
+  freshnessOf,
+  instantOf,
+  weakestFreshness,
+} from './freshness';
 import type { IsoDateTime } from './trip/types';
 
 const NOW = Date.parse('2026-09-22T12:00:00Z');
@@ -100,5 +107,24 @@ describe('weakestFreshness', () => {
 
   it('calls an empty set fresh, because there is nothing old in it', () => {
     expect(weakestFreshness([])).toBe('fresh');
+  });
+});
+
+describe('the 12-hour flight policy', () => {
+  const flights = DEFAULT_FRESHNESS.flights;
+
+  it('keeps a flight price fresh for 12 hours and stale after', () => {
+    expect(freshnessOf(at('2026-09-22T00:30:00Z'), NOW, flights)).toBe('fresh');
+    expect(freshnessOf(at('2026-09-21T23:59:00Z'), NOW, flights)).toBe('stale');
+  });
+
+  it('still reports an undated flight price as unknown, not stale', () => {
+    expect(freshnessOf(null, NOW, flights)).toBe('unknown');
+  });
+
+  it('labels the age honestly', () => {
+    expect(checkedAgoLabel(14 * 3_600_000 + 5 * 60_000)).toBe('checked 14 h ago');
+    expect(checkedAgoLabel(20 * 60_000)).toBe('checked less than 1 h ago');
+    expect(checkedAgoLabel(null)).toBe('check time unknown');
   });
 });

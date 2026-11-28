@@ -125,11 +125,11 @@ describe('flexOptions', () => {
     expect(bestSaving(options)).toBeNull();
   });
 
-  it('reads freshness through the flight limit: 30 minutes is the edge', () => {
+  it('reads freshness through the flight limit: 12 hours is the edge', () => {
     const options = run(
       prices({
-        '2026-12-10': price(30000, new Date(NOW - 30 * 60_000).toISOString()),
-        '2026-12-09': price(30000, new Date(NOW - 30 * 60_000 - 1).toISOString()),
+        '2026-12-10': price(30000, new Date(NOW - 12 * 60 * 60_000).toISOString()),
+        '2026-12-09': price(30000, new Date(NOW - 12 * 60 * 60_000 - 1).toISOString()),
         '2026-12-08': price(30000, null),
         '2026-12-11': price(30000, OLD_AT),
       }),

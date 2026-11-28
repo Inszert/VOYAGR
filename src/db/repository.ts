@@ -753,6 +753,37 @@ export interface LiteApiFlightsRow extends LiteApiFlightsKey {
   readonly runId: string;
 }
 
+/**
+ * The Kiwi MCP read path's durable copy: the latest offers for one lookup key.
+ *
+ * Unlike the LiteAPI snapshot, a row is never hidden because it is old: the read path decides
+ * what age means (12 h) and serves an old row, labelled, when the MCP fails. Rows leave only
+ * through the nightly past-departure cleanup (not built yet).
+ */
+export interface KiwiOffersKey {
+  readonly origin: string;
+  readonly destination: string;
+  readonly departureDate: IsoDate;
+  readonly returnDate: IsoDate;
+  readonly adults: number;
+  /** Upper-case ISO 4217. */
+  readonly currency: string;
+}
+
+export interface KiwiOffersRow extends KiwiOffersKey {
+  readonly schemaVersion: number;
+  /** The mapped offers, as JSON. The reader validates the shape; it never trusts a stored row. */
+  readonly offers: unknown;
+  readonly observedAt: IsoDateTime;
+}
+
+export interface KiwiOffersRepository {
+  /** The row for this key whatever its age, or null when none was ever stored. */
+  get(key: KiwiOffersKey): Promise<KiwiOffersRow | null>;
+  /** Replace the row for its key. */
+  put(row: KiwiOffersRow): Promise<void>;
+}
+
 export interface LiteApiSnapshotRepository {
   /** The row for this key, or null when there is none or it has expired. */
   getRates(key: LiteApiRatesKey): Promise<LiteApiRatesRow | null>;
@@ -850,6 +881,7 @@ export interface Repositories {
   readonly tripExpenses: TripExpenseRepository;
   readonly emergencyContacts: EmergencyContactRepository;
   readonly liteapiSnapshot: LiteApiSnapshotRepository;
+  readonly kiwiOffers: KiwiOffersRepository;
   readonly visitorSearches: VisitorSearchRepository;
   /** Identifies the active backend, for diagnostics. */
   readonly backend: 'memory' | 'postgres';

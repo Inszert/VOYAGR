@@ -18,3 +18,4 @@ Not pushed. `main` is untouched.
 ## Iteration log
 - Iteration 0: branch created, DECISIONS.md and PROGRESS.md written.
 - Slice 1: Kiwi MCP client (timeout, retry, circuit breaker, budget) and kiwi-mcp flight adapter with fixture contract tests; env default kiwi-mcp. Docs and cache not yet.
+- Slice 2: 12 h flight freshness policy and "checked N h ago" label; Kiwi read path (cache, Postgres `kiwi_offers` via migration 0016, MCP, stale fallback, no_data) with single-flight (in-process map, optional Redis lock); memory/Postgres contract test. Not yet: nightly cleanup, Redis daily budget, wiring into visitor pages.

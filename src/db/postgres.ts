@@ -4,6 +4,9 @@ import { query, withTransaction } from './client';
 import type { RepositoryOptions } from './memory';
 import type {
   LiteApiEnvironment,
+  KiwiOffersKey,
+  KiwiOffersRepository,
+  KiwiOffersRow,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
   LiteApiHotelRow,
@@ -1887,6 +1890,69 @@ function toLiteApiRun(row: LiteApiRunDbRow): LiteApiRunRecord {
   };
 }
 
+interface KiwiOffersDbRow {
+  origin: string;
+  destination: string;
+  departure_date: string;
+  return_date: string;
+  adults: number;
+  currency: string;
+  schema_version: number;
+  offers: unknown;
+  observed_at: Date | string;
+}
+
+class PostgresKiwiOffersRepository implements KiwiOffersRepository {
+  async get(key: KiwiOffersKey): Promise<KiwiOffersRow | null> {
+    const rows = await query<KiwiOffersDbRow>(
+      `SELECT origin, destination, to_char(departure_date, 'YYYY-MM-DD') AS departure_date,
+              to_char(return_date, 'YYYY-MM-DD') AS return_date, adults, currency,
+              schema_version, offers, observed_at
+         FROM kiwi_offers
+        WHERE origin = $1 AND destination = $2 AND departure_date = $3::date
+          AND return_date = $4::date AND adults = $5 AND currency = $6`,
+      [key.origin, key.destination, key.departureDate, key.returnDate, key.adults, key.currency],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      origin: row.origin,
+      destination: row.destination,
+      departureDate: row.departure_date,
+      returnDate: row.return_date,
+      adults: row.adults,
+      currency: row.currency,
+      schemaVersion: row.schema_version,
+      offers: row.offers,
+      observedAt: toIso(row.observed_at),
+    };
+  }
+
+  async put(row: KiwiOffersRow): Promise<void> {
+    await query(
+      `INSERT INTO kiwi_offers
+         (origin, destination, departure_date, return_date, adults, currency,
+          schema_version, offers, observed_at)
+       VALUES ($1, $2, $3::date, $4::date, $5, $6, $7, $8::jsonb, $9)
+       ON CONFLICT (origin, destination, departure_date, return_date, adults, currency)
+       DO UPDATE SET offers = EXCLUDED.offers,
+                     schema_version = EXCLUDED.schema_version,
+                     observed_at = EXCLUDED.observed_at`,
+      [
+        row.origin,
+        row.destination,
+        row.departureDate,
+        row.returnDate,
+        row.adults,
+        row.currency,
+        row.schemaVersion,
+        JSON.stringify(row.offers),
+        row.observedAt,
+      ],
+    );
+  }
+}
+
 class PostgresLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
   constructor(private readonly clock: () => number) {}
 
@@ -2220,6 +2286,7 @@ class PostgresVisitorSearchRepository implements VisitorSearchRepository {
 export function createPostgresRepositories(options: RepositoryOptions = {}): Repositories {
   return {
     liteapiSnapshot: new PostgresLiteApiSnapshotRepository(options.now ?? Date.now),
+    kiwiOffers: new PostgresKiwiOffersRepository(),
     visitorSearches: new PostgresVisitorSearchRepository(options.now ?? Date.now),
     users: new PostgresUserRepository(),
     credentials: new PostgresUserCredentialRepository(),

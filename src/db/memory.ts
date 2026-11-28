@@ -10,6 +10,9 @@ import type {
   EmergencyContactRecord,
   EmergencyContactRepository,
   ErasureSummary,
+  KiwiOffersKey,
+  KiwiOffersRepository,
+  KiwiOffersRow,
   LiteApiEnvironment,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
@@ -1116,6 +1119,30 @@ const flightsKeyOf = (key: LiteApiFlightsKey): string =>
     key.cabin,
   ].join('|');
 
+class MemoryKiwiOffersRepository implements KiwiOffersRepository {
+  private readonly rows = new Map<string, KiwiOffersRow>();
+
+  private keyOf(key: KiwiOffersKey): string {
+    return [
+      key.origin,
+      key.destination,
+      key.departureDate,
+      key.returnDate,
+      key.adults,
+      key.currency,
+    ].join('|');
+  }
+
+  async get(key: KiwiOffersKey): Promise<KiwiOffersRow | null> {
+    const row = this.rows.get(this.keyOf(key));
+    return row ? structuredClone(row) : null;
+  }
+
+  async put(row: KiwiOffersRow): Promise<void> {
+    this.rows.set(this.keyOf(row), structuredClone(row));
+  }
+}
+
 class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
   private readonly flights = new Map<string, LiteApiFlightsRow>();
   private readonly rates = new Map<string, LiteApiRatesRow>();
@@ -1271,6 +1298,7 @@ class MemoryVisitorSearchRepository implements VisitorSearchRepository {
 export function createMemoryRepositories(options: RepositoryOptions = {}): Repositories {
   const visitorSearches = new MemoryVisitorSearchRepository(options.now ?? Date.now);
   const liteapiSnapshot = new MemoryLiteApiSnapshotRepository(options.now ?? Date.now);
+  const kiwiOffers = new MemoryKiwiOffersRepository();
   const users = new MemoryUserRepository();
   const credentials = new MemoryUserCredentialRepository();
   const sessions = new MemorySessionRepository();
@@ -1357,6 +1385,7 @@ export function createMemoryRepositories(options: RepositoryOptions = {}): Repos
     tripExpenses,
     emergencyContacts,
     liteapiSnapshot,
+    kiwiOffers,
     visitorSearches,
     backend: 'memory',
   };

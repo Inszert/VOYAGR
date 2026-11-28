@@ -48,3 +48,11 @@ Each entry: the decision, why, and what would change it.
   `ALLOW_MOCK_IN_PRODUCTION`. `.env.example` was appended with placeholders only (could not read it
   first in this run, so check it for a duplicate `FLIGHT_PROVIDER` line).
 - `docs/provider-policy.md`, `README.md` and `data-source.ts` are not updated yet (not in this slice).
+
+## Slice 2: the 12-hour read path
+- **Flight freshness is 12 h** (`FLIGHT_MAX_AGE_MS`). Changed test: `flex-dates.test.ts` "30 minutes is the edge" now tests the 12-hour edge (it reads `DEFAULT_FRESHNESS.flights`). `freshness.test.ts` keeps its own 30-minute limits for the generic function; a 12-hour policy block and the label were added. Label: whole hours rounded down, "checked less than 1 h ago" under an hour.
+- **The observation time travels inside the cached value** (`{offers, observedAt, v}`), because `CacheStore.set` stamps the write time; warming Redis from a 10-hour-old Postgres row must not make it look new. Cache TTL is the remaining fresh time, so a cache entry is never stale; stale data lives only in Postgres (`kiwi_offers`, never expired by the database).
+- **Postgres table is new (`kiwi_offers`), not the LiteAPI snapshot**, whose rows vanish at `expires_at`; the stale fallback needs old rows to survive. Key: origin, destination, dates, adults, currency. No cabin (the Kiwi call has none).
+- **A process that loses the Redis lock waits (6 s, polling the cache) and never calls the MCP itself**; on timeout it serves stored data or `no_data`. Redis down means the lock is treated as held (proceed alone). Nothing wires the lock to a real Redis client yet.
+- **An empty successful answer is stored** (it is a fact: no flights), and counts as fresh.
+- Not done: nightly cleanup, the daily budget in Redis, wiring the read path into pages or the provider factory.
