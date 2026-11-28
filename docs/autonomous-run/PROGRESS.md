@@ -49,3 +49,10 @@ Checked in Chrome at 1440, 768 and 390 on a throwaway preview page of each state
 - Not done: Home and Explore pages in the real app could not show these surfaces (no database reachable, no stored prices); the globe arcs, camera and price-drop email were left alone.
 
 - 2026-11-28 N1/N8: reran the 29 earlier e2e failures on a clean worktree of main (39d2387, own npm ci, 4 workers): 0 failed, 28 passed, 1 not run (stays-start spec does not exist on main). None is a pre-existing main failure; branch fixes are 74c84f9 (real layout bug), a0409e1 (specs updated for the redesign) and 61bdf22 (mobile filters race). e2e-run3 had 1 failure, not 0. Worktree removed. See E2E-TRIAGE.md.
+
+## Final verification pass (2026-11-28)
+- `npm run typecheck`: exit 0.
+- `npm run lint`: exit 0 after removing the ignored build folder `.next-n7` left by the UI pass (eslint was reading its generated bundles).
+- `npx vitest run --testTimeout=60000`: 271 files passed; 3193 tests passed, 3 skipped.
+- `npx playwright test --workers=4` on port 3200 (production build, chrome), full suite: 298 passed, 1 failed, 1 skipped. The failure was `pages.spec.ts` "does not move the search bar when the page hydrates" (1849px, under load). Cause: the test took its baseline at commit time, before layout, so it could read a false starting point. Fixed in `6e7c4db`: the baseline now clears the hero measurement and reads the fallback in one step. Repeated under load: 8 of 8 passed (`--workers=4 --repeat-each=4`). The full suite was NOT re-run after this fix.
+- Not run: `npm run build` in this pass; the earlier production build check (with FLIGHT_PROVIDER=kiwi-mcp) passed before the last UI commits.
