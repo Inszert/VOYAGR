@@ -18,6 +18,7 @@ describe('HubSavingLine', () => {
     const text = screen.getByText(/Cheaper from BTS/).parentElement!.textContent!;
     expect(text).toContain('€74.00');
     expect(text).toContain('€25.00 transfer (estimate)');
+    expect(screen.getByText('(estimate)')).toBeInTheDocument();
   });
 
   it('renders nothing without a saving', () => {

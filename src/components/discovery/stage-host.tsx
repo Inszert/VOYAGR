@@ -419,7 +419,7 @@ export function StageHost() {
         <div
           role="dialog"
           aria-label={`Prices ${openRoute.origin} to ${openRoute.destination}`}
-          className="border-border bg-surface text-ink fixed right-4 bottom-4 z-50 max-h-[70svh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border p-4 shadow-xl"
+          className="border-border bg-surface text-ink shadow-floating fixed right-4 bottom-4 z-50 max-h-[70svh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-(--radius-card) border p-4"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-medium">
@@ -428,7 +428,7 @@ export function StageHost() {
             <button
               type="button"
               onClick={() => setOpenRoute(null)}
-              className="focus-visible:ring-ring rounded px-2 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
+              className="text-ink-muted hover:text-ink -my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-(--radius-control) px-3 text-sm"
             >
               Close
             </button>

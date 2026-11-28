@@ -31,6 +31,18 @@ const fresh: RecommendationView = {
 };
 
 describe('RecommendationsList', () => {
+  it('says there is nothing to show, rather than leaving skeletons, when the refresh ends empty', async () => {
+    const none: RecommendationView = {
+      ...fresh,
+      status: 'missing',
+      items: [],
+      label: 'no data yet',
+    };
+    render(<RecommendationsList initial={none} refresh={async () => none} />);
+    expect(await screen.findByText('No recommended trips to show yet.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('No recommendations yet');
+  });
+
   it('shows the stored list at once, then replaces it, with the same row space', async () => {
     let resolve!: (view: RecommendationView) => void;
     const refresh = vi.fn(() => new Promise<RecommendationView>((r) => (resolve = r)));

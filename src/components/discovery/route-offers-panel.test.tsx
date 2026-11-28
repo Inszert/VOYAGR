@@ -48,6 +48,7 @@ describe('RouteOffersPanel', () => {
       'href',
       'https://www.kiwi.com/deep?x=1',
     );
+    expect(screen.getAllByText(/10 Feb 2027, 07:00, 2 h 10 min, direct/)).toHaveLength(2);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('/api/route-offers?');
   });

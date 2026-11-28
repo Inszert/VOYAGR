@@ -34,23 +34,18 @@ export function RecommendationsList({ initial, refresh, names }: Recommendations
   useEffect(() => {
     if (started.current || initial.status === 'fresh') return;
     started.current = true;
-    let live = true;
     refresh()
       .then((next) => {
-        if (live) setView(next);
+        setView(next);
       })
       .catch(() => undefined)
       .finally(() => {
-        if (live) setRefreshing(false);
+        setRefreshing(false);
       });
-    return () => {
-      live = false;
-    };
   }, [initial.status, refresh]);
 
   const rows = view.items.slice(0, RECOMMENDATION_ROW_COUNT);
-  const placeholders =
-    refreshing || view.status === 'missing' ? RECOMMENDATION_ROW_COUNT - rows.length : 0;
+  const placeholders = refreshing ? RECOMMENDATION_ROW_COUNT - rows.length : 0;
   const note = refreshing
     ? view.status === 'missing'
       ? 'Looking for trips'
@@ -80,9 +75,20 @@ export function RecommendationsList({ initial, refresh, names }: Recommendations
             style={{ height: `${ROW_HEIGHT_REM - 0.5}rem` }}
           >
             <span>{names?.[item.destination] ?? item.destination}</span>
-            <span className="tabular-nums">{format(money(item.priceMinor, item.currency))}</span>
+            <span className="tabular-nums">
+              <span className="text-ink-muted mr-1.5 text-xs">from</span>
+              {format(money(item.priceMinor, item.currency))}
+            </span>
           </li>
         ))}
+        {!refreshing && rows.length === 0 ? (
+          <li
+            className="border-border text-ink-muted flex items-center rounded-(--radius-card) border border-dashed px-4 text-sm"
+            style={{ height: `${ROW_HEIGHT_REM - 0.5}rem` }}
+          >
+            No recommended trips to show yet.
+          </li>
+        ) : null}
         {Array.from({ length: placeholders }, (_, index) => (
           <li
             key={`placeholder-${index}`}

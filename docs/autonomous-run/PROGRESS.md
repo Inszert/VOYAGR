@@ -40,3 +40,10 @@ Not pushed. `main` is untouched.
 - 2026-11-28 `npx prettier --check .`: exit 0 after excluding docs/imagery-options.md and docs/autonomous-run/OWNER-NOTES.md (owner-owned files, see .prettierignore).
 - 2026-11-28 `npx playwright test --workers=4` (production build, chrome): 298 passed, 1 failed (mobile-chrome 'narrows results without searching again'), 1 skipped. Failing test not yet fixed; see E2E-TRIAGE.md.
 - 2026-11-28 `npx playwright test tests/e2e/search.spec.ts -g "narrows results without searching again" --project=mobile-chrome --repeat-each=3` (production build, chrome, clean worktree of HEAD with the test fix): 3 passed at --workers=2 and 3 passed at --workers=4. Before the fix it was 3 passed at --workers=2 (did not reproduce). See E2E-TRIAGE.md.
+
+## N7 UI pass (new surfaces)
+Checked in Chrome at 1440, 768 and 390 on a throwaway preview page of each state (not committed). No horizontal overflow at any width. Screenshots: `docs/autonomous-run/screenshots/before-preview-{1440,768,390}.png` and `after-preview-{1440,768,390}.png`.
+- Hub saving line: now a bordered sunken row; "(estimate)" in caution ink (still a word).
+- Recommendations: fixed a real bug where the background refresh never finished under React strict mode (skeletons stuck on "Updating"); a finished empty list shows a message instead of skeleton rows; prices read "from X".
+- Route offers panel: dates formatted ("4 Mar 2027, 07:15"), "direct / 1 stop" instead of "0 stops", legs as a labelled list, tabular price, 44px booking link, skeleton height matches an offer, unrefreshed note in caution ink, failure message in a bordered note. Dialog uses card radius and floating shadow; Close button had a nonexistent focus-ring token with the outline removed, now a 44px target with the global focus ring.
+- Not done: Home and Explore pages in the real app could not show these surfaces (no database reachable, no stored prices); the globe arcs, camera and price-drop email were left alone.

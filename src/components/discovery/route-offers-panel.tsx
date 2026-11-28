@@ -28,6 +28,43 @@ export interface RouteOffersPanelProps {
 
 type State = { phase: 'loading' } | { phase: 'done'; data: RouteOffersDto } | { phase: 'failed' };
 
+/** "2027-03-04T07:15:00" -> "4 Mar 2027, 07:15". Reads the string; never builds a Date. */
+function when(local: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/.exec(local);
+  if (!match) return local;
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return `${Number(match[3])} ${months[Number(match[2]) - 1] ?? match[2]} ${match[1]}, ${match[4]}`;
+}
+
+function stopsLabel(stops: number): string {
+  return stops === 0 ? 'direct' : stops === 1 ? '1 stop' : `${stops} stops`;
+}
+
+function Leg({ label, leg }: { label: string; leg: RouteOffersDto['offers'][number]['outbound'] }) {
+  return (
+    <div className="grid grid-cols-[3rem_1fr] gap-x-2 text-sm">
+      <dt className="text-ink-muted">{label}</dt>
+      <dd>
+        {when(leg.departsAt)}, {duration(leg.durationMinutes)}, {stopsLabel(leg.stops)}
+        <span className="text-ink-muted block text-xs">{leg.flights.join(', ')}</span>
+      </dd>
+    </div>
+  );
+}
+
 function duration(minutes: number): string {
   return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
 }
@@ -94,13 +131,16 @@ export function RouteOffersPanel({
 
       {state.phase === 'loading' ? (
         <div className="mt-3 space-y-2">
-          <Skeleton label="Checking flights" className="h-16" />
-          <Skeleton className="h-16" />
+          <Skeleton label="Checking flights" className="h-28" />
+          <Skeleton className="h-28" />
         </div>
       ) : null}
 
       {state.phase === 'failed' || (state.phase === 'done' && state.data.status === 'no_data') ? (
-        <p role="status" className="mt-3">
+        <p
+          role="status"
+          className="border-border bg-surface-sunken text-ink mt-3 rounded-(--radius-control) border p-3 text-sm"
+        >
           We could not check these flights just now, and nothing is saved for this route yet. Try
           again in a moment.
         </p>
@@ -110,28 +150,27 @@ export function RouteOffersPanel({
         <>
           <p className="text-ink-muted mt-1 text-sm">
             {state.data.label}
-            {state.data.refreshFailed ? ' (we could not refresh it just now)' : ''}
+            {state.data.refreshFailed ? (
+              <span className="text-caution-ink"> (we could not refresh it just now)</span>
+            ) : null}
           </p>
           {state.data.offers.length === 0 ? (
-            <p className="mt-3">No flights were found for these dates.</p>
+            <p className="text-ink-muted mt-3 text-sm">No flights were found for these dates.</p>
           ) : (
-            <ul className="mt-3 space-y-3">
+            <ul className="mt-3 space-y-2">
               {state.data.offers.map((offer) => (
-                <li key={offer.id} className="border-border rounded-(--radius-control) border p-3">
-                  <p className="text-base font-semibold">{offer.price}</p>
-                  <p className="text-sm">
-                    Out {offer.outbound.departsAt.slice(0, 16).replace('T', ' ')},{' '}
-                    {duration(offer.outbound.durationMinutes)}, {offer.outbound.stops} stops (
-                    {offer.outbound.flights.join(', ')})
-                  </p>
-                  <p className="text-sm">
-                    Back {offer.inbound.departsAt.slice(0, 16).replace('T', ' ')},{' '}
-                    {duration(offer.inbound.durationMinutes)}, {offer.inbound.stops} stops (
-                    {offer.inbound.flights.join(', ')})
-                  </p>
+                <li
+                  key={offer.id}
+                  className="border-border bg-surface-raised rounded-(--radius-control) border p-3"
+                >
+                  <p className="text-lg leading-tight font-semibold tabular-nums">{offer.price}</p>
+                  <dl className="mt-2 space-y-1.5">
+                    <Leg label="Out" leg={offer.outbound} />
+                    <Leg label="Back" leg={offer.inbound} />
+                  </dl>
                   {offer.bookingUrl ? (
                     <a
-                      className="mt-1 inline-block underline"
+                      className="text-brand-ink hover:text-ink mt-1 inline-flex min-h-11 items-center underline underline-offset-4"
                       href={offer.bookingUrl}
                       target="_blank"
                       rel="noopener noreferrer"

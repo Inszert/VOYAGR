@@ -6,9 +6,10 @@ export function HubSavingLine({ saving }: { saving: HubSaving | null }) {
   if (!saving) return null;
   const whole = (minor: number) => format(money(minor, saving.currency));
   return (
-    <p className="text-ink text-sm">
+    <p className="border-border bg-surface-sunken text-ink rounded-(--radius-control) border px-4 py-3 text-sm leading-relaxed">
       <span className="font-semibold">Cheaper from {saving.code}:</span> save{' '}
-      {whole(saving.savingMinor)} including a {whole(saving.transferMinor)} transfer (estimate)
+      {whole(saving.savingMinor)} including a {whole(saving.transferMinor)} transfer{' '}
+      <span className="text-caution-ink font-medium">(estimate)</span>
     </p>
   );
 }
