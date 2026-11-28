@@ -56,3 +56,11 @@ Each entry: the decision, why, and what would change it.
 - **A process that loses the Redis lock waits (6 s, polling the cache) and never calls the MCP itself**; on timeout it serves stored data or `no_data`. Redis down means the lock is treated as held (proceed alone). Nothing wires the lock to a real Redis client yet.
 - **An empty successful answer is stored** (it is a fact: no flights), and counts as fresh.
 - Not done: nightly cleanup, the daily budget in Redis, wiring the read path into pages or the provider factory.
+
+## Slice 4: hub and nearby-airport comparison (all figures are ESTIMATES or thresholds)
+- **Candidates are data** in `src/core/hub/candidates.ts` (`ORIGIN_TABLE`): BUD, VIE, KSC, FRA, IST, PRG, WAW, MUC, MXP, BCN, each with listed low-cost hubs. Positions come from the repo's OurAirports data; distance is the great circle from `src/core/distance.ts` (whole km). Nearby = `large` airports within 250 km (configurable `maxGroundKm`) plus the listed hubs.
+- **Ground transfer ESTIMATE (EUR, one way, by straight-line km):** up to 60 km 15.00 EUR / 60 min; up to 120 km 25.00 / 105 min; up to 180 km 35.00 / 150 min; up to 250 km 45.00 / 200 min; up to 400 km 65.00 / 290 min. Beyond 400 km no estimate, so the candidate is left out. Labelled `basis: 'estimate'`. Not quotes.
+- **Materiality thresholds:** saving at least 1500 minor units AND at least 10 percent of the requested total (both configurable). The percent test is cross-multiplied in integers, exact at the boundary. A candidate with no price is never compared.
+- **Self-transfer:** more than one separate ticket returns the key `hub.selfTransfer.separateTickets`; copy is the UI's job.
+- fast-check is not installed: properties use a seeded LCG loop (500 cases).
+- Comparison assumes one currency; converting is the caller's job (`src/core/fx.ts`).
