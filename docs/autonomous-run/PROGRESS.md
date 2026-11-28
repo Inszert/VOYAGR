@@ -33,8 +33,10 @@ Not pushed. `main` is untouched.
 - E2E triage: 29 failures from the first full run classified (1 real layout-shift bug in the filter rail, 9 tests updated to the explore/stays redesign, the rest load-induced at 8 workers). Fixed and re-run at `--workers=2 --repeat-each=2`: all pass. See DECISIONS.md "E2E triage".
 
 ## Verification log (N2; counts copied from real output)
+
 - 2026-11-28 `npm run typecheck`: exit 0.
 - 2026-11-28 `npm run lint`: exit 0.
 - 2026-11-28 `npx vitest run --testTimeout=60000`: 271 files passed; 3192 tests passed, 3 skipped.
 - 2026-11-28 `npx prettier --check .`: exit 0 after excluding docs/imagery-options.md and docs/autonomous-run/OWNER-NOTES.md (owner-owned files, see .prettierignore).
 - 2026-11-28 `npx playwright test --workers=4` (production build, chrome): 298 passed, 1 failed (mobile-chrome 'narrows results without searching again'), 1 skipped. Failing test not yet fixed; see E2E-TRIAGE.md.
+- 2026-11-28 `npx playwright test tests/e2e/search.spec.ts -g "narrows results without searching again" --project=mobile-chrome --repeat-each=3` (production build, chrome, clean worktree of HEAD with the test fix): 3 passed at --workers=2 and 3 passed at --workers=4. Before the fix it was 3 passed at --workers=2 (did not reproduce). See E2E-TRIAGE.md.
