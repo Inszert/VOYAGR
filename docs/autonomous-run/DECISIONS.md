@@ -3,6 +3,7 @@
 Each entry: the decision, why, and what would change it.
 
 ## Conflicts with earlier agreements (owner must confirm)
+
 - **Flights only from Kiwi MCP.** Earlier the owner chose Aviasales for flights and Nuitee flights
   only once Nuitee approves production. This run makes `FLIGHT_PROVIDER=kiwi-mcp` the production
   default and turns Aviasales and Nuitee flights off by configuration (kept in the tree).
@@ -15,6 +16,7 @@ Each entry: the decision, why, and what would change it.
   stored data exists (12-hour rule). The globe never calls the MCP (section 8).
 
 ## Assumptions from the prompt (named in the prompt as assumptions)
+
 - "5 sec" means a 5-second timeout per MCP call. One constant.
 - Thresholds: hub saving at least 15 EUR and 10 percent; price-drop alert at 85 percent of the
   median and at least 15 EUR less. Both configurable.
@@ -23,10 +25,12 @@ Each entry: the decision, why, and what would change it.
 - Aggregates kept after the nightly cleanup: per route and month, median, min and sample count.
 
 ## Facts still to verify (recorded fixture, then owner check)
+
 - The Kiwi response shape (recorded in `src/providers/mcp/fixtures/`, see the next entry).
 - Whether the documented date flexibility and the hidden rate limit hold in practice.
 
 ## Slice 1: the Kiwi MCP adapter
+
 - **One-way fixture, round-trip domain type.** The recorded answer is a one-way search
   (`inbound: null`) but `FlightOffer` requires both legs. So the 15 recorded itineraries map to
   `OneWayFare` through `searchOneWay` (month window, `departureDate..departureDateTo`), and
@@ -50,6 +54,7 @@ Each entry: the decision, why, and what would change it.
 - `docs/provider-policy.md`, `README.md` and `data-source.ts` are not updated yet (not in this slice).
 
 ## Slice 2: the 12-hour read path
+
 - **Flight freshness is 12 h** (`FLIGHT_MAX_AGE_MS`). Changed test: `flex-dates.test.ts` "30 minutes is the edge" now tests the 12-hour edge (it reads `DEFAULT_FRESHNESS.flights`). `freshness.test.ts` keeps its own 30-minute limits for the generic function; a 12-hour policy block and the label were added. Label: whole hours rounded down, "checked less than 1 h ago" under an hour.
 - **The observation time travels inside the cached value** (`{offers, observedAt, v}`), because `CacheStore.set` stamps the write time; warming Redis from a 10-hour-old Postgres row must not make it look new. Cache TTL is the remaining fresh time, so a cache entry is never stale; stale data lives only in Postgres (`kiwi_offers`, never expired by the database).
 - **Postgres table is new (`kiwi_offers`), not the LiteAPI snapshot**, whose rows vanish at `expires_at`; the stale fallback needs old rows to survive. Key: origin, destination, dates, adults, currency. No cabin (the Kiwi call has none).
@@ -58,6 +63,7 @@ Each entry: the decision, why, and what would change it.
 - Not done: nightly cleanup, the daily budget in Redis, wiring the read path into pages or the provider factory.
 
 ## Slice 4: hub and nearby-airport comparison (all figures are ESTIMATES or thresholds)
+
 - **Candidates are data** in `src/core/hub/candidates.ts` (`ORIGIN_TABLE`): BUD, VIE, KSC, FRA, IST, PRG, WAW, MUC, MXP, BCN, each with listed low-cost hubs. Positions come from the repo's OurAirports data; distance is the great circle from `src/core/distance.ts` (whole km). Nearby = `large` airports within 250 km (configurable `maxGroundKm`) plus the listed hubs.
 - **Ground transfer ESTIMATE (EUR, one way, by straight-line km):** up to 60 km 15.00 EUR / 60 min; up to 120 km 25.00 / 105 min; up to 180 km 35.00 / 150 min; up to 250 km 45.00 / 200 min; up to 400 km 65.00 / 290 min. Beyond 400 km no estimate, so the candidate is left out. Labelled `basis: 'estimate'`. Not quotes.
 - **Materiality thresholds:** saving at least 1500 minor units AND at least 10 percent of the requested total (both configurable). The percent test is cross-multiplied in integers, exact at the boundary. A candidate with no price is never compared.
@@ -66,6 +72,7 @@ Each entry: the decision, why, and what would change it.
 - Comparison assumes one currency; converting is the caller's job (`src/core/fx.ts`).
 
 ## Slice 3: nightly cleanup and the route graph
+
 - **What is aggregated.** Per route (origin, destination), month of departure (YYYY-MM) and currency: the median and minimum of the cheapest offer price of each stored lookup (one sample per `kiwi_offers` row, rows with no readable price are skipped), and the sample count. Integer minor units only; an even-count median is the floor of the mean of the two middle values. Computed from the rows about to be deleted, written before the delete.
 - **What is deleted.** `kiwi_offers` rows with departure date before today (UTC day, passed in the job payload; the pure code never reads a clock). Today's departures are kept. `route_graph` has no dates of travel and is never pruned.
 - **Observation rows.** `price_observations` is keyed by watch and carries no departure date, and has its own retention (`pruneOlderThan`, keeps each watch's cheapest). The cleanup does not touch it; the only departure-dated table today is `kiwi_offers`. Calendar days and watch snapshots are not stored separately yet.
@@ -73,6 +80,7 @@ Each entry: the decision, why, and what would change it.
 - **Schedule.** The worker checks every minute and enqueues `cleanup.nightly` once per UTC day from `CLEANUP_UTC_HOUR` (default 3, 0 to 23). A restart later the same day enqueues once more; harmless since the delete is idempotent, though the merge could double-count only if a run failed between writing aggregates and deleting. Aggregates are written first on purpose: losing a baseline is worse than counting one twice. The job never calls the MCP.
 
 ## Slice 5: price-drop detection
+
 - **Observations are recorded only when a lookup actually happened** (a user request or the lazy recommendation generation). There is no background polling, so alert quality depends on usage: a route nobody looks up gets no baseline and no alert. An optional, rate-limited "refresh my watches on app open" step (12 h rule applies) is suggested and not built.
 - **Baseline** (`src/core/alerts/baseline.ts`): median of cheapest-price observations of one route, month and currency in the last 30 days; fewer than 5 means `null` (no guess). Even count: floor of the mean of the middle two. Future-dated observations are ignored. The observation being judged is excluded from its own baseline.
 - **Material drop** (`detect.ts`, constants in `constants.ts`): new price at most 85 percent of the median (cross-multiplied, exact) AND at least 1500 minor units below it. Results carry a reason code: no_baseline, invalid_price, currency_mismatch, not_material, duplicate_observation, duplicate_window.
@@ -81,6 +89,7 @@ Each entry: the decision, why, and what would change it.
 - **Delivery** (`src/notifications/price-drop.ts`): in-app notification always, web push through the existing `deliverNotification` when the channel is configured, and email through the injected `EmailProvider` (console driver in dev and tests). Honours `priceDropAlerts` preference. The email carries a `List-Unsubscribe` header to `/account`; the layout's note that Voyagr sends no alert mail is now out of date. Nothing calls this yet from a lookup path (not wired).
 
 ## Slice 8a: the read path is the flight provider
+
 - `FLIGHT_PROVIDER=kiwi-mcp` now builds `KiwiCachedFlightProvider` (`src/providers/flights/kiwi-cached.ts`): a `FlightProvider` that runs each origin x destination pair through `KiwiReadPath`. Same `metadata.id` (`kiwi-mcp`), so provenance and orchestrator code are unchanged. Cache and Postgres are resolved on first search, so building the registry opens no connection.
 - **Stale is labelled on the offer**: it keeps its original `observedAt` (the freshness engine judges that) and its `source.displayName` becomes "Kiwi.com, checked 14 h ago". All pairs with no stored data and a failed call returns the error, not an empty page.
 - **No `searchOneWay` / month sources on this provider**: they would be MCP calls outside the cache and the 12 h rule. The orchestrator already treats their absence as "not offered", so one-way pairing is off under kiwi-mcp. Revisit if wanted, through the read path.
@@ -90,6 +99,7 @@ Each entry: the decision, why, and what would change it.
 - Existing failure, not from this slice: `orchestrator.test.ts` "calls the same quote stale once it has aged past the limit" expects a 30-minute limit; flights are 12 h since slice 2.
 
 ## Slice 7: lazy recommendations
+
 - **One MCP call per generation**: `search-flight` with `flyTo: "anywhere"` and `one_for_city: true` plus the date window and a nights range. The brief's "anywhere plus one_for_city" is read as one combined call, not two; it keeps a generation at 1 call.
 - **Budget**: this feature has its own daily allowance (`RECOMMENDATION_DAILY_CALLS`, 20 per UTC day, in memory per process) checked before the call, on top of the MCP client's global budget. A spent allowance keeps the stored list and reports `refreshFailed: 'budget'`. A failed call, an unusable answer or an answer with no usable destination also keeps the stored list (`'error'`) and the age label; an empty answer never overwrites a good list.
 - **Freshness**: the stored list's `generatedAt` is the instant the MCP answered; fresh means 12 h or less (`FLIGHT_MAX_AGE_MS`). `peek` reads storage only and never calls the MCP. Simultaneous requests for one key share one generation.
@@ -99,6 +109,7 @@ Each entry: the decision, why, and what would change it.
 - `src/search/orchestrator.test.ts` "calls the same quote stale once it has aged past the limit" fails in the working tree and is not caused by this slice (it expects the old 30-minute limit).
 
 ## Slice 6: lazy globe
+
 - **What the globe shows.** Arcs from the home airport to destinations present in `route_graph` (a route exists because an earlier lookup stored it), drawn through the existing `routes` GeoJSON so `globe-arcs.ts`, camera, data model and rendering are untouched. An airport with no stored edge or no known position is not drawn. Merged in `stage-host.tsx` by `withStoredRoutes`: routes the page already draws win; at most 25 stored lines are added, unranked (`stops: null`).
 - **Why stored only while moving.** `loadStoredRoutes` takes a `RouteGraphRepository` and nothing else, and `/api/globe-routes` imports no provider; the zero-call test mocks the provider registry and MCP client modules and fails on any call. The browser loader can only reach `/api/globe-routes`, debounced (350 ms) with the previous request cancelled.
 - **Click is the only paid path.** `RouteOffersPanel` calls `/api/route-offers` (one `KiwiReadPath.lookup`, single-flight per process). Prices are formatted server-side from `Money`. Unmounting aborts the request; `no_data` shows "nothing is saved for this route yet".
