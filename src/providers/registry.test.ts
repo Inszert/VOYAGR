@@ -8,6 +8,7 @@ import {
   type SourceAttribution,
 } from '@/core/trip/provenance';
 import { assertNoMockInProduction, ProviderRegistry } from './registry';
+import { KiwiCachedFlightProvider } from './flights/kiwi-cached';
 import { getStayProviders, resetStayProviders } from './stays/registry';
 
 /**
@@ -216,8 +217,7 @@ describe('production serves no fixtures', () => {
   const production = (overrides: Partial<Env> = {}) =>
     env({
       NODE_ENV: 'production',
-      FLIGHT_PROVIDER: 'aviasales',
-      AVIASALES_API_TOKEN: 'token-for-test',
+      FLIGHT_PROVIDER: 'kiwi-mcp',
       HOTEL_PROVIDER: 'absent',
       WEATHER_PROVIDER: 'open-meteo',
       TRANSFER_PROVIDER: 'absent',
@@ -348,5 +348,32 @@ describe('production serves no fixtures', () => {
     resetStayProviders();
     expect(() => getStayProviders(production(), 'mock')).toThrow(AppError);
     resetStayProviders();
+  });
+});
+
+describe('the flight slot is the 12-hour read path', () => {
+  it('builds the read path for kiwi-mcp, not the raw adapter, without touching storage or the network', () => {
+    const fetchSpy = spyOnFetch();
+    const registry = new ProviderRegistry(env({ FLIGHT_PROVIDER: 'kiwi-mcp' }));
+    expect(registry.flights).toBeInstanceOf(KiwiCachedFlightProvider);
+    expect(registry.flights.metadata.id).toBe('kiwi-mcp');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('refuses every legacy flight provider in production without the opt-in', () => {
+    for (const legacy of ['aviasales', 'liteapi', 'live'] as const) {
+      expect(
+        () =>
+          new ProviderRegistry(
+            env({
+              NODE_ENV: 'production',
+              FLIGHT_PROVIDER: legacy,
+              AVIASALES_API_TOKEN: 't',
+              LITEAPI_API_KEY: 'sand_k',
+            } as Partial<Env>),
+          ),
+      ).toThrow(/production serves flights from kiwi-mcp only/);
+    }
   });
 });

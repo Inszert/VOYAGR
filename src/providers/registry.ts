@@ -10,7 +10,7 @@ import {
 import type { ProviderMode } from '@/core/trip/provenance';
 import { mockAllowed } from './mock-policy';
 import { createAviasalesFlightProvider } from './flights/aviasales';
-import { createKiwiMcpFlightProvider } from './flights/kiwi-mcp';
+import { createKiwiCachedFlightProvider } from './flights/kiwi-cached';
 import { createSnapshotFlightProvider } from './flights/liteapi-snapshot';
 import { createMockFlightProvider } from './flights/mock';
 import { createSnapshotHotelProvider } from './hotels/liteapi';
@@ -236,8 +236,28 @@ function resolveFlightProvider(env: Env): FlightProvider {
    * time it would reach here. See `docs/provider-policy.md`.
    */
   if (env.FLIGHT_PROVIDER === 'kiwi-mcp') {
-    // No key exists for Kiwi. The client connects on its first call, not here.
-    return createKiwiMcpFlightProvider({ dailyBudget: env.KIWI_MCP_DAILY_BUDGET });
+    // No key exists for Kiwi. The client connects on its first call, not here. The provider is
+    // the 12-hour read path in front of the adapter, never the raw adapter.
+    return createKiwiCachedFlightProvider({ dailyBudget: env.KIWI_MCP_DAILY_BUDGET });
+  }
+
+  /*
+   * The older sources stay in the tree and are unreachable in production unless
+   * ALLOW_LEGACY_FLIGHT_PROVIDERS=true. `parseEnv` refuses this too; checked here as well
+   * because a registry can be handed an Env that did not come through it.
+   */
+  if (
+    env.NODE_ENV === 'production' &&
+    !env.ALLOW_LEGACY_FLIGHT_PROVIDERS &&
+    (env.FLIGHT_PROVIDER === 'aviasales' ||
+      env.FLIGHT_PROVIDER === 'liteapi' ||
+      env.FLIGHT_PROVIDER === 'live')
+  ) {
+    throw new AppError(
+      'CONFIGURATION_ERROR',
+      `FLIGHT_PROVIDER is "${env.FLIGHT_PROVIDER}", and production serves flights from kiwi-mcp only.`,
+      { publicMessage: 'This travel data source is not configured.' },
+    );
   }
 
   if (env.FLIGHT_PROVIDER === 'aviasales') {
