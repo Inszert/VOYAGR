@@ -2,7 +2,9 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
+import { WORLD, withStoredRoutes, type StoredRoute } from '@/discovery/stored-routes';
 import { GlobeStage } from './globe-stage';
+import { createStoredRoutesLoader } from './stored-routes-client';
 import { STAGE_FRAME_EVENT } from './globe-motion';
 import { formSeasonDate } from './globe-style';
 import {
@@ -85,6 +87,8 @@ function isStageUrl(url: URL): boolean {
   );
 }
 
+const NO_ROUTES: readonly StoredRoute[] = [];
+
 export function StageHost() {
   const snapshot = React.useSyncExternalStore(
     subscribeStage,
@@ -99,6 +103,34 @@ export function StageHost() {
   const flipping = React.useRef<Animation | null>(null);
 
   const { slot, variant, data, pending } = snapshot;
+
+  /*
+   * Stored routes from the home airport, drawn with the arc layer the page's own routes use.
+   * Only the stored route graph is asked for - never a price - so this costs no provider call.
+   * Airports nothing stored are simply absent.
+   */
+  const homeCode = data?.origins[0]?.code ?? null;
+  const [loaded, setLoaded] = React.useState<{
+    home: string;
+    routes: readonly StoredRoute[];
+  } | null>(null);
+  React.useEffect(() => {
+    if (!homeCode) return;
+    const loader = createStoredRoutesLoader({
+      onRoutes: (routes) => setLoaded({ home: homeCode, routes }),
+    });
+    loader.request(homeCode, WORLD);
+    return loader.dispose;
+  }, [homeCode]);
+  // Routes stored for a previous home are never drawn from this one.
+  const stored = loaded && loaded.home === homeCode ? loaded.routes : NO_ROUTES;
+  const stageData = React.useMemo(
+    () =>
+      data
+        ? { ...data, routes: withStoredRoutes(data.routes as never, stored) as typeof data.routes }
+        : null,
+    [data, stored],
+  );
 
   /*
    * The season follows the form, not only the search.
@@ -350,9 +382,9 @@ export function StageHost() {
         {pending ? 'Updating the map' : ''}
       </p>
 
-      {data ? (
+      {stageData ? (
         <GlobeStage
-          {...data}
+          {...stageData}
           seasonPreviewDate={seasonPreviewDate}
           variant={variant}
           className={ROOT_CLASS[variant]}
