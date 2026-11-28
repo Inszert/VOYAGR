@@ -13,14 +13,20 @@ main", write `docs/autonomous-run/E2E-TRIAGE.md` with: test name, the exact comm
 worktree, and the failing output line. Also list the tests this branch caused and the commit that fixed
 each. A claim without that evidence will be treated as unverified.
 
+Status: Blocked: the main worktree used for triage was removed after the run (it caught the node_modules junction). E2E-TRIAGE.md is not written yet, because the main-run commands and output lines were not kept. Partial evidence: the triage commits 74c84f9, a0409e1 and 9c88478, and the section Pre-existing e2e failures on main in DECISIONS.md. Recreate a main worktree under the scratchpad and re-run the failing tests there to finish this.
+
 ## N2: verification log
 After every verification step (typecheck, lint, unit tests, build, e2e), append a dated line to
 `docs/autonomous-run/PROGRESS.md` with the command and the summary counts (passed, failed, skipped).
 Never write a count you did not just read from real output.
 
+Status: Done: counts logged from real output in docs/autonomous-run/PROGRESS.md under Verification log (commit 7e467aa).
+
 ## N3: `.env.example`
 Check `.env.example` for a duplicated `FLIGHT_PROVIDER` line or placeholders that conflict with each other
 (the first HANDOFF warned about this). Fix it, and add a test or check script if one is cheap.
+
+Status: Blocked: .env.example is denied to agents by a permission setting, so it cannot be read or edited here. The owner needs to check it for a duplicate FLIGHT_PROVIDER line.
 
 ## N4: optimisation pass (after e2e is green or fully triaged)
 Measure before and after, and record the numbers in `docs/autonomous-run/OPTIMISATION.md`:
@@ -29,8 +35,12 @@ Measure before and after, and record the numbers in `docs/autonomous-run/OPTIMIS
 - Wire the Redis lock and the Redis-held daily budget if time allows (both are in memory now).
 Stop optimising when two measured changes in a row give no meaningful gain.
 
+Status: Blocked: not started. Waiting on N1 and the one failing e2e test (mobile narrows results). Then measure the four scenarios and the cache hit rates.
+
 ## N5: do not touch
 `docs/imagery-options.md` is the owner's open file. Leave it alone and do not make `npm run verify` depend on it.
+
+Status: Done: docs/imagery-options.md and this notes file are excluded in .prettierignore (commit 7e467aa), so npx prettier --check passes without touching the owner file.
 
 ## N7: it must look good, not just work
 The redesign is part of this project. Every UI you add or touch (the hub saving line on Explore, the
@@ -43,6 +53,10 @@ typography, readable contrast, smooth but restrained motion, keyboard and screen
 before and after screenshots in `docs/autonomous-run/screenshots/` and say in PROGRESS.md what you
 improved. Ugly or half-styled states count as not done.
 
+Status: Blocked for now: not yet done. In progress in this iteration: a UI pass on the new surfaces with before and after screenshots; this line will change to Done or a specific Blocked reason when that pass ends.
+
 ## N6: finish
 When the acceptance list is done and only optimisation ideas remain, update HANDOFF.md (what is verified,
 what is not, with the evidence file names), commit, send the notification, and stop.
+
+Status: Blocked: waiting on N1, N4 and the last failing e2e test before the final HANDOFF.md.
