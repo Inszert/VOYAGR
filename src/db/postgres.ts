@@ -1,4 +1,5 @@
 import { money, type Money } from '@/core/money';
+import type { RouteAggregate } from '@/core/cleanup/prune';
 import { AppError } from '@/lib/errors';
 import { query, withTransaction } from './client';
 import type { RepositoryOptions } from './memory';
@@ -7,6 +8,9 @@ import type {
   KiwiOffersKey,
   KiwiOffersRepository,
   KiwiOffersRow,
+  RouteAggregatesRepository,
+  RouteGraphEdge,
+  RouteGraphRepository,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
   LiteApiHotelRow,
@@ -1902,7 +1906,143 @@ interface KiwiOffersDbRow {
   observed_at: Date | string;
 }
 
+function kiwiRowFromDb(row: KiwiOffersDbRow): KiwiOffersRow {
+  return {
+    origin: row.origin,
+    destination: row.destination,
+    departureDate: row.departure_date,
+    returnDate: row.return_date,
+    adults: row.adults,
+    currency: row.currency,
+    schemaVersion: row.schema_version,
+    offers: row.offers,
+    observedAt: toIso(row.observed_at),
+  };
+}
+
+interface RouteGraphDbRow {
+  origin: string;
+  destination: string;
+  carrier: string;
+  first_seen_at: Date | string;
+  last_seen_at: Date | string;
+}
+
+class PostgresRouteGraphRepository implements RouteGraphRepository {
+  async upsertEdges(edges: readonly RouteGraphEdge[]): Promise<void> {
+    for (const edge of edges) {
+      await query(
+        `INSERT INTO route_graph (origin, destination, carrier, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (origin, destination, carrier)
+         DO UPDATE SET last_seen_at = GREATEST(route_graph.last_seen_at, EXCLUDED.last_seen_at)`,
+        [edge.origin, edge.destination, edge.carrier, edge.firstSeenAt, edge.lastSeenAt],
+      );
+    }
+  }
+
+  async destinationsFor(origin: string): Promise<RouteGraphEdge[]> {
+    const rows = await query<RouteGraphDbRow>(
+      `SELECT origin, destination, carrier, first_seen_at, last_seen_at
+         FROM route_graph WHERE origin = $1 ORDER BY destination, carrier`,
+      [origin],
+    );
+    return rows.map((row) => ({
+      origin: row.origin,
+      destination: row.destination,
+      carrier: row.carrier,
+      firstSeenAt: toIso(row.first_seen_at),
+      lastSeenAt: toIso(row.last_seen_at),
+    }));
+  }
+}
+
+interface RouteAggregateDbRow {
+  origin: string;
+  destination: string;
+  month: string;
+  currency: string;
+  median_minor: string | number;
+  min_minor: string | number;
+  sample_count: number;
+  computed_at: Date | string;
+}
+
+class PostgresRouteAggregatesRepository implements RouteAggregatesRepository {
+  async write(aggregates: readonly RouteAggregate[]): Promise<void> {
+    for (const a of aggregates) {
+      // Same merge as `mergeAggregate`: exact min and count, count-weighted median rounded down
+      // (BIGINT division truncates, and every value is non-negative).
+      await query(
+        `INSERT INTO route_aggregates
+           (origin, destination, month, currency, median_minor, min_minor, sample_count, computed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (origin, destination, month, currency)
+         DO UPDATE SET
+           median_minor = (route_aggregates.median_minor * route_aggregates.sample_count
+                           + EXCLUDED.median_minor * EXCLUDED.sample_count)
+                          / (route_aggregates.sample_count + EXCLUDED.sample_count),
+           min_minor = LEAST(route_aggregates.min_minor, EXCLUDED.min_minor),
+           sample_count = route_aggregates.sample_count + EXCLUDED.sample_count,
+           computed_at = EXCLUDED.computed_at`,
+        [
+          a.origin,
+          a.destination,
+          a.month,
+          a.currency,
+          a.medianMinor,
+          a.minMinor,
+          a.sampleCount,
+          a.computedAt,
+        ],
+      );
+    }
+  }
+
+  async list(origin: string, destination: string): Promise<RouteAggregate[]> {
+    const rows = await query<RouteAggregateDbRow>(
+      `SELECT origin, destination, month, currency, median_minor, min_minor, sample_count,
+              computed_at
+         FROM route_aggregates WHERE origin = $1 AND destination = $2
+        ORDER BY month, currency`,
+      [origin, destination],
+    );
+    return rows.map((row) => ({
+      origin: row.origin,
+      destination: row.destination,
+      month: row.month,
+      currency: row.currency,
+      medianMinor: Number(row.median_minor),
+      minMinor: Number(row.min_minor),
+      sampleCount: row.sample_count,
+      computedAt: toIso(row.computed_at),
+    }));
+  }
+}
+
 class PostgresKiwiOffersRepository implements KiwiOffersRepository {
+  async listDepartingBefore(day: IsoDate): Promise<KiwiOffersRow[]> {
+    const rows = await query<KiwiOffersDbRow>(
+      `SELECT origin, destination, to_char(departure_date, 'YYYY-MM-DD') AS departure_date,
+              to_char(return_date, 'YYYY-MM-DD') AS return_date, adults, currency,
+              schema_version, offers, observed_at
+         FROM kiwi_offers
+        WHERE departure_date < $1::date
+        ORDER BY origin, destination, departure_date, return_date`,
+      [day],
+    );
+    return rows.map(kiwiRowFromDb);
+  }
+
+  async deleteDepartingBefore(day: IsoDate): Promise<number> {
+    const rows = await query<{ deleted: string | number }>(
+      `WITH gone AS (DELETE FROM kiwi_offers WHERE departure_date < $1::date RETURNING 1)
+       SELECT count(*) AS deleted FROM gone`,
+      [day],
+    );
+    return Number(rows[0]?.deleted ?? 0);
+  }
+
   async get(key: KiwiOffersKey): Promise<KiwiOffersRow | null> {
     const rows = await query<KiwiOffersDbRow>(
       `SELECT origin, destination, to_char(departure_date, 'YYYY-MM-DD') AS departure_date,
@@ -2287,6 +2427,8 @@ export function createPostgresRepositories(options: RepositoryOptions = {}): Rep
   return {
     liteapiSnapshot: new PostgresLiteApiSnapshotRepository(options.now ?? Date.now),
     kiwiOffers: new PostgresKiwiOffersRepository(),
+    routeGraph: new PostgresRouteGraphRepository(),
+    routeAggregates: new PostgresRouteAggregatesRepository(),
     visitorSearches: new PostgresVisitorSearchRepository(options.now ?? Date.now),
     users: new PostgresUserRepository(),
     credentials: new PostgresUserCredentialRepository(),

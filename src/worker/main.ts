@@ -6,6 +6,12 @@ import { createCacheRefreshHandler, startCacheRefresh } from '@/cache/refresh';
 import { createFlightsRefreshHandler } from '@/liteapi-snapshot/flights-job';
 import { createSnapshotRefreshHandler } from '@/liteapi-snapshot/job';
 import { startSnapshotScheduler, type SnapshotScheduler } from '@/liteapi-snapshot/schedule';
+import {
+  createNightlyCleanupHandler,
+  NIGHTLY_CLEANUP_JOB,
+  startNightlyCleanupScheduler,
+  type NightlyCleanupScheduler,
+} from '@/jobs/nightly-cleanup';
 import { createRefreshHandler } from '@/watches/refresh';
 import { getEmailProvider } from '@/email/registry';
 import { createDeliveryHandler } from '@/notifications/deliver';
@@ -34,6 +40,7 @@ export interface WorkerHandle {
   readonly maintenance: MaintenanceHandle;
   /** Null unless `LITEAPI_SNAPSHOT_ENABLED` is on and a key is set. */
   readonly liteapiSnapshot: SnapshotScheduler | null;
+  readonly nightlyCleanup: NightlyCleanupScheduler;
   stop(): Promise<void>;
 }
 
@@ -62,6 +69,8 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     'liteapi.snapshot.refresh',
     createSnapshotRefreshHandler({ repositories, env: getEnv() }),
   );
+
+  queue.register(NIGHTLY_CLEANUP_JOB, createNightlyCleanupHandler({ repositories }));
 
   // The flights job is registered only with the flag: with it off nothing can enqueue or run one.
   if (getEnv().LITEAPI_SNAPSHOT_ENABLED) {
@@ -114,6 +123,9 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     log.warn('LITEAPI_SNAPSHOT_ENABLED is set but LITEAPI_API_KEY is not: no snapshot refresh.');
   }
 
+  // Once a day at a fixed UTC hour; touches only our own database, never a provider.
+  const nightlyCleanup = startNightlyCleanupScheduler(queue, { hourUtc: env.CLEANUP_UTC_HOUR });
+
   if (!getEnv().REDIS_URL) {
     // Without Redis the worker fills its own memory and no page ever sees it.
     log.warn('REDIS_URL is not set: cache refreshes are not shared with the web server.');
@@ -126,9 +138,11 @@ export async function startWorker(options: WorkerOptions = {}): Promise<WorkerHa
     scheduler,
     maintenance,
     liteapiSnapshot,
+    nightlyCleanup,
     async stop() {
       scheduler.stop();
       liteapiSnapshot?.stop();
+      nightlyCleanup.stop();
       cacheRefresh.stop();
       maintenance.stop();
       await queue.stop();

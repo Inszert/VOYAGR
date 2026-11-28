@@ -64,3 +64,10 @@ Each entry: the decision, why, and what would change it.
 - **Self-transfer:** more than one separate ticket returns the key `hub.selfTransfer.separateTickets`; copy is the UI's job.
 - fast-check is not installed: properties use a seeded LCG loop (500 cases).
 - Comparison assumes one currency; converting is the caller's job (`src/core/fx.ts`).
+
+## Slice 3: nightly cleanup and the route graph
+- **What is aggregated.** Per route (origin, destination), month of departure (YYYY-MM) and currency: the median and minimum of the cheapest offer price of each stored lookup (one sample per `kiwi_offers` row, rows with no readable price are skipped), and the sample count. Integer minor units only; an even-count median is the floor of the mean of the two middle values. Computed from the rows about to be deleted, written before the delete.
+- **What is deleted.** `kiwi_offers` rows with departure date before today (UTC day, passed in the job payload; the pure code never reads a clock). Today's departures are kept. `route_graph` has no dates of travel and is never pruned.
+- **Observation rows.** `price_observations` is keyed by watch and carries no departure date, and has its own retention (`pruneOlderThan`, keeps each watch's cheapest). The cleanup does not touch it; the only departure-dated table today is `kiwi_offers`. Calendar days and watch snapshots are not stored separately yet.
+- **Merging across nights.** A month is cleaned over many nights, so a write into an existing bucket merges: min and count exact, median becomes the count-weighted mean of old and new medians (a true median cannot be rebuilt from two medians). An approximation, documented in the repository interface.
+- **Schedule.** The worker checks every minute and enqueues `cleanup.nightly` once per UTC day from `CLEANUP_UTC_HOUR` (default 3, 0 to 23). A restart later the same day enqueues once more; harmless since the delete is idempotent, though the merge could double-count only if a run failed between writing aggregates and deleting. Aggregates are written first on purpose: losing a baseline is worse than counting one twice. The job never calls the MCP.

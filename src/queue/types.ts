@@ -24,6 +24,8 @@ export const JOB_NAMES = [
   'liteapi.snapshot.refresh',
   /** Refresh one LiteAPI origin, destination and date window of flights into our own snapshot. */
   'liteapi.flights.refresh',
+  /** Delete stored offers that departed before today, keeping route-and-month aggregates. */
+  'cleanup.nightly',
 ] as const;
 
 /*
@@ -47,6 +49,8 @@ export interface JobPayloads {
     departureDate: string;
     returnDate: string;
   };
+  /** `day` is today in UTC, set by the scheduler: the job never reads the clock for it. */
+  'cleanup.nightly': { day: string };
 }
 
 export interface Job<TName extends JobName = JobName> {

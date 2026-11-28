@@ -261,6 +261,8 @@ const envSchema = z.object({
    * either way; pages read the snapshot.
    */
   LITEAPI_SNAPSHOT_ENABLED: booleanish.default(false),
+  /** The UTC hour the nightly past-departure cleanup is queued (once a day). It never calls a provider. */
+  CLEANUP_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(3),
   /** Refresh rounds a day, at fixed UTC slots (3 gives 00:00, 08:00 and 16:00). */
   LITEAPI_SNAPSHOT_REFRESHES_PER_DAY: z.coerce.number().int().min(1).max(24).default(3),
   /**

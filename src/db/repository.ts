@@ -1,4 +1,5 @@
 import type { Money } from '@/core/money';
+import type { RouteAggregate } from '@/core/cleanup/prune';
 import type { Expense } from '@/core/expenses';
 import type { IsoDate, IsoDateTime, LocalDateTime, SearchProfile } from '@/core/trip/types';
 import type { PlanItemKind, PlanItemStatus } from '@/trip-hub/types';
@@ -782,6 +783,36 @@ export interface KiwiOffersRepository {
   get(key: KiwiOffersKey): Promise<KiwiOffersRow | null>;
   /** Replace the row for its key. */
   put(row: KiwiOffersRow): Promise<void>;
+  /** Every row whose departure date is before `day` (the nightly cleanup reads these first). */
+  listDepartingBefore(day: IsoDate): Promise<KiwiOffersRow[]>;
+  /** Delete every row whose departure date is before `day`; the number deleted. */
+  deleteDepartingBefore(day: IsoDate): Promise<number>;
+}
+
+/** One carrier flying one directed route, with the first and last time we saw it. */
+export interface RouteGraphEdge {
+  readonly origin: string;
+  readonly destination: string;
+  readonly carrier: string;
+  readonly firstSeenAt: IsoDateTime;
+  readonly lastSeenAt: IsoDateTime;
+}
+
+export interface RouteGraphRepository {
+  /** Insert or refresh edges: `lastSeenAt` moves forward, `firstSeenAt` is kept once set. */
+  upsertEdges(edges: readonly RouteGraphEdge[]): Promise<void>;
+  /** Every edge out of `origin`, ordered by destination then carrier. */
+  destinationsFor(origin: string): Promise<RouteGraphEdge[]>;
+}
+
+/** What survives the nightly cleanup; see `src/core/cleanup/prune.ts`. */
+export interface RouteAggregatesRepository {
+  /**
+   * Fold aggregates into the stored ones: minimum and count combine exactly, the median is the
+   * count-weighted mean of the old and new medians (see `mergeAggregate`).
+   */
+  write(aggregates: readonly RouteAggregate[]): Promise<void>;
+  list(origin: string, destination: string): Promise<RouteAggregate[]>;
 }
 
 export interface LiteApiSnapshotRepository {
@@ -882,6 +913,8 @@ export interface Repositories {
   readonly emergencyContacts: EmergencyContactRepository;
   readonly liteapiSnapshot: LiteApiSnapshotRepository;
   readonly kiwiOffers: KiwiOffersRepository;
+  readonly routeGraph: RouteGraphRepository;
+  readonly routeAggregates: RouteAggregatesRepository;
   readonly visitorSearches: VisitorSearchRepository;
   /** Identifies the active backend, for diagnostics. */
   readonly backend: 'memory' | 'postgres';

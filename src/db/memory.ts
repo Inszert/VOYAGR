@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { mergeAggregate, type RouteAggregate } from '@/core/cleanup/prune';
+import type { IsoDate } from '@/core/trip/types';
 import type {
   AlertPreferencesInput,
   AlertPreferencesRecord,
@@ -13,6 +15,9 @@ import type {
   KiwiOffersKey,
   KiwiOffersRepository,
   KiwiOffersRow,
+  RouteAggregatesRepository,
+  RouteGraphEdge,
+  RouteGraphRepository,
   LiteApiEnvironment,
   LiteApiFlightsKey,
   LiteApiFlightsRow,
@@ -1141,6 +1146,68 @@ class MemoryKiwiOffersRepository implements KiwiOffersRepository {
   async put(row: KiwiOffersRow): Promise<void> {
     this.rows.set(this.keyOf(row), structuredClone(row));
   }
+
+  async listDepartingBefore(day: IsoDate): Promise<KiwiOffersRow[]> {
+    return [...this.rows.values()]
+      .filter((row) => row.departureDate < day)
+      .map((row) => structuredClone(row));
+  }
+
+  async deleteDepartingBefore(day: IsoDate): Promise<number> {
+    let deleted = 0;
+    for (const [key, row] of this.rows) {
+      if (row.departureDate < day) {
+        this.rows.delete(key);
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+}
+
+class MemoryRouteGraphRepository implements RouteGraphRepository {
+  private readonly edges = new Map<string, RouteGraphEdge>();
+
+  async upsertEdges(edges: readonly RouteGraphEdge[]): Promise<void> {
+    for (const edge of edges) {
+      const key = [edge.origin, edge.destination, edge.carrier].join('|');
+      const stored = this.edges.get(key);
+      this.edges.set(key, {
+        ...edge,
+        firstSeenAt: stored ? stored.firstSeenAt : edge.firstSeenAt,
+        lastSeenAt:
+          stored && stored.lastSeenAt > edge.lastSeenAt ? stored.lastSeenAt : edge.lastSeenAt,
+      });
+    }
+  }
+
+  async destinationsFor(origin: string): Promise<RouteGraphEdge[]> {
+    return [...this.edges.values()]
+      .filter((edge) => edge.origin === origin)
+      .sort(
+        (a, b) => a.destination.localeCompare(b.destination) || a.carrier.localeCompare(b.carrier),
+      )
+      .map((edge) => ({ ...edge }));
+  }
+}
+
+class MemoryRouteAggregatesRepository implements RouteAggregatesRepository {
+  private readonly rows = new Map<string, RouteAggregate>();
+
+  async write(aggregates: readonly RouteAggregate[]): Promise<void> {
+    for (const a of aggregates) {
+      const key = [a.origin, a.destination, a.month, a.currency].join('|');
+      const stored = this.rows.get(key);
+      this.rows.set(key, stored ? mergeAggregate(stored, a) : { ...a });
+    }
+  }
+
+  async list(origin: string, destination: string): Promise<RouteAggregate[]> {
+    return [...this.rows.values()]
+      .filter((row) => row.origin === origin && row.destination === destination)
+      .sort((a, b) => a.month.localeCompare(b.month) || a.currency.localeCompare(b.currency))
+      .map((row) => ({ ...row }));
+  }
 }
 
 class MemoryLiteApiSnapshotRepository implements LiteApiSnapshotRepository {
@@ -1386,6 +1453,8 @@ export function createMemoryRepositories(options: RepositoryOptions = {}): Repos
     emergencyContacts,
     liteapiSnapshot,
     kiwiOffers,
+    routeGraph: new MemoryRouteGraphRepository(),
+    routeAggregates: new MemoryRouteAggregatesRepository(),
     visitorSearches,
     backend: 'memory',
   };
