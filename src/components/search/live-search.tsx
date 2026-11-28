@@ -524,7 +524,15 @@ export function FiltersLayout({
       ref={ref}
       className={cn(
         className,
-        railed && 'lg:relative lg:pr-[max(0px,calc(21rem-var(--rail-gap,0px)))]',
+        /*
+         * `--rail-gap` starts at what the wide container's geometry gives (its 1216px
+         * ceiling, centred, with 3rem of padding either side) and is then replaced by the
+         * measured figure. Starting it at 0 made the server-rendered column 70px narrower
+         * than the hydrated one, and the whole results column reflowed, a page's height
+         * changing by hundreds of pixels, a moment after it first painted.
+         */
+        railed &&
+          'lg:relative lg:pr-[max(0px,calc(21rem-var(--rail-gap)))] lg:[--rail-gap:calc(max(0px,(100vw-1216px)/2)+3rem)]',
       )}
     >
       {children}
