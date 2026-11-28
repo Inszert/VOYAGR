@@ -9,6 +9,8 @@ import type {
   KiwiOffersRepository,
   KiwiOffersRow,
   RouteAggregatesRepository,
+  PriceAlertRecord,
+  PriceAlertRepository,
   RouteGraphEdge,
   RouteGraphRepository,
   LiteApiFlightsKey,
@@ -1968,6 +1970,69 @@ interface RouteAggregateDbRow {
   computed_at: Date | string;
 }
 
+interface PriceAlertDbRow {
+  id: string;
+  watch_id: string;
+  route_key: string;
+  observation_id: string;
+  notification_id: string | null;
+  currency: string;
+  new_minor: string | number;
+  median_minor: string | number;
+  created_at: Date | string;
+}
+
+function toPriceAlert(row: PriceAlertDbRow): PriceAlertRecord {
+  return {
+    id: row.id,
+    watchId: row.watch_id,
+    routeKey: row.route_key,
+    observationId: row.observation_id,
+    notificationId: row.notification_id,
+    currency: row.currency,
+    newMinor: Number(row.new_minor),
+    medianMinor: Number(row.median_minor),
+    createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+const PRICE_ALERT_COLUMNS = `id, watch_id, route_key, observation_id, notification_id, currency,
+                             new_minor, median_minor, created_at`;
+
+class PostgresPriceAlertRepository implements PriceAlertRepository {
+  async record(input: Omit<PriceAlertRecord, 'id'>): Promise<PriceAlertRecord | null> {
+    const rows = await query<PriceAlertDbRow>(
+      `INSERT INTO price_alerts
+         (watch_id, route_key, observation_id, notification_id, currency, new_minor,
+          median_minor, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (watch_id, observation_id) DO NOTHING
+       RETURNING ${PRICE_ALERT_COLUMNS}`,
+      [
+        input.watchId,
+        input.routeKey,
+        input.observationId,
+        input.notificationId,
+        input.currency,
+        input.newMinor,
+        input.medianMinor,
+        input.createdAt,
+      ],
+    );
+    return rows[0] ? toPriceAlert(rows[0]) : null;
+  }
+
+  async listForRoute(watchId: string, routeKey: string, limit = 50): Promise<PriceAlertRecord[]> {
+    const rows = await query<PriceAlertDbRow>(
+      `SELECT ${PRICE_ALERT_COLUMNS} FROM price_alerts
+        WHERE watch_id = $1 AND route_key = $2
+        ORDER BY created_at DESC LIMIT $3`,
+      [watchId, routeKey, limit],
+    );
+    return rows.map(toPriceAlert);
+  }
+}
+
 class PostgresRouteAggregatesRepository implements RouteAggregatesRepository {
   async write(aggregates: readonly RouteAggregate[]): Promise<void> {
     for (const a of aggregates) {
@@ -2429,6 +2494,7 @@ export function createPostgresRepositories(options: RepositoryOptions = {}): Rep
     kiwiOffers: new PostgresKiwiOffersRepository(),
     routeGraph: new PostgresRouteGraphRepository(),
     routeAggregates: new PostgresRouteAggregatesRepository(),
+    priceAlerts: new PostgresPriceAlertRepository(),
     visitorSearches: new PostgresVisitorSearchRepository(options.now ?? Date.now),
     users: new PostgresUserRepository(),
     credentials: new PostgresUserCredentialRepository(),

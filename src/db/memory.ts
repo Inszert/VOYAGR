@@ -16,6 +16,8 @@ import type {
   KiwiOffersRepository,
   KiwiOffersRow,
   RouteAggregatesRepository,
+  PriceAlertRecord,
+  PriceAlertRepository,
   RouteGraphEdge,
   RouteGraphRepository,
   LiteApiEnvironment,
@@ -1191,6 +1193,29 @@ class MemoryRouteGraphRepository implements RouteGraphRepository {
   }
 }
 
+class MemoryPriceAlertRepository implements PriceAlertRepository {
+  private readonly rows: PriceAlertRecord[] = [];
+
+  async record(input: Omit<PriceAlertRecord, 'id'>): Promise<PriceAlertRecord | null> {
+    if (
+      this.rows.some((r) => r.watchId === input.watchId && r.observationId === input.observationId)
+    ) {
+      return null;
+    }
+    const record: PriceAlertRecord = { ...input, id: randomUUID() };
+    this.rows.push(record);
+    return { ...record };
+  }
+
+  async listForRoute(watchId: string, routeKey: string, limit = 50): Promise<PriceAlertRecord[]> {
+    return this.rows
+      .filter((r) => r.watchId === watchId && r.routeKey === routeKey)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+}
+
 class MemoryRouteAggregatesRepository implements RouteAggregatesRepository {
   private readonly rows = new Map<string, RouteAggregate>();
 
@@ -1455,6 +1480,7 @@ export function createMemoryRepositories(options: RepositoryOptions = {}): Repos
     kiwiOffers,
     routeGraph: new MemoryRouteGraphRepository(),
     routeAggregates: new MemoryRouteAggregatesRepository(),
+    priceAlerts: new MemoryPriceAlertRepository(),
     visitorSearches,
     backend: 'memory',
   };

@@ -222,6 +222,20 @@ export interface NotificationRecord {
   readonly deliveredAt: IsoDateTime | null;
 }
 
+/** One raised price-drop alert; see `src/core/alerts`. */
+export interface PriceAlertRecord {
+  readonly id: string;
+  readonly watchId: string;
+  /** Route and month bucket, e.g. `VIE-LIS-2027-03`. */
+  readonly routeKey: string;
+  readonly observationId: string;
+  readonly notificationId: string | null;
+  readonly currency: string;
+  readonly newMinor: number;
+  readonly medianMinor: number;
+  readonly createdAt: IsoDateTime;
+}
+
 export interface PushSubscriptionRecord {
   readonly id: string;
   readonly userId: string;
@@ -494,6 +508,16 @@ export interface NotificationRepository {
    * backed by an actual delivery rather than by an attempt.
    */
   markDelivered(id: string, deliveredAt: IsoDateTime): Promise<void>;
+}
+
+export interface PriceAlertRepository {
+  /**
+   * Record an alert. Returns null, and writes nothing, when this watch already has an alert for
+   * the same observation id: an observation is never alerted twice, even under a race.
+   */
+  record(input: Omit<PriceAlertRecord, 'id'>): Promise<PriceAlertRecord | null>;
+  /** Alerts of one watch and route, newest first, at most `limit` (default 50). */
+  listForRoute(watchId: string, routeKey: string, limit?: number): Promise<PriceAlertRecord[]>;
 }
 
 export interface PushSubscriptionRepository {
@@ -904,6 +928,7 @@ export interface Repositories {
   readonly travelWatches: TravelWatchRepository;
   readonly priceHistory: PriceHistoryRepository;
   readonly notifications: NotificationRepository;
+  readonly priceAlerts: PriceAlertRepository;
   readonly pushSubscriptions: PushSubscriptionRepository;
   readonly providerRequests: ProviderRequestRepository;
   readonly trips: TripRepository;
