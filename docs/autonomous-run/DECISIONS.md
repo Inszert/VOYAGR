@@ -123,3 +123,10 @@ Each entry: the decision, why, and what would change it.
 - **Observer** (`src/watches/price-drop-observer.ts`): cheapest positive offer in the lookup currency, per route and departure month, into a `RouteObservationStore`; then every active watch whose saved search has that origin and destination gets `raisePriceDropAlert` (delivery: in-app, push channel when configured, email through the registry provider, console driver in dev). Registered in the provider registry for `kiwi-mcp`.
 - **Watches** come from `src/watches` records via a new `TravelWatchRepository.listActive()` (memory and Postgres; Postgres not run against a real database).
 - **Known limit.** The observation store is in process memory: a restart loses the baseline until five lookups accumulate again, and a multi-instance deployment keeps one baseline per instance. A durable table is a later slice. A watch matches a route by origin and destination only, not by its date window.
+
+## Slice 10: hub saving and recommendations on pages
+
+- **Hub line is storage-only.** `findHubSaving` reads `kiwi_offers` rows (same key the read path writes) for each candidate airport of the top result's route and dates; a row older than 12 h or with no price is "not priced", never guessed, and no priced candidate means no line. It issues no MCP call, so a candidate shows a price only if an earlier lookup stored it. Only the top-ranked trip's route is compared.
+- **EUR only.** The transfer estimate is EUR and there is no fx rate to convert it, so a search in another currency gets no line (a missing rate fails, per the fx rule).
+- **Home list**: the page renders `peek` (storage only); the client calls the `refreshRecommendations` server action, which runs `ensure`. The MCP client is created lazily on the first call (`lazyMcpClient`), so a render never constructs one. Origin is the first of the form defaults (VIE), window today+14 for 30 days, 3 to 7 nights, 1 adult.
+- A source-scan test asserts no `page.tsx`, `load-stage.ts` or `hub-saving.ts` imports the MCP client or Kiwi provider.

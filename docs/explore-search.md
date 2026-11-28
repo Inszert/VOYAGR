@@ -4,12 +4,12 @@ Observed on a local production build and on www.voyagrfind.com, 2026-11-17. Line
 
 ## Inputs and what each triggers
 
-| Input | Where | Server effect |
-| --- | --- | --- |
+| Input                                  | Where                                                                             | Server effect                                                                                                                                      |
+| -------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Origin(s), place(s), dates, travellers | `origins`, `destinations`, `departureDate`, `returnDate`, `passengers` in the URL | `loadStagePage` (`src/discovery/load-stage.ts:198`) parses the form and runs `runSearch` (line 226-234), cached 5 minutes by query and data source |
-| Flexibility | `flexibility` (default `plus-minus-3` from Discover) | widens the date windows priced |
-| Part weights | `PartWeightsControl` (`explore/page.tsx:345`) | re-orders "Best match" only; prices and scores do not change |
-| Sort, filters, picked date | `fSort`, `f*`, `fDates` | none; applied to the cached outcome in `search-results.tsx:132-137` |
+| Flexibility                            | `flexibility` (default `plus-minus-3` from Discover)                              | widens the date windows priced                                                                                                                     |
+| Part weights                           | `PartWeightsControl` (`explore/page.tsx:345`)                                     | re-orders "Best match" only; prices and scores do not change                                                                                       |
+| Sort, filters, picked date             | `fSort`, `f*`, `fDates`                                                           | none; applied to the cached outcome in `search-results.tsx:132-137`                                                                                |
 
 A search exists only if `origins` is in the URL (`wasSubmitted`, line 138). `/explore` with no query shows no form: just a "Start a search on Discover" link (`explore/page.tsx:368-376`) and the destination rail. The search form lives on Discover (`/`).
 
@@ -42,10 +42,11 @@ The big picture is a real MapLibre canvas (`globe-stage.tsx:701-714`), globe by 
 ## Return step shows one option
 
 In the price calendar, choosing a leaving day shows exactly one return day (`price-calendar.tsx:391`, filter at 369, grouping at 371). Reproduced locally and live: 2 Dec to 10 Dec only, 3 Dec to 10 Dec, 5 Dec to 8 Dec, 7 Dec to 10 Dec, 11 Dec to 13 Dec; one each. Cause is the data, not the calendar:
+
 - The server keeps one fare per departure day: `keepCheapest` (`src/search/day-prices.ts:182`), used by `cheapestPerDay` (201-224) and `mergeDayFares` (248).
 - The page maps that to one option per departure (`price-calendar.tsx:302-321`).
 - The search's own options are one per sampled date pair.
-The calendar would list several returns if `options` held several for a departure. It does not.
+  The calendar would list several returns if `options` held several for a departure. It does not.
 
 ## Also fly from
 
@@ -55,15 +56,15 @@ The calendar would list several returns if `options` held several for a departur
 
 ## Symptom table
 
-| Symptom | Reproduced? | Cause |
-| --- | --- | --- |
+| Symptom                                       | Reproduced?                    | Cause                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Place search shows nothing until a date click | Yes, in the /explore edit form | `choose()` re-focuses the field (`airport-input.tsx:155-158`), and `settled()` refuses while a combobox has focus (`live-search.tsx:91-98`). Tab or Enter-to-pick never applies; only a later blur does (`:192-193`). Slow searches add a dimmed wait. Discover's submit works at once. |
-| No filter | Partly | Hidden in a closed disclosure, only when trips exist (`search-results.tsx:288`) |
-| Map is not a map | Yes for What to see | SVG plan, `places-map.tsx`. The globe is a real map. |
-| No prices | No | Prices present local and live; empty only in the no-search rail locally |
-| No sort | No | `search-results.tsx:249`; low in the page |
-| One return option | Yes | `day-prices.ts:182` |
-| Nearby airports | Panel yes, cheapest no | `search-results.tsx:313` |
+| No filter                                     | Partly                         | Hidden in a closed disclosure, only when trips exist (`search-results.tsx:288`)                                                                                                                                                                                                         |
+| Map is not a map                              | Yes for What to see            | SVG plan, `places-map.tsx`. The globe is a real map.                                                                                                                                                                                                                                    |
+| No prices                                     | No                             | Prices present local and live; empty only in the no-search rail locally                                                                                                                                                                                                                 |
+| No sort                                       | No                             | `search-results.tsx:249`; low in the page                                                                                                                                                                                                                                               |
+| One return option                             | Yes                            | `day-prices.ts:182`                                                                                                                                                                                                                                                                     |
+| Nearby airports                               | Panel yes, cheapest no         | `search-results.tsx:313`                                                                                                                                                                                                                                                                |
 
 ## Console and network
 

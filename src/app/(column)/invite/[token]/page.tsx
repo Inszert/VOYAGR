@@ -66,10 +66,16 @@ export default async function InvitePage({
             You have been invited to a trip. Sign in or create an account to join it.
           </p>
           <div className="flex flex-wrap gap-4 text-sm">
-            <Link href={`/sign-in?next=${nextPath}`} className="text-brand-ink underline underline-offset-4">
+            <Link
+              href={`/sign-in?next=${nextPath}`}
+              className="text-brand-ink underline underline-offset-4"
+            >
               Sign in
             </Link>
-            <Link href={`/sign-up?next=${nextPath}`} className="text-brand-ink underline underline-offset-4">
+            <Link
+              href={`/sign-up?next=${nextPath}`}
+              className="text-brand-ink underline underline-offset-4"
+            >
               Create an account
             </Link>
           </div>
