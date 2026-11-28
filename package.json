@@ -36,6 +36,7 @@
     "devmap:update": "node scripts/update-devmap.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "bullmq": "^6.3.7",
     "ioredis": "^6.0.0",
     "maplibre-gl": "^6.10.0",
